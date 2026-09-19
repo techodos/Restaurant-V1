@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-label="Bella Napoli">
+  <rect width="320" height="96" rx="14" fill="#1F2933"/>
+  <g transform="translate(14 12)">
+    <circle cx="36" cy="36" r="34" fill="none" stroke="#E8B04B" stroke-width="2.5"/>
+    <path d="M36 10c14 0 26 12 26 26S50 62 36 62 10 50 10 36 22 10 36 10Z" fill="#C8102E"/>
+    <path d="M36 10c14 0 26 12 26 26 0 4-1 8-3 11L23 18a25.9 25.9 0 0 1 13-8Z" fill="#F5F1E8"/>
+    <circle cx="30" cy="30" r="4.2" fill="#C8102E"/>
+    <circle cx="43" cy="41" r="4.2" fill="#C8102E"/>
+    <circle cx="28" cy="46" r="3.4" fill="#C8102E"/>
+    <path d="M25 20c6 3 12 7 17 12" stroke="#3F7D3F" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  </g>
+  <text x="98" y="45" fill="#F5F1E8" font-family="Georgia, 'Times New Roman', serif" font-size="27" letter-spacing="0.6">Bella Napoli</text>
+  <text x="99" y="65" fill="#E8B04B" font-family="Helvetica, Arial, sans-serif" font-size="9.5" letter-spacing="3.4">PIZZERIA · LAHORE</text>
+</svg>

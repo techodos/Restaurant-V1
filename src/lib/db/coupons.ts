@@ -26,6 +26,19 @@ export async function getCouponByCode(
   return row ? mapCoupon(row) : null;
 }
 
+/**
+ * Coupon lookup for a guest's own cart. Coupons are commercial data (usage
+ * limits, discount caps), so they are never readable from the storefront role —
+ * this runs on the privileged server-side connection and returns only what the
+ * pricing engine needs.
+ */
+export async function getCouponById(couponId: string, ctx: RequestContext = {}): Promise<Coupon | null> {
+  const row = await getDb().write(ctx, async (tx) =>
+    tx.queryOne<Row>(`select * from coupons where id = $1 limit 1`, [couponId]),
+  );
+  return row ? mapCoupon(row) : null;
+}
+
 export function toCouponPricing(coupon: Coupon): CouponPricing {
   return {
     id: coupon.id,

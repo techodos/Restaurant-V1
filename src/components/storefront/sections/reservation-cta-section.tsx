@@ -1,0 +1,48 @@
+import Image from "next/image";
+import type { StorefrontContext } from "@/lib/contract/models";
+import type { ReservationCtaSection as ReservationConfig } from "@/lib/contract/sections";
+import { resolveImage } from "@/lib/media";
+import { CtaLink } from "../cta-link";
+
+export function ReservationCtaSection({
+  section,
+  context,
+}: {
+  section: ReservationConfig;
+  context: StorefrontContext;
+}) {
+  const image = resolveImage(section.image?.url);
+  const phone = section.phoneLabel ? context.restaurant.phone : null;
+
+  return (
+    <section className="container-page py-6">
+      <div className="relative overflow-hidden rounded-[var(--radius-brand)] bg-[var(--color-brand-secondary)] text-white">
+        {image ? (
+          <>
+            <Image src={image} alt="" fill sizes="100vw" className="-z-10 object-cover opacity-45" />
+            <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/45 to-black/20" />
+          </>
+        ) : null}
+        <div className="relative flex flex-col gap-5 p-8 md:flex-row md:items-center md:justify-between md:p-12">
+          <div className="max-w-xl">
+            <h2 className="text-balance text-3xl font-semibold md:text-4xl">{section.title}</h2>
+            {section.subtitle ? <p className="mt-3 text-white/85">{section.subtitle}</p> : null}
+            {phone ? (
+              <p className="mt-4 text-sm text-white/80">
+                {section.phoneLabel}{" "}
+                <a href={`tel:${phone.replace(/\s+/g, "")}`} className="font-semibold underline underline-offset-4">
+                  {phone}
+                </a>
+              </p>
+            ) : null}
+          </div>
+          {section.cta ? (
+            <div className="shrink-0">
+              <CtaLink cta={section.cta} size="lg" />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}

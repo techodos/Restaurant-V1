@@ -206,6 +206,7 @@ export const sectionSchema = z.discriminatedUnion("type", [
 export type Section = z.infer<typeof sectionSchema>;
 export type SectionType = Section["type"];
 export type HeroSection = z.infer<typeof heroSectionSchema>;
+export type AnnouncementSection = z.infer<typeof announcementSectionSchema>;
 export type FeaturedItemsSection = z.infer<typeof featuredItemsSectionSchema>;
 export type AboutSection = z.infer<typeof aboutSectionSchema>;
 export type GallerySection = z.infer<typeof gallerySectionSchema>;

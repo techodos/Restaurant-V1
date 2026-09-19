@@ -1,0 +1,78 @@
+import type { Section } from "@/lib/contract/sections";
+import { parseSections } from "@/lib/contract/sections";
+import { AnnouncementSection } from "./sections/announcement-section";
+import { AboutSection } from "./sections/about-section";
+import { ContactSection } from "./sections/contact-section";
+import { CtaSection } from "./sections/cta-section";
+import { FeaturedItemsSection } from "./sections/featured-items-section";
+import { GallerySection } from "./sections/gallery-section";
+import { HeroSection } from "./sections/hero-section";
+import { LocationsSection } from "./sections/locations-section";
+import { MenuCategoriesSection } from "./sections/menu-categories-section";
+import { MenuPreviewSection } from "./sections/menu-preview-section";
+import { OrderTypeSwitchSection } from "./sections/order-type-switch-section";
+import { ReservationCtaSection } from "./sections/reservation-cta-section";
+import { ReviewsSection } from "./sections/reviews-section";
+import { RichTextSection } from "./sections/rich-text-section";
+import { WhyChooseUsSection } from "./sections/why-choose-us-section";
+import type { StorefrontContext } from "@/lib/contract/models";
+
+/**
+ * Website pages are stored as `sections` JSONB. This is the only place that
+ * turns those rows into UI:
+ *  - parsing is defensive (unknown types and malformed config are dropped,
+ *    never thrown), so a bad edit made in the admin UI cannot break the site;
+ *  - sections rendered here are Server Components that read their own data,
+ *    so the page pays only for the sections it actually has.
+ */
+
+const RENDERERS: Record<Section["type"], (props: { section: never; context: StorefrontContext }) => React.ReactNode> = {
+  hero: HeroSection as never,
+  announcement: AnnouncementSection as never,
+  featured_items: FeaturedItemsSection as never,
+  menu_categories: MenuCategoriesSection as never,
+  menu_preview: MenuPreviewSection as never,
+  about: AboutSection as never,
+  gallery: GallerySection as never,
+  why_choose_us: WhyChooseUsSection as never,
+  reviews: ReviewsSection as never,
+  reservation_cta: ReservationCtaSection as never,
+  locations: LocationsSection as never,
+  contact: ContactSection as never,
+  cta: CtaSection as never,
+  rich_text: RichTextSection as never,
+  order_type_switch: OrderTypeSwitchSection as never,
+};
+
+export interface SectionRendererProps {
+  context: StorefrontContext;
+  /** raw JSONB from website_pages.sections */
+  sections: unknown;
+  /** section types to render; defaults to every section present */
+  only?: Section["type"][];
+  skip?: Section["type"][];
+}
+
+export function SectionRenderer({ context, sections, only, skip }: SectionRendererProps) {
+  const parsed = parseSections(sections);
+  const visible = parsed.filter((section) => {
+    if (!section.enabled) return false;
+    if (only && !only.includes(section.type)) return false;
+    if (skip && skip.includes(section.type)) return false;
+    return true;
+  });
+
+  return (
+    <>
+      {visible.map((section, index) => {
+        const Renderer = RENDERERS[section.type];
+        if (!Renderer) return null;
+        return (
+          <div key={`${section.type}-${index}`} className="animate-rise">
+            <Renderer section={section as never} context={context} />
+          </div>
+        );
+      })}
+    </>
+  );
+}

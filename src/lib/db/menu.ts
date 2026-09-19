@@ -30,6 +30,8 @@ export interface MenuListFilters {
   availableOnly?: boolean;
   includeInactive?: boolean;
   ids?: string[];
+  /** storefront sections address menu items by slug */
+  slugs?: string[];
   excludeIds?: string[];
   dietaryTags?: string[];
   limit?: number;
@@ -107,6 +109,10 @@ export async function listMenuItems(
   if (filters.ids?.length) {
     params.push(filters.ids);
     conditions.push(`mi.id = any($${params.length}::uuid[])`);
+  }
+  if (filters.slugs?.length) {
+    params.push(filters.slugs);
+    conditions.push(`mi.slug = any($${params.length}::text[])`);
   }
   if (filters.excludeIds?.length) {
     params.push(filters.excludeIds);

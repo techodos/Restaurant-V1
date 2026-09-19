@@ -13,7 +13,9 @@
     "db:reset": "node --env-file=.env.local scripts/db/migrate.mjs --fresh && tsx scripts/db/seed.ts",
     "db:verify": "tsx scripts/db/verify.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:verify:test": "VERIFY_DATABASE_URL=postgresql://app_runtime:app_runtime@localhost:5432/restaurant_platform_test VERIFY_DATABASE_URL_SERVICE=postgresql://app_service:app_service@localhost:5432/restaurant_platform_test VERIFY_DATABASE_URL_MIGRATOR=postgresql://app_owner:app_owner@localhost:5432/restaurant_platform_test tsx scripts/db/verify.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -46,6 +48,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.1",
     "@types/pg": "^8.11.10",
