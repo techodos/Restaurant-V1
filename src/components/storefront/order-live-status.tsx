@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { OrderStatusBadge } from "./order-status-badge";
-import type { OrderStatus } from "@/lib/contract/enums";
+import type { OrderStatus } from "@/shared/contract/enums";
 
 /**
  * Order tracking stays honest without websockets: while the order is still in

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
 
 export const inputStyles =
   "flex h-11 w-full rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 py-2 text-sm text-[var(--color-ink)] shadow-inner transition-colors placeholder:text-[var(--color-muted-ink)] focus:border-[var(--color-brand)] focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-brand)] disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-red-500";

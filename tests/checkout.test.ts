@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { addItemToCart, clearCart, getOrCreateCart, resolveItemSelection, updateCartItemQuantity } from "../src/lib/db/carts";
-import { createOrder } from "../src/lib/db/orders";
-import { getMenuItem } from "../src/lib/db/menu";
-import { getOrderById, updateOrderStatus } from "../src/lib/db/orders";
+import { addItemToCart, clearCart, getOrCreateCart, resolveItemSelection, updateCartItemQuantity } from "@/server/repositories/carts";
+import { createOrder } from "@/server/repositories/orders";
+import { getMenuItem } from "@/server/repositories/menu";
+import { getOrderById, updateOrderStatus } from "@/server/repositories/orders";
 import { ANON, BELLA, cartContext, newCartToken, testDatabase } from "./helpers/db";
-import type { MenuItem } from "../src/lib/contract/models";
+import type { MenuItem } from "@/shared/contract/models";
 
 const restaurantId = BELLA.restaurantId;
 const timezone = "Asia/Karachi";

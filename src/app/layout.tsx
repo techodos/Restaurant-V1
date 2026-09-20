@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "sonner";
+import { config } from "@/server/config";
 import "./globals.css";
 
 const bodyFont = Inter({ subsets: ["latin"], variable: "--font-sans-fallback", display: "swap" });
 const displayFont = Playfair_Display({ subsets: ["latin"], variable: "--font-display-fallback", display: "swap" });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = config.app.siteUrl;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

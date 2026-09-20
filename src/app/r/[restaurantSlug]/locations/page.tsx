@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
-import { listLocations } from "@/lib/db/restaurants";
-import { listDeliveryZones } from "@/lib/db/deliveries";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { formatHours, zonedNow } from "@/lib/hours";
-import { breadcrumbJsonLd, restaurantJsonLd } from "@/lib/seo";
+import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { formatHours, zonedNow } from "@/shared/hours";
+import { breadcrumbJsonLd, restaurantJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getDeliveryZones, getLocations } from "@/server/services/restaurants";
 
 interface LocationsPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -34,17 +31,12 @@ export async function generateMetadata({ params }: LocationsPageProps): Promise<
 export default async function LocationsPage({ params }: LocationsPageProps) {
   const { restaurantSlug } = await params;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const { restaurant } = context;
   const [allLocations, zones] = await Promise.all([
-    listLocations(restaurant.id, EMPTY_CONTEXT),
-    listDeliveryZones(restaurant.id, EMPTY_CONTEXT, { activeOnly: true }),
+    getLocations(restaurant.id),
+    getDeliveryZones(restaurant.id, { activeOnly: true }),
   ]);
   const locations = allLocations.filter((location) => location.isActive);
   const today = zonedNow(new Date(), restaurant.timezone).dayKey;

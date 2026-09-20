@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
+import { enabledOrderTypes } from "@/shared/ordering";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Search } from "lucide-react";
-import { listCategories, listMenuItems } from "@/lib/db/menu";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/lib/contract/enums";
-import { getStorefrontContext } from "@/lib/services/storefront";
+import { ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
+import { getStorefrontContext, requireStorefront } from "@/web/storefront";
 import { MenuItemCard } from "@/components/storefront/menu-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { breadcrumbJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
+import { getMenuCategories, searchMenu } from "@/server/services/catalog";
 
 interface MenuPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -40,12 +39,7 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
   const { restaurantSlug } = await params;
   const { category, q, orderType, sort } = await searchParams;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const { restaurant } = context;
   const activeOrderType: OrderType = ORDER_TYPES.includes(orderType as OrderType)
@@ -54,17 +48,13 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
   const search = (q ?? "").trim();
 
   const [categories, items] = await Promise.all([
-    listCategories(restaurant.id, EMPTY_CONTEXT, { withCounts: true }),
-    listMenuItems(
-      restaurant.id,
-      {
+    getMenuCategories(restaurant.id, { withCounts: true }),
+    searchMenu(restaurant.id, {
         ...(category ? { categorySlug: category } : {}),
         ...(search ? { search } : {}),
         orderBy: sort === "price_asc" ? "price_asc" : sort === "price_desc" ? "price_desc" : "menu",
         limit: 200,
-      },
-      EMPTY_CONTEXT,
-    ),
+      }),
   ]);
 
   const grouped = categories
@@ -121,9 +111,7 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-ink)]">Ordering</span>
-        {ORDER_TYPES.filter((type) =>
-          type === "delivery" ? restaurant.features.delivery : type === "pickup" ? restaurant.features.pickup : restaurant.features.dineIn,
-        ).map((type) => (
+        {enabledOrderTypes(restaurant.features).map((type) => (
           <Link
             key={type}
             href={`/r/${restaurant.slug}/menu?orderType=${type}${category ? `&category=${category}` : ""}${search ? `&q=${encodeURIComponent(search)}` : ""}`}

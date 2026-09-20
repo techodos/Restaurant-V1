@@ -1,16 +1,15 @@
 import Link from "next/link";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { ReviewsSection as ReviewsConfig } from "@/lib/contract/sections";
-import { getRatingBreakdown, listPublicReviews } from "@/lib/db/reviews";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { RatingStars } from "../rating-stars";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { ReviewsSection as ReviewsConfig } from "@/shared/contract/sections";
+import { RatingStars } from "@/components/storefront/rating-stars";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
+import { getPublicReviews, getReviewSummary } from "@/server/services/reviews";
 
 export async function ReviewsSection({ section, context }: { section: ReviewsConfig; context: StorefrontContext }) {
   const [reviews, breakdown] = await Promise.all([
-    listPublicReviews(context.restaurant.id, { limit: section.limit }, EMPTY_CONTEXT),
-    getRatingBreakdown(context.restaurant.id, EMPTY_CONTEXT),
+    getPublicReviews(context.restaurant.id, { limit: section.limit }),
+    getReviewSummary(context.restaurant.id),
   ]);
 
   if (!reviews.length) return null;

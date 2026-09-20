@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
 
 export function Skeleton({ className }: { className?: string }) {
   return <span aria-hidden className={cn("block rounded-[calc(var(--radius-brand)/2)] skeleton-shimmer", className)} />;

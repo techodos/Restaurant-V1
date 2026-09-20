@@ -1,14 +1,13 @@
 import { Clock, MapPin, Phone } from "lucide-react";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { listLocations } from "@/lib/db/restaurants";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { LocationsSection as LocationsConfig } from "@/lib/contract/sections";
-import { formatHours, zonedNow } from "@/lib/hours";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { LocationsSection as LocationsConfig } from "@/shared/contract/sections";
+import { formatHours, zonedNow } from "@/shared/hours";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
+import { getLocations } from "@/server/services/restaurants";
 
 export async function LocationsSection({ section, context }: { section: LocationsConfig; context: StorefrontContext }) {
-  const locations = (await listLocations(context.restaurant.id, EMPTY_CONTEXT))
+  const locations = (await getLocations(context.restaurant.id))
     .filter((location) => location.isActive)
     .slice(0, section.limit);
 

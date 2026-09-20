@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Input, Label, Textarea } from "@/components/ui/input";
 import { submitReviewAction } from "@/app/r/[restaurantSlug]/reviews/actions";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/utils";
 
 interface ReviewFormProps {
   restaurantSlug: string;

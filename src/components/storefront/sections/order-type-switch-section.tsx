@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { enabledOrderTypes } from "@/shared/ordering";
 import { ShoppingBag, Store, UtensilsCrossed } from "lucide-react";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { OrderTypeSwitchSection as SwitchConfig } from "@/lib/contract/sections";
-import { ORDER_TYPE_LABELS, type OrderType } from "@/lib/contract/enums";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { OrderTypeSwitchSection as SwitchConfig } from "@/shared/contract/sections";
+import { ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
 
 const ICONS: Record<OrderType, typeof ShoppingBag> = {
   delivery: ShoppingBag,
@@ -30,11 +31,7 @@ export function OrderTypeSwitchSection({
   context: StorefrontContext;
 }) {
   const features = context.restaurant.features;
-  const options = section.orderTypes.filter((type) => {
-    if (type === "delivery") return features.delivery;
-    if (type === "pickup") return features.pickup;
-    return features.dineIn;
-  });
+  const options = enabledOrderTypes(features, section.orderTypes);
 
   if (!options.length) return null;
 

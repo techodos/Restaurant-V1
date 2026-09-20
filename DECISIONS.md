@@ -10,7 +10,7 @@ reversed — superseded decisions say so explicitly.
 
 **Decision.** `db/migrations/*.sql` is the single source of truth for the schema,
 applied by `scripts/db/migrate.mjs` (checksummed, forward-only). The application
-talks to Postgres with `pg` through `src/lib/db/*`; there is no Prisma client and
+talks to Postgres with `pg` through `src/server/repositories/*`; there is no Prisma client and
 no generated migration layer.
 
 **Why.** The specification asked for PostgreSQL + Supabase + RLS + JSONB-heavy
@@ -19,9 +19,9 @@ role grants are the core of that design and cannot be expressed faithfully
 through an ORM's DSL — half the guarantees would have to be hand-written SQL
 anyway, leaving two sources of truth.
 
-**Consequences.** Every access path goes through `src/lib/db/*`, which maps
+**Consequences.** Every access path goes through `src/server/repositories/*`, which maps
 snake_case rows to the typed contract; `numeric` columns are always read as
-strings and handled by `src/lib/money.ts` (never floats).
+strings and handled by `src/shared/money.ts` (never floats).
 
 ---
 
@@ -36,7 +36,7 @@ Supabase would use.
 must stay portable: the same migrations can be replayed onto a hosted Supabase
 project without edits.
 
-**Consequences.** Auth is implemented in `src/lib/auth` with the same session
+**Consequences.** Auth is implemented in `src/server/auth` with the same session
 semantics Supabase Auth would provide (JWT in an httpOnly cookie, `sub` = user
 id). Swapping in `@supabase/ssr` later means replacing the session adapter, not
 the authorisation model.
@@ -68,7 +68,7 @@ cannot leak another tenant's data.
 
 ## 4. Tenancy is carried per transaction, never per connection
 
-**Decision.** `src/lib/db/pool.ts` opens a transaction per unit of work and calls
+**Decision.** `src/server/db/database.ts` opens a transaction per unit of work and calls
 `set_config('app.current_user_id' | 'app.current_restaurant_id' |
 'app.current_customer_id' | 'app.current_cart_token' | 'app.current_actor', …,
 true)` inside it. RLS policies read those values through `app.current_user_id()`
@@ -86,7 +86,7 @@ zone reads inside the same transaction it writes the order in.
 ## 5. One permission catalogue, two implementations, one test
 
 **Decision.** Permissions are defined once per consumer: `app.role_permissions()`
-in SQL (used by RLS policies) and `src/lib/rbac.ts` in TypeScript (used by server
+in SQL (used by RLS policies) and `src/server/auth/permissions.ts` in TypeScript (used by server
 routes and UI gating). `tests/rbac.test.ts` compares them role by role and fails
 on drift.
 
@@ -94,7 +94,7 @@ on drift.
 call SQL per render. Duplication is unavoidable; unchecked duplication is not.
 
 **Consequences.** Adding a permission means touching three places: the SQL
-function (new migration), `src/lib/rbac.ts`, and the RBAC test will confirm them.
+function (new migration), `src/server/auth/permissions.ts`, and the RBAC test will confirm them.
 
 ---
 
@@ -115,7 +115,7 @@ that converts money to `number` for formatting must do it in a formatter only
 
 ## 7. One pricing engine, used by cart, checkout, seed and verify
 
-**Decision.** `src/lib/pricing.ts` computes line totals, subtotal, coupon
+**Decision.** `src/server/domain/pricing.ts` computes line totals, subtotal, coupon
 discount, delivery fee, free-delivery waiver, minimum-order check, service fee,
 tax (inclusive and exclusive) and tip. `createOrder` re-runs it from scratch
 against the live menu; the seed script uses the same function so seeded orders
@@ -145,7 +145,7 @@ only (`buildOrderTimeline`).
 **Why.** Status logic scattered across screens is how orders end up completed
 twice or revived after cancellation.
 
-**Consequences.** UI keeps status labels/colours in `src/lib/contract/enums.ts`;
+**Consequences.** UI keeps status labels/colours in `src/shared/contract/enums.ts`;
 no screen decides transitions on its own.
 
 ---
@@ -169,7 +169,7 @@ customer traffic always goes through the unprivileged role.
 ## 10. Guest access is proven with the cart token, not with elevation
 
 **Decision.** Guest checkout and guest order tracking are privileged operations
-handled server-side (`src/lib/db/orders.ts` `createOrder`, plus the RLS policies
+handled server-side (`src/server/repositories/orders.ts` `createOrder`, plus the RLS policies
 in `0008`/`0009` and the `app.order_belongs_to_cart()` helper). A guest reads
 their order back only with the cart cookie that placed it. Reservation lookup
 requires the confirmation code **and** the phone on the booking
@@ -264,3 +264,31 @@ privileges, seed presence, arithmetic stored on real orders, and orphan checks.
   `.uploads/` served through `/api/media/[...path]`.
 * **Realtime.** Order tracking polls through authenticated route handlers; no
   websocket channel is used.
+
+---
+
+## 16. Layered layout: `app → web → server/services → repositories → db`
+
+**Decision.** Code lives in `src/server` (framework-free backend core: config, db,
+repositories, services, domain, auth, validation, integrations), `src/shared`
+(isomorphic contract and pure helpers), `src/web` (Next.js adapters: cookies,
+request cache, `notFound()`, theme CSS) and `src/app` + `src/components` (UI).
+Supersedes the flat `src/lib/*` layout referenced in §1–§10; those sections now point
+at the new paths. Full map and rules: `docs/ARCHITECTURE.md`.
+
+**Why.** The backend may be hosted separately and each restaurant may get its own
+database later. Both require business logic that does not import Next.js and a single
+place that decides which database serves a restaurant.
+
+**Consequences.**
+* `getDb(scope)` → `DatabaseDirectory` → `DatabaseManager` replaces the `getDb()`
+  singleton. Today one directory entry serves everyone; per-restaurant databases are
+  a new directory implementation (see docs), not a rewrite.
+* `process.env` is read only in `src/server/config`; sections validate lazily.
+* Pages, components and server actions call services, never repositories; enforced by
+  `tests/architecture.test.ts`.
+* `getRestaurantBySlug` no longer converts database errors into "not found"; a database
+  outage renders the error boundary instead of a 404.
+* Order tracking and review-by-order now pass the visitor's cart token / customer to the
+  read (§10 requires it; the previous calls passed an empty context and could never
+  match a guest's order under RLS).

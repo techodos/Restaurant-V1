@@ -1,6 +1,6 @@
-import type { RichTextSection as RichTextConfig } from "@/lib/contract/sections";
-import { SectionShell } from "../section-shell";
-import { SectionHeading } from "../section-heading";
+import type { RichTextSection as RichTextConfig } from "@/shared/contract/sections";
+import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionHeading } from "@/components/storefront/section-heading";
 
 export function RichTextSection({ section }: { section: RichTextConfig }) {
   const paragraphs = section.body.split(/\n{2,}/).filter((paragraph) => paragraph.trim().length > 0);

@@ -1,7 +1,7 @@
-import type { WhyChooseUsSection as WhyConfig } from "@/lib/contract/sections";
-import { SectionHeading } from "../section-heading";
-import { SectionIcon } from "../icon";
-import { SectionShell } from "../section-shell";
+import type { WhyChooseUsSection as WhyConfig } from "@/shared/contract/sections";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionIcon } from "@/components/storefront/icon";
+import { SectionShell } from "@/components/storefront/section-shell";
 
 export function WhyChooseUsSection({ section }: { section: WhyConfig }) {
   if (!section.items.length) return null;

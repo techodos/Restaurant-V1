@@ -1,11 +1,10 @@
 import Link from "next/link";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { MenuPreviewSection as PreviewConfig } from "@/lib/contract/sections";
-import { listMenuItems } from "@/lib/db/menu";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { MenuItemCard } from "../menu-item-card";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { MenuPreviewSection as PreviewConfig } from "@/shared/contract/sections";
+import { MenuItemCard } from "@/components/storefront/menu-item-card";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
+import { searchMenu } from "@/server/services/catalog";
 
 export async function MenuPreviewSection({
   section,
@@ -14,16 +13,12 @@ export async function MenuPreviewSection({
   section: PreviewConfig;
   context: StorefrontContext;
 }) {
-  const items = await listMenuItems(
-    context.restaurant.id,
-    {
+  const items = await searchMenu(context.restaurant.id, {
       ...(section.itemSlugs.length ? { slugs: section.itemSlugs } : {}),
       ...(section.categorySlug ? { categorySlug: section.categorySlug } : {}),
       limit: section.limit,
       orderBy: section.itemSlugs.length ? "menu" : "popularity",
-    },
-    EMPTY_CONTEXT,
-  );
+    });
 
   if (!items.length) return null;
   const ordered = section.itemSlugs.length

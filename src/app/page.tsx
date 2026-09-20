@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { config } from "@/server/config";
 
 /**
  * The platform root has no content of its own: each restaurant lives at
@@ -6,6 +7,6 @@ import { redirect } from "next/navigation";
  * until then the default restaurant answers here.
  */
 export default function RootPage() {
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT ?? "bella-napoli";
+  const slug = config.app.defaultRestaurantSlug;
   redirect(`/r/${slug}`);
 }

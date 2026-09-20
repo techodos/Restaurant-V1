@@ -1,13 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { MenuCategoriesSection as CategoriesConfig } from "@/lib/contract/sections";
-import { listCategories } from "@/lib/db/menu";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { resolveImage } from "@/lib/media";
-import { SectionIcon } from "../icon";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { MenuCategoriesSection as CategoriesConfig } from "@/shared/contract/sections";
+import { resolveImage } from "@/web/media";
+import { SectionIcon } from "@/components/storefront/icon";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
+import { getMenuCategories } from "@/server/services/catalog";
 
 export async function MenuCategoriesSection({
   section,
@@ -16,7 +15,7 @@ export async function MenuCategoriesSection({
   section: CategoriesConfig;
   context: StorefrontContext;
 }) {
-  const categories = (await listCategories(context.restaurant.id, EMPTY_CONTEXT, { withCounts: true })).slice(
+  const categories = (await getMenuCategories(context.restaurant.id, { withCounts: true })).slice(
     0,
     section.limit,
   );

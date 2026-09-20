@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { PERMISSIONS, ROLE_PERMISSIONS, can, effectivePermissions } from "../src/lib/rbac";
-import { TEAM_ROLES, type TeamRole } from "../src/lib/contract/enums";
+import { PERMISSIONS, ROLE_PERMISSIONS, can, effectivePermissions } from "@/server/auth/permissions";
+import { TEAM_ROLES, type TeamRole } from "@/shared/contract/enums";
 import { testDatabase } from "./helpers/db";
 
 afterAll(async () => {

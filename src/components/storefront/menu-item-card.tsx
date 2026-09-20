@@ -2,9 +2,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { formatMoney } from "@/lib/money";
-import { resolveMenuImage } from "@/lib/media";
-import type { MenuItemSummary } from "@/lib/contract/models";
+import { formatMoney } from "@/shared/money";
+import { resolveMenuImage } from "@/web/media";
+import type { MenuItemSummary } from "@/shared/contract/models";
 import { QuickAddButton } from "./quick-add-button";
 
 interface MenuItemCardProps {

@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { placeOrderAction } from "@/app/r/[restaurantSlug]/checkout/actions";
-import { PAYMENT_METHOD_LABELS, type OrderType, type PaymentMethod } from "@/lib/contract/enums";
-import { formatMoney } from "@/lib/money";
-import type { DeliveryZone } from "@/lib/contract/models";
+import { PAYMENT_METHOD_LABELS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { formatMoney } from "@/shared/money";
+import type { DeliveryZone } from "@/shared/contract/models";
 
 export interface CheckoutPricing {
   subtotal: string;

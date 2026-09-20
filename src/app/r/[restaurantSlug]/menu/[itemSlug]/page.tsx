@@ -3,17 +3,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, Flame, Info } from "lucide-react";
-import { getMenuItem, listMenuItems } from "@/lib/db/menu";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { ORDER_TYPES, type OrderType } from "@/lib/contract/enums";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { resolveMenuImage } from "@/lib/media";
-import { formatMoney } from "@/lib/money";
-import { breadcrumbJsonLd, menuItemJsonLd } from "@/lib/seo";
+import { ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
+import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { resolveMenuImage } from "@/web/media";
+import { formatMoney } from "@/shared/money";
+import { breadcrumbJsonLd, menuItemJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { ItemCustomizer } from "@/components/storefront/item-customizer";
 import { MenuItemCard } from "@/components/storefront/menu-item-card";
 import { Badge } from "@/components/ui/badge";
+import { findMenuItemBySlug, searchMenu } from "@/server/services/catalog";
 
 interface ItemPageProps {
   params: Promise<{ restaurantSlug: string; itemSlug: string }>;
@@ -26,7 +25,7 @@ export async function generateMetadata({ params }: ItemPageProps): Promise<Metad
   const { restaurantSlug, itemSlug } = await params;
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
-    const item = await getMenuItem(restaurant.id, { slug: itemSlug }, EMPTY_CONTEXT, { includeUnavailable: true });
+    const item = await findMenuItemBySlug(restaurant.id, itemSlug);
     if (!item) return { title: "Item not found" };
     return {
       title: item.name,
@@ -47,15 +46,10 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
   const { restaurantSlug, itemSlug } = await params;
   const { orderType } = await searchParams;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const { restaurant } = context;
-  const item = await getMenuItem(restaurant.id, { slug: itemSlug }, EMPTY_CONTEXT, { includeUnavailable: true });
+  const item = await findMenuItemBySlug(restaurant.id, itemSlug);
   if (!item || !item.isActive) notFound();
 
   const activeOrderType: OrderType = ORDER_TYPES.includes(orderType as OrderType)
@@ -63,7 +57,7 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
     : context.config.ordering.defaultOrderType;
 
   const related = (
-    await listMenuItems(restaurant.id, { excludeIds: [item.id], limit: 4 }, EMPTY_CONTEXT)
+    await searchMenu(restaurant.id, { excludeIds: [item.id], limit: 4 })
   ).slice(0, 3);
 
   const image = resolveMenuImage(item.imageUrl, null);

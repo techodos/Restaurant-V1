@@ -1,8 +1,8 @@
 import Image from "next/image";
-import type { GallerySection as GalleryConfig } from "@/lib/contract/sections";
-import { resolveImage } from "@/lib/media";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
+import type { GallerySection as GalleryConfig } from "@/shared/contract/sections";
+import { resolveImage } from "@/web/media";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
 
 const COLUMNS: Record<number, string> = {
   2: "sm:grid-cols-2",

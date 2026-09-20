@@ -1,4 +1,5 @@
-import { Database, type RequestContext } from "../../src/lib/db/pool";
+import { Database } from "@/server/db/database";
+import { type RequestContext } from "@/server/context";
 
 /** Shared connection to the disposable test database. */
 export const testDatabase = new Database(

@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { ORDER_TYPES, type OrderType, type PaymentMethod } from "@/lib/contract/enums";
-import { listDeliveryZones } from "@/lib/db/deliveries";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { resolveCustomerFromSession } from "@/lib/auth";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { priceCart, readCart, serviceAvailability } from "@/lib/services/cart";
+import { redirect } from "next/navigation";
+import { getStorefrontCustomer } from "@/web/session";
+import { readCart, requireStorefront } from "@/web/storefront";
+import { priceCart, serviceAvailability } from "@/server/services/cart";
+import { getCheckoutOptions } from "@/server/services/checkout";
+import { getDeliveryZones } from "@/server/services/restaurants";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { Button } from "@/components/ui/button";
 
@@ -21,48 +20,25 @@ export const metadata: Metadata = { title: "Checkout", robots: { index: false, f
 export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const { restaurantSlug } = await params;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const { restaurant, primaryLocation } = context;
-  const cart = await readCart(restaurant, {});
+  const cart = await readCart(restaurant);
   if (!cart || cart.items.length === 0) redirect(`/r/${restaurant.slug}/menu`);
 
   const availability = serviceAvailability(restaurant, primaryLocation, cart.orderType);
   const [pricingResult, zones, customer] = await Promise.all([
     priceCart(restaurant, cart),
     cart.orderType === "delivery"
-      ? listDeliveryZones(restaurant.id, EMPTY_CONTEXT, {
+      ? getDeliveryZones(restaurant.id, {
           locationId: cart.locationId ?? undefined,
           activeOnly: true,
         })
       : Promise.resolve([]),
-    resolveCustomerFromSession(restaurant.slug),
+    getStorefrontCustomer(restaurant.id),
   ]);
 
-  const orderTypeOptions = ORDER_TYPES.filter((type) =>
-    type === "delivery" ? restaurant.features.delivery : type === "pickup" ? restaurant.features.pickup : restaurant.features.dineIn,
-  ) as OrderType[];
-
-  // Online payment is only offered when the restaurant enabled it in the database
-  // and a provider is actually configured — we never fake a successful payment.
-  const enabledMethods = restaurant.settings.payments.enabledMethods.filter((method) => {
-    if (method === "card_online") {
-      return (
-        restaurant.features.onlinePayments &&
-        restaurant.settings.payments.onlineProvider !== "none" &&
-        Boolean(process.env[`${restaurant.settings.payments.onlineProvider.toUpperCase()}_SECRET_KEY`])
-      );
-    }
-    if (method === "bank_transfer") return restaurant.features.onlinePayments;
-    return true;
-  }) as PaymentMethod[];
-
-  const paymentMethods: PaymentMethod[] = enabledMethods.length ? enabledMethods : ["cash"];
+  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant);
 
   if (!pricingResult.pricing || pricingResult.blockers.length > 0 || !availability.acceptsOrders) {
     const reason = pricingResult.blockers[0] ?? availability.message;

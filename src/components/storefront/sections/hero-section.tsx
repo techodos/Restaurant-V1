@@ -1,10 +1,10 @@
 import Image from "next/image";
 import { Check } from "lucide-react";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { HeroSection as HeroSectionConfig } from "@/lib/contract/sections";
-import { resolveImage } from "@/lib/media";
-import { cn } from "@/lib/utils";
-import { CtaLink } from "../cta-link";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { HeroSection as HeroSectionConfig } from "@/shared/contract/sections";
+import { resolveImage } from "@/web/media";
+import { cn } from "@/shared/utils";
+import { CtaLink } from "@/components/storefront/cta-link";
 
 const HEIGHTS: Record<string, string> = {
   sm: "min-h-[46vh] md:min-h-[52vh]",

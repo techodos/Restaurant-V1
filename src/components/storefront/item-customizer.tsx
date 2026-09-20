@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, FieldHint, Label, Textarea } from "@/components/ui/input";
 import { addToCartAction } from "@/app/r/[restaurantSlug]/cart/actions";
-import { formatMoney } from "@/lib/money";
-import type { MenuItem } from "@/lib/contract/models";
-import { cn } from "@/lib/utils";
+import { formatMoney } from "@/shared/money";
+import type { MenuItem } from "@/shared/contract/models";
+import { cn } from "@/shared/utils";
 
 interface ItemCustomizerProps {
   restaurantSlug: string;

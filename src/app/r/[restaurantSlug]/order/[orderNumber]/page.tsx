@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { CheckCircle2, MapPin, Phone, Receipt, Store } from "lucide-react";
-import { getOrderByNumber } from "@/lib/db/orders";
-import { ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/contract/enums";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { describeEta, buildOrderTimeline } from "@/lib/services/order-timeline";
-import { formatMoney } from "@/lib/money";
+import { ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
+import { getVisitorContext } from "@/web/session";
+import { requireStorefront } from "@/web/storefront";
+import { trackOrder } from "@/server/services/orders";
+import { describeEta, buildOrderTimeline } from "@/shared/order-timeline";
+import { formatMoney } from "@/shared/money";
 import { Button } from "@/components/ui/button";
 import { OrderTimeline } from "@/components/storefront/order-timeline";
 import { OrderLiveStatus } from "@/components/storefront/order-live-status";
@@ -31,14 +31,10 @@ export const metadata: Metadata = { title: "Order status", robots: { index: fals
 export default async function OrderStatusPage({ params }: OrderPageProps) {
   const { restaurantSlug, orderNumber } = await params;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
-  const order = await getOrderByNumber(context.restaurant.id, decodeURIComponent(orderNumber), {});
+  const visitor = await getVisitorContext(context.restaurant.id);
+  const order = await trackOrder(context.restaurant.id, decodeURIComponent(orderNumber), visitor);
   if (!order) {
     return (
       <div className="container-page py-20">

@@ -1,8 +1,8 @@
 import Image from "next/image";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { ReservationCtaSection as ReservationConfig } from "@/lib/contract/sections";
-import { resolveImage } from "@/lib/media";
-import { CtaLink } from "../cta-link";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { ReservationCtaSection as ReservationConfig } from "@/shared/contract/sections";
+import { resolveImage } from "@/web/media";
+import { CtaLink } from "@/components/storefront/cta-link";
 
 export function ReservationCtaSection({
   section,

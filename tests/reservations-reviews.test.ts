@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getRestaurantById, listLocations } from "../src/lib/db/restaurants";
-import { createReservation, getReservationByCode, listReservations, listBookedSlots, updateReservationStatus } from "../src/lib/db/reservations";
-import { createReview, getRatingBreakdown, hasReviewedOrder, listPublicReviews, listReviews, moderateReview } from "../src/lib/db/reviews";
-import { isOpenAt, minutesToTime, zonedNow } from "../src/lib/hours";
-import type { OpeningHours } from "../src/lib/contract/models";
-import type { RestaurantSettings } from "../src/lib/contract/settings";
+import { getRestaurantById, listLocations } from "@/server/repositories/restaurants";
+import { createReservation, getReservationByCode, listReservations, listBookedSlots, updateReservationStatus } from "@/server/repositories/reservations";
+import { createReview, getRatingBreakdown, hasReviewedOrder, listPublicReviews, listReviews, moderateReview } from "@/server/repositories/reviews";
+import { isOpenAt, minutesToTime, zonedNow } from "@/shared/hours";
+import type { OpeningHours } from "@/shared/contract/models";
+import type { RestaurantSettings } from "@/shared/contract/settings";
 
 type ReservationsSettings = RestaurantSettings["reservations"];
-import type { RequestContext } from "../src/lib/db/pool";
+import { type RequestContext } from "@/server/context";
 import { ANON, BELLA, OWNER, SAKURA, SAKURA_OWNER, testDatabase } from "./helpers/db";
 
 const ANON_CTX = ANON;

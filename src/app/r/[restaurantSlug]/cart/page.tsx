@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ArrowRight, Info, ShoppingBag, UtensilsCrossed } from "lucide-react";
-import { ORDER_TYPES, ORDER_TYPE_LABELS, type OrderType } from "@/lib/contract/enums";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { priceCart, readCart, serviceAvailability } from "@/lib/services/cart";
-import { resolveMenuImage } from "@/lib/media";
-import { formatMoney } from "@/lib/money";
+import { ORDER_TYPE_LABELS } from "@/shared/contract/enums";
+import { readCart, requireStorefront } from "@/web/storefront";
+import { priceCart, serviceAvailability } from "@/server/services/cart";
+import { resolveMenuImage } from "@/web/media";
+import { formatMoney } from "@/shared/money";
+import { enabledOrderTypes } from "@/shared/ordering";
 import { Button } from "@/components/ui/button";
 import { CartLineItem } from "@/components/storefront/cart-line-item";
 import { CartPromoForm } from "@/components/storefront/cart-promo-form";
@@ -23,15 +23,10 @@ export const metadata: Metadata = { title: "Your cart", robots: { index: false, 
 export default async function CartPage({ params }: CartPageProps) {
   const { restaurantSlug } = await params;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const { restaurant, primaryLocation } = context;
-  const cart = await readCart(restaurant, {});
+  const cart = await readCart(restaurant);
   const availability = serviceAvailability(restaurant, primaryLocation, cart?.orderType ?? "delivery");
 
   if (!cart || cart.items.length === 0) {
@@ -64,9 +59,7 @@ export default async function CartPage({ params }: CartPageProps) {
   }
 
   const { pricing, zone, coupon, blockers } = await priceCart(restaurant, cart);
-  const availableTypes = ORDER_TYPES.filter((type) =>
-    type === "delivery" ? restaurant.features.delivery : type === "pickup" ? restaurant.features.pickup : restaurant.features.dineIn,
-  ) as OrderType[];
+  const availableTypes = enabledOrderTypes(restaurant.features);
 
   const canCheckout = Boolean(pricing) && availability.acceptsOrders && blockers.length === 0;
   const money = (value: string | number | { toString(): string }) =>

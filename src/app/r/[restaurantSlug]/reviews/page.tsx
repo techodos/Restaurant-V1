@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getRatingBreakdown, listPublicReviews } from "@/lib/db/reviews";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { resolveCustomerFromSession } from "@/lib/auth";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { breadcrumbJsonLd, reviewsJsonLd } from "@/lib/seo";
+import { getStorefrontCustomer } from "@/web/session";
+import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { breadcrumbJsonLd, reviewsJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { RatingStars } from "@/components/storefront/rating-stars";
 import { ReviewForm } from "@/components/storefront/review-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getPublicReviews, getReviewSummary } from "@/server/services/reviews";
 
 interface ReviewsPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -23,7 +21,7 @@ export async function generateMetadata({ params }: ReviewsPageProps): Promise<Me
   const { restaurantSlug } = await params;
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
-    const breakdown = await getRatingBreakdown(restaurant.id, EMPTY_CONTEXT);
+    const breakdown = await getReviewSummary(restaurant.id);
     return {
       title: "Reviews",
       description:
@@ -41,18 +39,13 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
   const { restaurantSlug } = await params;
   const { order } = await searchParams;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const { restaurant } = context;
   const [reviews, breakdown, customer] = await Promise.all([
-    listPublicReviews(restaurant.id, { limit: 50 }, EMPTY_CONTEXT),
-    getRatingBreakdown(restaurant.id, EMPTY_CONTEXT),
-    resolveCustomerFromSession(restaurant.slug).catch(() => null),
+    getPublicReviews(restaurant.id, { limit: 50 }),
+    getReviewSummary(restaurant.id),
+    getStorefrontCustomer(restaurant.id).catch(() => null),
   ]);
 
   const maxCount = Math.max(1, ...Object.values(breakdown.distribution));

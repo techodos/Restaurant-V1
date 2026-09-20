@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateCartItemAction, removeCartItemAction } from "@/app/r/[restaurantSlug]/cart/actions";
-import { formatMoney } from "@/lib/money";
-import type { CartItem } from "@/lib/contract/models";
+import { formatMoney } from "@/shared/money";
+import type { CartItem } from "@/shared/contract/models";
 
 interface CartLineItemProps {
   restaurantSlug: string;

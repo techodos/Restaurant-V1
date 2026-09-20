@@ -1,10 +1,10 @@
 import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { ContactSection as ContactConfig } from "@/lib/contract/sections";
-import { formatHours, zonedNow } from "@/lib/hours";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
-import { ContactForm } from "../contact-form";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { ContactSection as ContactConfig } from "@/shared/contract/sections";
+import { formatHours, zonedNow } from "@/shared/hours";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
+import { ContactForm } from "@/components/storefront/contact-form";
 
 export function ContactSection({ section, context }: { section: ContactConfig; context: StorefrontContext }) {
   const { restaurant, primaryLocation, config } = context;

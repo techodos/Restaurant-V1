@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { cartSubtotal, calculatePricing, computeCouponDiscount, effectiveMinimumOrder, lineTotal, PricingError, tryCalculatePricing, validateCouponOrThrow, type CouponPricing } from "../src/lib/pricing";
-import { restaurantSettingsSchema } from "../src/lib/contract/settings";
-import { formatMoney, toMoney } from "../src/lib/money";
+import { cartSubtotal, calculatePricing, computeCouponDiscount, effectiveMinimumOrder, lineTotal, PricingError, tryCalculatePricing, validateCouponOrThrow, type CouponPricing } from "@/server/domain/pricing";
+import { restaurantSettingsSchema } from "@/shared/contract/settings";
+import { formatMoney, toMoney } from "@/shared/money";
 
 const settings = restaurantSettingsSchema.parse({
   tax: { enabled: true, rate: 5, included: false, applyOnDeliveryFee: false, label: "GST" },

@@ -1,10 +1,10 @@
 import Image from "next/image";
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { AboutSection as AboutConfig } from "@/lib/contract/sections";
-import { resolveImage } from "@/lib/media";
-import { cn } from "@/lib/utils";
-import { CtaLink } from "../cta-link";
-import { SectionShell } from "../section-shell";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { AboutSection as AboutConfig } from "@/shared/contract/sections";
+import { resolveImage } from "@/web/media";
+import { cn } from "@/shared/utils";
+import { CtaLink } from "@/components/storefront/cta-link";
+import { SectionShell } from "@/components/storefront/section-shell";
 
 export function AboutSection({ section }: { section: AboutConfig; context: StorefrontContext }) {
   const image = resolveImage(section.image?.url);

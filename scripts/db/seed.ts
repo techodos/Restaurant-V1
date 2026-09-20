@@ -7,10 +7,10 @@
 import path from "node:path";
 import pg from "pg";
 import { loadEnv } from "./env";
-import { hashPassword } from "../../src/lib/auth/password";
-import { calculatePricing } from "../../src/lib/pricing";
-import { restaurantSettingsSchema, restaurantFeaturesSchema } from "../../src/lib/contract/settings";
-import { toMoney, dec } from "../../src/lib/money";
+import { hashPassword } from "../../src/server/auth/password";
+import { calculatePricing } from "../../src/server/domain/pricing";
+import { restaurantSettingsSchema, restaurantFeaturesSchema } from "../../src/shared/contract/settings";
+import { toMoney, dec } from "../../src/shared/money";
 import {
   ADDRESSES, BELLA, CATEGORIES, COUPONS, CUSTOMERS, IDS, ITEMS, ORDERS, RESERVATIONS, REVIEWS, SAKURA, ZONES,
 } from "./seed-data";

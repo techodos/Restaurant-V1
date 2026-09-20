@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { AnnouncementSection as AnnouncementConfig } from "@/lib/contract/sections";
-import { cn } from "@/lib/utils";
+import type { AnnouncementSection as AnnouncementConfig } from "@/shared/contract/sections";
+import { cn } from "@/shared/utils";
 
 const TONES = {
   primary: "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]",

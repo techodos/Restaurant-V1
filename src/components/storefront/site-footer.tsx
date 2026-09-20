@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
-import type { Restaurant, RestaurantLocation } from "@/lib/contract/models";
-import { formatHours } from "@/lib/hours";
-import { zonedNow } from "@/lib/hours";
-import type { WebsiteConfig } from "@/lib/contract/settings";
+import type { Restaurant, RestaurantLocation } from "@/shared/contract/models";
+import { formatHours } from "@/shared/hours";
+import { zonedNow } from "@/shared/hours";
+import type { WebsiteConfig } from "@/shared/contract/settings";
 
 interface SiteFooterProps {
   restaurant: Restaurant;

@@ -1,21 +1,21 @@
-import type { Section } from "@/lib/contract/sections";
-import { parseSections } from "@/lib/contract/sections";
-import { AnnouncementSection } from "./sections/announcement-section";
-import { AboutSection } from "./sections/about-section";
-import { ContactSection } from "./sections/contact-section";
-import { CtaSection } from "./sections/cta-section";
-import { FeaturedItemsSection } from "./sections/featured-items-section";
-import { GallerySection } from "./sections/gallery-section";
-import { HeroSection } from "./sections/hero-section";
-import { LocationsSection } from "./sections/locations-section";
-import { MenuCategoriesSection } from "./sections/menu-categories-section";
-import { MenuPreviewSection } from "./sections/menu-preview-section";
-import { OrderTypeSwitchSection } from "./sections/order-type-switch-section";
-import { ReservationCtaSection } from "./sections/reservation-cta-section";
-import { ReviewsSection } from "./sections/reviews-section";
-import { RichTextSection } from "./sections/rich-text-section";
-import { WhyChooseUsSection } from "./sections/why-choose-us-section";
-import type { StorefrontContext } from "@/lib/contract/models";
+import type { Section } from "@/shared/contract/sections";
+import { parseSections } from "@/shared/contract/sections";
+import { AnnouncementSection } from "@/components/storefront/sections/announcement-section";
+import { AboutSection } from "@/components/storefront/sections/about-section";
+import { ContactSection } from "@/components/storefront/sections/contact-section";
+import { CtaSection } from "@/components/storefront/sections/cta-section";
+import { FeaturedItemsSection } from "@/components/storefront/sections/featured-items-section";
+import { GallerySection } from "@/components/storefront/sections/gallery-section";
+import { HeroSection } from "@/components/storefront/sections/hero-section";
+import { LocationsSection } from "@/components/storefront/sections/locations-section";
+import { MenuCategoriesSection } from "@/components/storefront/sections/menu-categories-section";
+import { MenuPreviewSection } from "@/components/storefront/sections/menu-preview-section";
+import { OrderTypeSwitchSection } from "@/components/storefront/sections/order-type-switch-section";
+import { ReservationCtaSection } from "@/components/storefront/sections/reservation-cta-section";
+import { ReviewsSection } from "@/components/storefront/sections/reviews-section";
+import { RichTextSection } from "@/components/storefront/sections/rich-text-section";
+import { WhyChooseUsSection } from "@/components/storefront/sections/why-choose-us-section";
+import type { StorefrontContext } from "@/shared/contract/models";
 
 /**
  * Website pages are stored as `sections` JSONB. This is the only place that

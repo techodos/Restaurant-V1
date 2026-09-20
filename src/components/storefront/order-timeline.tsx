@@ -1,6 +1,6 @@
 import { Check, CircleDashed, X } from "lucide-react";
-import type { TimelineStep } from "@/lib/services/order-timeline";
-import { cn } from "@/lib/utils";
+import type { TimelineStep } from "@/shared/order-timeline";
+import { cn } from "@/shared/utils";
 
 /** Renders order_status_history as a customer-facing timeline. */
 export function OrderTimeline({ steps }: { steps: TimelineStep[] }) {

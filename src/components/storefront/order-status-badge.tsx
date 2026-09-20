@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/contract/enums";
+import { ORDER_STATUS_LABELS, type OrderStatus } from "@/shared/contract/enums";
 
 const VARIANT: Record<OrderStatus, "neutral" | "brand" | "soft" | "success" | "warning" | "danger" | "info"> = {
   pending: "warning",

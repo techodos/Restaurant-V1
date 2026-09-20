@@ -1,11 +1,10 @@
-import type { StorefrontContext } from "@/lib/contract/models";
-import type { FeaturedItemsSection as FeaturedConfig } from "@/lib/contract/sections";
-import { listMenuItems } from "@/lib/db/menu";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { MenuItemCard } from "../menu-item-card";
-import { CtaLink } from "../cta-link";
-import { SectionHeading } from "../section-heading";
-import { SectionShell } from "../section-shell";
+import type { StorefrontContext } from "@/shared/contract/models";
+import type { FeaturedItemsSection as FeaturedConfig } from "@/shared/contract/sections";
+import { MenuItemCard } from "@/components/storefront/menu-item-card";
+import { CtaLink } from "@/components/storefront/cta-link";
+import { SectionHeading } from "@/components/storefront/section-heading";
+import { SectionShell } from "@/components/storefront/section-shell";
+import { searchMenu } from "@/server/services/catalog";
 
 /**
  * Featured items come from the database: explicit slugs from the section config
@@ -19,8 +18,8 @@ export async function FeaturedItemsSection({
   context: StorefrontContext;
 }) {
   const items = section.itemSlugs.length
-    ? await listMenuItems(context.restaurant.id, { slugs: section.itemSlugs, limit: section.itemSlugs.length }, EMPTY_CONTEXT)
-    : await listMenuItems(context.restaurant.id, { featuredOnly: true, limit: section.limit }, EMPTY_CONTEXT);
+    ? await searchMenu(context.restaurant.id, { slugs: section.itemSlugs, limit: section.itemSlugs.length })
+    : await searchMenu(context.restaurant.id, { featuredOnly: true, limit: section.limit });
 
   // keep the order the editor chose, and never show sold-out items first
   const ordered = section.itemSlugs.length

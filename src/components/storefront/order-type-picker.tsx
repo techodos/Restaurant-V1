@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { setOrderTypeAction } from "@/app/r/[restaurantSlug]/cart/actions";
-import { ORDER_TYPE_LABELS, type OrderType } from "@/lib/contract/enums";
-import { cn } from "@/lib/utils";
+import { ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
+import { cn } from "@/shared/utils";
 
 interface OrderTypePickerProps {
   restaurantSlug: string;

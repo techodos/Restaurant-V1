@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu as MenuIcon, Phone, ShoppingBag, X } from "lucide-react";
-import type { WebsiteConfig } from "@/lib/contract/settings";
-import { cn } from "@/lib/utils";
+import type { WebsiteConfig } from "@/shared/contract/settings";
+import { cn } from "@/shared/utils";
 
 interface SiteHeaderProps {
   restaurant: { name: string; slug: string; logoUrl: string | null; phone: string | null };

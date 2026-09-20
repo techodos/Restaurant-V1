@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getHomePage } from "@/lib/db/websites";
-import { getRatingBreakdown } from "@/lib/db/reviews";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { restaurantJsonLd } from "@/lib/seo";
+import { getHomePageContent } from "@/server/services/storefront";
+import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { restaurantJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { SectionRenderer } from "@/components/storefront/section-renderer";
+import { getReviewSummary } from "@/server/services/reviews";
 
 interface HomePageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -38,16 +36,11 @@ export async function generateMetadata({ params }: HomePageProps): Promise<Metad
 export default async function RestaurantHomePage({ params }: HomePageProps) {
   const { restaurantSlug } = await params;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const [page, ratings] = await Promise.all([
-    getHomePage(context.restaurant.id, EMPTY_CONTEXT),
-    getRatingBreakdown(context.restaurant.id, EMPTY_CONTEXT),
+    getHomePageContent(context.restaurant.id),
+    getReviewSummary(context.restaurant.id),
   ]);
 
   const sections = page?.sections ?? [];

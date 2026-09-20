@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { CalendarX, Clock, Phone, Users } from "lucide-react";
-import { listLocations } from "@/lib/db/restaurants";
-import { listBookedSlots } from "@/lib/db/reservations";
-import { EMPTY_CONTEXT } from "@/lib/db/pool";
-import { resolveCustomerFromSession } from "@/lib/auth";
-import { getStorefrontContext } from "@/lib/services/storefront";
-import { isOpenAt, minutesToTime, timeToMinutes, zonedNow } from "@/lib/hours";
+import { getStorefrontCustomer } from "@/web/session";
+import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { isOpenAt, minutesToTime, timeToMinutes, zonedNow } from "@/shared/hours";
 import { ReservationForm } from "@/components/storefront/reservation-form";
 import { Button } from "@/components/ui/button";
 import { JsonLd } from "@/components/storefront/json-ld";
-import { breadcrumbJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/web/seo";
+import { getLocations } from "@/server/services/restaurants";
+import { getBookedSlots } from "@/server/services/reservations";
 
 interface ReservationPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -39,12 +37,7 @@ export async function generateMetadata({ params }: ReservationPageProps): Promis
 export default async function ReservationPage({ params }: ReservationPageProps) {
   const { restaurantSlug } = await params;
 
-  let context;
-  try {
-    context = await getStorefrontContext(restaurantSlug);
-  } catch {
-    notFound();
-  }
+  const context = await requireStorefront(restaurantSlug);
 
   const { restaurant } = context;
   const settings = restaurant.settings.reservations;
@@ -76,7 +69,7 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
     );
   }
 
-  const locations = (await listLocations(restaurant.id, EMPTY_CONTEXT)).filter((location) => location.isActive);
+  const locations = (await getLocations(restaurant.id)).filter((location) => location.isActive);
 
   // Build the bookable window: today + maxAdvanceDays, only keeping open days.
   const today = zonedNow(new Date(), restaurant.timezone);
@@ -100,7 +93,7 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
         continue;
       }
 
-      const booked = await listBookedSlots(location.id, day.dateKey, EMPTY_CONTEXT);
+      const booked = await getBookedSlots(restaurant.id, location.id, day.dateKey);
       const bookedByTime = new Map<string, number>();
       for (const entry of booked) {
         const slot = entry.time.slice(0, 5);
@@ -125,7 +118,7 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
     }
   }
 
-  const customer = await resolveCustomerFromSession(restaurant.slug).catch(() => null);
+  const customer = await getStorefrontCustomer(restaurant.id).catch(() => null);
   const defaultDate = dates[0]?.value ?? today.dateKey;
 
   return (

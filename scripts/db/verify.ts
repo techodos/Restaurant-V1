@@ -6,7 +6,8 @@
  * order-status integrity and the security guarantees RLS depends on.
  */
 import { Client } from "pg";
-import { Database, type RequestContext } from "../../src/lib/db/pool";
+import { Database } from "../../src/server/db/database";
+import { type RequestContext } from "../../src/server/context";
 import { loadEnv } from "./env";
 
 loadEnv(".env.local");
@@ -93,7 +94,13 @@ async function main() {
     const migrations = await admin.query<{ count: string }>("select count(*) from schema_migrations");
     const migrationCount = Number.parseInt(migrations.rows[0]?.count ?? "0", 10);
     check(`migrations recorded (${migrationCount})`, migrationCount > 0);
-    check(`no unexpected public tables (${tables.rows.length} total, incl. auth.users)`, tables.rows.length <= EXPECTED_TABLES.length + 1);
+    const appTables = tables.rows.filter(
+      (row) => row.table_schema === "public" || (row.table_schema === "auth" && row.table_name === "users"),
+    );
+    check(
+      `no unexpected public tables (${appTables.length} total, incl. auth.users)`,
+      appTables.length <= EXPECTED_TABLES.length + 1,
+    );
 
     const rlsTables = await admin.query<{ relname: string }>(
       `select c.relname from pg_class c
