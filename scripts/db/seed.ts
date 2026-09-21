@@ -99,7 +99,7 @@ await query(
 );
 
 await query(
-  `insert into restaurant_locations
+  `insert into restaurant1s
      (id, restaurant_id, name, slug, is_primary, is_active, address_line1, area, city, state, postal_code, country,
       phone, email, latitude, longitude, hours, settings, sort_order)
    values
@@ -836,7 +836,7 @@ await query(
   [SAKURA.restaurant, JSON.stringify({ ...features, delivery: true, dineIn: true }), JSON.stringify(settings)],
 );
 await query(
-  `insert into restaurant_locations (id, restaurant_id, name, slug, is_primary, is_active, address_line1, area, city, latitude, longitude, hours)
+  `insert into restaurant1s (id, restaurant_id, name, slug, is_primary, is_active, address_line1, area, city, latitude, longitude, hours)
    values ($1,$2,'Clifton','clifton',true,true,'Shop 4, Block 4, Clifton','Clifton','Karachi',24.8138,67.0300,$3::jsonb)`,
   [SAKURA.location, SAKURA.restaurant, JSON.stringify(BELLA.hours)],
 );
@@ -870,6 +870,9 @@ await query(
    values ($1,'Karachi Diner','diner@example.com','+92 300 9998887',true)`,
   [SAKURA.restaurant],
 );
+// Seeded orders are history, not live orders: drop the notification events their triggers queued so
+// the dispatcher never emails or pushes to demo customers.
+await query(`delete from notification_events`);
 await client.query("commit");
 
 // ---------------------------------------------------------------------------

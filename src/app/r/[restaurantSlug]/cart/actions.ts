@@ -99,8 +99,7 @@ export async function applyCouponAction(
 export async function setOrderTypeAction(
   slug: string,
   payload: unknown,
-): Promise<ApiResult<{ orderType: OrderType }>> {
-  return action(async () => {
+): Promise<ApiResult<{ orderType: OrderType }>> {  return action(async () => {
     const input = setOrderTypeSchema.parse(payload);
     const { restaurant, cart } = await openStorefrontCart(slug);
     await changeOrderType(restaurant, cart, input.orderType);

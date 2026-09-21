@@ -12,11 +12,13 @@ import { cn } from "@/shared/utils";
 interface ReviewFormProps {
   restaurantSlug: string;
   orderNumber: string;
+  /** signed order-access token from the email link, when present */
+  accessToken?: string;
   defaultName: string;
 }
 
 /** Reviews always enter the moderation queue before they appear publicly. */
-export function ReviewForm({ restaurantSlug, orderNumber, defaultName }: ReviewFormProps) {
+export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultName }: ReviewFormProps) {
   const [rating, setRating] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
@@ -41,6 +43,7 @@ export function ReviewForm({ restaurantSlug, orderNumber, defaultName }: ReviewF
 
     const payload = {
       orderNumber,
+      accessToken,
       authorName: value("authorName"),
       rating,
       title: value("title"),

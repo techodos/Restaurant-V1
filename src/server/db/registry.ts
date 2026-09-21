@@ -10,7 +10,7 @@ import { Database } from "./database";
  * same config for everyone and the manager keeps a single pair of pools. To give
  * a restaurant its own database, replace `SingleDatabaseDirectory` with a
  * directory backed by a config file or a central registry table — repositories,
- * services and actions do not change. See docs/ARCHITECTURE.md.
+ * services and actions do not change. See docs/skills/restaurant-platform/SKILL.md (section 13).
  */
 
 export interface DatabaseConfig {

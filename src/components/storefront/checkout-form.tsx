@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +59,8 @@ export function CheckoutForm({
 }: CheckoutFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
+  // state updates are async; this closes the window in which a fast double-click could submit twice
+  const submitting = useRef(false);
   const [orderTypeState, setOrderTypeState] = useState<OrderType>(orderType);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(paymentMethods[0] ?? "cash");
   const [tip, setTip] = useState("");
@@ -114,14 +116,27 @@ export function CheckoutForm({
       return;
     }
 
+    if (submitting.current) return;
+    submitting.current = true;
     startTransition(async () => {
-      const result = await placeOrderAction(restaurantSlug, payload);
-      if (!result.success) {
-        toast.error(result.error.message, { description: "Nothing has been charged." });
-        return;
+      try {
+        const result = await placeOrderAction(restaurantSlug, payload);
+        if (!result.success) {
+          submitting.current = false;
+          toast.error(result.error.message, { description: "Nothing has been charged." });
+          return;
+        }
+        // stays locked while we navigate to the order page
+        toast.success("Order received", {
+          description: "Your order has been received. You will get a confirmation message soon.",
+        });
+        router.push(`/r/${restaurantSlug}/order/${result.data.orderNumber}`);
+      } catch {
+        submitting.current = false;
+        toast.error("We could not confirm your order.", {
+          description: "Check your connection, then try again. If the order page opens, it went through.",
+        });
       }
-      toast.success("Order placed", { description: "We have sent it to the kitchen." });
-      router.push(`/r/${restaurantSlug}/order/${result.data.orderNumber}`);
     });
   }
 
@@ -382,7 +397,7 @@ export function CheckoutForm({
           {pending ? "Placing your order…" : `Place order · ${money(pricing.total)}`}
         </Button>
         <p className="mt-2 text-center text-xs text-[var(--color-muted-ink)]">
-          You will see a confirmation with live status as soon as the kitchen accepts it.
+          Your order will be received right away. You will get a confirmation message once the restaurant confirms it.
         </p>
       </section>
     </form>

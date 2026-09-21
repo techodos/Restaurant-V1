@@ -262,8 +262,7 @@ privileges, seed presence, arithmetic stored on real orders, and orphan checks.
   resolved to a slug later in middleware; no host mapping is implemented.
 * **Media.** Uploads go to Supabase Storage when configured, otherwise to
   `.uploads/` served through `/api/media/[...path]`.
-* **Realtime.** Order tracking polls through authenticated route handlers; no
-  websocket channel is used.
+* **Realtime.** Order tracking uses Server-Sent Events (see §18); there is no polling.
 
 ---
 
@@ -274,7 +273,7 @@ repositories, services, domain, auth, validation, integrations), `src/shared`
 (isomorphic contract and pure helpers), `src/web` (Next.js adapters: cookies,
 request cache, `notFound()`, theme CSS) and `src/app` + `src/components` (UI).
 Supersedes the flat `src/lib/*` layout referenced in §1–§10; those sections now point
-at the new paths. Full map and rules: `docs/ARCHITECTURE.md`.
+at the new paths. Full map and rules: `docs/skills/restaurant-platform/SKILL.md` (section 2).
 
 **Why.** The backend may be hosted separately and each restaurant may get its own
 database later. Both require business logic that does not import Next.js and a single
@@ -292,3 +291,40 @@ place that decides which database serves a restaurant.
 * Order tracking and review-by-order now pass the visitor's cart token / customer to the
   read (§10 requires it; the previous calls passed an empty context and could never
   match a guest's order under RLS).
+
+---
+
+## 17. Customer notifications: transactional outbox, providers behind interfaces
+
+**Decision.** A database trigger (migration 0013) writes a row to `notification_events` in the same transaction as
+every order insert / status change, unique on `(order_id, event_type)`. `NotificationService`
+(`server/services/notifications.ts`) delivers those rows afterwards through `EmailProvider` (Resend) and `PushProvider`
+(FCM), with per-channel state, retry/backoff and a max age. The order flow never imports a provider.
+
+**Why.** Committing the event with the order guarantees "email only if the order exists" and catches status changes
+made from anywhere (there is no admin UI yet; statuses are changed in SQL). Delivering afterwards means a provider
+outage can delay a message but never fail or roll back an order. The unique key plus per-channel state plus Resend's
+idempotency key prevent duplicates. Providers use `fetch` (+ `jose` for the FCM service-account JWT): no SDK on the server.
+
+**Also.** Push tokens live in `customer_push_tokens` (many devices per customer, guests included because checkout always
+creates a `customers` row). Email links carry a signed order-access token so tracking/review work from any device.
+Setup and testing: `docs/skills/restaurant-platform/SKILL.md` (section 7).
+
+---
+
+## 18. Live order status: Server-Sent Events over Postgres LISTEN/NOTIFY
+
+**Problem.** The order page refreshed every 30 s. Supabase Realtime was tried first and removed: it checks RLS with the
+subscriber's JWT (never the `app.*` settings this project's policies use), so it needed a browser-side anon key, a JWT secret
+and a special `anon` policy, and it silently stopped working when any of those was misconfigured.
+
+**Decision.** A trigger (`notify_order_change`, migration 0015) calls `pg_notify` when status, payment status or ETA really
+changes (NOTIFY is transactional and independent of who changed the row). One `LISTEN` connection per server process
+(`DATABASE_URL_LISTEN`, session-mode) fans out to SSE streams. A stream opens only after the same ownership proof as the
+order page (`findVisitorOrder`), subscribes first, then sends a snapshot, so no change falls into a gap. The browser uses a plain
+`EventSource`; it holds no key and never talks to the database. Migration 0015 also drops the `orders_realtime_grant` policy of 0014.
+
+**Consequences.** No new infrastructure, no dependency, no browser secret. Needs a long-lived Node server (`next start`,
+Docker, VM); on serverless platforms with short function limits the browser reconnects and the snapshot re-syncs it.
+LISTEN cannot use the transaction pooler. Per-restaurant databases need one listener per database. Live status, FCM push and
+Resend email stay separate mechanisms.

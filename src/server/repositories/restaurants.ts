@@ -53,7 +53,7 @@ export async function listLocations(
 ): Promise<RestaurantLocation[]> {
   const rows = await getDb({ restaurantId }).query<Row>(
     ctx,
-    `select * from restaurant_locations
+    `select * from restaurant1s
       where restaurant_id = $1 ${options.activeOnly ? 'and is_active' : ''}
       order by is_primary desc, sort_order, name`,
     [restaurantId],
@@ -67,7 +67,7 @@ export async function getPrimaryLocation(
 ): Promise<RestaurantLocation | null> {
   const row = await getDb({ restaurantId }).queryOne<Row>(
     ctx,
-    `select * from restaurant_locations
+    `select * from restaurant1s
       where restaurant_id = $1 and is_active
       order by is_primary desc, sort_order, name limit 1`,
     [restaurantId],
@@ -81,7 +81,7 @@ export async function getLocationById(
 ): Promise<RestaurantLocation | null> {
   const row = await getDb(ctx).queryOne<Row>(
     ctx,
-    `select * from restaurant_locations where id = $1`,
+    `select * from restaurant1s where id = $1`,
     [locationId],
   );
   return row ? mapLocation(row) : null;
@@ -194,16 +194,16 @@ export async function createLocation(
   return db.write(ctx, async (tx) => {
     if (input.isPrimary) {
       await tx.query(
-        `update restaurant_locations set is_primary = false where restaurant_id = $1`,
+        `update restaurant1s set is_primary = false where restaurant_id = $1`,
         [restaurantId],
       );
     }
     const row = await tx.queryOne<Row>(
-      `insert into restaurant_locations
+      `insert into restaurant1s
          (restaurant_id, name, slug, is_primary, is_active, address_line1, address_line2, area, city, state,
           postal_code, country, phone, email, latitude, longitude, hours, sort_order)
        values ($1, $2, coalesce($3, app.slugify($2)), coalesce($4, not exists (
-                 select 1 from restaurant_locations where restaurant_id = $1)), coalesce($5, true),
+                 select 1 from restaurant1s where restaurant_id = $1)), coalesce($5, true),
                $6, $7, $8, $9, $10, $11, coalesce($12, 'PK'), $13, $14, $15, $16, coalesce($17::jsonb, '{}'::jsonb),
                coalesce($18, 0))
        returning *`,
@@ -241,18 +241,18 @@ export async function updateLocation(
   const db = getDb(ctx);
   return db.write(ctx, async (tx) => {
     const current = await tx.queryOne<Row>(
-      `select restaurant_id from restaurant_locations where id = $1`,
+      `select restaurant_id from restaurant1s where id = $1`,
       [locationId],
     );
     if (!current) throw new Error('Location not found');
     if (patch.isPrimary) {
       await tx.query(
-        `update restaurant_locations set is_primary = false where restaurant_id = $1 and id <> $2`,
+        `update restaurant1s set is_primary = false where restaurant_id = $1 and id <> $2`,
         [current.restaurant_id, locationId],
       );
     }
     const row = await tx.queryOne<Row>(
-      `update restaurant_locations set
+      `update restaurant1s set
          name = coalesce($2, name),
          is_primary = coalesce($3, is_primary),
          is_active = coalesce($4, is_active),
@@ -302,7 +302,7 @@ export async function deleteLocation(
 ): Promise<void> {
   const db = getDb(ctx);
   await db.write(ctx, async (tx: DbClient) => {
-    await tx.query(`delete from restaurant_locations where id = $1`, [
+    await tx.query(`delete from restaurant1s where id = $1`, [
       locationId,
     ]);
   });

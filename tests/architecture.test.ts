@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Layer boundaries (see docs/ARCHITECTURE.md). These are what keep the backend
+ * Layer boundaries (see docs/skills/restaurant-platform/SKILL.md). These are what keep the backend
  * extractable and the database swappable, so they fail the build when crossed:
  *
  *   app / components → web → server/services → server/repositories → server/db
@@ -73,5 +73,28 @@ describe("architecture boundaries", () => {
       .filter((file) => /process\.env/.test(readFileSync(file, "utf8")))
       .map(rel);
     expect(offenders).toEqual([]);
+  });
+
+  it("keeps provider credentials and provider code out of client components", () => {
+    // Client components get the public Firebase config as a prop; they never touch config or integrations.
+    const offenders = violations(inDir("components"), /^@\/server\/(config|integrations|notifications|services\/notifications)(\/|$)/);
+    expect(offenders).toEqual([]);
+  });
+
+  it("mentions server secret names only inside the config module and the example env file", () => {
+    const secrets = /RESEND_API_KEY|FCM_PRIVATE_KEY|FCM_CLIENT_EMAIL|NOTIFICATIONS_DISPATCH_SECRET/;
+    const offenders = sourceFiles(SRC)
+      .filter((file) => !rel(file).startsWith("server/config/"))
+      .filter((file) => secrets.test(readFileSync(file, "utf8")))
+      .map(rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the order flow decoupled from notification providers", () => {
+    // Order/checkout code may not import Resend/FCM or the notification service; delivery runs from the outbox.
+    const orderFlow = ["server/services/checkout.ts", "server/services/cart.ts", "server/repositories/orders.ts"].map((file) =>
+      path.join(SRC, file),
+    );
+    expect(violations(orderFlow, /^@\/server\/(integrations\/(resend|fcm)|notifications|services\/notifications)(\/|$)/)).toEqual([]);
   });
 });

@@ -1,9 +1,9 @@
 import type { RatingBreakdown, Restaurant, Review } from "@/shared/contract/models";
 import { errors } from "@/server/errors";
 import { forRestaurant, type RequestContext } from "@/server/context";
-import { getOrderByNumber } from "@/server/repositories/orders";
 import { createReview, getRatingBreakdown, hasReviewedOrder, listPublicReviews } from "@/server/repositories/reviews";
 import type { SubmitReviewInput } from "@/server/validation/review";
+import { findVisitorOrder } from "./orders";
 
 /**
  * Review submission with moderation.
@@ -19,15 +19,10 @@ export async function submitReview(restaurant: Restaurant, input: SubmitReviewIn
   let orderId: string | null = null;
   let menuItemId: string | null = input.menuItemId || null;
   if (input.orderNumber) {
-    const order = await getOrderByNumber(restaurant.id, input.orderNumber, {
-      restaurantId: restaurant.id,
-      cartToken: visitor.cartToken ?? null,
-      customerId: visitor.customerId ?? null,
-      userId: visitor.userId ?? null,
-    });
+    const order = await findVisitorOrder(restaurant.id, input.orderNumber, visitor, input.accessToken || null);
     if (!order) {
       throw errors.forbidden(
-        "We could not match that order number to this device. Reviews for an order can only be left from the device that placed it.",
+        "We could not match that order to this device. Open the review link from your order email, or leave the review from the device that placed the order.",
       );
     }
     if (order.status !== "completed") {

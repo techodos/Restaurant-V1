@@ -75,7 +75,7 @@ describe("row level security", () => {
 
   it("scopes private tenancy data while leaving public storefront data readable", async () => {
     const ownLocations = await testDatabase.read(OWNER, (db) =>
-      db.query<{ restaurant_id: string }>("select restaurant_id from restaurant_locations where restaurant_id = $1", [
+      db.query<{ restaurant_id: string }>("select restaurant_id from restaurant1s where restaurant_id = $1", [
         BELLA.restaurantId,
       ]),
     );

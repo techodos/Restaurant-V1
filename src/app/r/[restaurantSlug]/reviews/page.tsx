@@ -12,7 +12,7 @@ import { getPublicReviews, getReviewSummary } from "@/server/services/reviews";
 
 interface ReviewsPageProps {
   params: Promise<{ restaurantSlug: string }>;
-  searchParams: Promise<{ order?: string }>;
+  searchParams: Promise<{ order?: string; t?: string }>;
 }
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: ReviewsPageProps): Promise<Me
 
 export default async function ReviewsPage({ params, searchParams }: ReviewsPageProps) {
   const { restaurantSlug } = await params;
-  const { order } = await searchParams;
+  const { order, t: accessToken } = await searchParams;
 
   const context = await requireStorefront(restaurantSlug);
 
@@ -97,7 +97,7 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
           </div>
 
           {order ? (
-            <ReviewForm restaurantSlug={restaurant.slug} orderNumber={order} defaultName={customer?.name ?? ""} />
+            <ReviewForm restaurantSlug={restaurant.slug} orderNumber={order} accessToken={accessToken} defaultName={customer?.name ?? ""} />
           ) : (
             <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
               <h2 className="text-base font-semibold">Review your order</h2>

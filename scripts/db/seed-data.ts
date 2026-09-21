@@ -145,6 +145,8 @@ export const BELLA = {
     customDomain: false,
     analytics: true,
     onlinePayments: false,
+    notifications: true,
+    notificationChannels: { emailNotify: true, pushNotify: true },
   },
 
   hours: {

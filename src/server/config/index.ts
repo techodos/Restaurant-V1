@@ -40,6 +40,39 @@ const paymentsSchema = z.object({
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: optionalText,
 });
 
+const emailSchema = z.object({
+  RESEND_API_KEY: optionalText,
+  // Verified sending address (or onboarding@resend.dev while testing). The display name is the restaurant's.
+  EMAIL_FROM_ADDRESS: z.preprocess(emptyToUndefined, z.string().trim().email().default("onboarding@resend.dev")),
+  // Send rate per server process. Resend's default account limit is 2 requests/second; raise it only if your plan allows more.
+  EMAIL_MAX_PER_SECOND: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(100).default(2)),
+});
+
+const pushSchema = z.object({
+  // server-side (Firebase Admin credentials) — never sent to the browser
+  FCM_PROJECT_ID: optionalText,
+  FCM_CLIENT_EMAIL: optionalText,
+  FCM_PRIVATE_KEY: optionalText,
+  // public web-app config (safe for the browser; handed to the client by a server component)
+  NEXT_PUBLIC_FIREBASE_API_KEY: optionalText,
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: optionalText,
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: optionalText,
+  NEXT_PUBLIC_FIREBASE_APP_ID: optionalText,
+  NEXT_PUBLIC_FIREBASE_VAPID_KEY: optionalText,
+});
+
+const notificationsSchema = z.object({
+  // shared secret for POST /api/internal/notifications/dispatch (cron / DB webhook)
+  NOTIFICATIONS_DISPATCH_SECRET: z.preprocess(emptyToUndefined, z.string().min(16, "must be at least 16 characters").optional()),
+  // events older than this are dropped instead of sent late
+  NOTIFICATION_MAX_AGE_HOURS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(168).default(24)),
+});
+
+const orderEventsSchema = z.object({
+  // Session-mode / direct Postgres connection used only to LISTEN for order changes (SSE). NOT the transaction pooler.
+  DATABASE_URL_LISTEN: optionalText,
+});
+
 function parse<T extends z.ZodTypeAny>(section: string, schema: T): z.infer<T> {
   const result = schema.safeParse(process.env);
   if (!result.success) {
@@ -96,6 +129,57 @@ const payments = lazy(() => {
   };
 });
 
+const email = lazy(() => {
+  const env = parse("email", emailSchema);
+  return {
+    resend: env.RESEND_API_KEY ? { apiKey: env.RESEND_API_KEY } : null,
+    fromAddress: env.EMAIL_FROM_ADDRESS,
+    maxPerSecond: env.EMAIL_MAX_PER_SECOND,
+  };
+});
+
+const push = lazy(() => {
+  const env = parse("push", pushSchema);
+  const web =
+    env.NEXT_PUBLIC_FIREBASE_API_KEY &&
+    env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
+    env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID &&
+    env.NEXT_PUBLIC_FIREBASE_APP_ID &&
+    env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+      ? {
+          apiKey: env.NEXT_PUBLIC_FIREBASE_API_KEY,
+          projectId: env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+          messagingSenderId: env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+          appId: env.NEXT_PUBLIC_FIREBASE_APP_ID,
+          vapidKey: env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+        }
+      : null;
+  return {
+    fcm:
+      env.FCM_PROJECT_ID && env.FCM_CLIENT_EMAIL && env.FCM_PRIVATE_KEY
+        ? {
+            projectId: env.FCM_PROJECT_ID,
+            clientEmail: env.FCM_CLIENT_EMAIL,
+            // .env files store the key on one line with literal \n sequences
+            privateKey: env.FCM_PRIVATE_KEY.replace(/\\n/g, "\n"),
+          }
+        : null,
+    /** public Firebase web config; null when push is not fully configured */
+    web,
+  };
+});
+
+const notifications = lazy(() => {
+  const env = parse("notifications", notificationsSchema);
+  return { dispatchSecret: env.NOTIFICATIONS_DISPATCH_SECRET ?? null, maxAgeHours: env.NOTIFICATION_MAX_AGE_HOURS };
+});
+
+const orderEvents = lazy(() => {
+  const env = parse("orderEvents", orderEventsSchema);
+  // null = live order updates are not offered (the page still works with the manual Refresh button)
+  return { listenUrl: env.DATABASE_URL_LISTEN ?? null };
+});
+
 export const config = {
   get app() {
     return app();
@@ -111,6 +195,18 @@ export const config = {
   },
   get payments() {
     return payments();
+  },
+  get email() {
+    return email();
+  },
+  get push() {
+    return push();
+  },
+  get notifications() {
+    return notifications();
+  },
+  get orderEvents() {
+    return orderEvents();
   },
 };
 

@@ -87,7 +87,8 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
 
     // 2 ─ cart --------------------------------------------------------------
     const cartRow = await tx.queryOne<Row>(
-      `select * from carts where id = $1 and restaurant_id = $2 and status = 'active'`,
+      // `for update` serialises a double-submit: the second request waits, then finds the cart already converted
+      `select * from carts where id = $1 and restaurant_id = $2 and status = 'active' for update`,
       [input.cartId, input.restaurantId],
     );
     if (!cartRow) throw errors.custom("CART_EXPIRED", "Your cart has expired. Please start again.");
@@ -478,28 +479,59 @@ export async function getOrderByNumber(
     const row = await tx.queryOne<Row>(
       `select ${ORDER_DETAIL_SELECT}
          from orders o
-         left join restaurant_locations l on l.id = o.location_id
+         left join restaurant1s l on l.id = o.location_id
          left join delivery_zones dz on dz.id = o.delivery_zone_id
         where o.restaurant_id = $1 and o.order_number = $2`,
       [restaurantId, orderNumber],
     );
     if (!row) return null;
     const order = mapOrder(row);
-    if (options.withDetails !== false) {
-      order.items = await getOrderItems(tx, order.id);
-      const historyRows = await tx.query<Row>(
-        `select * from order_status_history where order_id = $1 order by created_at`,
-        [order.id],
-      );
-      order.statusHistory = historyRows.map(mapOrderStatusEvent);
-      const paymentRow = await tx.queryOne<Row>(
-        `select * from payments where order_id = $1 order by created_at desc limit 1`,
-        [order.id],
-      );
-      order.payment = paymentRow ? mapPayment(paymentRow) : null;
-      const deliveryRow = await tx.queryOne<Row>(`select * from deliveries where order_id = $1`, [order.id]);
-      order.delivery = deliveryRow ? mapDelivery(deliveryRow) : null;
-    }
+    if (options.withDetails !== false) await hydrateOrder(tx, order);
+    return order;
+  });
+}
+
+/** Loads items, history, payment and delivery onto an order row already visible to `tx`. */
+async function hydrateOrder(tx: DbClient, order: Order): Promise<void> {
+  order.items = await getOrderItems(tx, order.id);
+  const historyRows = await tx.query<Row>(
+    `select * from order_status_history where order_id = $1 order by created_at`,
+    [order.id],
+  );
+  order.statusHistory = historyRows.map(mapOrderStatusEvent);
+  const paymentRow = await tx.queryOne<Row>(
+    `select * from payments where order_id = $1 order by created_at desc limit 1`,
+    [order.id],
+  );
+  order.payment = paymentRow ? mapPayment(paymentRow) : null;
+  const deliveryRow = await tx.queryOne<Row>(`select * from deliveries where order_id = $1`, [order.id]);
+  order.delivery = deliveryRow ? mapDelivery(deliveryRow) : null;
+}
+
+/**
+ * Privileged lookup for the holder of a valid signed order-access token (the link
+ * in a notification email). RLS cannot prove ownership from another device, so the
+ * caller has already verified the token and passes the order id it names; the
+ * restaurant and order number must match as well.
+ */
+export async function getOrderForAccessGrant(
+  restaurantId: string,
+  orderNumber: string,
+  orderId: string,
+): Promise<Order | null> {
+  const db = getDb({ restaurantId });
+  return db.write({ restaurantId, actor: "order-access-link" }, async (tx) => {
+    const row = await tx.queryOne<Row>(
+      `select ${ORDER_DETAIL_SELECT}
+         from orders o
+         left join restaurant1s l on l.id = o.location_id
+         left join delivery_zones dz on dz.id = o.delivery_zone_id
+        where o.id = $1 and o.restaurant_id = $2 and o.order_number = $3`,
+      [orderId, restaurantId, orderNumber],
+    );
+    if (!row) return null;
+    const order = mapOrder(row);
+    await hydrateOrder(tx, order);
     return order;
   });
 }
@@ -514,7 +546,7 @@ export async function getOrderById(
     const row = await tx.queryOne<Row>(
       `select ${ORDER_DETAIL_SELECT}
          from orders o
-         left join restaurant_locations l on l.id = o.location_id
+         left join restaurant1s l on l.id = o.location_id
          left join delivery_zones dz on dz.id = o.delivery_zone_id
         where o.id = $1`,
       [orderId],
@@ -541,7 +573,7 @@ export async function listKitchenOrders(restaurantId: string, ctx: RequestContex
     const rows = await tx.query<Row>(
       `select ${ORDER_DETAIL_SELECT}
          from orders o
-         left join restaurant_locations l on l.id = o.location_id
+         left join restaurant1s l on l.id = o.location_id
          left join delivery_zones dz on dz.id = o.delivery_zone_id
         where o.restaurant_id = $1 and o.status in ('pending','confirmed','preparing','ready')
         order by o.created_at asc

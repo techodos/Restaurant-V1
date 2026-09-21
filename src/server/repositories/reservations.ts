@@ -168,7 +168,7 @@ export async function listReservations(
     const total = await tx.queryCount(`select count(*) from reservations r where ${where}`, params);
     const rows = await tx.query<Row>(
       `select r.*, l.name as location_name
-         from reservations r left join restaurant_locations l on l.id = r.location_id
+         from reservations r left join restaurant1s l on l.id = r.location_id
         where ${where}
         order by r.reservation_date asc, r.reservation_time asc
         limit ${pageSize} offset ${(page - 1) * pageSize}`,
@@ -197,14 +197,14 @@ export async function getReservationByCode(
     ? await db.queryOne<Row>(
         { ...ctx, restaurantId },
         `select r.*, l.name as location_name from reservations r
-           left join restaurant_locations l on l.id = r.location_id
+           left join restaurant1s l on l.id = r.location_id
           where r.restaurant_id = $1 and r.confirmation_code = upper($2) limit 1`,
         [restaurantId, code],
       )
     : await db.queryOne<Row>(
         { ...ctx, restaurantId },
         `select r.*, l.name as location_name from app.reservation_by_code($1, $2, $3) r
-           left join restaurant_locations l on l.id = r.location_id`,
+           left join restaurant1s l on l.id = r.location_id`,
         [restaurantId, code, phone],
       );
 

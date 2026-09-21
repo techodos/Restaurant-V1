@@ -22,7 +22,7 @@ const migratorUrl =
 const EXPECTED_TABLES = [
   "auth.users",
   "restaurants",
-  "restaurant_locations",
+  "restaurant1s",
   "team_members",
   "websites",
   "website_pages",
@@ -47,6 +47,8 @@ const EXPECTED_TABLES = [
   "deliveries",
   "reviews",
   "reservations",
+  "notification_events",
+  "customer_push_tokens",
 ] as const;
 
 let failures = 0;
@@ -147,7 +149,7 @@ async function main() {
     }>(
       `select
          (select count(*) from restaurants)          as restaurants,
-         (select count(*) from restaurant_locations) as locations,
+         (select count(*) from restaurant1s) as locations,
          (select count(*) from menu_categories)      as categories,
          (select count(*) from menu_items)           as items,
          (select count(*) from menu_item_variants)   as variants,

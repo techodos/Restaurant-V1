@@ -109,6 +109,19 @@ export const restaurantFeaturesSchema = z.object({
   customDomain: z.boolean().default(false),
   analytics: z.boolean().default(true),
   onlinePayments: z.boolean().default(false),
+  /**
+   * Customer notifications. `notifications` is the master switch; `emailNotify` / `pushNotify`
+   * pick the channels. A channel is on only when BOTH the master switch and its own flag are true
+   * (see shared/notification-channels.ts). Missing keys default to on, so existing restaurants keep
+   * receiving notifications.
+   */
+  notifications: z.boolean().default(true),
+  notificationChannels: z
+    .object({
+      emailNotify: z.boolean().default(true),
+      pushNotify: z.boolean().default(true),
+    })
+    .default({}),
 });
 
 export type RestaurantFeatures = z.infer<typeof restaurantFeaturesSchema>;
