@@ -21,6 +21,7 @@ import {
   setOrderTypeSchema,
   updateCartItemSchema,
 } from '@/server/validation/cart';
+import { setCartCountHint } from '@/web/session';
 import { openStorefrontCart } from '@/web/storefront';
 
 /**
@@ -41,6 +42,7 @@ export async function addToCartAction(
     const input = addToCartSchema.parse(payload);
     const { restaurant, cart } = await openStorefrontCart(slug);
     const result = await addToCart(restaurant, cart, input);
+    await setCartCountHint(result.itemCount);
     refreshStorefront(slug);
     return result;
   });
@@ -53,7 +55,8 @@ export async function updateCartItemAction(
   return action(async () => {
     const input = updateCartItemSchema.parse(payload);
     const { cart } = await openStorefrontCart(slug);
-    await updateCartItem(cart, input);
+    const { itemCount } = await updateCartItem(cart, input);
+    await setCartCountHint(itemCount);
     refreshStorefront(slug);
     return { updated: true as const };
   });
@@ -66,7 +69,8 @@ export async function removeCartItemAction(
   return action(async () => {
     const input = removeCartItemSchema.parse(payload);
     const { cart } = await openStorefrontCart(slug);
-    await removeFromCart(cart, input.cartItemId);
+    const { itemCount } = await removeFromCart(cart, input.cartItemId);
+    await setCartCountHint(itemCount);
     refreshStorefront(slug);
     return { updated: true as const };
   });
@@ -77,7 +81,8 @@ export async function clearCartAction(
 ): Promise<ApiResult<{ cleared: true }>> {
   return action(async () => {
     const { cart } = await openStorefrontCart(slug);
-    await emptyCart(cart);
+    const { itemCount } = await emptyCart(cart);
+    await setCartCountHint(itemCount);
     refreshStorefront(slug);
     return { cleared: true as const };
   });

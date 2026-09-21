@@ -5,7 +5,7 @@ import { getStorefrontCustomer } from "@/web/session";
 import { readCart, requireStorefront } from "@/web/storefront";
 import { priceCart, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
-import { getDeliveryZones } from "@/server/services/restaurants";
+import { getLiveDeliveryZones } from "@/server/services/restaurants";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { Button } from "@/components/ui/button";
 
@@ -30,7 +30,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const [pricingResult, zones, customer] = await Promise.all([
     priceCart(restaurant, cart),
     cart.orderType === "delivery"
-      ? getDeliveryZones(restaurant.id, {
+      ? getLiveDeliveryZones(restaurant.id, {
           locationId: cart.locationId ?? undefined,
           activeOnly: true,
         })

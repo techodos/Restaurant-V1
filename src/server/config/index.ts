@@ -25,6 +25,28 @@ const databaseSchema = z.object({
   DB_POOL_MAX: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(100).default(10)),
 });
 
+const booleanFlag = (fallback: boolean) =>
+  z.preprocess(
+    (value) => (typeof value === "string" ? value.trim().toLowerCase() : value),
+    z
+      .enum(["true", "false", "1", "0"], { message: "must be true or false" })
+      .transform((value) => value === "true" || value === "1")
+      .optional()
+      .transform((value) => value ?? fallback),
+  );
+
+const storefrontCacheSchema = z.object({
+  STOREFRONT_CACHE_ENABLED: z.preprocess(emptyToUndefined, booleanFlag(true)),
+  STOREFRONT_CACHE_REFRESH_INTERVAL_MS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(1_000).max(86_400_000).default(300_000),
+  ),
+  STOREFRONT_CACHE_STARTUP_TIMEOUT_MS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(1_000).max(600_000).default(60_000),
+  ),
+});
+
 const authSchema = z.object({
   AUTH_SECRET: z.string().min(16, "must be at least 16 characters"),
 });
@@ -90,8 +112,7 @@ function lazy<T>(load: () => T): () => T {
 const app = lazy(() => {
   const env = parse("app", appSchema);
   return {
-    isProduction: env.NODE_ENV === "production",
-    siteUrl: env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, ""),
+    isProduction: env.NODE_ENV === "production",    siteUrl: env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, ""),
     defaultRestaurantSlug: env.NEXT_PUBLIC_DEFAULT_RESTAURANT,
   };
 });
@@ -104,6 +125,16 @@ const database = lazy(() => {
     /** privileged role for authorised server-side writes; falls back to `url` */
     serviceUrl: env.DATABASE_URL_SERVICE,
     poolMax: env.DB_POOL_MAX,
+  };
+});
+
+const storefrontCache = lazy(() => {
+  const env = parse("storefront cache", storefrontCacheSchema);
+  return {
+    enabled: env.STOREFRONT_CACHE_ENABLED,
+    refreshIntervalMs: env.STOREFRONT_CACHE_REFRESH_INTERVAL_MS,
+    /** bounds every snapshot load: startup fails on it, a scheduled refresh is abandoned on it */
+    startupTimeoutMs: env.STOREFRONT_CACHE_STARTUP_TIMEOUT_MS,
   };
 });
 
@@ -186,6 +217,9 @@ export const config = {
   },
   get database() {
     return database();
+  },
+  get storefrontCache() {
+    return storefrontCache();
   },
   get auth() {
     return auth();

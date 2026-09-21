@@ -248,6 +248,34 @@ export async function listBookedSlots(
   }));
 }
 
+/**
+ * Slots already booked at several locations over a date window (inclusive), in
+ * one query. The booking page needs the whole window at once; asking per day and
+ * location costs a database transaction each.
+ */
+export async function listBookedSlotsInRange(
+  locationIds: readonly string[],
+  fromDate: string,
+  toDate: string,
+  ctx: RequestContext = {},
+): Promise<{ locationId: string; date: string; time: string }[]> {
+  if (locationIds.length === 0) return [];
+  const rows = await getDb(ctx).query<Row>(
+    ctx,
+    `select location_id, to_char(reservation_date, 'YYYY-MM-DD') as reservation_date, reservation_time
+       from reservations
+      where location_id = any($1::uuid[])
+        and reservation_date between $2::date and $3::date
+        and status in ('pending','confirmed','seated')`,
+    [locationIds, fromDate, toDate],
+  );
+  return rows.map((row) => ({
+    locationId: str(row.location_id),
+    date: str(row.reservation_date),
+    time: str(row.reservation_time).slice(0, 5),
+  }));
+}
+
 export function isSlotInPast(date: string, time: string, timezone: string, now = new Date()): boolean {
   const candidate = new Date(`${date}T${time}:00`);
   void timezone;

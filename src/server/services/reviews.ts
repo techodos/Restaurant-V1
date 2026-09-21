@@ -1,4 +1,5 @@
 import type { RatingBreakdown, Restaurant, Review } from "@/shared/contract/models";
+import { readPublicReviews, readReviewSummary, snapshotForRestaurant } from "@/server/cache";
 import { errors } from "@/server/errors";
 import { forRestaurant, type RequestContext } from "@/server/context";
 import { createReview, getRatingBreakdown, hasReviewedOrder, listPublicReviews } from "@/server/repositories/reviews";
@@ -52,10 +53,15 @@ export async function submitReview(restaurant: Restaurant, input: SubmitReviewIn
   );
 }
 
-export function getPublicReviews(restaurantId: string, filters: { limit?: number; featuredOnly?: boolean } = {}): Promise<Review[]> {
+/** Approved reviews for display; served from the storefront snapshot (database when the cache is off). */
+export async function getPublicReviews(restaurantId: string, filters: { limit?: number; featuredOnly?: boolean } = {}): Promise<Review[]> {
+  const snapshot = snapshotForRestaurant(restaurantId);
+  if (snapshot) return readPublicReviews(snapshot, filters);
   return listPublicReviews(restaurantId, filters, forRestaurant(restaurantId));
 }
 
-export function getReviewSummary(restaurantId: string): Promise<RatingBreakdown> {
+export async function getReviewSummary(restaurantId: string): Promise<RatingBreakdown> {
+  const snapshot = snapshotForRestaurant(restaurantId);
+  if (snapshot) return readReviewSummary(snapshot);
   return getRatingBreakdown(restaurantId, forRestaurant(restaurantId));
 }

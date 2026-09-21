@@ -27,6 +27,18 @@ export async function listPages(
   return rows.map(mapWebsitePage);
 }
 
+/** Every published page of the restaurant's websites, home page first. */
+export async function listPublishedPages(restaurantId: string, ctx: RequestContext = {}): Promise<WebsitePage[]> {
+  const rows = await getDb({ restaurantId }).query<Row>(
+    ctx,
+    `select * from website_pages
+      where restaurant_id = $1 and is_published
+      order by is_home desc, sort_order, title`,
+    [restaurantId],
+  );
+  return rows.map(mapWebsitePage);
+}
+
 export async function getPageBySlug(
   restaurantId: string,
   slug: string,
