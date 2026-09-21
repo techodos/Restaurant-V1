@@ -8,7 +8,7 @@ import { placeOrder, type PlaceOrderResult } from "@/server/services/checkout";
 import { dispatchDueNotifications } from "@/server/services/notifications";
 import { requireRestaurant } from "@/server/services/restaurants";
 import { placeOrderSchema } from "@/server/validation/checkout";
-import { getVisitorContext } from "@/web/session";
+import { getVisitorContext, setCartCountHint } from "@/web/session";
 
 export type { PlaceOrderResult };
 
@@ -19,6 +19,7 @@ export async function placeOrderAction(slug: string, payload: unknown): Promise<
     const restaurant = await requireRestaurant(slug);
     const visitor = await getVisitorContext(restaurant.id);
     const result = await placeOrder(restaurant, input, visitor);
+    await setCartCountHint(0); // the order consumed the cart
     revalidatePath(`/r/${slug}`, "layout");
 
     // The order is committed (and its "placed" event queued by the database). No email goes out

@@ -3,9 +3,13 @@
  * (pino, Datadog, …) without touching callers. Client-facing errors never carry
  * what is logged here.
  */
-type Scope = "db" | "action" | "storage" | "notifications" | "unexpected";
+type Scope = "db" | "action" | "storage" | "cache" | "notifications" | "unexpected";
 
 export const logger = {
+  info(scope: Scope, message: string, detail?: Record<string, unknown>): void {
+    if (detail === undefined) console.info(`[${scope}] ${message}`);
+    else console.info(`[${scope}] ${message}`, detail);
+  },
   warn(scope: Scope, message: string, detail?: unknown): void {
     if (detail === undefined) console.warn(`[${scope}] ${message}`);
     else console.warn(`[${scope}] ${message}`, detail);

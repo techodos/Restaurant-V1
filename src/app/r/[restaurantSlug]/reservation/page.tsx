@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { breadcrumbJsonLd } from "@/web/seo";
 import { getLocations } from "@/server/services/restaurants";
-import { getBookedSlots } from "@/server/services/reservations";
+import { getBookedSlotCounts } from "@/server/services/reservations";
 
 interface ReservationPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -76,8 +76,20 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
   const dates: { value: string; label: string }[] = [];
   const slotsByDate: Record<string, Record<string, { booked: number; capacity: number }>> = {};
 
-  for (let offset = 0; offset <= settings.maxAdvanceDays; offset += 1) {
-    const day = zonedNow(new Date(Date.now() + offset * 86_400_000), restaurant.timezone);
+  const days = Array.from({ length: settings.maxAdvanceDays + 1 }, (_, offset) => ({
+    offset,
+    day: zonedNow(new Date(Date.now() + offset * 86_400_000), restaurant.timezone),
+  }));
+
+  // One query for the whole window and every location, not one per day and location.
+  const bookedCounts = await getBookedSlotCounts(
+    restaurant.id,
+    locations.map((location) => location.id),
+    today.dateKey,
+    (days.at(-1)?.day ?? today).dateKey,
+  );
+
+  for (const { offset, day } of days) {
     const label = new Date(`${day.dateKey}T12:00:00Z`).toLocaleDateString(undefined, {
       weekday: "short",
       day: "numeric",
@@ -93,12 +105,7 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
         continue;
       }
 
-      const booked = await getBookedSlots(restaurant.id, location.id, day.dateKey);
-      const bookedByTime = new Map<string, number>();
-      for (const entry of booked) {
-        const slot = entry.time.slice(0, 5);
-        bookedByTime.set(slot, (bookedByTime.get(slot) ?? 0) + 1);
-      }
+      const bookedByTime = bookedCounts[key] ?? {};
 
       const capacity = settings.tables.length || Math.max(1, Math.floor(settings.maxGuests / 2));
       const slots: Record<string, { booked: number; capacity: number }> = {};
@@ -111,7 +118,7 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
           const probe = new Date(`${day.dateKey}T${time}:00Z`);
           if (!isOpenAt(location.hours, probe, restaurant.timezone)) continue;
           if (offset === 0 && minute <= today.minutes) continue; // already passed today
-          slots[time] = { booked: bookedByTime.get(time) ?? 0, capacity };
+          slots[time] = { booked: bookedByTime[time] ?? 0, capacity };
         }
       }
       slotsByDate[key] = slots;

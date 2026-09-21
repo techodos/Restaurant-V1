@@ -9,7 +9,7 @@ import type { MenuAddonGroup, MenuCategory, MenuItem, MenuItemSummary } from "@/
  * admin table need (price-from, variant/add-on flags, rating) computed in SQL so
  * the browser never has to load the whole menu to filter it.
  */
-const SUMMARY_COLUMNS = `
+export const SUMMARY_COLUMNS = `
   mi.*,
   mc.name as category_name,
   mc.slug as category_slug,
@@ -262,6 +262,78 @@ export async function listAddonGroups(
     isActive: Boolean(group.is_active),
     addons: addons.filter((addon) => str(addon.addon_group_id) === str(group.id)).map(mapAddon),
   }));
+}
+
+/** One active menu item in both shapes the storefront renders, read in a single pass. */
+export interface StorefrontMenuRecord {
+  /** full item; variants and add-on groups include unavailable ones (the UI shows them as sold out) */
+  item: MenuItem;
+  summary: MenuItemSummary;
+  /** order lines on non-cancelled orders, used to rank "popular" items */
+  popularity: number;
+}
+
+/**
+ * The whole active menu for the storefront snapshot in four set-based queries
+ * (items, variants, add-on groups, add-ons) — never one query per item. Runs in
+ * one RLS-enforced transaction, like every other storefront read.
+ */
+export async function listStorefrontMenu(restaurantId: string, ctx: RequestContext = {}): Promise<StorefrontMenuRecord[]> {
+  return getDb({ restaurantId }).read(ctx, async (tx) => {
+    const items = await tx.query<Row>(
+      `select ${SUMMARY_COLUMNS},
+         (select count(*) from order_items oi
+            join orders o on o.id = oi.order_id
+           where oi.menu_item_id = mi.id and o.status <> 'cancelled')::int as popularity
+       from menu_items mi
+       join menu_categories mc on mc.id = mi.category_id
+       where mi.restaurant_id = $1 and mi.is_active
+       order by mc.sort_order, mi.sort_order, mi.name`,
+      [restaurantId],
+    );
+    const variants = await tx.query<Row>(
+      `select * from menu_item_variants where restaurant_id = $1 order by sort_order, price`,
+      [restaurantId],
+    );
+    const groups = await tx.query<Row>(
+      `select * from menu_addon_groups where restaurant_id = $1 order by sort_order, name`,
+      [restaurantId],
+    );
+    const addons = await tx.query<Row>(
+      `select * from menu_addons where restaurant_id = $1 order by sort_order, name`,
+      [restaurantId],
+    );
+
+    const variantsByItem = groupBy(variants, (row) => str(row.menu_item_id));
+    const groupsByItem = groupBy(groups, (row) => str(row.menu_item_id));
+    const addonsByGroup = groupBy(addons, (row) => str(row.addon_group_id));
+
+    return items.map((row) => {
+      const { costPrice: _costPrice, ...item } = mapMenuItem(row);
+      const id = str(row.id);
+      return {
+        item: {
+          ...item,
+          variants: (variantsByItem.get(id) ?? []).map(mapVariant),
+          addonGroups: (groupsByItem.get(id) ?? []).map((group) =>
+            mapAddonGroup(group, (addonsByGroup.get(str(group.id)) ?? []).map(mapAddon)),
+          ),
+        },
+        summary: mapMenuItemSummary(row),
+        popularity: num(row.popularity),
+      };
+    });
+  });
+}
+
+function groupBy(rows: Row[], key: (row: Row) => string): Map<string, Row[]> {
+  const grouped = new Map<string, Row[]>();
+  for (const row of rows) {
+    const bucket = grouped.get(key(row));
+    if (bucket) bucket.push(row);
+    else grouped.set(key(row), [row]);
+  }
+  return grouped;
 }
 
 export interface CreateMenuItemInput {

@@ -60,6 +60,21 @@ describe("architecture boundaries", () => {
     expect(violations(files, /^@\/server\/db(\/|$)|^pg$/)).toEqual([]);
   });
 
+  it("keeps the storefront cache above the repositories: no SQL, connections or services", () => {
+    // the cache asks repositories for data; it must not know how the database is reached,
+    // and services depend on it, not the other way round
+    expect(violations(inDir("server/cache"), /^@\/server\/db(\/|$)|^pg$|^@\/server\/services(\/|$)/)).toEqual([]);
+    const withSql = inDir("server/cache")
+      .filter((file) => /\b(select|insert|update|delete)\b[\s\S]{0,80}\bfrom\b|getDb\(/i.test(readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")))
+      .map(rel);
+    expect(withSql).toEqual([]);
+  });
+
+  it("keeps cart and checkout pricing off the storefront cache", () => {
+    const pricing = ["server/services/cart.ts", "server/services/checkout.ts", "server/domain/pricing.ts"].map((file) => path.join(SRC, file));
+    expect(violations(pricing, /^@\/server\/cache(\/|$)/)).toEqual([]);
+  });
+
   it("creates connection pools in exactly one place", () => {
     const creators = sourceFiles(SRC)
       .filter((file) => /new Pool\(/.test(readFileSync(file, "utf8")))
@@ -68,9 +83,16 @@ describe("architecture boundaries", () => {
   });
 
   it("reads process.env only inside the config module", () => {
+    // One exception: Next.js's own runtime marker in the startup hook. It has to be a literal
+    // `process.env.NEXT_RUNTIME` so Next can substitute it at compile time and keep Node-only
+    // imports out of the Edge bundle; it is not application configuration. Nothing else is exempt.
+    const nextRuntimeMarker = /process\.env\.NEXT_RUNTIME\b/g;
     const offenders = sourceFiles(SRC)
       .filter((file) => !rel(file).startsWith("server/config/"))
-      .filter((file) => /process\.env/.test(readFileSync(file, "utf8")))
+      .filter((file) => {
+        const text = readFileSync(file, "utf8");
+        return /process\.env/.test(rel(file) === "instrumentation.ts" ? text.replace(nextRuntimeMarker, "") : text);
+      })
       .map(rel);
     expect(offenders).toEqual([]);
   });

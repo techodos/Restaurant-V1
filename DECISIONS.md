@@ -328,3 +328,49 @@ order page (`findVisitorOrder`), subscribes first, then sends a snapshot, so no 
 Docker, VM); on serverless platforms with short function limits the browser reconnects and the snapshot re-syncs it.
 LISTEN cannot use the transaction pooler. Per-restaurant databases need one listener per database. Live status, FCM push and
 Resend email stay separate mechanisms.
+
+---
+
+## 19. In-memory storefront cache: one instance → one restaurant → one snapshot
+
+**Decision.** Each deployed instance serves exactly one restaurant (the slug in
+`NEXT_PUBLIC_DEFAULT_RESTAURANT`) from one database. At startup, `src/instrumentation.ts`
+loads the storefront's public, read-mostly data into an immutable in-memory snapshot
+(`src/server/cache`); `services/storefront|catalog|restaurants|reviews` answer from it and
+a background timer replaces it every `STOREFRONT_CACHE_REFRESH_INTERVAL_MS`.
+`STOREFRONT_CACHE_ENABLED=false` restores the previous per-request database reads.
+
+**Why.** On the hosted database every storefront page cost 5–12 sequential statements
+(5–10 s). After startup those pages send none (measured: 0 statements, 30–200 ms).
+
+**In the snapshot:** restaurant (features, settings), website (theme, config, published
+pages), all locations, all delivery zones, active categories, active items with variants
+and add-on groups, approved reviews (top 50 + rating summary).
+**Never in the snapshot:** carts, orders, payments, customers, sessions, coupons,
+reservations and booked slots, order tracking, cost prices.
+
+**Consequences.**
+* Refresh is atomic and single-flight: a complete, validated snapshot is built, then the
+  reference is swapped; a failed or timed-out refresh keeps the old snapshot.
+* A failed *first* load fails startup (production exits non-zero); there is no per-request
+  database fallback for an empty cache.
+* The cache is on `globalThis` (like the database manager): Next bundles the startup hook
+  and the routes separately and dev reloads re-evaluate modules.
+* Pricing stays authoritative: `createOrder` recomputes from the database, and cart pricing
+  and the checkout page read delivery zones with `getLiveDeliveryZones`, never the snapshot.
+  `requireRestaurant` (used by every write path) also reads the database.
+  Display-only values (menu prices on cards, restaurant tax/service settings used to show a
+  cart total) can lag the database by up to one refresh interval.
+* With the cache on, any other `/r/<slug>` is 404: the instance has one restaurant. With it
+  off, behaviour is unchanged (any tenant in the database).
+* Future admin writes call `getStorefrontCache().invalidate()` after committing; there is no
+  admin system yet, so nothing calls it today.
+* The startup hook reads `process.env.NEXT_RUNTIME` directly: Next replaces that literal at
+  compile time so the Edge bundle does not pull in `pg`. `tests/architecture.test.ts` allows
+  exactly that token in exactly that file.
+* Two other per-request database costs were removed from the storefront: the reservation page asks
+  for booked slots once for the whole booking window and every location (`getBookedSlotCounts`) instead
+  of once per day and location (62 transactions, ~105 s on the hosted database), and the layout no longer
+  reads the cart to draw the header badge. The badge comes from the `rp_cart_n` cookie, a display hint that
+  `openStorefrontCart` re-syncs to the real count and the cart actions and `placeOrderAction` update.
+  `/cart` and `/checkout` still read the real cart.

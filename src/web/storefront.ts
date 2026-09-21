@@ -5,7 +5,7 @@ import { AppError } from "@/server/errors";
 import { findCart, generateCartToken, openCart } from "@/server/services/cart";
 import { requireRestaurant } from "@/server/services/restaurants";
 import { loadStorefrontContext } from "@/server/services/storefront";
-import { getCartToken, getStorefrontCustomer, setCartToken } from "./session";
+import { getCartToken, getStorefrontCustomer, setCartCountHint, setCartToken } from "./session";
 
 /**
  * Next.js glue for the storefront: request-scoped caching, `notFound()`, and
@@ -49,5 +49,7 @@ export async function openStorefrontCart(slug: string): Promise<{ restaurant: Re
     await setCartToken(token);
   }
   const cart = await openCart(restaurant, token, { customerId: customer?.customerId ?? null });
+  // the real cart was just loaded: re-sync the header badge so it cannot stay wrong
+  await setCartCountHint(cart.itemCount);
   return { restaurant, cart };
 }

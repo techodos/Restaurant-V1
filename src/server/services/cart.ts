@@ -1,4 +1,4 @@
-import type { Cart, Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
+import type { Cart, CartItem, Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
 import { DAY_KEYS, type OrderType } from "@/shared/contract/enums";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { isOpenAt, timeToMinutes, zonedNow } from "@/shared/hours";
@@ -19,7 +19,7 @@ import { getCouponByCode, getCouponById, toCouponPricing } from "@/server/reposi
 import { matchDeliveryZone } from "@/server/repositories/deliveries";
 import { PricingError, tryCalculatePricing, type PricingResult, type ZonePricing } from "@/server/domain/pricing";
 import type { AddToCartInput, UpdateCartItemInput } from "@/server/validation/cart";
-import { getDeliveryZones } from "./restaurants";
+import { getLiveDeliveryZones } from "./restaurants";
 
 /**
  * Cart use cases. The opaque cart token is the guest identity; where it is
@@ -28,6 +28,7 @@ import { getDeliveryZones } from "./restaurants";
  */
 
 const TOKEN_BYTES = 24;
+const MAX_LINE_QUANTITY = 99;
 
 export function generateCartToken(): string {
   const bytes = new Uint8Array(TOKEN_BYTES);
@@ -94,27 +95,33 @@ export async function addToCart(restaurant: Restaurant, cart: Cart, input: AddTo
   return { itemCount: cart.itemCount + input.quantity };
 }
 
-function requireLine(cart: Cart, cartItemId: string): void {
-  if (!cart.items.some((item) => item.id === cartItemId)) {
-    throw errors.forbidden("That item is not in your cart.");
-  }
+function requireLine(cart: Cart, cartItemId: string): CartItem {
+  const line = cart.items.find((item) => item.id === cartItemId);
+  if (!line) throw errors.forbidden("That item is not in your cart.");
+  return line;
 }
 
-export async function updateCartItem(cart: Cart, input: UpdateCartItemInput): Promise<void> {
-  requireLine(cart, input.cartItemId);
+/** Mutations that change quantities report the cart's new size, so callers need not reload it. */
+export async function updateCartItem(cart: Cart, input: UpdateCartItemInput): Promise<{ itemCount: number }> {
+  const line = requireLine(cart, input.cartItemId);
   await updateCartItemQuantity(
     { cartItemId: input.cartItemId, quantity: input.quantity },
     cartContext(cart.restaurantId, cart.sessionToken),
   );
+  // the repository caps a line at 99 and treats 0 as removal
+  const newQuantity = Math.min(Math.max(input.quantity, 0), MAX_LINE_QUANTITY);
+  return { itemCount: Math.max(0, cart.itemCount - line.quantity + newQuantity) };
 }
 
-export async function removeFromCart(cart: Cart, cartItemId: string): Promise<void> {
-  requireLine(cart, cartItemId);
+export async function removeFromCart(cart: Cart, cartItemId: string): Promise<{ itemCount: number }> {
+  const line = requireLine(cart, cartItemId);
   await removeCartItem(cartItemId, cartContext(cart.restaurantId, cart.sessionToken));
+  return { itemCount: Math.max(0, cart.itemCount - line.quantity) };
 }
 
-export async function emptyCart(cart: Cart): Promise<void> {
+export async function emptyCart(cart: Cart): Promise<{ itemCount: number }> {
   await clearCart(cart.id, cartContext(cart.restaurantId, cart.sessionToken));
+  return { itemCount: 0 };
 }
 
 /** Applies (or, with an empty code, removes) a promo code; returns the stored code. */
@@ -182,7 +189,8 @@ async function resolveCartZone(
   cart: Cart,
   address?: { area?: string | null; city?: string | null; postalCode?: string | null } | null,
 ): Promise<ZonePricing | null> {
-  const zones = await getDeliveryZones(restaurant.id, {
+  // pricing input: always the live database, never the storefront snapshot
+  const zones = await getLiveDeliveryZones(restaurant.id, {
     locationId: cart.locationId ?? undefined,
     activeOnly: true,
   });

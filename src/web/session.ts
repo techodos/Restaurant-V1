@@ -16,7 +16,14 @@ import {
   type StaffSessionPayload,
 } from "@/server/auth/tokens";
 import type { RequestContext } from "@/server/context";
-import { CART_COOKIE, CART_COOKIE_MAX_AGE, CUSTOMER_COOKIE, STAFF_COOKIE, cookieOptions } from "./cookies";
+import {
+  CART_COOKIE,
+  CART_COOKIE_MAX_AGE,
+  CART_COUNT_COOKIE,
+  CUSTOMER_COOKIE,
+  STAFF_COOKIE,
+  cookieOptions,
+} from "./cookies";
 
 /**
  * Adapter between the Next.js request (cookies) and the framework-free auth
@@ -66,6 +73,28 @@ export async function getCartToken(): Promise<string | null> {
 export async function setCartToken(token: string): Promise<void> {
   const store = await cookies();
   store.set(CART_COOKIE, token, cookieOptions(CART_COOKIE_MAX_AGE));
+}
+
+const CART_COUNT_MAX = 999;
+
+/**
+ * Items in the visitor's cart as last recorded by a cart action, for the header
+ * badge. Reading the cart from the database on every page view costs a full
+ * transaction; this costs nothing. It is a display hint only — the cart and
+ * checkout pages, and every cart mutation, use the real cart — so a tampered or
+ * stale value can only show a wrong number in the badge until the next cart action.
+ */
+export async function getCartCountHint(): Promise<number> {
+  const store = await cookies();
+  const count = Number.parseInt(store.get(CART_COUNT_COOKIE)?.value ?? "", 10);
+  return Number.isFinite(count) ? Math.min(Math.max(count, 0), CART_COUNT_MAX) : 0;
+}
+
+/** Records the cart size for the header badge. Only valid in Server Actions and Route Handlers. */
+export async function setCartCountHint(count: number): Promise<void> {
+  const store = await cookies();
+  const safe = Math.min(Math.max(Math.trunc(count) || 0, 0), CART_COUNT_MAX);
+  store.set(CART_COUNT_COOKIE, String(safe), cookieOptions(CART_COOKIE_MAX_AGE));
 }
 
 /**

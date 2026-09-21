@@ -1,7 +1,7 @@
 import type { Reservation, Restaurant } from "@/shared/contract/models";
 import { errors } from "@/server/errors";
 import { forRestaurant, type RequestContext } from "@/server/context";
-import { createReservation, listBookedSlots } from "@/server/repositories/reservations";
+import { createReservation, listBookedSlotsInRange } from "@/server/repositories/reservations";
 import type { BookTableInput } from "@/server/validation/reservation";
 import { getLocations } from "./restaurants";
 
@@ -39,6 +39,24 @@ export async function bookTable(restaurant: Restaurant, input: BookTableInput, v
   );
 }
 
-export function getBookedSlots(restaurantId: string, locationId: string, date: string) {
-  return listBookedSlots(locationId, date, forRestaurant(restaurantId));
+/**
+ * Bookings per slot across a date window: `counts["<locationId>:<date>"]["19:30"]`
+ * is how many active reservations start at that time. One database round of
+ * queries however many days and locations there are.
+ */
+export type BookedSlotCounts = Record<string, Record<string, number>>;
+
+export async function getBookedSlotCounts(
+  restaurantId: string,
+  locationIds: readonly string[],
+  fromDate: string,
+  toDate: string,
+): Promise<BookedSlotCounts> {
+  const booked = await listBookedSlotsInRange(locationIds, fromDate, toDate, forRestaurant(restaurantId));
+  const counts: BookedSlotCounts = {};
+  for (const { locationId, date, time } of booked) {
+    const day = (counts[`${locationId}:${date}`] ??= {});
+    day[time] = (day[time] ?? 0) + 1;
+  }
+  return counts;
 }

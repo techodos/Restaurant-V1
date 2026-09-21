@@ -1,9 +1,6 @@
 import type { Metadata } from 'next';
-import {
-  getStorefrontContext,
-  readCart,
-  requireStorefront,
-} from '@/web/storefront';
+import { getCartCountHint } from '@/web/session';
+import { getStorefrontContext, requireStorefront } from '@/web/storefront';
 import { themeCssVariables, fontStack } from '@/web/theme';
 import { SiteHeader } from '@/components/storefront/site-header';
 import { resolveImage } from '@/web/media';
@@ -60,9 +57,8 @@ export default async function StorefrontLayout({
   const context = await requireStorefront(restaurantSlug);
 
   const { restaurant, theme, config, locations, primaryLocation } = context;
-  // Read-only: a request that only renders must never mint a cart cookie.
-  const cart = await readCart(restaurant).catch(() => null);
-  const itemCount = cart?.itemCount ?? 0;
+  // Cookie hint kept current by the cart actions: no database read on ordinary page views.
+  const itemCount = await getCartCountHint();
 
   return (
     <div

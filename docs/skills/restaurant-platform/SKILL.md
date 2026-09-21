@@ -9,7 +9,7 @@ description: The single knowledge base for the restaurant-platform codebase (Nex
 
 **Maintenance rule (always follow):** whenever you learn something new and useful about this project (a new feature, a gotcha, a command, a deployment step, a bug root cause, a schema change), add it to the matching section of THIS file in the same change. Do not create another skill or another `.md` under `docs/`. If no section fits, add a new `##` section here and list it in the contents below. Keep entries short and factual; correct or delete an entry that turns out to be wrong. Verify a symbol with Grep before relying on it; this file can lag the code.
 
-Contents: 1 Overview · 2 Architecture · 3 Where new code goes · 4 Symbol map · 5 Rules easy to break · 6 Database and environment · 7 Notifications · 8 Live order tracking (SSE) · 9 Run on localhost · 10 Deploy (Vercel / other hosts) · 11 Troubleshooting · 12 Commands and tests · 13 Future: moving the backend out, one database per restaurant · 14 Known gaps
+Contents: 1 Overview · 2 Architecture · 3 Where new code goes · 4 Symbol map · 5 Rules easy to break · 6 Database and environment · 7 Notifications · 8 Live order tracking (SSE) · 9 Run on localhost · 10 Deploy (Vercel / other hosts) · 11 Troubleshooting · 12 Commands and tests · 13 Future: moving the backend out, one database per restaurant · 14 Known gaps · 15 Storefront cache (in-memory snapshot)
 
 ---
 
@@ -57,14 +57,16 @@ src/
     r/[restaurantSlug]/order/[orderNumber]/events/route.ts   SSE stream
   components/{ui,storefront}/   (storefront: order-live-status, use-order-events, push-opt-in, ...)
   web/                       cookies.ts session.ts storefront.ts theme.ts media.ts seo.ts
+  instrumentation.ts         Next.js startup hook: loads the storefront cache before the server answers
   server/                    framework-free — enforced by a test
-    config/                  typed, lazily-parsed env sections: app, database, auth, storage, payments, email, push, notifications, orderEvents
+    config/                  typed, lazily-parsed env sections: app, database, storefrontCache, auth, storage, payments, email, push, notifications, orderEvents
+    cache/                   in-memory storefront snapshot: cache class, builder, pure read functions (no SQL); see section 15
     context.ts               RequestContext + forRestaurant()
     db/                      database.ts (pools, transactions), registry.ts (routing), mappers.ts, listener.ts (LISTEN/NOTIFY hub)
     repositories/            analytics carts coupons customers deliveries media menu orders order-events notifications
-                             payments reservations restaurants reviews team websites
+                             payments reservations restaurants reviews storefront team websites
     services/                cart checkout catalog orders order-events notifications reservations restaurants reviews storefront
-    domain/                  pricing.ts (pure, no I/O)
+    domain/                  pricing.ts, storefront-context.ts (pure, no I/O)
     auth/                    auth-service.ts tokens.ts password.ts permissions.ts
     validation/              cart checkout notifications reservation review common
     integrations/            payments.ts storage.ts resend.ts fcm.ts
@@ -76,7 +78,7 @@ db/migrations/               schema (checksummed, forward-only — do not edit a
 scripts/db/                  migrate, seed, verify (owner connection, outside the app)
 scripts/notifications/       dispatch.ts (manual / --loop dispatcher)
 tests/                       vitest: pricing, checkout, reservations, rbac, tenant isolation (need Postgres), plus
-                             architecture, config, database-registry, notifications*, order-events (no database needed)
+                             architecture, config, database-registry, notifications*, order-events, storefront-cache|snapshot|services, reservation-availability, cart-count (no database needed)
 ```
 
 Types: DB rows (`Row`, snake_case) exist only inside repositories and `db/mappers.ts`; domain models are `shared/contract/models`; API envelopes are `ApiResult`/`ApiError`; UI props are declared by the component.
@@ -94,7 +96,7 @@ Types: DB rows (`Row`, snake_case) exist only inside repositories and `db/mapper
 
 ### Configuration
 
-`config.app | database | auth | storage | payments | email | push | notifications | orderEvents`. Each section parses only its own variables the first time it is used, so importing config has no side effects and a missing variable fails with its **name** (never its value). `.env.example` lists every variable.
+`config.app | database | storefrontCache | auth | storage | payments | email | push | notifications | orderEvents`. Each section parses only its own variables the first time it is used, so importing config has no side effects and a missing variable fails with its **name** (never its value). `.env.example` lists every variable.
 
 ## 3. Where new code goes
 
@@ -113,20 +115,22 @@ Types: DB rows (`Row`, snake_case) exist only inside repositories and `db/mapper
 
 ## 4. Symbol map (what to call)
 
-**web/**  `storefront.ts`: `getStorefrontContext` (React-cached), `requireStorefront(slug)` (404 only for real NOT_FOUND; other errors → error boundary), `readCart(restaurant)` (never sets cookies), `openStorefrontCart(slug)` (server actions only; mints cart cookie). `session.ts`: `getVisitorContext(restaurantId)` → `RequestContext`, `getStorefrontCustomer(restaurantId)`, `getCartToken/setCartToken`, `getCurrentStaff/requireStaff/requirePermission`. `cookies.ts` names/options. `theme.ts` `themeCssVariables`, `fontStack`. `seo.ts` JSON-LD. `media.ts` image fallbacks.
+**web/**  `storefront.ts`: `getStorefrontContext` (React-cached), `requireStorefront(slug)` (404 only for real NOT_FOUND; other errors → error boundary), `readCart(restaurant)` (never sets cookies), `openStorefrontCart(slug)` (server actions only; mints cart cookie). `session.ts`: `getVisitorContext(restaurantId)` → `RequestContext`, `getStorefrontCustomer(restaurantId)`, `getCartToken/setCartToken`, `getCartCountHint/setCartCountHint` (header badge cookie `rp_cart_n`), `getCurrentStaff/requireStaff/requirePermission`. `cookies.ts` names/options. `theme.ts` `themeCssVariables`, `fontStack`. `seo.ts` JSON-LD. `media.ts` image fallbacks.
 
-**server/services**
-- `storefront`: `loadStorefrontContext(slug)`, `resolveTheme`, `getHomePageContent`
-- `restaurants`: `requireRestaurant(slug)`, `getLocations(id,{activeOnly})`, `getDeliveryZones(id,{locationId,activeOnly})`
-- `catalog`: `getMenuCategories`, `searchMenu(id, filters)`, `findMenuItemBySlug`
-- `cart`: `generateCartToken`, `findCart`, `openCart`, `addToCart`, `updateCartItem`, `removeFromCart`, `emptyCart`, `applyCoupon`, `changeOrderType`, `changeCartLocation`, `priceCart`, `validatePromoCode`, `serviceAvailability`
+**server/services** (storefront reads marked ◆ are served from the in-memory snapshot, see section 15)
+- `storefront`: ◆`loadStorefrontContext(slug)`, `resolveTheme`, ◆`getHomePageContent`
+- `restaurants`: `requireRestaurant(slug)` (DB, gates writes), ◆`getLocations(id,{activeOnly})`, ◆`getDeliveryZones(id,{locationId,activeOnly})` (display), `getLiveDeliveryZones` (DB; pricing + checkout)
+- `catalog`: ◆`getMenuCategories`, ◆`searchMenu(id, filters)`, ◆`findMenuItemBySlug`
+- `cart`: `generateCartToken`, `findCart`, `openCart`, `addToCart`, `updateCartItem`, `removeFromCart`, `emptyCart` (these four return `{itemCount}`, the cart's new size), `applyCoupon`, `changeOrderType`, `changeCartLocation`, `priceCart`, `validatePromoCode`, `serviceAvailability`
 - `checkout`: `placeOrder(restaurant, input, visitor)`, `getCheckoutOptions(restaurant)`
 - `orders`: `trackOrder(restaurantId, orderNumber, visitor)`, `findVisitorOrder` (RLS proof or signed order-access token)
-- `reservations`: `bookTable`, `getBookedSlots`; `reviews`: `submitReview`, `getPublicReviews`, `getReviewSummary`
+- `reservations`: `bookTable`, `getBookedSlotCounts(restaurantId, locationIds, from, to)` (one query for the whole booking window; DB, never cached); `reviews`: `submitReview`, ◆`getPublicReviews`, ◆`getReviewSummary`
 - `notifications`: `NotificationService` (`dispatchDue`, `processEvent`), `dispatchDueNotifications` (coalesced per restaurant, never throws; call after an order change), `drainDueNotifications` (scheduler: loops until empty), `registerPushToken`, `getPushClientConfig` / `getPushClientConfigFor(restaurant)`
 - `order-events`: `openOrderStream`, `orderEventsEnabled`
 
-**server/repositories** (exports): analytics; carts; coupons; customers; deliveries (zones + deliveries, `matchDeliveryZone`); media; menu (categories, items, variants, addon groups CRUD); orders (`createOrder`, `getOrderByNumber`, `updateOrderStatus`, kitchen/customer lists…); order-events (`watchOrderChanges`); notifications; payments; reservations; restaurants (+ locations, on table `restaurant1s`); reviews; team; websites (+ pages). Most exist for the future admin UI and are unused by the storefront.
+**server/cache** (`@/server/cache`): `getStorefrontCache()` → `StorefrontCache {get, isReady, start, refresh, invalidate, stop}`; `startStorefrontCache()`; `snapshotForRestaurant(id)` / `snapshotForSlug(slug)` (return `null` when disabled, throw NOT_FOUND for another restaurant, INTERNAL_ERROR before the first load); pure `read*` functions over a snapshot. `src/instrumentation.ts` starts it.
+
+**server/repositories** (exports): analytics; carts; coupons; customers; deliveries (zones + deliveries, `matchDeliveryZone`); media; menu (categories, items, variants, addon groups CRUD); orders (`createOrder`, `getOrderByNumber`, `updateOrderStatus`, kitchen/customer lists…); order-events (`watchOrderChanges`); notifications; payments; reservations; restaurants (+ locations, on table `restaurant1s`); reviews; storefront (`loadStorefrontData`, the one-pass read behind the cache); team; websites (+ pages). Most exist for the future admin UI and are unused by the storefront.
 
 **server/auth**: `auth-service` (`signInStaff/Customer`, `createCustomerAccount`, `authenticateStaff`, `resolveCustomer`, `assertPermission`), `tokens` (HS256 JWTs, `SESSION_TTL`, `signOrderAccessToken`), `password` (scrypt), `permissions` (RBAC catalogue, `can`).
 **shared**: `ordering.isOrderTypeEnabled/enabledOrderTypes` (single source for order-type gating), `money` (decimal strings; `formatMoney`), `hours`, `order-timeline`, `order-live`, `notification-channels.notificationChannelsEnabled` (the only interpreter of the notification switches).
@@ -142,6 +146,7 @@ Types: DB rows (`Row`, snake_case) exist only inside repositories and `db/mapper
 7. Never call a repository from a page, component or action; add or extend a service.
 8. `revalidatePath` and `notFound()` belong to `app/`/`web/`, not services.
 9. Never send email/push from order or admin code; only commit the change and (after the response) call `dispatchDueNotifications`.
+10. The layout never reads the cart from the DB (that is a transaction per page view). The header badge comes from the `rp_cart_n` cookie hint: `openStorefrontCart` re-syncs it to the real count, and the quantity-changing actions and `placeOrderAction` set the new value. Any new action that changes cart contents must call `setCartCountHint`. Pages that need the cart itself (`/cart`, `/checkout`) call `readCart`.
 
 ## 6. Database and environment
 
@@ -152,7 +157,7 @@ Types: DB rows (`Row`, snake_case) exist only inside repositories and `db/mapper
 - Migrations: `0013_notifications.sql` (outbox + push tokens + trigger), `0014_order_realtime.sql` (superseded), `0015_order_change_notify.sql` (NOTIFY trigger, drops the 0014 anon policy), `0016_rename_locations_table.sql` (see below). Apply with `npm run db:migrate` (owner connection `DATABASE_URL_MIGRATOR`).
 - **Branches table is `restaurant1s`** (renamed from `restaurant_locations` by 0016; FK columns are still `location_id`; TypeScript names `Location` / `getLocations` are unchanged). Applied migrations `0003`–`0006` still say `restaurant_locations`: that is correct history, not a leftover. Write all new SQL against `restaurant1s`. The rename keeps data, grants, policies, triggers and FKs; the 0016 file has its rollback script in comments. Deploy order: run the migration, then the code (code using the new name errors until the DB is renamed).
 - **RLS check:** on 2026-09-21 the hosted dev database had `relrowsecurity = false` on `orders`, `customers`, `menu_items`, `restaurants` and the branches table although migration 0006 enables it (only `notification_events` had it on). Verify with `select relname, relrowsecurity from pg_class where relname in ('orders','customers')` before relying on tenant isolation or before production; with RLS off, order visibility for guests is not protected at the database level.
-- Env vars are listed in `.env.example` (never commit real values): `DATABASE_URL`, `DATABASE_URL_SERVICE`, `DATABASE_URL_MIGRATOR`, `DB_POOL_MAX`, `AUTH_SECRET` (≥16 chars), `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_DEFAULT_RESTAURANT`, Supabase storage vars, Stripe vars, notification vars (section 7), `DATABASE_URL_LISTEN` (section 8). `EMAIL_FROM_ADDRESS` must be a valid email or config throws.
+- Env vars are listed in `.env.example` (never commit real values): `STOREFRONT_CACHE_ENABLED|REFRESH_INTERVAL_MS|STARTUP_TIMEOUT_MS`, `DATABASE_URL`, `DATABASE_URL_SERVICE`, `DATABASE_URL_MIGRATOR`, `DB_POOL_MAX`, `AUTH_SECRET` (≥16 chars), `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_DEFAULT_RESTAURANT`, Supabase storage vars, Stripe vars, notification vars (section 7), `DATABASE_URL_LISTEN` (section 8). `EMAIL_FROM_ADDRESS` must be a valid email or config throws.
 
 ## 7. Notifications (email + push)
 
@@ -413,9 +418,37 @@ DB-free verification: `npm run typecheck`, then `npx vitest run tests/architectu
 - `auth-service` queries `auth.users` directly (Supabase-shaped table); `repositories/team.ts` hashes passwords.
 - Comments in applied migrations mention old `src/lib/...` paths and `restaurant_locations`; migrations are checksummed and were not edited.
 - ID-only repository lookups use `getDb(ctx)` and rely on `ctx.restaurantId` being set by the caller.
-- Reservation page issues one sequential query per day per location (very slow on the hosted DB); needs a range query.
 - Media URLs use `/api/media/...` but no route handler exists.
 - No admin UI: statuses change via SQL, so delivery needs the dispatcher script (dev) or a scheduler (prod).
 - No `vercel.json` yet (cron not configured).
 - FCM has no server-side idempotency (mitigated by the notification `tag`).
 - No ESLint config; `tsc` + the architecture test are the guardrails.
+
+## 15. Storefront cache (in-memory snapshot, one instance = one restaurant)
+
+Decision record: `DECISIONS.md` §19.
+
+```
+instrumentation.ts ─ register() ─► startStorefrontCache() ─► loadStorefrontSnapshot()
+                                                               └► repositories/storefront.loadStorefrontData()
+storefront GET ─► web/storefront ─► services/{storefront,catalog,restaurants,reviews}
+                                       └► snapshotForRestaurant()/snapshotForSlug() ─► memory (0 SQL)
+carts, checkout, orders, payments, reservations, customers, write paths ─► services ─► repositories ─► db
+```
+
+- At startup `instrumentation.ts` loads a frozen snapshot of the public storefront (restaurant, website, pages, locations, delivery zones, active menu with variants/add-ons, top-50 reviews + summary) for `NEXT_PUBLIC_DEFAULT_RESTAURANT`. Storefront GETs then send **no SQL**. Refresh every `STOREFRONT_CACHE_REFRESH_INTERVAL_MS` (atomic swap, single-flight, chained timer; the old snapshot is kept when a refresh fails or times out). A failed first load fails startup: production exits non-zero, dev keeps the server up and requests error until the cause is fixed. `STOREFRONT_CACHE_ENABLED=false` restores per-request database reads.
+- The cache lives on `globalThis` (Next bundles the startup hook and routes separately; dev reloads re-evaluate modules). No SQL in `server/cache` (architecture test).
+- New public read-mostly data: add it to `repositories/storefront.ts` → `cache/types.ts` + `storefront-snapshot.ts` → a `read*` function in `storefront-queries.ts` → the service (cache branch + DB branch). Anything transactional or price-deciding stays off the snapshot.
+- Never use the snapshot for cart, checkout, order or pricing decisions (`getLiveDeliveryZones`, `requireRestaurant`, `createOrder` read the DB); `server/cache` must not be imported by cart/checkout/pricing (architecture test).
+- Snapshot objects are frozen and shared: never mutate what a service returns; copy first.
+- After an admin write call `getStorefrontCache().invalidate()` (no admin system yet, so nothing calls it today).
+- With the cache on, other `/r/<slug>` values are 404 (one restaurant per instance).
+- The startup hook is the one place outside `server/config` allowed to read `process.env.NEXT_RUNTIME` (Next replaces the literal at compile time so the Edge bundle does not pull in `pg`).
+
+**Still database-bound on purpose:** `/reservation` (one range query, ~3 s on the hosted DB), `/cart` and `/checkout` when the visitor has a cart cookie (one real cart read), every cart mutation, checkout, order tracking.
+
+**Speed facts (hosted Supabase pooler, ~0.3 s per round trip, so one DB transaction of 5 statements is ~1.5 s):** `next start` serves cached storefront pages in ~25–150 ms with 0 SQL; `next dev` compiles each route on its first visit (4–12 s) and renders unoptimised afterwards (0.3–1.8 s), so judge speed on a production build. The snapshot load takes ~7–17 s at start, before the server answers. The cache is per process: on serverless hosts every cold start repeats the load.
+
+**Observing SQL without editing code:** run the server with `NODE_OPTIONS="--require <spy.cjs>"` where the spy patches `pg` `Client.prototype.query` through `Module._load` (match any module exposing `Pool` and `Client`, not only the request string `"pg"`) and logs each statement with its duration. Each Next dev recompile spawns a worker that prints its own "installed" line; exclude it when counting statements.
+
+**If startup fails with `[cache] storefront cache initialization failed`:** the log line carries the database error. `relation "…" does not exist` (code 42P01) means the code and the database schema disagree (for example a migration applied without the matching code, or the reverse): compare `schema_migrations` with `db/migrations/` and check the table names.
