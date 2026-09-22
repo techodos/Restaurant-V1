@@ -125,9 +125,11 @@ export async function signInStaff(
   const member = mapTeamMember(row);
   if (!member.userId) throw errors.unauthorized("This staff account is not linked to a login yet.");
 
+  // auth.users is Supabase's own protected schema on a hosted project (DECISIONS.md §2:
+  // "NEVER attempt to modify the Supabase auth schema") — app_service cannot write to it there,
+  // so last-login bookkeeping lives on team_members only.
   await db.write({ userId: member.userId, restaurantId: restaurant.id }, async (tx) => {
     await tx.query(`update team_members set last_login_at = now() where id = $1`, [member.id]);
-    await tx.query(`update auth.users set last_sign_in_at = now() where id = $1`, [member.userId]);
   });
 
   const token = await signStaffSession({

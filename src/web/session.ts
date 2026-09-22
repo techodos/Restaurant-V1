@@ -1,11 +1,13 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { errors } from "@/server/errors";
-import type { Permission } from "@/server/auth/permissions";
+import { redirect } from "next/navigation";
+import { AppError, errors } from "@/server/errors";
+import { effectivePermissions, type Permission } from "@/server/auth/permissions";
 import {
   assertPermission,
   authenticateStaff,
   resolveCustomer,
+  signInStaff,
   type StaffActor,
   type StorefrontCustomer,
 } from "@/server/auth/auth-service";
@@ -56,6 +58,44 @@ export async function requirePermission(permission: Permission, restaurantSlug?:
   const actor = await requireStaff(restaurantSlug);
   assertPermission(actor, permission);
   return actor;
+}
+
+/** Admin layout guard: redirects to /admin/login instead of throwing UNAUTHORIZED. */
+export async function requireStaffForAdmin(): Promise<StaffActor> {
+  try {
+    return await requireStaff();
+  } catch (error) {
+    if (error instanceof AppError && error.code === "UNAUTHORIZED") redirect("/admin/login");
+    throw error;
+  }
+}
+
+/** Staff sign-in: authenticates, then sets the staff session cookie. Server Actions/Route Handlers only. */
+export async function signInStaffSession(
+  email: string,
+  password: string,
+  restaurantSlug: string,
+  identifier = "unknown",
+): Promise<StaffActor> {
+  const { token, maxAge, member, restaurant } = await signInStaff(email, password, restaurantSlug, identifier);
+  const store = await cookies();
+  store.set(STAFF_COOKIE, token, cookieOptions(maxAge));
+  return {
+    // signInStaff already rejects a member with no linked login.
+    userId: member.userId as string,
+    email: member.email,
+    name: member.fullName,
+    restaurantId: restaurant.id,
+    role: member.role,
+    member,
+    permissions: effectivePermissions(member.role, member.permissions),
+  };
+}
+
+/** Ends the staff session. Server Actions/Route Handlers only. */
+export async function signOutStaffSession(): Promise<void> {
+  const store = await cookies();
+  store.delete(STAFF_COOKIE);
 }
 
 export async function getStorefrontCustomer(restaurantId: string): Promise<StorefrontCustomer | null> {

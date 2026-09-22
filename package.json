@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --env-file=.env.local scripts/db/migrate.mjs",
     "db:seed": "tsx scripts/db/seed.ts",
+    "db:create-staff": "tsx scripts/db/create-staff.ts",
     "db:reset": "node --env-file=.env.local scripts/db/migrate.mjs --fresh && tsx scripts/db/seed.ts",
     "db:verify": "tsx scripts/db/verify.ts",
     "notifications:dispatch": "tsx scripts/notifications/dispatch.ts",

@@ -1,7 +1,15 @@
 import type { Reservation, Restaurant } from "@/shared/contract/models";
+import type { ReservationStatus } from "@/shared/contract/enums";
+import type { Paginated } from "@/shared/contract/api";
 import { errors } from "@/server/errors";
 import { forRestaurant, type RequestContext } from "@/server/context";
-import { createReservation, listBookedSlotsInRange } from "@/server/repositories/reservations";
+import {
+  createReservation,
+  listBookedSlotsInRange,
+  listReservations,
+  updateReservationStatus,
+  type ReservationListFilters,
+} from "@/server/repositories/reservations";
 import type { BookTableInput } from "@/server/validation/reservation";
 import { getLocations } from "./restaurants";
 
@@ -59,4 +67,23 @@ export async function getBookedSlotCounts(
     day[time] = (day[time] ?? 0) + 1;
   }
   return counts;
+}
+
+/** Staff-facing reservation list (admin). */
+export function listReservationsForStaff(
+  restaurantId: string,
+  filters: ReservationListFilters,
+  ctx: RequestContext,
+): Promise<Paginated<Reservation>> {
+  return listReservations(restaurantId, filters, ctx);
+}
+
+/** Staff-facing status change (admin). Any status can move to any other — no rank rule. */
+export function changeReservationStatus(
+  reservationId: string,
+  status: ReservationStatus,
+  ctx: RequestContext,
+  notes?: string | null,
+): Promise<Reservation> {
+  return updateReservationStatus(reservationId, status, ctx, notes);
 }

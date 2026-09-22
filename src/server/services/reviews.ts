@@ -1,8 +1,18 @@
 import type { RatingBreakdown, Restaurant, Review } from "@/shared/contract/models";
-import { readPublicReviews, readReviewSummary, snapshotForRestaurant } from "@/server/cache";
+import type { ReviewStatus } from "@/shared/contract/enums";
+import type { Paginated } from "@/shared/contract/api";
+import { getStorefrontCache, readPublicReviews, readReviewSummary, snapshotForRestaurant } from "@/server/cache";
 import { errors } from "@/server/errors";
 import { forRestaurant, type RequestContext } from "@/server/context";
-import { createReview, getRatingBreakdown, hasReviewedOrder, listPublicReviews } from "@/server/repositories/reviews";
+import {
+  createReview,
+  getRatingBreakdown,
+  hasReviewedOrder,
+  listPublicReviews,
+  listReviews,
+  moderateReview,
+  type ReviewListFilters,
+} from "@/server/repositories/reviews";
 import type { SubmitReviewInput } from "@/server/validation/review";
 import { findVisitorOrder } from "./orders";
 
@@ -64,4 +74,20 @@ export async function getReviewSummary(restaurantId: string): Promise<RatingBrea
   const snapshot = snapshotForRestaurant(restaurantId);
   if (snapshot) return readReviewSummary(snapshot);
   return getRatingBreakdown(restaurantId, forRestaurant(restaurantId));
+}
+
+/** Staff moderation queue (admin): every status, not just approved. */
+export function listReviewsForAdmin(restaurantId: string, filters: ReviewListFilters, ctx: RequestContext): Promise<Paginated<Review>> {
+  return listReviews(restaurantId, filters, ctx);
+}
+
+/** Approve/reject/reply/feature a review (admin). Invalidates the storefront cache: approved reviews feed the snapshot. */
+export async function moderateReviewForAdmin(
+  reviewId: string,
+  patch: { status?: ReviewStatus; isFeatured?: boolean; response?: string | null },
+  ctx: RequestContext,
+): Promise<Review> {
+  const review = await moderateReview(reviewId, patch, ctx);
+  getStorefrontCache().invalidate();
+  return review;
 }

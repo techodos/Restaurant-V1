@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RESERVATION_STATUSES } from "@/shared/contract/enums";
 import { contactPhone } from "./common";
 
 export const bookTableSchema = z.object({
@@ -13,3 +14,10 @@ export const bookTableSchema = z.object({
   specialRequests: z.string().trim().max(400).optional().or(z.literal("")),
 });
 export type BookTableInput = z.infer<typeof bookTableSchema>;
+
+export const updateReservationStatusSchema = z.object({
+  reservationId: z.string().uuid(),
+  status: z.enum(RESERVATION_STATUSES),
+  notes: z.string().trim().max(500).optional().or(z.literal("")),
+});
+export type UpdateReservationStatusInput = z.infer<typeof updateReservationStatusSchema>;
