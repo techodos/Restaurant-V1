@@ -201,8 +201,8 @@ export async function createCustomerAccount(
     if (existingUser) throw errors.conflict("An account with that email already exists.");
 
     const userRow = await tx.queryOne<Row>(
-      `insert into auth.users (email, encrypted_password, raw_user_meta_data)
-       values ($1,$2, jsonb_build_object('name', $3::text))
+      `insert into auth.users (id, email, encrypted_password, raw_user_meta_data)
+       values (gen_random_uuid(), $1,$2, jsonb_build_object('name', $3::text))
        returning id`,
       [input.email.trim().toLowerCase(), hashed, input.fullName],
     );

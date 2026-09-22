@@ -67,9 +67,11 @@ const existingUser = await one<{ id: string }>(`select id from auth.users where 
 let userId = existingUser?.id ?? null;
 
 if (!userId) {
+  // auth.users.id has no column default on this database (found 2026-09-22, see
+  // db/migrations/0021's header) — generate it explicitly rather than relying on one.
   const inserted = await one<{ id: string }>(
-    `insert into auth.users (email, encrypted_password, raw_user_meta_data)
-     values ($1, $2, jsonb_build_object('name', $3::text))
+    `insert into auth.users (id, email, encrypted_password, raw_user_meta_data)
+     values (gen_random_uuid(), $1, $2, jsonb_build_object('name', $3::text))
      returning id`,
     [email, hashed, name],
   );
