@@ -120,6 +120,12 @@ export const RESERVATION_STATUS_LABELS: Record<ReservationStatus, string> = {
 export const REVIEW_STATUSES = ["pending", "approved", "rejected"] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
 export const COUPON_DISCOUNT_TYPES = ["percentage", "fixed"] as const;
 export type CouponDiscountType = (typeof COUPON_DISCOUNT_TYPES)[number];
 

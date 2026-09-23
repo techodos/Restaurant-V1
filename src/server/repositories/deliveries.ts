@@ -81,7 +81,7 @@ export async function createDeliveryZone(
       `insert into delivery_zones
          (restaurant_id, location_id, name, description, areas, postal_codes, delivery_fee, min_order_amount,
           free_delivery_over, eta_min_minutes, eta_max_minutes, is_active, sort_order)
-       values ($1,$2,$3,$4,coalesce($5,'{}'),coalesce($6,'{}'),$7::numeric,coalesce($8::numeric,0),$9::numeric,
+       values ($1,$2,$3,$4,coalesce($5::text[],'{}'),coalesce($6::text[],'{}'),$7::numeric,coalesce($8::numeric,0),$9::numeric,
                coalesce($10,30),coalesce($11,45),coalesce($12,true),
                coalesce($13,(select coalesce(max(sort_order),0)+1 from delivery_zones where restaurant_id = $1)))
        returning *`,

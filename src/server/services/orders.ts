@@ -1,9 +1,22 @@
-import type { Cart, Order, Restaurant } from "@/shared/contract/models";
+import type { Cart, Order, OrderSummary, Restaurant } from "@/shared/contract/models";
+import type { OrderStatus } from "@/shared/contract/enums";
+import type { Paginated } from "@/shared/contract/api";
 import type { RequestContext } from "@/server/context";
 import { AppError } from "@/server/errors";
 import { verifyOrderAccessToken } from "@/server/auth/tokens";
 import { ACTIVE_ORDER_STATUSES } from "@/shared/contract/enums";
-import { buildReorderLines, getOrderByNumber, getOrderForAccessGrant, listVisitorOrders } from "@/server/repositories/orders";
+import {
+  buildReorderLines,
+  countOrdersByStatus,
+  getOrderByNumber,
+  getOrderForAccessGrant,
+  listKitchenOrders,
+  listOrders,
+  listRecentOrders,
+  listVisitorOrders,
+  updateOrderStatus,
+  type OrderListFilters,
+} from "@/server/repositories/orders";
 import { addToCart } from "@/server/services/cart";
 
 /**
@@ -117,4 +130,47 @@ export async function reorderOrder(
     }
   }
   return { addedCount, skippedItemNames, itemCount };
+}
+
+/** Staff-facing order list (admin). */
+export function listOrdersForStaff(
+  restaurantId: string,
+  filters: OrderListFilters,
+  ctx: RequestContext,
+): Promise<Paginated<OrderSummary>> {
+  return listOrders(restaurantId, filters, ctx);
+}
+
+/** Staff-facing order detail (admin). */
+export function getOrderForStaff(restaurantId: string, orderNumber: string, ctx: RequestContext): Promise<Order | null> {
+  return getOrderByNumber(restaurantId, orderNumber, ctx);
+}
+
+/**
+ * Advances an order's status. The transition itself is enforced by the database
+ * trigger and mirrored by ORDER_STATUS_RANK; the caller (an admin action) is
+ * responsible for dispatching notifications afterwards, never here.
+ */
+export function changeOrderStatus(
+  orderId: string,
+  status: OrderStatus,
+  ctx: RequestContext,
+  options: { note?: string | null; cancelReason?: string | null } = {},
+): Promise<Order> {
+  return updateOrderStatus(orderId, status, ctx, options);
+}
+
+/** Status counters for the admin dashboard and order tabs. */
+export function getOrderStatusCounts(restaurantId: string, ctx: RequestContext): Promise<Record<OrderStatus, number>> {
+  return countOrdersByStatus(restaurantId, ctx);
+}
+
+/** Most recent orders for the admin dashboard. */
+export function getRecentOrdersForAdmin(restaurantId: string, ctx: RequestContext, limit = 8): Promise<OrderSummary[]> {
+  return listRecentOrders(restaurantId, ctx, limit);
+}
+
+/** Active orders for the kitchen display (admin). */
+export function getKitchenOrders(restaurantId: string, ctx: RequestContext): Promise<Order[]> {
+  return listKitchenOrders(restaurantId, ctx);
 }

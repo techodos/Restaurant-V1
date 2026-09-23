@@ -64,8 +64,8 @@ export async function createTeamMember(
     if (!userId) {
       const password = input.password ?? randomBytes(12).toString("base64url");
       const row = await tx.queryOne<Row>(
-        `insert into auth.users (email, encrypted_password, raw_user_meta_data)
-         values ($1,$2, jsonb_build_object('name', $3::text))
+        `insert into auth.users (id, email, encrypted_password, raw_user_meta_data)
+         values (gen_random_uuid(), $1,$2, jsonb_build_object('name', $3::text))
          returning id`,
         [email, await hashPassword(password), input.fullName],
       );

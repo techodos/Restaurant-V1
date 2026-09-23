@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REVIEW_STATUSES } from "@/shared/contract/enums";
 
 export const submitReviewSchema = z.object({
   orderNumber: z.string().trim().max(40).optional().or(z.literal("")),
@@ -11,3 +12,11 @@ export const submitReviewSchema = z.object({
   comment: z.string().trim().min(10, "Please add a few words (10 characters minimum).").max(1200),
 });
 export type SubmitReviewInput = z.infer<typeof submitReviewSchema>;
+
+export const moderateReviewSchema = z.object({
+  reviewId: z.string().uuid(),
+  status: z.enum(REVIEW_STATUSES).optional(),
+  response: z.string().trim().max(1000).optional().or(z.literal("")),
+  isFeatured: z.coerce.boolean().optional(),
+});
+export type ModerateReviewInput = z.infer<typeof moderateReviewSchema>;

@@ -370,7 +370,7 @@ export async function createMenuItem(
           compare_at_price, prep_time_minutes, spice_level, is_active, is_available, is_featured,
           dietary_tags, allergens, sort_order, availability, calories)
        values ($1,$2,$3,$4,$5,$6,$7,$8::numeric,$9::numeric,coalesce($10,15),coalesce($11,0),
-               coalesce($12,true),coalesce($13,true),coalesce($14,false),coalesce($15,'{}'),coalesce($16,'{}'),
+               coalesce($12,true),coalesce($13,true),coalesce($14,false),coalesce($15::text[],'{}'),coalesce($16::text[],'{}'),
                coalesce($17, (select coalesce(max(sort_order),0)+1 from menu_items where category_id = $2)),
                coalesce($18::jsonb,'{}'::jsonb), $19)
        returning *`,
