@@ -11,6 +11,7 @@ import { formatMoney } from "@/shared/money";
 import { Button } from "@/components/ui/button";
 import { LiveOrderTimeline, OrderLiveProvider, OrderLiveStatus, OrderReceivedNotice } from "@/components/storefront/order-live-status";
 import { PushOptIn } from "@/components/storefront/push-opt-in";
+import { ReorderButton } from "@/components/storefront/reorder-button";
 import { JsonLd } from "@/components/storefront/json-ld";
 
 interface OrderPageProps {
@@ -237,6 +238,16 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
               </div>
             </section>
 
+            {order.status === "completed" || order.status === "cancelled" ? (
+              <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+                <h2 className="text-base font-semibold">Order this again</h2>
+                <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
+                  Add these items to your cart at today's prices and availability.
+                </p>
+                <ReorderButton restaurantSlug={restaurant.slug} orderNumber={order.orderNumber} accessToken={accessToken} />
+              </section>
+            ) : null}
+
             {order.status === "completed" && restaurant.features.reviews ? (
               <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
                 <h2 className="text-base font-semibold">How was it?</h2>
@@ -269,6 +280,9 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 Keep this page bookmarked — it always shows the live status of order {order.orderNumber}. Need a hand? Call{" "}
                 {restaurant.phone ?? "the restaurant"}.
               </p>
+              <Button asChild variant="outline" size="sm" className="mt-4">
+                <Link href={`/r/${restaurant.slug}/orders`}>My orders</Link>
+              </Button>
             </section>
           </aside>
         </div>

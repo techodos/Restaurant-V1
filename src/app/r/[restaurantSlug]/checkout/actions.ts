@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import type { ApiResult } from "@/shared/contract/api";
-import { action } from "@/server/errors";
+import { action, errors } from "@/server/errors";
 import { placeOrder, type PlaceOrderResult } from "@/server/services/checkout";
 import { dispatchDueNotifications } from "@/server/services/notifications";
 import { requireRestaurant } from "@/server/services/restaurants";
+import { isEmailVerified } from "@/server/services/customer-auth";
 import { placeOrderSchema } from "@/server/validation/checkout";
 import { getVisitorContext, setCartCountHint } from "@/web/session";
 
@@ -18,6 +19,11 @@ export async function placeOrderAction(slug: string, payload: unknown): Promise<
     const input = placeOrderSchema.parse(payload);
     const restaurant = await requireRestaurant(slug);
     const visitor = await getVisitorContext(restaurant.id);
+    // Guests are never gated; a signed-in customer's login email must be verified before an order
+    // can go through (server-side, not just hidden in the UI — see server/services/customer-auth.ts).
+    if (visitor.userId && !(await isEmailVerified(visitor.userId))) {
+      throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
+    }
     const result = await placeOrder(restaurant, input, visitor);
     await setCartCountHint(0); // the order consumed the cart
     revalidatePath(`/r/${slug}`, "layout");

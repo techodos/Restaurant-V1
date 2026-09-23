@@ -1,12 +1,14 @@
 import { restaurantFeaturesSchema } from "@/shared/contract/settings";
 import { ALL_CHANNELS_ON, notificationChannelsEnabled } from "@/shared/notification-channels";
 import { getDb, type TenantScope } from "@/server/db/registry";
-import { mapOrder, str, strOrNull, type Row } from "@/server/db/mappers";
+import { mapOrder, mapReservation, str, strOrNull, type Row } from "@/server/db/mappers";
 import type { RequestContext } from "@/server/context";
 import type {
   ChannelState,
   NotificationEventRecord,
   NotificationOrderContext,
+  NotificationReservationContext,
+  NotificationRestaurant,
 } from "@/server/notifications/types";
 import { getOrderItems } from "./orders";
 
@@ -24,7 +26,8 @@ function mapEvent(row: Row): NotificationEventRecord {
   return {
     id: str(row.id),
     restaurantId: str(row.restaurant_id),
-    orderId: str(row.order_id),
+    orderId: strOrNull(row.order_id),
+    reservationId: strOrNull(row.reservation_id),
     customerId: strOrNull(row.customer_id),
     eventType: str(row.event_type),
     attempts: Number(row.attempts ?? 0),
@@ -74,18 +77,40 @@ export async function claimDueNotificationEvents(
   return rows.map(mapEvent);
 }
 
+/** Restaurant branding + notification switches from a row that carries the `restaurant_*` aliases. */
+function mapNotificationRestaurant(row: Row, restaurantId: string): NotificationRestaurant {
+  const features = restaurantFeaturesSchema.safeParse(row.restaurant_features ?? {});
+  return {
+    id: restaurantId,
+    name: str(row.restaurant_name),
+    slug: str(row.restaurant_slug),
+    logoUrl: strOrNull(row.restaurant_logo_url),
+    primaryColor: strOrNull(row.restaurant_primary_color),
+    email: strOrNull(row.restaurant_email),
+    phone: strOrNull(row.restaurant_phone),
+    currencySymbol: str(row.restaurant_currency_symbol) || "$",
+    locale: str(row.restaurant_locale) || "en",
+    timezone: str(row.restaurant_timezone) || "UTC",
+    reviewsEnabled: features.success ? features.data.reviews : true,
+    channels: features.success ? notificationChannelsEnabled(features.data) : ALL_CHANNELS_ON,
+  };
+}
+
+const RESTAURANT_COLUMNS = `r.name as restaurant_name, r.slug as restaurant_slug, r.logo_url as restaurant_logo_url,
+              r.primary_color as restaurant_primary_color, r.email as restaurant_email,
+              r.phone as restaurant_phone, r.currency_symbol as restaurant_currency_symbol,
+              r.locale as restaurant_locale, r.timezone as restaurant_timezone, r.features as restaurant_features`;
+
 /** The order plus restaurant branding for one event, or null when the ids do not belong together. */
 export async function loadNotificationOrderContext(
   event: NotificationEventRecord,
 ): Promise<NotificationOrderContext | null> {
+  if (!event.orderId) return null;
   const db = getDb({ restaurantId: event.restaurantId });
   return db.write({ ...SYSTEM, restaurantId: event.restaurantId }, async (tx) => {
     const row = await tx.queryOne<Row>(
       `select o.*, l.name as location_name, dz.name as delivery_zone_name,
-              r.name as restaurant_name, r.slug as restaurant_slug, r.logo_url as restaurant_logo_url,
-              r.primary_color as restaurant_primary_color, r.email as restaurant_email,
-              r.phone as restaurant_phone, r.currency_symbol as restaurant_currency_symbol,
-              r.locale as restaurant_locale, r.timezone as restaurant_timezone, r.features as restaurant_features
+              ${RESTAURANT_COLUMNS}
          from orders o
          join restaurants r on r.id = o.restaurant_id
          left join restaurant1s l on l.id = o.location_id
@@ -97,28 +122,29 @@ export async function loadNotificationOrderContext(
 
     const order = mapOrder(row);
     order.items = await getOrderItems(tx, order.id);
-    const features = restaurantFeaturesSchema.safeParse(row.restaurant_features ?? {});
-
-    return {
-      restaurant: {
-        id: event.restaurantId,
-        name: str(row.restaurant_name),
-        slug: str(row.restaurant_slug),
-        logoUrl: strOrNull(row.restaurant_logo_url),
-        primaryColor: strOrNull(row.restaurant_primary_color),
-        email: strOrNull(row.restaurant_email),
-        phone: strOrNull(row.restaurant_phone),
-        currencySymbol: str(row.restaurant_currency_symbol) || "$",
-        locale: str(row.restaurant_locale) || "en",
-        timezone: str(row.restaurant_timezone) || "UTC",
-        reviewsEnabled: features.success ? features.data.reviews : true,
-        channels: features.success ? notificationChannelsEnabled(features.data) : ALL_CHANNELS_ON,
-      },
-      order,
-    };
+    return { restaurant: mapNotificationRestaurant(row, event.restaurantId), order };
   });
 }
 
+/** The reservation plus restaurant branding for one event, or null when the ids do not belong together. */
+export async function loadNotificationReservationContext(
+  event: NotificationEventRecord,
+): Promise<NotificationReservationContext | null> {
+  if (!event.reservationId) return null;
+  const db = getDb({ restaurantId: event.restaurantId });
+  return db.write({ ...SYSTEM, restaurantId: event.restaurantId }, async (tx) => {
+    const row = await tx.queryOne<Row>(
+      `select v.*, l.name as location_name, ${RESTAURANT_COLUMNS}
+         from reservations v
+         join restaurants r on r.id = v.restaurant_id
+         left join restaurant1s l on l.id = v.location_id
+        where v.id = $1 and v.restaurant_id = $2`,
+      [event.reservationId, event.restaurantId],
+    );
+    if (!row) return null;
+    return { restaurant: mapNotificationRestaurant(row, event.restaurantId), reservation: mapReservation(row) };
+  });
+}
 export interface EventOutcome {
   status: "pending" | "done" | "dead";
   emailState: ChannelState | null;

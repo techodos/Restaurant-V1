@@ -30,6 +30,11 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 /** Terminal statuses can never be left. */
 export const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = ["completed", "cancelled"];
 
+/** Orders still in progress ("current" in My Orders): every non-terminal status. */
+export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = ORDER_STATUSES.filter(
+  (status) => !TERMINAL_ORDER_STATUSES.includes(status),
+);
+
 /**
  * Status progression ranks. Forward jumps are allowed (a small kitchen may go
  * pending → preparing directly); backwards moves and moves out of a terminal

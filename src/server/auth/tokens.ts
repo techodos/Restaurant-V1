@@ -4,7 +4,7 @@ import { config } from "@/server/config";
 /**
  * Session tokens are short-lived HS256 JWTs. The delivery layer decides where
  * they travel (today: HttpOnly cookies, see web/cookies.ts). The same JWT shape
- * can be produced by Supabase Auth; `sub` is the auth.users id, which is what
+ * can be produced by Supabase Auth; `sub` is the auth.users id (staff) or customers.id (customer), which is what
  * the RLS helpers read.
  */
 
@@ -112,6 +112,45 @@ export async function verifyOrderAccessToken(token: string | undefined | null): 
     if (payload.purpose !== ORDER_ACCESS_PURPOSE) return null;
     if (typeof payload.oid !== "string" || typeof payload.rid !== "string") return null;
     return { orderId: payload.oid, restaurantId: payload.rid };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A verified Google identity that has no `customers` row yet at this restaurant (phone is
+ * mandatory and part of that table's natural key, and Google never provides one). Short-lived and
+ * single-purpose: it can only be redeemed by "finish sign-up with a phone number", never as a session.
+ */
+const GOOGLE_PENDING_PURPOSE = "google-pending";
+const GOOGLE_PENDING_TTL_SECONDS = 60 * 15;
+
+export interface GooglePendingGrant {
+  googleSub: string;
+  email: string;
+  name: string;
+  restaurantId: string;
+}
+
+export async function signGooglePendingToken(grant: GooglePendingGrant): Promise<string> {
+  return new SignJWT({ purpose: GOOGLE_PENDING_PURPOSE, ...grant })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuer(ISSUER)
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(Date.now() / 1000) + GOOGLE_PENDING_TTL_SECONDS)
+    .sign(secret());
+}
+
+export async function verifyGooglePendingToken(token: string | undefined | null): Promise<GooglePendingGrant | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER });
+    if (payload.purpose !== GOOGLE_PENDING_PURPOSE) return null;
+    const { googleSub, email, name, restaurantId } = payload as Record<string, unknown>;
+    if (typeof googleSub !== "string" || typeof email !== "string" || typeof name !== "string" || typeof restaurantId !== "string") {
+      return null;
+    }
+    return { googleSub, email, name, restaurantId };
   } catch {
     return null;
   }

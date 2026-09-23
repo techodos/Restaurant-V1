@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { ORDER_TYPES, PAYMENT_METHODS } from "@/shared/contract/enums";
-import { contactPhone } from "./common";
+import { e164Phone } from "./common";
 
 export const placeOrderSchema = z.object({
   orderType: z.enum(ORDER_TYPES),
   fullName: z.string().trim().min(2, "Please enter your name.").max(120),
-  phone: contactPhone,
-  email: z.string().trim().email("That email address looks incomplete.").max(160).optional().or(z.literal("")),
+  phone: e164Phone,
+  email: z.string().trim().email("That email address looks incomplete.").max(160),
   addressLine1: z.string().trim().max(200).optional().or(z.literal("")),
   addressLine2: z.string().trim().max(200).optional().or(z.literal("")),
   area: z.string().trim().max(120).optional().or(z.literal("")),

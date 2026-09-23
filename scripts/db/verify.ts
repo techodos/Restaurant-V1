@@ -21,6 +21,7 @@ const migratorUrl =
 
 const EXPECTED_TABLES = [
   "auth.users",
+  "email_verification_codes",
   "restaurants",
   "restaurant1s",
   "team_members",
@@ -96,12 +97,11 @@ async function main() {
     const migrations = await admin.query<{ count: string }>("select count(*) from schema_migrations");
     const migrationCount = Number.parseInt(migrations.rows[0]?.count ?? "0", 10);
     check(`migrations recorded (${migrationCount})`, migrationCount > 0);
-    const appTables = tables.rows.filter(
-      (row) => row.table_schema === "public" || (row.table_schema === "auth" && row.table_name === "users"),
-    );
+    const appTables = tables.rows.filter((row) => row.table_schema === "public");
     check(
-      `no unexpected public tables (${appTables.length} total, incl. auth.users)`,
-      appTables.length <= EXPECTED_TABLES.length + 1,
+      `no unexpected public tables (${appTables.length} total)`,
+      // EXPECTED_TABLES has one non-public entry (auth.users); +1 for schema_migrations, not a domain table.
+      appTables.length <= EXPECTED_TABLES.length - 1 + 1,
     );
 
     const rlsTables = await admin.query<{ relname: string }>(

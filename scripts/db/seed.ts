@@ -56,9 +56,7 @@ await client.query(
 await client.query(
   `delete from auth.users where id = any($1::uuid[]) or email = any($2::text[])`,
   [
-    [
-      IDS.userOwner, IDS.userAdmin, IDS.userManager, IDS.userChef, IDS.userCustomer, IDS.userDiner, SAKURA.userOwner,
-    ],
+    [IDS.userOwner, IDS.userAdmin, IDS.userManager, IDS.userChef, SAKURA.userOwner],
     [
       "owner@bellanapoli.pk", "admin@bellanapoli.pk", "manager@bellanapoli.pk", "chef@bellanapoli.pk",
       "owner@sakura.pk",
@@ -519,17 +517,15 @@ console.log("• inserting customers, reviews, reservations");
 await client.query("begin");
 
 for (const person of CUSTOMERS) {
-  if (person.userId) {
-    await query(
-      `insert into auth.users (id, email, encrypted_password, raw_user_meta_data, email_confirmed_at)
-       values ($1,$2,$3, jsonb_build_object('name', $4::text), now())`,
-      [person.userId, person.email, await hashPassword("DinerPass#1"), person.name],
-    );
-  }
+  const hasAccount = Boolean(person.userId);
   await query(
-    `insert into customers (id, restaurant_id, user_id, full_name, email, phone, is_guest, marketing_opt_in)
-     values ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [person.id, IDS.restaurant, person.userId, person.name, person.email, person.phone, !person.userId, Boolean(person.userId)],
+    `insert into customers
+       (id, restaurant_id, full_name, email, phone, is_guest, marketing_opt_in, password_hash, is_email_verified)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [
+      person.id, IDS.restaurant, person.name, person.email, person.phone, !hasAccount, hasAccount,
+      hasAccount ? await hashPassword("DinerPass#1") : null, hasAccount,
+    ],
   );
 }
 

@@ -6,6 +6,7 @@ import { readCart, requireStorefront } from "@/web/storefront";
 import { priceCart, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
 import { getLiveDeliveryZones } from "@/server/services/restaurants";
+import { isEmailVerified } from "@/server/services/customer-auth";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { Button } from "@/components/ui/button";
 
@@ -37,6 +38,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       : Promise.resolve([]),
     getStorefrontCustomer(restaurant.id),
   ]);
+  const emailVerified = customer ? await isEmailVerified(customer.userId) : true;
 
   const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant);
 
@@ -97,6 +99,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           currencySymbol={restaurant.currencySymbol}
           locale={restaurant.locale}
           isSignedIn={Boolean(customer)}
+          emailVerified={emailVerified}
           customerDefaults={
             customer
               ? { fullName: customer.name, phone: "", email: "" }

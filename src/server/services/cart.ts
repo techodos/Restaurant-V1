@@ -36,14 +36,20 @@ export function generateCartToken(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Cart requests authorise with the cart token, so that is all the context carries. */
-function cartContext(restaurantId: string, cartToken: string): RequestContext {
-  return forRestaurant(restaurantId, { cartToken });
+/**
+ * Cart requests authorise with the cart token for guests. A signed-in customer's
+ * cart also carries `customer_id` (set by `openCart`), and `cart_is_owned`'s RLS
+ * check (0005) requires `app.current_customer_id()` to match it in that case — the
+ * token alone stops satisfying either branch of that check once a cart is linked
+ * to a customer, so `customerId` must be threaded through here too.
+ */
+function cartContext(restaurantId: string, cartToken: string, customerId?: string | null): RequestContext {
+  return forRestaurant(restaurantId, { cartToken, customerId: customerId ?? null });
 }
 
 /** Read-only cart lookup (never creates anything). */
-export function findCart(restaurant: Restaurant, token: string): Promise<Cart | null> {
-  return getCartByToken(restaurant.id, token, cartContext(restaurant.id, token));
+export function findCart(restaurant: Restaurant, token: string, customerId?: string | null): Promise<Cart | null> {
+  return getCartByToken(restaurant.id, token, cartContext(restaurant.id, token, customerId));
 }
 
 /** Loads the active cart for a token, creating it when needed. */
@@ -71,7 +77,7 @@ export async function addToCart(restaurant: Restaurant, cart: Cart, input: AddTo
     throw errors.custom("ORDERING_DISABLED", "Online ordering is paused right now.");
   }
 
-  const ctx = cartContext(restaurant.id, cart.sessionToken);
+  const ctx = cartContext(restaurant.id, cart.sessionToken, cart.customerId);
   const orderType = input.orderType ?? cart.orderType;
   if (orderType !== cart.orderType) {
     await setCartOrderType(cart.id, orderType, ctx);
@@ -106,7 +112,7 @@ export async function updateCartItem(cart: Cart, input: UpdateCartItemInput): Pr
   const line = requireLine(cart, input.cartItemId);
   await updateCartItemQuantity(
     { cartItemId: input.cartItemId, quantity: input.quantity },
-    cartContext(cart.restaurantId, cart.sessionToken),
+    cartContext(cart.restaurantId, cart.sessionToken, cart.customerId),
   );
   // the repository caps a line at 99 and treats 0 as removal
   const newQuantity = Math.min(Math.max(input.quantity, 0), MAX_LINE_QUANTITY);
@@ -115,12 +121,12 @@ export async function updateCartItem(cart: Cart, input: UpdateCartItemInput): Pr
 
 export async function removeFromCart(cart: Cart, cartItemId: string): Promise<{ itemCount: number }> {
   const line = requireLine(cart, cartItemId);
-  await removeCartItem(cartItemId, cartContext(cart.restaurantId, cart.sessionToken));
+  await removeCartItem(cartItemId, cartContext(cart.restaurantId, cart.sessionToken, cart.customerId));
   return { itemCount: Math.max(0, cart.itemCount - line.quantity) };
 }
 
 export async function emptyCart(cart: Cart): Promise<{ itemCount: number }> {
-  await clearCart(cart.id, cartContext(cart.restaurantId, cart.sessionToken));
+  await clearCart(cart.id, cartContext(cart.restaurantId, cart.sessionToken, cart.customerId));
   return { itemCount: 0 };
 }
 
@@ -129,7 +135,7 @@ export async function applyCoupon(restaurant: Restaurant, cart: Cart, code: stri
   if (!restaurant.features.coupons) {
     throw errors.custom("ORDERING_DISABLED", "Promo codes are not available here.");
   }
-  const ctx = cartContext(restaurant.id, cart.sessionToken);
+  const ctx = cartContext(restaurant.id, cart.sessionToken, cart.customerId);
   if (!code) {
     await setCartCoupon(cart.id, null, ctx);
     return "";
@@ -146,11 +152,11 @@ export async function changeOrderType(restaurant: Restaurant, cart: Cart, orderT
   if (!isOrderTypeEnabled(restaurant.features, orderType)) {
     throw errors.custom("ORDERING_DISABLED", "That ordering option is currently unavailable.");
   }
-  await setCartOrderType(cart.id, orderType, cartContext(restaurant.id, cart.sessionToken));
+  await setCartOrderType(cart.id, orderType, cartContext(restaurant.id, cart.sessionToken, cart.customerId));
 }
 
 export async function changeCartLocation(cart: Cart, locationId: string): Promise<void> {
-  await setCartLocation(cart.id, locationId, cartContext(cart.restaurantId, cart.sessionToken));
+  await setCartLocation(cart.id, locationId, cartContext(cart.restaurantId, cart.sessionToken, cart.customerId));
 }
 
 // ─── pricing ─────────────────────────────────────────────────────────────────

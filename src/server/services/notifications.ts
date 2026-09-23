@@ -4,7 +4,11 @@ import { errors } from "@/server/errors";
 import { createFcmProvider } from "@/server/integrations/fcm";
 import { createResendProvider } from "@/server/integrations/resend";
 import { logger } from "@/server/logger";
-import { channelsFor, pushCopyFor } from "@/server/notifications/rules";
+import { channelsFor, pushCopyFor, RESERVATION_EMAIL_EVENTS } from "@/server/notifications/rules";
+import {
+  renderReservationConfirmedEmail,
+  renderReservationRequestedEmail,
+} from "@/server/notifications/templates/reservation-emails";
 import { renderOrderCompletedEmail } from "@/server/notifications/templates/order-completed";
 import { renderOrderConfirmationEmail, type RenderedEmail } from "@/server/notifications/templates/order-confirmation";
 import type {
@@ -12,6 +16,7 @@ import type {
   EmailProvider,
   NotificationEventRecord,
   NotificationOrderContext,
+  NotificationReservationContext,
   PushProvider,
 } from "@/server/notifications/types";
 import type { RequestContext } from "@/server/context";
@@ -22,6 +27,7 @@ import {
   deactivatePushTokens,
   listActivePushTokens,
   loadNotificationOrderContext,
+  loadNotificationReservationContext,
   saveNotificationOutcome,
   upsertPushToken,
   type EventOutcome,
@@ -36,6 +42,7 @@ import { findVisitorOrder } from "./orders";
  *        │  (DB trigger, same transaction)
  *        ▼
  *   notification_events  ── outbox, unique (order, event) ──►  NotificationService.dispatchDue()
+ *   (reservations use the same table + trigger pattern: events "requested" / "confirmed", email only)
  *                                                                ├─ EmailProvider (Resend)
  *                                                                └─ PushProvider  (FCM)
  *
@@ -54,6 +61,8 @@ const BACKOFF_MINUTES = [1, 5, 15, 60];
 export interface NotificationStore {
   claimDue: typeof claimDueNotificationEvents;
   loadContext: typeof loadNotificationOrderContext;
+  /** reservation events; a store without it dead-letters them */
+  loadReservationContext?: typeof loadNotificationReservationContext;
   activeTokens: typeof listActivePushTokens;
   deactivateTokens: typeof deactivatePushTokens;
   saveOutcome: typeof saveNotificationOutcome;
@@ -62,6 +71,7 @@ export interface NotificationStore {
 const repositoryStore: NotificationStore = {
   claimDue: claimDueNotificationEvents,
   loadContext: loadNotificationOrderContext,
+  loadReservationContext: loadNotificationReservationContext,
   activeTokens: listActivePushTokens,
   deactivateTokens: deactivatePushTokens,
   saveOutcome: saveNotificationOutcome,
@@ -150,6 +160,7 @@ export class NotificationService {
   }
 
   private async deliver(event: NotificationEventRecord): Promise<EventOutcome> {
+    if (event.reservationId) return this.deliverReservation(event);
     const context = await this.store.loadContext(event);
     // Multi-tenant guard: the order must belong to the event's own restaurant.
     if (!context || context.restaurant.id !== event.restaurantId || context.order.restaurantId !== event.restaurantId) {
@@ -187,6 +198,55 @@ export class NotificationService {
       pushState,
       lastError: problems.length ? problems.join(" | ") : null,
     };
+  }
+
+  /** Reservation events: one email per (reservation, event); the restaurant's email switch decides. */
+  private async deliverReservation(event: NotificationEventRecord): Promise<EventOutcome> {
+    const context = (await this.store.loadReservationContext?.(event)) ?? null;
+    // Multi-tenant guard: the reservation must belong to the event's own restaurant.
+    if (!context || context.restaurant.id !== event.restaurantId || context.reservation.restaurantId !== event.restaurantId) {
+      return { status: "dead", emailState: "skipped", pushState: "skipped", lastError: "reservation not found for this restaurant" };
+    }
+
+    let emailState = event.emailState;
+    const problems: string[] = [];
+    if (emailState === null) {
+      if (!RESERVATION_EMAIL_EVENTS.includes(event.eventType) || !context.restaurant.channels.email) emailState = "skipped";
+      else {
+        const result = await this.sendReservationEmail(event, context);
+        emailState = result.state;
+        if (result.error) problems.push(result.error);
+      }
+    }
+    if (emailState === null) return this.retryOrGiveUp(event, null, "skipped", problems);
+    return { status: "done", emailState, pushState: "skipped", lastError: problems.length ? problems.join(" | ") : null };
+  }
+
+  private async sendReservationEmail(event: NotificationEventRecord, context: NotificationReservationContext): Promise<ChannelResult> {
+    const provider = this.deps.email;
+    const { reservation, restaurant } = context;
+    if (!provider) {
+      logger.warn("notifications", `email not configured; skipping ${event.eventType} for reservation ${reservation.confirmationCode}`);
+      return { state: "skipped" };
+    }
+    if (!reservation.guestEmail) return { state: "skipped" };
+
+    const rendered =
+      event.eventType === "confirmed"
+        ? renderReservationConfirmedEmail({ restaurant, reservation })
+        : renderReservationRequestedEmail({ restaurant, reservation });
+
+    const result = await provider.send({
+      to: reservation.guestEmail,
+      fromName: restaurant.name,
+      replyTo: restaurant.email,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      idempotencyKey: `reservation-${reservation.id}-${event.eventType}-email`,
+    });
+    if (result.ok) return { state: "sent" };
+    return { state: result.retryable ? null : "failed", error: `email: ${result.error}` };
   }
 
   private retryOrGiveUp(
@@ -410,6 +470,12 @@ async function runDispatchPass(
 }
 
 // ── push token registration ────────────────────────────────────────────────
+
+/** The configured email provider (or null), for callers outside the outbox — e.g. a synchronous OTP send. */
+export function getEmailProvider(): EmailProvider | null {
+  const { resend, fromAddress, maxPerSecond } = config.email;
+  return resend ? createResendProvider({ apiKey: resend.apiKey, fromAddress, maxPerSecond }) : null;
+}
 
 /** Public Firebase web config, only when the server can also send (otherwise the opt-in is hidden). */
 export function getPushClientConfig() {

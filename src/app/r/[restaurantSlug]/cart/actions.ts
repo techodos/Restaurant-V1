@@ -34,6 +34,17 @@ function refreshStorefront(slug: string): void {
   revalidatePath(`/r/${slug}`, 'layout');
 }
 
+/**
+ * The header badge is a cookie hint, only kept current by cart *actions* — merely
+ * viewing the cart page never resyncs it. Called from the cart page (which already
+ * loaded the real cart) so a hint that drifted stale (e.g. an add-to-cart that
+ * failed after the hint was optimistically set) self-heals on the next visit
+ * instead of showing a wrong badge indefinitely.
+ */
+export async function resyncCartCountAction(count: number): Promise<void> {
+  await setCartCountHint(count);
+}
+
 export async function addToCartAction(
   slug: string,
   payload: unknown,
