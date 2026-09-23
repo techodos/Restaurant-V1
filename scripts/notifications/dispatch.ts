@@ -2,18 +2,20 @@
  * Delivers queued order notifications (emails + push) from the command line.
  *
  *   npm run notifications:dispatch             one pass, then exit
- *   npm run notifications:dispatch -- --loop   every 5 s until Ctrl+C (local development)
+ *   npm run notifications:dispatch -- --loop   every NOTIFICATIONS_DISPATCH_INTERVAL_MS until Ctrl+C
+ *                                               (local development; default/current: 5 s)
  *
  * In production a scheduler calls POST /api/internal/notifications/dispatch instead.
  */
 import { loadEnv } from "../db/env";
 import { closeDatabases } from "../../src/server/db/registry";
+import { config } from "../../src/server/config";
 import { dispatchDueNotifications } from "../../src/server/services/notifications";
 
 loadEnv();
 
 const loop = process.argv.includes("--loop");
-const INTERVAL_MS = 5_000;
+const INTERVAL_MS = config.notifications.dispatchIntervalMs;
 
 async function pass(): Promise<void> {
   const summary = await dispatchDueNotifications({ limit: 50 });

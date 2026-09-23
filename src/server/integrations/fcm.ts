@@ -78,7 +78,14 @@ export function createFcmProvider(options: FcmOptions): PushProvider {
             data: message.data,
             webpush: {
               fcm_options: { link: message.link },
-              ...(message.dedupeKey ? { notification: { tag: message.dedupeKey } } : {}),
+              // Title and body are repeated here, not only in the common `notification` above, so the
+              // web payload carries them whatever FCM does when a webpush notification is present;
+              // the service worker reads this object to display the notification itself.
+              notification: {
+                title: message.title,
+                body: message.body,
+                ...(message.dedupeKey ? { tag: message.dedupeKey } : {}),
+              },
             },
           },
         }),

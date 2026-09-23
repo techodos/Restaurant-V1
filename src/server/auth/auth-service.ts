@@ -6,7 +6,7 @@ import type { RequestContext } from "@/server/context";
 import { getDb } from "@/server/db/registry";
 import { mapTeamMember, str, type Row } from "@/server/db/mappers";
 import { getRestaurantBySlug } from "@/server/repositories/restaurants";
-import { getCustomerByUserId } from "@/server/repositories/customers";
+import { getCustomerById } from "@/server/repositories/customers";
 import { hashPassword, verifyPassword } from "./password";
 import {
   SESSION_TTL,
@@ -22,7 +22,14 @@ import type { Restaurant, TeamMember } from "@/shared/contract/models";
  *
  * Framework-free: it works with verified session payloads and returns tokens.
  * Reading and writing cookies is the delivery layer's job (see web/session.ts).
- * Sessions map onto auth.users rows, which is exactly what the RLS helpers read.
+ * Staff sessions map onto auth.users rows (Supabase-shaped, see 0001) — staff
+ * accounts are managed by the admin-portal branch and created only via
+ * `scripts/db/create-staff.ts` (migrator connection, never a live request),
+ * since app_service/app_runtime can never get real write access to
+ * auth.users (confirmed twice — see DECISIONS.md §24/§25/§26). Customer
+ * sessions map onto `customers` rows directly (0021): a customer's login is
+ * already restaurant-scoped, so it doesn't need a shared identity table at
+ * all — see that migration and DECISIONS.md §26.
  * To run against Supabase Auth instead, swap the sign-in helpers below for the
  * Supabase equivalents — the rest of the application only depends on `sub`.
  */
@@ -162,24 +169,22 @@ export async function signInCustomer(
 
   const row = await getDb({ restaurantId: restaurant.id }).write({}, async (tx) =>
     tx.queryOne<Row>(
-      `select u.id as user_id, u.encrypted_password, c.id as customer_id, c.full_name
-         from auth.users u
-         join customers c on c.user_id = u.id and c.restaurant_id = $2
-        where lower(u.email) = lower($1)`,
-      [email.trim(), restaurant.id],
+      `select id, password_hash, full_name from customers
+        where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
+      [restaurant.id, email.trim()],
     ),
   );
 
-  const passwordOk = await verifyPassword(password, row?.encrypted_password ? str(row.encrypted_password) : null);
+  const passwordOk = await verifyPassword(password, row?.password_hash ? str(row.password_hash) : null);
   if (!row || !passwordOk) throw errors.unauthorized("Invalid email or password.");
 
   const token = await signCustomerSession({
-    sub: str(row.user_id),
-    customerId: str(row.customer_id),
+    sub: str(row.id),
+    customerId: str(row.id),
     restaurantId: restaurant.id,
     name: str(row.full_name),
   });
-  return { token, maxAge: SESSION_TTL.customer, customerId: str(row.customer_id) };
+  return { token, maxAge: SESSION_TTL.customer, customerId: str(row.id) };
 }
 
 /** Guest accounts can be upgraded to a real login without losing history. */
@@ -194,40 +199,32 @@ export async function createCustomerAccount(
 
   const hashed = await hashPassword(input.password);
 
-  const result = await getDb({ restaurantId: restaurant.id }).write({ restaurantId: restaurant.id }, async (tx) => {
-    const existingUser = await tx.queryOne<Row>(`select id from auth.users where lower(email) = lower($1)`, [
-      input.email.trim(),
-    ]);
-    if (existingUser) throw errors.conflict("An account with that email already exists.");
-
-    const userRow = await tx.queryOne<Row>(
-      `insert into auth.users (id, email, encrypted_password, raw_user_meta_data)
-       values (gen_random_uuid(), $1,$2, jsonb_build_object('name', $3::text))
-       returning id`,
-      [input.email.trim().toLowerCase(), hashed, input.fullName],
+  const customerId = await getDb({ restaurantId: restaurant.id }).write({ restaurantId: restaurant.id }, async (tx) => {
+    const existing = await tx.queryOne<Row>(
+      `select id from customers where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
+      [restaurant.id, input.email.trim()],
     );
-    if (!userRow) throw errors.internal("Unable to create the account");
-    const userId = str(userRow.id);
+    if (existing) throw errors.conflict("An account with that email already exists.");
 
-    const customerRow = await tx.queryOne<Row>(
-      `insert into customers (restaurant_id, user_id, full_name, email, phone, is_guest)
+    const row = await tx.queryOne<Row>(
+      `insert into customers (restaurant_id, full_name, email, phone, password_hash, is_guest)
        values ($1,$2,$3,$4,$5,false)
        on conflict (restaurant_id, phone) do update set
-         user_id = excluded.user_id, email = excluded.email, full_name = excluded.full_name, is_guest = false
+         full_name = excluded.full_name, email = excluded.email, password_hash = excluded.password_hash, is_guest = false
        returning id`,
-      [restaurant.id, userId, input.fullName, input.email.trim().toLowerCase(), input.phone.trim()],
+      [restaurant.id, input.fullName, input.email.trim().toLowerCase(), input.phone.trim(), hashed],
     );
-    if (!customerRow) throw errors.internal("Unable to create the account");
-    return { userId, customerId: str(customerRow.id) };
+    if (!row) throw errors.internal("Unable to create the account");
+    return str(row.id);
   });
 
   const token = await signCustomerSession({
-    sub: result.userId,
-    customerId: result.customerId,
+    sub: customerId,
+    customerId,
     restaurantId: restaurant.id,
     name: input.fullName,
   });
-  return { token, maxAge: SESSION_TTL.customer, customerId: result.customerId };
+  return { token, maxAge: SESSION_TTL.customer, customerId };
 }
 
 export interface StorefrontCustomer {
@@ -236,15 +233,28 @@ export interface StorefrontCustomer {
   userId: string;
 }
 
-/** The signed-in customer for a restaurant, or null when the session belongs elsewhere. */
+/**
+ * The signed-in customer for a restaurant, or null when the session belongs elsewhere.
+ *
+ * Looks up by `session.customerId` (already known from the JWT) — `customers`'
+ * RLS policy (`customers_self`, 0006) is `id = app.current_customer_id()`, which
+ * only `app.current_customer_id` (set from `ctx.customerId`) can satisfy. A bare
+ * lookup with no `customerId` in context is RLS-blocked on every row regardless
+ * of what it filters on — that bug silently signed every customer back out on
+ * their next page load (confirmed 2026-09-23, Google sign-in landing back on
+ * /account/sign-in). `StorefrontCustomer.userId` is `customer.id` — since 0021 a
+ * customer's login is the `customers` row itself, no separate user id exists;
+ * the field name is kept so `getVisitorContext`/checkout/orders callers that
+ * read `visitor.userId` as "who's signed in" don't all need touching.
+ */
 export async function resolveCustomer(
   session: CustomerSessionPayload,
   restaurantId: string,
 ): Promise<StorefrontCustomer | null> {
   if (session.restaurantId !== restaurantId) return null;
-  const customer = await getCustomerByUserId(session.sub, { userId: session.sub, restaurantId });
+  const customer = await getCustomerById(session.customerId, { customerId: session.customerId, restaurantId });
   if (!customer || customer.restaurantId !== restaurantId) return null;
-  return { customerId: customer.id, name: customer.fullName, userId: session.sub };
+  return { customerId: customer.id, name: customer.fullName, userId: customer.id };
 }
 
 export function requestContextFrom(actor: StaffActor | null, extra: Partial<RequestContext> = {}): RequestContext {

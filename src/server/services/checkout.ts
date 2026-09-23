@@ -30,7 +30,7 @@ export async function placeOrder(
   const cartExpired = () => errors.custom("CART_EMPTY", "Your cart has expired. Please add your items again.");
   if (!cartToken) throw cartExpired();
 
-  const cart = await findCart(restaurant, cartToken);
+  const cart = await findCart(restaurant, cartToken, visitor.customerId ?? null);
   if (!cart) throw cartExpired();
 
   if (input.orderType === "delivery" && !input.addressLine1) {

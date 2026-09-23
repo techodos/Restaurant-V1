@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu as MenuIcon, Phone, ShoppingBag, X } from "lucide-react";
+import { Menu as MenuIcon, ShoppingBag, User, X } from "lucide-react";
 import type { WebsiteConfig } from "@/shared/contract/settings";
 import { cn } from "@/shared/utils";
 
@@ -12,10 +12,13 @@ interface SiteHeaderProps {
   config: WebsiteConfig;
   itemCount: number;
   orderingOpen: boolean;
+  /** null while no customer sign-in system was reachable (never blocks rendering). */
+  customer: { signedIn: boolean; name: string | null } | null;
+  googleEnabled: boolean;
 }
 
 /** Navigation labels, order and links all come from websites.config.navigation. */
-export function SiteHeader({ restaurant, config, itemCount, orderingOpen }: SiteHeaderProps) {
+export function SiteHeader({ restaurant, config, itemCount, orderingOpen, customer, googleEnabled }: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const navItems = config.navigation.items;
@@ -73,33 +76,42 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen }: Site
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
-          {restaurant.phone ? (
-            <a
-              href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
-              className="hidden items-center gap-2 rounded-[var(--radius-brand)] px-3 py-2 text-sm font-medium text-[var(--color-ink)] hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)] sm:flex"
-            >
-              <Phone className="size-4" aria-hidden />
-              <span className="hidden xl:inline">{restaurant.phone}</span>
-            </a>
-          ) : null}
-
+        <div className="flex items-center gap-2 sm:gap-3">
           {config.navigation.showCart ? (
             <Link
               href={`/r/${restaurant.slug}/cart`}
-              className="relative inline-flex h-11 items-center gap-2 rounded-[var(--radius-brand)] bg-[var(--color-brand)] px-4 text-sm font-medium text-[var(--color-brand-foreground)]"
+              aria-label={`Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}`}
+              className="relative grid size-11 place-items-center rounded-full border border-[var(--color-hairline)] text-[var(--color-ink)] transition-colors hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
             >
-              <ShoppingBag className="size-4" aria-hidden />
-              <span className="hidden sm:inline">{config.ordering.ctaLabel}</span>
-              <span className="sr-only sm:hidden">Cart</span>
-              <span
-                aria-label={`${itemCount} item${itemCount === 1 ? "" : "s"} in cart`}
-                className="grid min-w-6 place-items-center rounded-full bg-[var(--color-brand-foreground)] px-1.5 text-xs font-semibold text-[var(--color-brand)]"
-              >
-                {itemCount}
-              </span>
+              <ShoppingBag className="size-5" aria-hidden />
+              {itemCount > 0 ? (
+                <span
+                  aria-hidden
+                  className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--color-brand)] px-1 text-[11px] font-semibold leading-none text-[var(--color-brand-foreground)]"
+                >
+                  {itemCount > 99 ? "99+" : itemCount}
+                </span>
+              ) : null}
             </Link>
           ) : null}
+
+          {customer?.signedIn ? (
+            <Link
+              href={`/r/${restaurant.slug}/account`}
+              className="hidden items-center gap-2 rounded-full bg-[var(--color-brand)] px-4 py-2.5 text-sm font-medium text-[var(--color-brand-foreground)] shadow-sm transition-opacity hover:opacity-90 sm:flex"
+            >
+              <User className="size-4" aria-hidden />
+              <span className="max-w-28 truncate">{customer.name ?? "Account"}</span>
+            </Link>
+          ) : (
+            <Link
+              href={`/r/${restaurant.slug}/account/sign-in`}
+              className="hidden items-center gap-2 rounded-full bg-[var(--color-brand)] px-4 py-2.5 text-sm font-medium text-[var(--color-brand-foreground)] shadow-sm transition-opacity hover:opacity-90 sm:flex"
+            >
+              <User className="size-4" aria-hidden />
+              Sign In / Sign Up
+            </Link>
+          )}
 
           <button
             type="button"
@@ -134,6 +146,25 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen }: Site
                 </Link>
               </li>
             ))}
+            <li>
+              {customer?.signedIn ? (
+                <Link
+                  href={`/r/${restaurant.slug}/account`}
+                  onClick={() => setOpen(false)}
+                  className="block rounded-[var(--radius-brand)] px-3 py-3 text-base font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
+                >
+                  {customer.name ?? "Account"}
+                </Link>
+              ) : (
+                <Link
+                  href={`/r/${restaurant.slug}/account/sign-in`}
+                  onClick={() => setOpen(false)}
+                  className="block w-full rounded-[var(--radius-brand)] px-3 py-3 text-left text-base font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
+                >
+                  Sign In / Sign Up
+                </Link>
+              )}
+            </li>
           </ul>
         </nav>
       ) : null}

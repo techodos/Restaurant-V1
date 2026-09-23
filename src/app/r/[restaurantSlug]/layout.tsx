@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
-import { getCartCountHint } from '@/web/session';
+import { getCartCountHint, getVisitorContext } from '@/web/session';
 import { getStorefrontContext, requireStorefront } from '@/web/storefront';
 import { themeCssVariables, fontStack } from '@/web/theme';
 import { SiteHeader } from '@/components/storefront/site-header';
+import { CurrentOrdersWidget } from '@/components/storefront/current-orders-widget';
 import { resolveImage } from '@/web/media';
 import { SiteFooter } from '@/components/storefront/site-footer';
+import { getCustomerSessionSummary } from './account/actions';
+import { getMyOrders } from '@/server/services/orders';
+import { googleAuthAvailable } from '@/server/services/customer-auth';
 
 interface StorefrontLayoutProps {
   children: React.ReactNode;
@@ -38,10 +42,25 @@ export async function generateMetadata({
         ) as string[],
       },
       twitter: { card: 'summary_large_image', title, description },
-      icons: restaurant.logoUrl ? { icon: restaurant.logoUrl } : undefined,
-      other: config.contact.email
-        ? { 'contact:email': config.contact.email }
-        : undefined,
+      // Setting `icons.icon` explicitly (for the favicon) stops Next from auto-linking the
+      // file-convention apple-icon.tsx, so `apple` is repeated here to keep it wired up.
+      icons: {
+        ...(restaurant.logoUrl ? { icon: restaurant.logoUrl } : {}),
+        apple: `/r/${restaurantSlug}/apple-icon`,
+      },
+      // "Add to Home Screen" support: `manifest` + `appleWebApp` are what let iOS 16.4+ open the
+      // storefront standalone instead of as a Safari bookmark — standalone is required before iOS
+      // will deliver Web Push at all (see push-opt-in.tsx). `manifest` is generated per restaurant by
+      // manifest.webmanifest/route.ts.
+      manifest: `/r/${restaurantSlug}/manifest.webmanifest`,
+      appleWebApp: { capable: true, title: restaurant.name, statusBarStyle: 'default' },
+      other: {
+        // This Next.js version's `appleWebApp.capable` only emits the generic
+        // `mobile-web-app-capable` meta tag; iOS Safari itself still only honours the
+        // `apple-` prefixed one to treat a Home Screen launch as standalone, so it is added here too.
+        'apple-mobile-web-app-capable': 'yes',
+        ...(config.contact.email ? { 'contact:email': config.contact.email } : {}),
+      },
     };
   } catch {
     return {};
@@ -59,6 +78,18 @@ export default async function StorefrontLayout({
   const { restaurant, theme, config, locations, primaryLocation } = context;
   // Cookie hint kept current by the cart actions: no database read on ordinary page views.
   const itemCount = await getCartCountHint();
+  // One extra read per page view, unlike the cart badge above: an active order's status changes
+  // from outside any action this browser takes (staff/SQL update the row directly), so there is no
+  // action to keep a cookie hint current with, and the widget must reflect that promptly.
+  const [customer, visitor] = await Promise.all([
+    getCustomerSessionSummary(restaurantSlug).catch(() => ({ signedIn: false, name: null })),
+    getVisitorContext(restaurant.id),
+  ]);
+  const { current: activeOrders } = await getMyOrders(restaurant.id, visitor).catch(() => ({
+    signedIn: false,
+    current: [],
+    previous: [],
+  }));
 
   return (
     <div
@@ -91,6 +122,8 @@ export default async function StorefrontLayout({
         orderingOpen={
           restaurant.status === 'active' && restaurant.features.onlineOrdering
         }
+        customer={customer}
+        googleEnabled={googleAuthAvailable()}
       />
 
       <main id='main' className='flex-1'>
@@ -103,6 +136,8 @@ export default async function StorefrontLayout({
         locations={locations}
         primaryLocation={primaryLocation}
       />
+
+      <CurrentOrdersWidget restaurantSlug={restaurant.slug} count={activeOrders.length} />
     </div>
   );
 }

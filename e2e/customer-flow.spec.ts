@@ -101,9 +101,10 @@ test.describe("customer storefront", () => {
 
     await page.getByLabel("Name").fill("E2E Diners");
     await page.getByLabel("Phone").fill("+92 300 7770002");
+    await page.getByLabel("Email").fill("e2e-diners@example.com");
     await page.getByTestId("request-table").click();
 
-    await expect(page.getByText(/Your table is confirmed|Booking received/)).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByText(/Your table is confirmed|Request submitted successfully/)).toBeVisible({ timeout: 25_000 });
     await expect(page.getByText(/^[A-Z0-9]{6,}$/).first()).toBeVisible({ timeout: 5_000 });
     expect(slotTime).toMatch(/^slot-\d{2}:\d{2}$/);
   });

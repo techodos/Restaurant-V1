@@ -277,10 +277,11 @@ export interface RestaurantSummary {
   city?: string | null;
 }
 
+/** users — the login identity behind a customer or staff account. */
+/** A customer's own login row lives on `customers` itself (0021) — one row per restaurant, not shared across them. */
 export interface Customer {
   id: string;
   restaurantId: string;
-  userId: string | null;
   fullName: string;
   email: string | null;
   phone: string;
@@ -288,6 +289,8 @@ export interface Customer {
   marketingOptIn: boolean;
   isBlocked: boolean;
   isGuest: boolean;
+  emailVerified: boolean;
+  authProvider: string;
   totalOrders: number;
   totalSpent: Money;
   lastOrderAt: string | null;

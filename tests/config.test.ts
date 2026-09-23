@@ -15,6 +15,9 @@ const KEYS = [
   "STOREFRONT_CACHE_ENABLED",
   "STOREFRONT_CACHE_REFRESH_INTERVAL_MS",
   "STOREFRONT_CACHE_STARTUP_TIMEOUT_MS",
+  "NOTIFICATIONS_DISPATCH_SECRET",
+  "NOTIFICATION_MAX_AGE_HOURS",
+  "NOTIFICATIONS_DISPATCH_INTERVAL_MS",
 ] as const;
 
 const saved: Record<string, string | undefined> = {};
@@ -63,6 +66,24 @@ describe("config", () => {
     vi.resetModules();
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
     expect((await loadConfig()).storage.supabase).toEqual({ url: "https://example.supabase.co", serviceRoleKey: "service-key" });
+  });
+
+  describe("notifications", () => {
+    it("defaults the dispatch loop interval to 5s and the max age to 24h", async () => {
+      const config = await loadConfig();
+      expect(config.notifications).toEqual({ dispatchSecret: null, maxAgeHours: 24, dispatchIntervalMs: 5_000 });
+    });
+
+    it("reads the interval from NOTIFICATIONS_DISPATCH_INTERVAL_MS", async () => {
+      process.env.NOTIFICATIONS_DISPATCH_INTERVAL_MS = "5000";
+      expect((await loadConfig()).notifications.dispatchIntervalMs).toBe(5_000);
+    });
+
+    it("rejects an interval outside 1s–5min", async () => {
+      process.env.NOTIFICATIONS_DISPATCH_INTERVAL_MS = "500";
+      const config = await loadConfig();
+      expect(() => config.notifications).toThrow(/Invalid notifications configuration/);
+    });
   });
 
   describe("storefront cache", () => {

@@ -1,4 +1,4 @@
-import type { Order } from "@/shared/contract/models";
+import type { Order, Reservation } from "@/shared/contract/models";
 import type { NotificationChannelsEnabled } from "@/shared/notification-channels";
 
 /**
@@ -49,13 +49,15 @@ export interface PushProvider {
   send(tokens: readonly string[], message: PushMessage): Promise<PushOutcome[]>;
 }
 
-/** What the dispatcher works on: one committed order event. */
+/** What the dispatcher works on: one committed order or reservation event (exactly one of the two ids is set). */
 export interface NotificationEventRecord {
   id: string;
   restaurantId: string;
-  orderId: string;
+  orderId: string | null;
+  /** set for reservation events ("requested" / "confirmed"); email only */
+  reservationId?: string | null;
   customerId: string | null;
-  /** "placed" or an order status */
+  /** "placed" or an order status; "requested" / "confirmed" for a reservation */
   eventType: string;
   attempts: number;
   emailState: ChannelState | null;
@@ -64,23 +66,31 @@ export interface NotificationEventRecord {
 
 export type ChannelState = "sent" | "skipped" | "failed";
 
+/** Restaurant branding + switches shared by every notification, loaded under the event's own restaurant id. */
+export interface NotificationRestaurant {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  email: string | null;
+  phone: string | null;
+  currencySymbol: string;
+  locale: string;
+  timezone: string;
+  reviewsEnabled: boolean;
+  /** the restaurant's own switches (features.notifications / emailNotify / pushNotify) */
+  channels: NotificationChannelsEnabled;
+}
+
 /** Everything needed to render a notification, loaded under the event's own restaurant id. */
 export interface NotificationOrderContext {
-  restaurant: {
-    id: string;
-    name: string;
-    slug: string;
-    logoUrl: string | null;
-    primaryColor: string | null;
-    email: string | null;
-    phone: string | null;
-    currencySymbol: string;
-    locale: string;
-    timezone: string;
-    reviewsEnabled: boolean;
-    /** the restaurant's own switches (features.notifications / emailNotify / pushNotify) */
-    channels: NotificationChannelsEnabled;
-  };
+  restaurant: NotificationRestaurant;
   /** with items */
   order: Order;
+}
+
+export interface NotificationReservationContext {
+  restaurant: NotificationRestaurant;
+  reservation: Reservation;
 }

@@ -111,7 +111,7 @@ function harness(options: { failFirstPush?: boolean } = {}) {
     },
     loadContext: async (event) => {
       await sleep(2);
-      return contexts.get(event.orderId) ?? null;
+      return contexts.get(event.orderId ?? "") ?? null;
     },
     activeTokens: async (_restaurantId, customerId) => [`token-${customerId}`],
     deactivateTokens: async () => undefined,

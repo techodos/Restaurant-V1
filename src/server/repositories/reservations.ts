@@ -106,7 +106,6 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
         fullName: input.guestName,
         phone: input.guestPhone,
         email: input.guestEmail ?? null,
-        userId: input.userId ?? null,
         isGuest: !input.userId,
       },
       context,

@@ -23,6 +23,8 @@ import {
   CART_COOKIE_MAX_AGE,
   CART_COUNT_COOKIE,
   CUSTOMER_COOKIE,
+  GOOGLE_RETURN_TO_COOKIE,
+  GOOGLE_STATE_COOKIE,
   STAFF_COOKIE,
   cookieOptions,
 } from "./cookies";
@@ -113,6 +115,46 @@ export async function getCartToken(): Promise<string | null> {
 export async function setCartToken(token: string): Promise<void> {
   const store = await cookies();
   store.set(CART_COOKIE, token, cookieOptions(CART_COOKIE_MAX_AGE));
+}
+
+/** Signs the customer in for this browser. Only valid in Server Actions and Route Handlers. */
+export async function setCustomerSession(token: string, maxAge: number): Promise<void> {
+  const store = await cookies();
+  store.set(CUSTOMER_COOKIE, token, cookieOptions(maxAge));
+}
+
+/** Signs the customer out of this browser. Only valid in Server Actions and Route Handlers. */
+export async function clearCustomerSession(): Promise<void> {
+  const store = await cookies();
+  store.delete(CUSTOMER_COOKIE);
+}
+
+/** Stores the CSRF state for a Google sign-in redirect just before leaving for Google. */
+export async function setGoogleState(state: string): Promise<void> {
+  const store = await cookies();
+  store.set(GOOGLE_STATE_COOKIE, state, cookieOptions(600));
+}
+
+/** Reads and clears the state cookie; the caller compares it against Google's callback `state`. */
+export async function consumeGoogleState(): Promise<string | null> {
+  const store = await cookies();
+  const value = store.get(GOOGLE_STATE_COOKIE)?.value ?? null;
+  store.delete(GOOGLE_STATE_COOKIE);
+  return value;
+}
+
+/** Stores the page to return to after the Google OAuth round trip (the page "Continue with Google" was opened from). */
+export async function setGoogleReturnTo(path: string): Promise<void> {
+  const store = await cookies();
+  store.set(GOOGLE_RETURN_TO_COOKIE, path, cookieOptions(600));
+}
+
+/** Reads and clears the return-to cookie. */
+export async function consumeGoogleReturnTo(): Promise<string | null> {
+  const store = await cookies();
+  const value = store.get(GOOGLE_RETURN_TO_COOKIE)?.value ?? null;
+  store.delete(GOOGLE_RETURN_TO_COOKIE);
+  return value;
 }
 
 const CART_COUNT_MAX = 999;

@@ -314,7 +314,6 @@ export function mapCustomer(row: Row): Customer {
   return {
     id: str(row.id),
     restaurantId: str(row.restaurant_id),
-    userId: strOrNull(row.user_id),
     fullName: str(row.full_name),
     email: strOrNull(row.email),
     phone: str(row.phone),
@@ -322,6 +321,8 @@ export function mapCustomer(row: Row): Customer {
     marketingOptIn: bool(row.marketing_opt_in),
     isBlocked: bool(row.is_blocked),
     isGuest: bool(row.is_guest, true),
+    emailVerified: bool(row.is_email_verified, false),
+    authProvider: strOrNull(row.auth_provider) ?? "password",
     totalOrders: num(row.total_orders),
     totalSpent: money(row.total_spent),
     lastOrderAt: iso(row.last_order_at),

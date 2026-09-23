@@ -44,6 +44,50 @@ export async function getCustomerById(customerId: string, ctx: RequestContext): 
   return row ? mapCustomer(row) : null;
 }
 
+export async function markCustomerEmailVerified(customerId: string, ctx: RequestContext = {}): Promise<void> {
+  await getDb(ctx).write(ctx, (tx) =>
+    tx.query(`update customers set is_email_verified = true where id = $1 and is_email_verified = false`, [customerId]),
+  );
+}
+
+/** First Google sign-in for an account that started as email/password: link the Google sub onto it. */
+export async function linkGoogleToCustomer(customerId: string, googleSub: string, ctx: RequestContext): Promise<void> {
+  await getDb(ctx).write(ctx, (tx) =>
+    tx.query(
+      `update customers set google_sub = $2, is_email_verified = true,
+         auth_provider = case when auth_provider = 'password' then 'password+google' else auth_provider end
+       where id = $1`,
+      [customerId, googleSub],
+    ),
+  );
+}
+
+export interface GoogleCustomerInput {
+  restaurantId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  googleSub: string;
+}
+
+/** Creates (or upgrades a same-phone guest row into) a Google-linked customer account. */
+export async function createGoogleCustomer(input: GoogleCustomerInput, ctx: RequestContext): Promise<Customer> {
+  const row = await getDb(ctx).write(ctx, (tx) =>
+    tx.queryOne<Row>(
+      `insert into customers (restaurant_id, full_name, email, phone, google_sub, auth_provider, is_email_verified, is_guest)
+       values ($1,$2,$3,$4,$5,'google',true,false)
+       on conflict (restaurant_id, phone) do update set
+         full_name = excluded.full_name, email = excluded.email, google_sub = excluded.google_sub,
+         auth_provider = case when customers.auth_provider = 'password' then 'password+google' else excluded.auth_provider end,
+         is_email_verified = true, is_guest = false
+       returning ${CUSTOMER_COLUMNS}`,
+      [input.restaurantId, input.fullName, input.email.trim().toLowerCase(), input.phone.trim(), input.googleSub],
+    ),
+  );
+  if (!row) throw new Error("Unable to create the account");
+  return mapCustomer(row);
+}
+
 export async function getCustomerByPhone(
   restaurantId: string,
   phone: string,
@@ -57,10 +101,41 @@ export async function getCustomerByPhone(
   return row ? mapCustomer(row) : null;
 }
 
-export async function getCustomerByUserId(userId: string, ctx: RequestContext = {}): Promise<Customer | null> {
-  const row = await getDb(ctx).queryOne<Row>(ctx, `select ${CUSTOMER_COLUMNS} from customers where user_id = $1 limit 1`, [
-    userId,
-  ]);
+/**
+ * Privileged (`write`/`asService`): the caller doesn't know the customer's
+ * `id` yet — that's what this resolves — so there is no `ctx.customerId` to
+ * put in RLS's `app.current_customer_id()`, and `customers_self` (0006:
+ * `id = app.current_customer_id()`) would block every row under app_runtime
+ * regardless of which email/google_sub is queried. Only used to bootstrap
+ * identity (sign-in, "does this Google account already have an account
+ * here"); once the customer id is known, use `getCustomerById` instead.
+ */
+export async function getCustomerByEmail(restaurantId: string, email: string, ctx: RequestContext = {}): Promise<Customer | null> {
+  const row = await getDb(ctx).write(ctx, (tx) =>
+    tx.queryOne<Row>(
+      `select ${CUSTOMER_COLUMNS} from customers where restaurant_id = $1 and lower(email) = lower($2) and not is_guest limit 1`,
+      [restaurantId, email.trim()],
+    ),
+  );
+  return row ? mapCustomer(row) : null;
+}
+
+/** Matches by Google sub first, falling back to email — the same account may have signed up with a password first. */
+export async function getCustomerByGoogleSubOrEmail(
+  restaurantId: string,
+  googleSub: string,
+  email: string,
+  ctx: RequestContext = {},
+): Promise<Customer | null> {
+  const row = await getDb(ctx).write(ctx, (tx) =>
+    tx.queryOne<Row>(
+      `select ${CUSTOMER_COLUMNS} from customers
+        where restaurant_id = $1 and not is_guest and (google_sub = $2 or lower(email) = lower($3))
+        order by (google_sub = $2) desc
+        limit 1`,
+      [restaurantId, googleSub, email.trim()],
+    ),
+  );
   return row ? mapCustomer(row) : null;
 }
 
@@ -69,7 +144,6 @@ export interface UpsertCustomerInput {
   fullName: string;
   phone: string;
   email?: string | null;
-  userId?: string | null;
   marketingOptIn?: boolean;
   isGuest?: boolean;
 }
@@ -90,18 +164,17 @@ export async function upsertCustomer(
         `update customers set
            full_name = coalesce(nullif($2,''), full_name),
            email = coalesce(nullif($3,''), email),
-           user_id = coalesce($4, user_id),
-           marketing_opt_in = coalesce($5, marketing_opt_in),
-           is_guest = case when $4 is not null then false else is_guest end
+           marketing_opt_in = coalesce($4, marketing_opt_in),
+           is_guest = case when $5 = false then false else is_guest end
          where id = $1 returning ${CUSTOMER_COLUMNS}`,
-        [str(existing.id), input.fullName, input.email ?? "", input.userId ?? null, input.marketingOptIn ?? null],
+        [str(existing.id), input.fullName, input.email ?? "", input.marketingOptIn ?? null, input.isGuest ?? null],
       );
     }
     return db.queryOne<Row>(
-      `insert into customers (restaurant_id, user_id, full_name, email, phone, marketing_opt_in, is_guest)
-       values ($1,$2,$3,$4,$5,coalesce($6,false),coalesce($7,true))
+      `insert into customers (restaurant_id, full_name, email, phone, marketing_opt_in, is_guest)
+       values ($1,$2,$3,$4,coalesce($5,false),coalesce($6,true))
        returning ${CUSTOMER_COLUMNS}`,
-      [input.restaurantId, input.userId ?? null, input.fullName, input.email ?? null, input.phone,
+      [input.restaurantId, input.fullName, input.email ?? null, input.phone,
        input.marketingOptIn ?? null, input.isGuest ?? null],
     );
   };

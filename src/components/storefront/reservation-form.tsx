@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { CalendarCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ReservationSuccess } from "./reservation-success";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { bookTableAction, type BookingResult } from "@/app/r/[restaurantSlug]/reservation/actions";
 
@@ -79,9 +79,8 @@ export function ReservationForm({
     if (!payload.guestName) nextErrors.guestName = "Please tell us who the booking is for.";
     if (!/^[+0-9()\s-]{7,}$/.test(payload.guestPhone)) nextErrors.guestPhone = "We need a phone number to confirm.";
     if (!payload.time) nextErrors.time = "Please choose a time.";
-    if (payload.guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.guestEmail)) {
-      nextErrors.guestEmail = "That email looks incomplete.";
-    }
+    if (!payload.guestEmail) nextErrors.guestEmail = "Please enter your email so we can confirm.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.guestEmail)) nextErrors.guestEmail = "That email looks incomplete.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       toast.error("Please check the highlighted fields.");
@@ -95,39 +94,15 @@ export function ReservationForm({
         return;
       }
       setBooking(result.data);
-      toast.success("Table booked", { description: `Confirmation ${result.data.confirmationCode}` });
+      toast.success(result.data.status === "confirmed" ? "Table confirmed" : "Request submitted", {
+        description: `Reference ${result.data.confirmationCode}`,
+      });
     });
   }
 
+  // Only reached after bookTableAction succeeded (the reservation is saved); a failure keeps the form.
   if (booking) {
-    return (
-      <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
-        <span className="mx-auto grid size-12 place-items-center rounded-full bg-emerald-600/12 text-emerald-700">
-          <CalendarCheck className="size-6" aria-hidden />
-        </span>
-        <h2 className="mt-4 text-2xl font-semibold">
-          {booking.status === "confirmed" ? "Your table is confirmed" : "Booking received"}
-        </h2>
-        <p className="mt-2 text-[var(--color-muted-ink)]">
-          {booking.status === "confirmed"
-            ? "We have reserved your table. Please arrive within 15 minutes of your slot."
-            : "Our team will confirm your table by phone shortly."}
-        </p>
-        <p className="mt-5">
-          <Badge variant="brand" className="text-base">
-            {booking.confirmationCode}
-          </Badge>
-        </p>
-        <p className="mt-3 text-sm text-[var(--color-muted-ink)]">
-          {booking.date} at {booking.time} · keep this code handy when you arrive.
-        </p>
-        <div className="mt-6">
-          <Button variant="outline" onClick={() => setBooking(null)}>
-            Book another table
-          </Button>
-        </div>
-      </div>
-    );
+    return <ReservationSuccess restaurantSlug={restaurantSlug} booking={booking} onBookAnother={() => setBooking(null)} />;
   }
 
   return (
@@ -238,8 +213,9 @@ export function ReservationForm({
           <FieldError>{errors.guestPhone}</FieldError>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="guestEmail">Email (optional)</Label>
-          <Input id="guestEmail" name="guestEmail" type="email" defaultValue={customerDefaults?.email ?? ""} autoComplete="email" />
+          <Label htmlFor="guestEmail">Email</Label>
+          <Input id="guestEmail" name="guestEmail" type="email" defaultValue={customerDefaults?.email ?? ""} autoComplete="email" required />
+          <FieldHint>We email you when the request is received and again when it is confirmed.</FieldHint>
           <FieldError>{errors.guestEmail}</FieldError>
         </div>
         <div className="space-y-1.5">
@@ -260,7 +236,7 @@ export function ReservationForm({
 
       <Button type="submit" size="lg" data-testid="request-table" disabled={pending || !timeOptions.length}>
         {pending ? <Loader2 className="animate-spin" aria-hidden /> : <CalendarCheck aria-hidden />}
-        {pending ? "Booking…" : "Request table"}
+        {pending ? "Submitting…" : "Request table"}
       </Button>
     </form>
   );

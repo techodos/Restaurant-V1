@@ -2,7 +2,7 @@ import { dec, sumMoney, toMoney } from "@/shared/money";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
-import type { OrderStatus, OrderType, PaymentMethod } from "@/shared/contract/enums";
+import { ACTIVE_ORDER_STATUSES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { DeliveryZone, Order, OrderItem, OrderSummary } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { getRestaurantById } from "./restaurants";
@@ -236,7 +236,6 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
         fullName: input.customer.fullName,
         phone: input.customer.phone,
         email: input.customer.email ?? null,
-        userId: input.userId ?? null,
         marketingOptIn: input.customer.marketingOptIn ?? false,
         isGuest: !input.userId,
       },
@@ -447,11 +446,18 @@ export async function listOrders(
 }
 
 export async function getOrderItems(tx: DbClient, orderId: string): Promise<OrderItem[]> {
+  return (await getItemsForOrders(tx, [orderId])).get(orderId) ?? [];
+}
+
+/** Items (with add-ons) of several orders in two queries, keyed by order id. */
+async function getItemsForOrders(tx: DbClient, orderIds: readonly string[]): Promise<Map<string, OrderItem[]>> {
+  const byOrder = new Map<string, OrderItem[]>();
+  if (orderIds.length === 0) return byOrder;
   const rows = await tx.query<Row>(
     `select oi.*, mi.image_url, mi.slug
        from order_items oi left join menu_items mi on mi.id = oi.menu_item_id
-      where oi.order_id = $1 order by oi.created_at`,
-    [orderId],
+      where oi.order_id = any($1::uuid[]) order by oi.created_at`,
+    [orderIds],
   );
   const addons = rows.length
     ? await tx.query<Row>(
@@ -459,9 +465,69 @@ export async function getOrderItems(tx: DbClient, orderId: string): Promise<Orde
         [rows.map((row) => str(row.id))],
       )
     : [];
-  return rows.map((row) =>
-    mapOrderItem(row, addons.filter((addon) => str(addon.order_item_id) === str(row.id)).map(mapOrderItemAddon)),
-  );
+  for (const row of rows) {
+    const item = mapOrderItem(row, addons.filter((addon) => str(addon.order_item_id) === str(row.id)).map(mapOrderItemAddon));
+    const orderId = str(row.order_id);
+    const list = byOrder.get(orderId);
+    if (list) list.push(item);
+    else byOrder.set(orderId, [item]);
+  }
+  return byOrder;
+}
+
+/**
+ * "My Orders": the orders THIS visitor owns, decided here and again by RLS (both run in the
+ * same query, so neither can widen the other):
+ *  - signed-in customer: their own orders (`customer_id`), current and history;
+ *  - guest: only orders of the carts owned by their cart token, and only orders still in
+ *    progress. A guest never gets history back, even though the token may have placed
+ *    earlier orders and RLS (0008) would let the order tracking page open them.
+ *  - neither: nothing, without touching the database.
+ * The browser sends no order id, so there is nothing to tamper with.
+ */
+export async function listVisitorOrders(
+  restaurantId: string,
+  visitor: RequestContext,
+  options: { historyLimit?: number } = {},
+): Promise<{ orders: Order[]; history: boolean }> {
+  const customerId = visitor.customerId ?? null;
+  const cartToken = visitor.cartToken ?? null;
+  if (!customerId && !cartToken) return { orders: [], history: false };
+
+  const db = getDb({ restaurantId });
+  const ctx: RequestContext = { restaurantId, customerId, cartToken, userId: visitor.userId ?? null };
+  const active = [...ACTIVE_ORDER_STATUSES];
+  const orders = await db.read(ctx, async (tx) => {
+    const rows = customerId
+      ? await tx.query<Row>(
+          `select * from (
+             select ${ORDER_DETAIL_SELECT},
+                    row_number() over (partition by (o.status = any($3::order_status[])) order by o.created_at desc) as rn
+               from orders o
+               left join restaurant1s l on l.id = o.location_id
+               left join delivery_zones dz on dz.id = o.delivery_zone_id
+              where o.restaurant_id = $1 and o.customer_id = $2
+           ) ranked
+           where status = any($3::order_status[]) or rn <= $4
+           order by created_at desc`,
+          [restaurantId, customerId, active, options.historyLimit ?? 20],
+        )
+      : await tx.query<Row>(
+          `select ${ORDER_DETAIL_SELECT}
+             from orders o
+             join carts c on c.id = o.cart_id
+             left join restaurant1s l on l.id = o.location_id
+             left join delivery_zones dz on dz.id = o.delivery_zone_id
+            where o.restaurant_id = $1 and c.session_token = $2 and o.status = any($3::order_status[])
+            order by o.created_at desc`,
+          [restaurantId, cartToken, active],
+        );
+    const mapped = rows.map(mapOrder);
+    const items = await getItemsForOrders(tx, mapped.map((order) => order.id));
+    for (const order of mapped) order.items = items.get(order.id) ?? [];
+    return mapped;
+  });
+  return { orders, history: Boolean(customerId) };
 }
 
 const ORDER_DETAIL_SELECT = `

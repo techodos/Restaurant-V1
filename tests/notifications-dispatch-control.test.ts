@@ -45,6 +45,7 @@ vi.mock("@/server/repositories/notifications", () => ({
     return [];
   },
   loadNotificationOrderContext: async () => null, // -> event is retired, no provider is touched
+  loadNotificationReservationContext: async () => null,
   saveNotificationOutcome: async () => undefined,
   listActivePushTokens: async () => [],
   deactivatePushTokens: async () => undefined,
@@ -166,9 +167,12 @@ describe("push de-duplication key", () => {
     await provider.send(["t1"], { title: "t", body: "b", link: "https://x.test", data: {} });
     vi.unstubAllGlobals();
 
-    const withKey = (bodies[0] as { message: { webpush: { notification?: { tag: string } } } }).message.webpush;
-    const without = (bodies[1] as { message: { webpush: { notification?: { tag: string } } } }).message.webpush;
-    expect(withKey.notification?.tag).toBe("order-1-ready");
-    expect(without.notification).toBeUndefined();
+    type Sent = { message: { webpush: { notification: { title: string; body: string; tag?: string } } } };
+    const withKey = (bodies[0] as Sent).message.webpush;
+    const without = (bodies[1] as Sent).message.webpush;
+    expect(withKey.notification.tag).toBe("order-1-ready");
+    expect(without.notification.tag).toBeUndefined();
+    // the worker displays the notification from this object, so it always carries the text
+    expect(without.notification).toMatchObject({ title: "t", body: "b" });
   });
 });

@@ -88,11 +88,18 @@ const notificationsSchema = z.object({
   NOTIFICATIONS_DISPATCH_SECRET: z.preprocess(emptyToUndefined, z.string().min(16, "must be at least 16 characters").optional()),
   // events older than this are dropped instead of sent late
   NOTIFICATION_MAX_AGE_HOURS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(168).default(24)),
+  // local dev only: how often `npm run notifications:dispatch -- --loop` polls for due events
+  NOTIFICATIONS_DISPATCH_INTERVAL_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1_000).max(300_000).default(5_000)),
 });
 
 const orderEventsSchema = z.object({
   // Session-mode / direct Postgres connection used only to LISTEN for order changes (SSE). NOT the transaction pooler.
   DATABASE_URL_LISTEN: optionalText,
+});
+
+const googleAuthSchema = z.object({
+  GOOGLE_CLIENT_ID: optionalText,
+  GOOGLE_CLIENT_SECRET: optionalText,
 });
 
 function parse<T extends z.ZodTypeAny>(section: string, schema: T): z.infer<T> {
@@ -202,13 +209,25 @@ const push = lazy(() => {
 
 const notifications = lazy(() => {
   const env = parse("notifications", notificationsSchema);
-  return { dispatchSecret: env.NOTIFICATIONS_DISPATCH_SECRET ?? null, maxAgeHours: env.NOTIFICATION_MAX_AGE_HOURS };
+  return {
+    dispatchSecret: env.NOTIFICATIONS_DISPATCH_SECRET ?? null,
+    maxAgeHours: env.NOTIFICATION_MAX_AGE_HOURS,
+    dispatchIntervalMs: env.NOTIFICATIONS_DISPATCH_INTERVAL_MS,
+  };
 });
 
 const orderEvents = lazy(() => {
   const env = parse("orderEvents", orderEventsSchema);
   // null = live order updates are not offered (the page still works with the manual Refresh button)
   return { listenUrl: env.DATABASE_URL_LISTEN ?? null };
+});
+
+const googleAuth = lazy(() => {
+  const env = parse("googleAuth", googleAuthSchema);
+  // null = "Continue with Google" is hidden; the button never renders on an unconfigured deploy.
+  return env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+    ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
+    : null;
 });
 
 export const config = {
@@ -241,6 +260,9 @@ export const config = {
   },
   get orderEvents() {
     return orderEvents();
+  },
+  get googleAuth() {
+    return googleAuth();
   },
 };
 

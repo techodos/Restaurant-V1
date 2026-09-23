@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -8,9 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { placeOrderAction } from "@/app/r/[restaurantSlug]/checkout/actions";
+import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/account/actions";
 import { PAYMENT_METHOD_LABELS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import type { DeliveryZone } from "@/shared/contract/models";
+import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface CheckoutPricing {
   subtotal: string;
@@ -34,6 +37,7 @@ interface CheckoutFormProps {
   currencySymbol: string;
   locale: string;
   isSignedIn: boolean;
+  emailVerified: boolean;
   customerDefaults: { fullName: string; phone: string; email: string } | null;
   allowGuestCheckout: boolean;
 }
@@ -54,6 +58,7 @@ export function CheckoutForm({
   currencySymbol,
   locale,
   isSignedIn,
+  emailVerified,
   customerDefaults,
   allowGuestCheckout,
 }: CheckoutFormProps) {
@@ -64,7 +69,14 @@ export function CheckoutForm({
   const [orderTypeState, setOrderTypeState] = useState<OrderType>(orderType);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(paymentMethods[0] ?? "cash");
   const [tip, setTip] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified);
   const router = useRouter();
+
+  useEffect(() => {
+    if (needsVerification) void ensureVerificationCodeAction(restaurantSlug);
+    // only on first mount of the gate: resending belongs to the form's own "Resend code" button
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const money = (value: string) => formatMoney(value, { currency: currencySymbol, locale });
   const tipOptions = useMemo(() => {
@@ -123,6 +135,10 @@ export function CheckoutForm({
         const result = await placeOrderAction(restaurantSlug, payload);
         if (!result.success) {
           submitting.current = false;
+          if (result.error.code === "EMAIL_NOT_VERIFIED") {
+            setNeedsVerification(true);
+            return;
+          }
           toast.error(result.error.message, { description: "Nothing has been charged." });
           return;
         }
@@ -138,6 +154,22 @@ export function CheckoutForm({
         });
       }
     });
+  }
+
+  if (needsVerification) {
+    return (
+      <Card className="max-w-md">
+        <CardHeader>
+          <CardTitle className="text-lg">Verify your email to continue</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-[var(--color-muted-ink)]">
+            We sent a 6-digit code to your email. Enter it below, then place your order.
+          </p>
+          <VerifyEmailForm restaurantSlug={restaurantSlug} onVerified={() => setNeedsVerification(false)} />
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

@@ -35,6 +35,14 @@ export const CHANNEL_RULES: Record<NotificationEventType, ChannelRule> = {
   cancelled: { email: false, push: true },
 };
 
+/**
+ * Reservation events share the outbox but not the order rules above: they are email only.
+ *   requested   yes   submitted, awaiting the restaurant ("not confirmed yet")
+ *   confirmed   yes   the restaurant confirmed the reservation
+ * Cancelled / seated / no-show reservations send nothing (unchanged behaviour).
+ */
+export const RESERVATION_EMAIL_EVENTS: readonly string[] = ["requested", "confirmed"];
+
 export function channelsFor(eventType: string): ChannelRule {
   return CHANNEL_RULES[eventType as NotificationEventType] ?? NONE;
 }

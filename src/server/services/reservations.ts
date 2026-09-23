@@ -24,7 +24,7 @@ export async function bookTable(restaurant: Restaurant, input: BookTableInput, v
   const location = locations.find((candidate) => candidate.id === input.locationId);
   if (!location) throw errors.validation("Please choose one of our locations.");
 
-  return createReservation(
+  const reservation = await createReservation(
     {
       restaurantId: restaurant.id,
       locationId: location.id,
@@ -45,6 +45,9 @@ export async function bookTable(restaurant: Restaurant, input: BookTableInput, v
     },
     { restaurantId: restaurant.id, customerId: visitor.customerId ?? null },
   );
+  // The request and confirmation emails are queued by the database trigger in the same
+  // transaction as the insert (migration 0017); the caller dispatches them after responding.
+  return { ...reservation, locationName: location.name };
 }
 
 /**

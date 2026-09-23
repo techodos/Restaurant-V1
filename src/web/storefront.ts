@@ -32,7 +32,9 @@ export async function requireStorefront(slug: string): Promise<StorefrontContext
 /** Read-only: a request that only renders must never mint a cart cookie. */
 export async function readCart(restaurant: Restaurant): Promise<Cart | null> {
   const token = await getCartToken();
-  return token ? findCart(restaurant, token) : null;
+  if (!token) return null;
+  const customer = await getStorefrontCustomer(restaurant.id);
+  return findCart(restaurant, token, customer?.customerId ?? null);
 }
 
 /**

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { CartLineItem } from "@/components/storefront/cart-line-item";
 import { CartPromoForm } from "@/components/storefront/cart-promo-form";
 import { OrderTypePicker } from "@/components/storefront/order-type-picker";
+import { CartCountSync } from "@/components/storefront/cart-count-sync";
 
 interface CartPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -32,6 +33,7 @@ export default async function CartPage({ params }: CartPageProps) {
   if (!cart || cart.items.length === 0) {
     return (
       <div className="container-page py-20">
+        <CartCountSync count={0} />
         <div className="mx-auto max-w-lg text-center">
           <span className="mx-auto grid size-14 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] text-[var(--color-brand)]">
             <ShoppingBag className="size-6" aria-hidden />
@@ -67,6 +69,7 @@ export default async function CartPage({ params }: CartPageProps) {
 
   return (
     <div className="container-page py-10 md:py-14">
+      <CartCountSync count={cart.itemCount} />
       <h1 className="text-3xl font-semibold md:text-4xl">Your cart</h1>
       <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
         {cart.itemCount} item{cart.itemCount === 1 ? "" : "s"} · prices confirmed by the kitchen when you place the order
