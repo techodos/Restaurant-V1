@@ -43,7 +43,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
           <ArrowLeft className="size-4" aria-hidden /> Back to customers
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{customer.fullName}</h1>
+          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">{customer.fullName}</h1>
           {customer.isGuest ? <Badge variant="neutral">Guest</Badge> : null}
           {customer.isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
         </div>
@@ -88,8 +88,8 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
         {orders.length === 0 ? (
           <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No orders yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[var(--color-hairline)] text-left text-xs uppercase tracking-wide text-[var(--color-muted-ink)]">
+          <table className="tabular w-full text-sm">
+            <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
               <tr>
                 <th className="px-4 py-3 font-medium">Order</th>
                 <th className="px-4 py-3 font-medium">Total</th>

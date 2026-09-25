@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireStorefront } from "@/web/storefront";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/components/storefront/auth-shell";
 import { GooglePhoneForm } from "@/components/storefront/google-phone-form";
 
 interface Props {
@@ -23,24 +23,16 @@ function sanitizeReturnTo(slug: string, returnTo: string | undefined): string | 
 export default async function GooglePhonePage({ params, searchParams }: Props) {
   const { restaurantSlug } = await params;
   const { token, returnTo } = await searchParams;
-  await requireStorefront(restaurantSlug);
+  const context = await requireStorefront(restaurantSlug);
   if (!token) redirect(`/r/${restaurantSlug}/account/sign-in`);
 
   return (
-    <div className="container-page flex justify-center py-12 md:py-16">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-xl">One more step</CardTitle>
-          <CardDescription>We need a phone number to finish setting up your account.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GooglePhoneForm
-            restaurantSlug={restaurantSlug}
-            pendingToken={token}
-            returnTo={sanitizeReturnTo(restaurantSlug, returnTo)}
-          />
-        </CardContent>
-      </Card>
-    </div>
+    <AuthShell context={context} title="One more step" description="We need a phone number to finish setting up your account.">
+      <GooglePhoneForm
+        restaurantSlug={restaurantSlug}
+        pendingToken={token}
+        returnTo={sanitizeReturnTo(restaurantSlug, returnTo)}
+      />
+    </AuthShell>
   );
 }

@@ -20,7 +20,7 @@ export default async function AdminCouponsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Coupons</h1>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Coupons</h1>
         <p className="mt-1 text-[var(--color-muted-ink)]">{coupons.length} coupons</p>
       </div>
       <CouponManager coupons={coupons} usage={usage} />

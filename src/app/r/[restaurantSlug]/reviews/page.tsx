@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
+import type { StorefrontContext } from "@/shared/contract/models";
 import Link from "next/link";
 import { getStorefrontCustomer } from "@/web/session";
-import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { getStorefrontContext } from "@/web/storefront";
 import { breadcrumbJsonLd, reviewsJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { RatingStars } from "@/components/storefront/rating-stars";
@@ -37,10 +39,21 @@ export async function generateMetadata({ params }: ReviewsPageProps): Promise<Me
 
 export default async function ReviewsPage({ params, searchParams }: ReviewsPageProps) {
   const { restaurantSlug } = await params;
-  const { order, t: accessToken } = await searchParams;
+  const query = await searchParams;
+  return (
+    <ConfiguredPage
+      restaurantSlug={restaurantSlug}
+      pageSlug="reviews"
+      render={(context, heading) => renderReviews(context, heading, query)}
+    />
+  );
+}
 
-  const context = await requireStorefront(restaurantSlug);
-
+async function renderReviews(
+  context: StorefrontContext,
+  heading: PageHeading,
+  { order, t: accessToken }: Awaited<ReviewsPageProps["searchParams"]>,
+) {
   const { restaurant } = context;
   const [reviews, breakdown, customer] = await Promise.all([
     getPublicReviews(restaurant.id, { limit: 50 }),
@@ -61,17 +74,18 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
       />
 
       <header className="max-w-2xl">
-        <h1 className="text-3xl font-semibold md:text-4xl">Guest reviews</h1>
+        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{heading.title ?? "Guest reviews"}</h1>
         <p className="mt-3 text-[var(--color-muted-ink)]">
-          {breakdown.count > 0
-            ? `${breakdown.count} verified review${breakdown.count === 1 ? "" : "s"} · ${breakdown.average.toFixed(1)} average`
-            : "No published reviews yet — be the first to write one."}
+          {heading.subtitle ??
+            (breakdown.count > 0
+              ? `${breakdown.count} verified review${breakdown.count === 1 ? "" : "s"} · ${breakdown.average.toFixed(1)} average`
+              : "No published reviews yet — be the first to write one.")}
         </p>
       </header>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_1.4fr] lg:gap-14">
+      <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-14">
         <aside className="space-y-6">
-          <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+          <div className="surface-card p-6 md:p-7">
             <p className="font-[family-name:var(--font-heading)] text-4xl font-semibold">{breakdown.average.toFixed(1)}</p>
             <RatingStars rating={breakdown.average} size="md" className="mt-2" />
             <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
@@ -99,7 +113,7 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
           {order ? (
             <ReviewForm restaurantSlug={restaurant.slug} orderNumber={order} accessToken={accessToken} defaultName={customer?.name ?? ""} />
           ) : (
-            <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+            <div className="surface-card p-6 md:p-7">
               <h2 className="text-base font-semibold">Review your order</h2>
               <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
                 Reviews are linked to completed orders, so we can keep them honest. Open your order page to write one.
@@ -124,7 +138,7 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
               {reviews.map((review) => (
                 <li
                   key={review.id}
-                  className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6"
+                  className="surface-card p-6 md:p-7"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>

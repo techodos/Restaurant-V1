@@ -626,3 +626,7 @@ before any of this session's `users`-table work — staff auth is that other bra
 The two systems (customer login, staff login) no longer share a table, a role-grant strategy, or a migration
 numbering sequence they could collide on again. See SKILL.md §16 for the operational detail (repository functions,
 the two partial-unique indexes, Google linking-by-email-or-sub).
+
+## 27. A second demo restaurant lives in its own `scripts/db/<slug>/` folder with its own seed entry point
+
+The Bella seed (`scripts/db/seed.ts`) is one hard-wired script that deletes and re-inserts Bella and Sakura. Rather than turn it into a multi-tenant loop (risk to the existing seed and its tests), Zaytoun got `scripts/db/zaytoun/seed/seed.ts` (`npm run db:seed:zaytoun`) that owns and replaces only its own tenant, with images and content beside it. Images are copied to `public/images/<slug>` at seed time because Next serves only `/public` and no `/api/media` route exists yet. While verifying it in the browser we found that brand colours were never applied per restaurant (CSS custom-property resolution at `:root`); fixed once in `themeCssVariables` rather than per component. See SKILL.md §18.

@@ -24,7 +24,7 @@ export default async function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Settings</h1>
         <p className="mt-1 text-[var(--color-muted-ink)]">{restaurant.name}</p>
       </div>
 

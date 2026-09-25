@@ -68,7 +68,7 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Reservations</h1>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Reservations</h1>
         <p className="mt-1 text-[var(--color-muted-ink)]">{result.total} total</p>
       </div>
 
@@ -93,8 +93,8 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
         {result.rows.length === 0 ? (
           <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No reservations match this filter.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[var(--color-hairline)] text-left text-xs uppercase tracking-wide text-[var(--color-muted-ink)]">
+          <table className="tabular w-full text-sm">
+            <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
               <tr>
                 <th className="px-4 py-3 font-medium">Guest</th>
                 <th className="px-4 py-3 font-medium">When</th>

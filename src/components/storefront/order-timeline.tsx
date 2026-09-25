@@ -23,16 +23,19 @@ export function OrderTimeline({ steps }: { steps: TimelineStep[] }) {
               className={cn(
                 "relative z-10 mt-0.5 grid size-8 shrink-0 place-items-center rounded-full border",
                 step.state === "done" && "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]",
-                step.state === "current" && "border-[var(--color-brand)] bg-[var(--color-surface)] text-[var(--color-brand)]",
+                step.state === "current" && "border-2 border-[var(--color-brand)] bg-[var(--color-surface)] text-[var(--color-brand)]",
                 step.state === "upcoming" && "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-muted-ink)]",
                 step.state === "cancelled" && "border-red-500 bg-red-500 text-white",
               )}
               aria-hidden
             >
-              {step.state === "done" ? <Check className="size-4" /> : step.state === "cancelled" ? <X className="size-4" /> : <CircleDashed className="size-4" />}
+              {step.state === "current" ? (
+                <span className="absolute inset-0 animate-ping rounded-full bg-[color-mix(in_srgb,var(--color-brand)_30%,transparent)]" />
+              ) : null}
+              {step.state === "done" ? <Check className="size-4" /> : step.state === "cancelled" ? <X className="size-4" /> : <CircleDashed className="relative size-4" />}
             </span>
             <div className="min-w-0 flex-1 pt-1">
-              <p className={cn("text-sm font-medium", step.state === "upcoming" && "text-[var(--color-muted-ink)]")}>
+              <p className={cn("text-[15px] font-semibold", step.state === "upcoming" && "font-medium text-[var(--color-muted-ink)]")}>
                 {step.label}
               </p>
               {step.at ? (

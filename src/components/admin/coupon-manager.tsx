@@ -72,7 +72,7 @@ function CouponEditForm({ coupon, onCancel }: CouponEditFormProps) {
   return (
     <form
       onSubmit={submit}
-      className="space-y-4 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4"
+      className="space-y-4 surface-flat p-4"
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -196,7 +196,7 @@ export function CouponManager({
         ) : (
           <div
             key={coupon.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 py-2.5"
+            className="flex flex-wrap items-center justify-between gap-3 surface-flat px-3.5 py-2.5"
           >
             <div>
               <div className="flex items-center gap-2">

@@ -78,7 +78,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
   return (
     <form
       onSubmit={submit}
-      className="space-y-5 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6"
+      className="space-y-5 surface-flat p-6"
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">

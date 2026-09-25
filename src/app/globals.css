@@ -24,36 +24,70 @@
 
 :root {
   color-scheme: light;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.18);
   --shadow-raised: 0 2px 4px rgba(16, 24, 40, 0.06), 0 18px 40px -18px rgba(16, 24, 40, 0.28);
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  background-color: var(--color-canvas);
-  color: var(--color-ink);
+/* ---------------------------------------------------------------------------
+   Themed scale. Declared on the element that carries the restaurant's inline
+   --brand-* / --color-* variables (storefront layout and admin shell), because a
+   var() inside a custom property resolves where it is declared: on :root these
+   would never see the restaurant's values.
+   --------------------------------------------------------------------------- */
+.theme-root {
   font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  /* one radius system: controls (buttons, inputs) = the brand radius, cards a
+     step softer, large panels softer again; capped so radius "full" stays sane */
+  --radius-card: min(calc(var(--radius-brand) * 1.5 + 2px), 24px);
+  --radius-panel: min(calc(var(--radius-brand) * 2 + 4px), 32px);
+  --tint: color-mix(in srgb, var(--color-ink) 4%, transparent);
+  --tint-strong: color-mix(in srgb, var(--color-ink) 7%, transparent);
+  --brand-tint: color-mix(in srgb, var(--color-brand) 9%, transparent);
+  /* shadows carry the ink hue instead of pure black */
+  --shadow-card:
+    0 1px 2px color-mix(in srgb, var(--color-ink) 5%, transparent),
+    0 10px 30px -18px color-mix(in srgb, var(--color-ink) 28%, transparent);
+  --shadow-raised:
+    0 2px 6px color-mix(in srgb, var(--color-ink) 6%, transparent),
+    0 24px 48px -22px color-mix(in srgb, var(--color-ink) 38%, transparent);
+  --shadow-brand: 0 10px 24px -12px color-mix(in srgb, var(--color-brand) 60%, transparent);
 }
 
-h1, h2, h3, h4 {
-  font-family: var(--font-display);
-  letter-spacing: -0.015em;
-}
+/* element defaults live in the base layer so utilities (e.g. a sans card title) can override them */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
 
-/* Visible, consistent focus for keyboard users only */
-:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
 
-::selection {
-  background-color: color-mix(in srgb, var(--color-brand) 22%, transparent);
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Visible, consistent focus for keyboard users only */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-brand) 22%, transparent);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -100,4 +134,107 @@ h1, h2, h3, h4 {
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------------------
+   Surfaces
+   --------------------------------------------------------------------------- */
+@utility surface-card {
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-card, var(--radius-brand));
+  box-shadow: var(--shadow-card);
+}
+
+@utility surface-flat {
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-card, var(--radius-brand));
+}
+
+@utility surface-tint {
+  background-color: var(--tint);
+  border-radius: var(--radius-card, var(--radius-brand));
+}
+
+/* interactive card: lifts on hover, presses on click (transform + shadow only) */
+@utility hover-lift {
+  transition:
+    transform 0.4s var(--ease-out),
+    box-shadow 0.4s var(--ease-out),
+    border-color 0.2s ease;
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-raised);
+    border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-hairline));
+  }
+  &:active {
+    transform: translateY(-1px) scale(0.995);
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion. Everything here is transform/opacity only and switched off by the
+   prefers-reduced-motion block above.
+   --------------------------------------------------------------------------- */
+
+/* Scroll reveal without JS: sections fade up as they enter the viewport. Only
+   where scroll-driven animations exist, so other browsers simply show content. */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: none; }
+}
+
+@utility reveal {
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0px entry 240px;
+    }
+  }
+}
+
+/* Staggered entrance for lists: set --i on each child */
+@utility stagger-in {
+  animation: rise 0.6s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@utility animate-sheet {
+  animation: sheet-in 0.35s var(--ease-out) both;
+}
+
+/* slow ken-burns on hero photography */
+@keyframes hero-zoom {
+  from { transform: scale(1.08); }
+  to { transform: scale(1); }
+}
+
+@utility animate-hero {
+  animation: hero-zoom 1.6s var(--ease-out) both;
 }

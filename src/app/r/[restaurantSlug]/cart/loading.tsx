@@ -4,7 +4,7 @@ export default function CartLoading() {
   return (
     <div className="container-page py-10 md:py-14">
       <Skeleton className="h-9 w-40" />
-      <div className="mt-8 grid gap-10 lg:grid-cols-[1.6fr_1fr]">
+      <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, index) => (
             <div key={index} className="flex gap-4 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] p-5">

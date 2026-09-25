@@ -147,7 +147,7 @@ export function OrderReceivedNotice() {
   if (state.status !== "pending") return null;
   return (
     <p
-      className="mt-6 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 py-3 text-sm"
+      className="mt-6 surface-flat px-4 py-3 text-sm"
       role="status"
     >
       Your order has been received. You will get a confirmation message soon.

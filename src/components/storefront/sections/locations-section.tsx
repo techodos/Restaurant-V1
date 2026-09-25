@@ -25,10 +25,10 @@ export async function LocationsSection({ section, context }: { section: Location
           return (
             <li
               key={location.id}
-              className="flex flex-col gap-4 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6"
+              className="surface-card flex flex-col gap-5 p-6 md:p-7"
             >
               <div>
-                <h3 className="text-lg font-semibold">{location.name}</h3>
+                <h3 className="text-2xl font-semibold tracking-[-0.02em]">{location.name}</h3>
                 <p className="mt-2 flex items-start gap-2 text-sm text-[var(--color-muted-ink)]">
                   <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
                   <span>
@@ -67,12 +67,13 @@ export async function LocationsSection({ section, context }: { section: Location
 
               {section.showMap && location.latitude && location.longitude ? (
                 <a
-                  className="text-sm font-medium text-[var(--color-brand)] underline-offset-4 hover:underline"
+                  className="mt-auto inline-flex h-10 w-fit items-center gap-2 rounded-full border border-[var(--color-hairline)] px-4 text-sm font-semibold transition-colors hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
                   href={mapUrl ?? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`}
                   target="_blank"
                   rel="noreferrer noopener"
                 >
-                  Open in maps →
+                  <MapPin className="size-4" aria-hidden />
+                  Open in maps
                 </a>
               ) : null}
             </li>

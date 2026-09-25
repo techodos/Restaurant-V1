@@ -42,6 +42,7 @@ const RENDERERS: Record<Section["type"], (props: { section: never; context: Stor
   cta: CtaSection as never,
   rich_text: RichTextSection as never,
   order_type_switch: OrderTypeSwitchSection as never,
+  page_content: (() => null) as never, // replaced by the page's `body` in SectionRenderer
 };
 
 export interface SectionRendererProps {
@@ -51,9 +52,11 @@ export interface SectionRendererProps {
   /** section types to render; defaults to every section present */
   only?: Section["type"][];
   skip?: Section["type"][];
+  /** the page's built-in body; rendered where a `page_content` section sits, else after the sections */
+  body?: React.ReactNode;
 }
 
-export function SectionRenderer({ context, sections, only, skip }: SectionRendererProps) {
+export function SectionRenderer({ context, sections, only, skip, body }: SectionRendererProps) {
   const parsed = parseSections(sections);
   const visible = parsed.filter((section) => {
     if (!section.enabled) return false;
@@ -65,14 +68,20 @@ export function SectionRenderer({ context, sections, only, skip }: SectionRender
   return (
     <>
       {visible.map((section, index) => {
+        if (section.type === "page_content") return <div key={`body-${index}`}>{body}</div>;
         const Renderer = RENDERERS[section.type];
         if (!Renderer) return null;
         return (
-          <div key={`${section.type}-${index}`} className="animate-rise">
+          <div
+            key={`${section.type}-${index}`}
+            className={index === 0 ? "animate-rise" : "reveal"}
+            data-after={visible[index - 1]?.type}
+          >
             <Renderer section={section as never} context={context} />
           </div>
         );
       })}
+      {body && !visible.some((section) => section.type === "page_content") ? body : null}
     </>
   );
 }

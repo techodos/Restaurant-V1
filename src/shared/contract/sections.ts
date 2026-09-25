@@ -185,6 +185,18 @@ export const orderTypeSwitchSectionSchema = z.object({
   orderTypes: z.array(z.enum(ORDER_TYPES)).min(1).default(["delivery", "pickup"]),
 });
 
+/**
+ * Marks where a functional page's built-in body (the menu list, the booking form, the reviews list, the
+ * location cards) sits among the other sections of its website page. `title` / `subtitle` override the body's
+ * own heading; when the marker is absent (or disabled) the body renders after every other section.
+ */
+export const pageContentSectionSchema = z.object({
+  type: z.literal("page_content"),
+  enabled: z.boolean().default(true),
+  title: z.string().trim().max(140).optional(),
+  subtitle: z.string().trim().max(400).optional(),
+});
+
 export const sectionSchema = z.discriminatedUnion("type", [
   heroSectionSchema,
   announcementSectionSchema,
@@ -201,6 +213,7 @@ export const sectionSchema = z.discriminatedUnion("type", [
   ctaSectionSchema,
   richTextSectionSchema,
   orderTypeSwitchSectionSchema,
+  pageContentSectionSchema,
 ]);
 
 export type Section = z.infer<typeof sectionSchema>;
@@ -220,11 +233,12 @@ export type RichTextSection = z.infer<typeof richTextSectionSchema>;
 export type MenuPreviewSection = z.infer<typeof menuPreviewSectionSchema>;
 export type MenuCategoriesSection = z.infer<typeof menuCategoriesSectionSchema>;
 export type OrderTypeSwitchSection = z.infer<typeof orderTypeSwitchSectionSchema>;
+export type PageContentSection = z.infer<typeof pageContentSectionSchema>;
 
 export const SECTION_TYPES = [
   "hero", "announcement", "featured_items", "menu_categories", "menu_preview", "about",
   "gallery", "why_choose_us", "reviews", "reservation_cta", "locations", "contact",
-  "cta", "rich_text", "order_type_switch",
+  "cta", "rich_text", "order_type_switch", "page_content",
 ] as const satisfies readonly SectionType[];
 
 export const SECTION_LABELS: Record<SectionType, string> = {
@@ -243,6 +257,7 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   cta: "Call-to-action banner",
   rich_text: "Rich text",
   order_type_switch: "Order type switch",
+  page_content: "Page content (menu, booking form, reviews, locations)",
 };
 
 /**

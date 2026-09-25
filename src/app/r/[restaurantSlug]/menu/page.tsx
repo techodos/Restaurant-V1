@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
+import type { StorefrontContext } from "@/shared/contract/models";
 import { enabledOrderTypes } from "@/shared/ordering";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
-import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { getStorefrontContext } from "@/web/storefront";
 import { MenuItemCard } from "@/components/storefront/menu-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,8 +27,10 @@ export async function generateMetadata({ params }: MenuPageProps): Promise<Metad
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     return {
-      title: "Menu",
-      description: `Browse the full ${restaurant.name} menu — ${restaurant.cuisines.join(", ")}.`,
+      ...(await configuredPageMetadata(restaurant.id, "menu", {
+        title: "Menu",
+        description: `Browse the full ${restaurant.name} menu — ${restaurant.cuisines.join(", ")}.`,
+      })),
       alternates: { canonical: `/r/${restaurant.slug}/menu` },
     };
   } catch {
@@ -37,10 +41,21 @@ export async function generateMetadata({ params }: MenuPageProps): Promise<Metad
 /** Menu browsing: categories, search and ordering all run in the database. */
 export default async function MenuPage({ params, searchParams }: MenuPageProps) {
   const { restaurantSlug } = await params;
-  const { category, q, orderType, sort } = await searchParams;
+  const filters = await searchParams;
+  return (
+    <ConfiguredPage
+      restaurantSlug={restaurantSlug}
+      pageSlug="menu"
+      render={(context, heading) => renderMenu(context, heading, filters)}
+    />
+  );
+}
 
-  const context = await requireStorefront(restaurantSlug);
-
+async function renderMenu(
+  context: StorefrontContext,
+  heading: PageHeading,
+  { category, q, orderType, sort }: Awaited<MenuPageProps["searchParams"]>,
+) {
   const { restaurant } = context;
   const activeOrderType: OrderType = ORDER_TYPES.includes(orderType as OrderType)
     ? (orderType as OrderType)
@@ -71,16 +86,21 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
       />
 
       <header className="max-w-2xl">
-        <h1 className="text-3xl font-semibold md:text-4xl">Our menu</h1>
+        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{heading.title ?? "Our menu"}</h1>
         <p className="mt-3 text-[var(--color-muted-ink)]">
-          {categories.length} sections · {items.length} dishes available today
-          {restaurant.settings.ordering.preparationTimeMinutes
-            ? ` · average prep ${restaurant.settings.ordering.preparationTimeMinutes} minutes`
-            : ""}
+          {heading.subtitle ??
+            `${categories.length} sections · ${items.length} dishes available today${
+              restaurant.settings.ordering.preparationTimeMinutes
+                ? ` · average prep ${restaurant.settings.ordering.preparationTimeMinutes} minutes`
+                : ""
+            }`}
         </p>
       </header>
 
-      <form className="mt-6 flex flex-col gap-3 sm:flex-row" action={`/r/${restaurant.slug}/menu`}>
+      <form
+        className="mt-8 flex flex-col gap-2 rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-2 shadow-[var(--shadow-card)] sm:flex-row sm:items-center"
+        action={`/r/${restaurant.slug}/menu`}
+      >
         <input type="hidden" name="orderType" value={activeOrderType} />
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
@@ -89,7 +109,7 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
             defaultValue={search}
             placeholder="Search dishes, drinks or ingredients"
             aria-label="Search the menu"
-            className="pl-9"
+            className="border-transparent pl-9 shadow-none hover:border-transparent focus:border-[var(--color-brand)]"
           />
         </div>
         <div className="flex gap-3">
@@ -97,13 +117,13 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
             name="sort"
             defaultValue={sort ?? "menu"}
             aria-label="Sort menu"
-            className="h-11 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3 text-sm"
+            className="h-11 cursor-pointer rounded-[var(--radius-brand)] border border-transparent bg-[color-mix(in_srgb,var(--color-ink)_4%,transparent)] px-3 text-sm font-medium"
           >
             <option value="menu">Menu order</option>
             <option value="price_asc">Price: low to high</option>
             <option value="price_desc">Price: high to low</option>
           </select>
-          <Button type="submit" variant="secondary">
+          <Button type="submit">
             Search
           </Button>
         </div>
@@ -127,12 +147,17 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
         ))}
       </div>
 
-      <nav aria-label="Menu categories" className="mt-5 -mx-1 flex snap-x gap-2 overflow-x-auto pb-2">
+      <nav
+        aria-label="Menu categories"
+        className="scrollbar-none sticky top-[var(--header-h,4.5rem)] z-30 -mx-4 mt-4 flex snap-x gap-2 overflow-x-auto border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-canvas)_88%,transparent)] px-4 py-3 backdrop-blur-lg md:-mx-8 md:px-8"
+      >
         <Link
           href={`/r/${restaurant.slug}/menu?orderType=${activeOrderType}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
           className={cn(
-            "snap-start whitespace-nowrap rounded-full px-4 py-2 text-sm",
-            !category ? "bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]" : "text-[var(--color-muted-ink)] hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]",
+            "snap-start whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors",
+            !category
+              ? "border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-surface)]"
+              : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink)] hover:border-[color-mix(in_srgb,var(--color-ink)_35%,var(--color-hairline))]",
           )}
         >
           Everything
@@ -142,20 +167,20 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
             key={entry.id}
             href={`/r/${restaurant.slug}/menu?category=${entry.slug}&orderType=${activeOrderType}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
             className={cn(
-              "snap-start whitespace-nowrap rounded-full px-4 py-2 text-sm",
+              "snap-start whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors",
               category === entry.slug
-                ? "bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]"
-                : "text-[var(--color-muted-ink)] hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]",
+                ? "border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-surface)]"
+                : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink)] hover:border-[color-mix(in_srgb,var(--color-ink)_35%,var(--color-hairline))]",
             )}
           >
             {entry.name}
-            <span className="ml-1.5 text-xs">{entry.itemCount ?? 0}</span>
+            <span className="tabular ml-1.5 text-xs opacity-60">{entry.itemCount ?? 0}</span>
           </Link>
         ))}
       </nav>
 
       {items.length === 0 ? (
-        <div className="mt-16 rounded-[var(--radius-brand)] border border-dashed border-[var(--color-hairline)] p-12 text-center">
+        <div className="mt-12 rounded-[var(--radius-panel)] border border-dashed border-[color-mix(in_srgb,var(--color-ink)_18%,transparent)] bg-[var(--color-surface)] px-6 py-16 text-center">
           <p className="text-lg font-medium">Nothing matched that search</p>
           <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
             {search ? `We could not find “${search}”. ` : ""}Try another dish, or browse a category above.
@@ -167,11 +192,11 @@ export default async function MenuPage({ params, searchParams }: MenuPageProps) 
           </div>
         </div>
       ) : (
-        <div className="mt-10 space-y-14">
+        <div className="mt-10 space-y-16">
           {grouped.map((group) => (
-            <section key={group.category.id} id={group.category.slug} className="scroll-mt-28">
+            <section key={group.category.id} id={group.category.slug} className="scroll-mt-[calc(var(--header-h,4.5rem)+5rem)]">
               <div className="flex flex-wrap items-baseline gap-3">
-                <h2 className="text-2xl font-semibold">{group.category.name}</h2>
+                <h2 className="text-[1.75rem] font-semibold leading-tight md:text-[2rem]">{group.category.name}</h2>
                 {group.category.isFeatured ? <Badge variant="soft">Popular</Badge> : null}
                 <span className="text-sm text-[var(--color-muted-ink)]">{group.items.length} items</span>
               </div>

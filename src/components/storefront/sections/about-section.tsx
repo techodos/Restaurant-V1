@@ -11,10 +11,10 @@ export function AboutSection({ section }: { section: AboutConfig; context: Store
 
   return (
     <SectionShell tone="surface">
-      <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+      <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
         <div className={cn("relative", section.imagePosition === "right" && "lg:order-2")}>
           {image ? (
-            <div className="relative aspect-4/3 overflow-hidden rounded-[var(--radius-brand)] shadow-[var(--shadow-raised)]">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[var(--radius-panel)] shadow-[var(--shadow-raised)] sm:aspect-[5/4]">
               <Image
                 src={image}
                 alt={section.image?.alt ?? section.title}
@@ -27,26 +27,26 @@ export function AboutSection({ section }: { section: AboutConfig; context: Store
           {section.stats.length ? (
             <dl
               className={cn(
-                "mt-5 grid grid-cols-2 gap-4 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-5",
-                image && "sm:absolute sm:-bottom-8 sm:right-4 sm:mt-0 sm:w-[62%] sm:shadow-[var(--shadow-raised)] lg:right-6",
+                "surface-card mt-5 grid grid-cols-2 gap-x-6 gap-y-5 p-6",
+                image && "sm:absolute sm:-bottom-10 sm:-right-4 sm:mt-0 sm:w-[64%] sm:shadow-[var(--shadow-raised)] lg:-right-8",
               )}
             >
               {section.stats.map((stat) => (
                 <div key={`${stat.value}-${stat.label}`}>
-                  <dt className="text-xs uppercase tracking-wider text-[var(--color-muted-ink)]">{stat.label}</dt>
-                  <dd className="font-[family-name:var(--font-heading)] text-2xl font-semibold">{stat.value}</dd>
+                  <dt className="text-xs text-[var(--color-muted-ink)]">{stat.label}</dt>
+                  <dd className="tabular mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-[-0.02em]">{stat.value}</dd>
                 </div>
               ))}
             </dl>
           ) : null}
         </div>
 
-        <div className={cn("space-y-4", section.imagePosition === "right" && "lg:order-1")}>
+        <div className={cn("space-y-5 sm:pt-6 lg:pt-0", section.imagePosition === "right" && "lg:order-1")}>
           {section.eyebrow ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-brand)]">{section.eyebrow}</p>
+            <p className="eyebrow">{section.eyebrow}</p>
           ) : null}
-          <h2 className="text-balance text-3xl font-semibold leading-tight md:text-4xl">{section.title}</h2>
-          <p className="text-pretty leading-relaxed text-[var(--color-muted-ink)]">{section.body}</p>
+          <h2 className="text-balance text-[2rem] font-semibold leading-[1.08] md:text-[2.6rem]">{section.title}</h2>
+          <p className="max-w-[58ch] text-pretty text-base leading-relaxed text-[var(--color-muted-ink)] md:text-[17px]">{section.body}</p>
           {section.cta ? <CtaLink cta={section.cta} /> : null}
         </div>
       </div>

@@ -13,11 +13,11 @@ export function SectionShell({
 }) {
   const tones = {
     default: "",
-    surface: "bg-[var(--color-surface)] border-y border-[var(--color-hairline)]",
+    surface: "bg-[var(--color-surface)]",
     brand: "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]",
   } as const;
   return (
-    <section id={id} className={cn("py-14 md:py-20", tones[tone], className)}>
+    <section id={id} className={cn("py-16 md:py-24", tones[tone], className)}>
       <div className="container-page">{children}</div>
     </section>
   );

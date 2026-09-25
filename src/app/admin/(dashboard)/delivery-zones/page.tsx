@@ -21,7 +21,7 @@ export default async function AdminDeliveryZonesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Delivery zones</h1>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Delivery zones</h1>
         <p className="mt-1 text-[var(--color-muted-ink)]">{zones.length} zones</p>
       </div>
       <DeliveryZoneManager zones={zones} locations={locations} />

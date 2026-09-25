@@ -20,22 +20,25 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
   const todayHours = primaryLocation
     ? formatHours(primaryLocation.hours, today).find((row) => row.isToday && Boolean(row.text))
     : undefined;
+  const email = config.contact.email ?? restaurant.email;
 
   return (
-    <footer className="mt-20 border-t border-[var(--color-hairline)] bg-[var(--color-surface)]">
-      <div className="container-page grid gap-10 py-14 md:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-3">
-          <p className="font-[family-name:var(--font-heading)] text-xl font-semibold">{restaurant.name}</p>
-          {footer.tagline ? <p className="text-sm text-[var(--color-muted-ink)]">{footer.tagline}</p> : null}
+    <footer className="mt-16 border-t border-[var(--color-hairline)] bg-[var(--color-surface)] md:mt-24">
+      <div className="container-page grid gap-12 py-14 md:py-20 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)] lg:gap-16">
+        <div className="max-w-sm">
+          <p className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-[-0.02em]">{restaurant.name}</p>
+          {footer.tagline ? (
+            <p className="mt-3 text-[15px] leading-relaxed text-[var(--color-muted-ink)]">{footer.tagline}</p>
+          ) : null}
           {social.length ? (
-            <ul className="flex flex-wrap gap-3 pt-1 text-sm">
+            <ul className="mt-6 flex flex-wrap gap-2">
               {social.map(([network, url]) => (
                 <li key={network}>
                   <a
                     href={url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="text-[var(--color-muted-ink)] underline-offset-4 hover:text-[var(--color-brand)] hover:underline"
+                    className="inline-flex h-9 items-center rounded-full border border-[var(--color-hairline)] px-3.5 text-[13px] font-medium transition-colors hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
                   >
                     {network === "x" ? "X" : network.charAt(0).toUpperCase() + network.slice(1)}
                   </a>
@@ -45,55 +48,58 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
           ) : null}
         </div>
 
-        {footer.columns.map((column) => (
-          <div key={column.title} className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-wider text-[var(--color-muted-ink)]">{column.title}</p>
-            <ul className="space-y-2 text-sm">
-              {column.links.map((link) => (
-                <li key={`${column.title}-${link.href}-${link.label}`}>
-                  <Link href={link.href} className="hover:text-[var(--color-brand)]">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-3">
+          {footer.columns.map((column) => (
+            <div key={column.title}>
+              <p className="text-[13px] font-semibold text-[var(--color-ink)]">{column.title}</p>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                {column.links.map((link) => (
+                  <li key={`${column.title}-${link.href}-${link.label}`}>
+                    <Link
+                      href={link.href}
+                      className="text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
-        <div className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-wider text-[var(--color-muted-ink)]">Visit us</p>
-          {primaryLocation ? (
-            <address className="space-y-2 text-sm not-italic text-[var(--color-muted-ink)]">
-              <span className="flex items-start gap-2">
-                <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-                <span>
-                  {[primaryLocation.addressLine1, primaryLocation.area, primaryLocation.city].filter(Boolean).join(", ")}
+          <div>
+            <p className="text-[13px] font-semibold text-[var(--color-ink)]">Visit us</p>
+            <address className="mt-4 space-y-3 text-sm not-italic text-[var(--color-muted-ink)]">
+              {primaryLocation ? (
+                <span className="flex items-start gap-2.5">
+                  <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>
+                    {[primaryLocation.addressLine1, primaryLocation.area, primaryLocation.city].filter(Boolean).join(", ")}
+                  </span>
                 </span>
-              </span>
+              ) : null}
               {todayHours?.text ? (
-                <span className="flex items-start gap-2">
+                <span className="flex items-start gap-2.5">
                   <Clock className="mt-0.5 size-4 shrink-0" aria-hidden />
                   <span>Today {todayHours.text}</span>
                 </span>
               ) : null}
+              {restaurant.phone ? (
+                <a
+                  href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
+                  className="flex items-center gap-2.5 transition-colors hover:text-[var(--color-ink)]"
+                >
+                  <Phone className="size-4 shrink-0" aria-hidden />
+                  {restaurant.phone}
+                </a>
+              ) : null}
+              {email ? (
+                <a href={`mailto:${email}`} className="flex items-center gap-2.5 break-all transition-colors hover:text-[var(--color-ink)]">
+                  <Mail className="size-4 shrink-0" aria-hidden />
+                  {email}
+                </a>
+              ) : null}
             </address>
-          ) : null}
-          <div className="space-y-2 text-sm">
-            {restaurant.phone ? (
-              <a href={`tel:${restaurant.phone.replace(/\s+/g, "")}`} className="flex items-center gap-2 hover:text-[var(--color-brand)]">
-                <Phone className="size-4" aria-hidden />
-                {restaurant.phone}
-              </a>
-            ) : null}
-            {(config.contact.email ?? restaurant.email) ? (
-              <a
-                href={`mailto:${config.contact.email ?? restaurant.email}`}
-                className="flex items-center gap-2 hover:text-[var(--color-brand)]"
-              >
-                <Mail className="size-4" aria-hidden />
-                {config.contact.email ?? restaurant.email}
-              </a>
-            ) : null}
           </div>
         </div>
       </div>

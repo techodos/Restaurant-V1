@@ -158,7 +158,14 @@ export const websiteConfigSchema = z.object({
   navigation: z
     .object({
       items: z
-        .array(z.object({ label: z.string().trim().max(40), href: z.string().trim().max(300) }))
+        .array(
+          z.object({
+            label: z.string().trim().max(40),
+            href: z.string().trim().max(300),
+            // a missing flag counts as enabled, so existing configs keep every link
+            enabled: z.boolean().default(true),
+          }),
+        )
         .default([]),
       showCart: z.boolean().default(true),
       sticky: z.boolean().default(true),

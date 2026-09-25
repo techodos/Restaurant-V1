@@ -106,7 +106,7 @@ export function PhoneInput({ id, value, onChange, defaultCountry = "PK", classNa
           <RadixSelect.Content
             position="popper"
             sideOffset={4}
-            className="z-50 max-h-72 w-[16rem] overflow-hidden rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] shadow-lg"
+            className="z-50 max-h-72 w-[16rem] overflow-hidden surface-flat shadow-lg"
           >
             <RadixSelect.Viewport className="max-h-72 overflow-y-auto p-1">
               {COUNTRIES.map((entry) => (

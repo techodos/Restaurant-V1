@@ -94,7 +94,7 @@ export default async function StorefrontLayout({
   return (
     <div
       data-restaurant={restaurant.slug}
-      className='flex min-h-dvh flex-col'
+      className='theme-root flex min-h-dvh flex-col bg-[var(--color-canvas)] text-[var(--color-ink)]'
       style={
         {
           ...themeCssVariables(theme),

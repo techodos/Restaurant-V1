@@ -12,6 +12,10 @@ export const IDS = {
   pageHome: "11111111-1111-4111-8111-111111113001",
   pageAbout: "11111111-1111-4111-8111-111111113002",
   pageContact: "11111111-1111-4111-8111-111111113003",
+  pageMenu: "11111111-1111-4111-8111-111111113004",
+  pageReservation: "11111111-1111-4111-8111-111111113005",
+  pageReviews: "11111111-1111-4111-8111-111111113006",
+  pageLocations: "11111111-1111-4111-8111-111111113007",
 
   userOwner: "22222222-2222-4222-8222-222222220001",
   userAdmin: "22222222-2222-4222-8222-222222220002",
@@ -187,11 +191,11 @@ export const BELLA = {
   },
 
   nav: [
-    { label: "Home", href: "/r/bella-napoli" },
-    { label: "Menu", href: "/r/bella-napoli/menu" },
-    { label: "Reservations", href: "/r/bella-napoli/reservation" },
-    { label: "Reviews", href: "/r/bella-napoli/reviews" },
-    { label: "Locations", href: "/r/bella-napoli/locations" },
+    { label: "Home", href: "/r/bella-napoli", enabled: true },
+    { label: "Menu", href: "/r/bella-napoli/menu", enabled: true },
+    { label: "Reservations", href: "/r/bella-napoli/reservation", enabled: true },
+    { label: "Reviews", href: "/r/bella-napoli/reviews", enabled: true },
+    { label: "Locations", href: "/r/bella-napoli/locations", enabled: true },
   ],
 };
 
@@ -1051,5 +1055,53 @@ export const ORDERS: SeedOrder[] = [
       { slug: "margherita-pizza", quantity: 2, variant: 'Large 15"', addons: ["Extra mozzarella", "Classic Neapolitan"] },
       { slug: "molten-chocolate-cake", quantity: 2 },
     ],
+  },
+];
+
+// Functional pages: `page_content` marks where the built-in body (menu list, booking form, reviews, location
+// cards) sits and overrides its heading; the other sections are ordinary configurable blocks around it.
+export const MENU_SECTIONS = [
+  { type: "page_content", enabled: true, title: "Our menu", subtitle: "Wood-fired pizza, hand-rolled pasta and dolci, made to order." },
+  {
+    type: "cta", enabled: true, title: "Ordering for the whole table?",
+    subtitle: "Ask about party trays and catering for 10 or more.", tone: "neutral",
+    cta: { label: "Book a table", href: "/r/bella-napoli/reservation", style: "primary" },
+    secondaryCta: { label: "See locations", href: "/r/bella-napoli/locations", style: "outline" },
+  },
+];
+export const RESERVATION_SECTIONS = [
+  { type: "page_content", enabled: true, title: "Book your table at Bella Napoli", subtitle: "Choose a time below — you will get a confirmation code immediately." },
+  {
+    type: "why_choose_us", enabled: true, title: "Plan your visit",
+    items: [
+      { icon: "leaf", title: "Terrace seating", description: "Our terrace fills up fast on weekends; request it in the notes." },
+      { icon: "users", title: "Larger groups", description: "Tables of 8 or more: call us and we will set up a shared table." },
+      { icon: "clock", title: "Held for 15 minutes", description: "We keep your table for 15 minutes past your booking time." },
+    ],
+  },
+  {
+    type: "gallery", enabled: true, title: "The dining room",
+    images: [
+      { url: "/images/gallery/dining-room.jpg", alt: "The dining room at Bella Napoli Gulberg" },
+      { url: "/images/gallery/terrace.jpg", alt: "Terrace seating in the evening" },
+      { url: "/images/gallery/oven.jpg", alt: "Stone oven with a pizza going in" },
+    ],
+    columns: 3,
+  },
+];
+export const REVIEWS_SECTIONS = [
+  { type: "page_content", enabled: true, title: "Guest reviews", subtitle: "Real reviews from verified orders and bookings." },
+  {
+    type: "cta", enabled: true, title: "Hungry after reading all that?", subtitle: "Order online for delivery, pickup or dine-in.",
+    tone: "primary", cta: { label: "Start your order", href: "/r/bella-napoli/menu", style: "primary" },
+  },
+];
+export const LOCATIONS_SECTIONS = [
+  { type: "page_content", enabled: true, title: "Find us", subtitle: "Two kitchens in Lahore, open seven days a week. Delivery zones and hours differ per location." },
+  { type: "contact", enabled: true, title: "Questions about a large order or catering?", subtitle: "Call or message us; we answer within minutes.", showForm: false },
+  {
+    type: "cta", enabled: true, title: "Ready to eat?", tone: "neutral",
+    cta: { label: "Book a table", href: "/r/bella-napoli/reservation", style: "primary" },
+    secondaryCta: { label: "Order online", href: "/r/bella-napoli/menu", style: "outline" },
   },
 ];

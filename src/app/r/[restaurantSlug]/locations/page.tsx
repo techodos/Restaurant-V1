@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
+import type { StorefrontContext } from "@/shared/contract/models";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
-import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { getStorefrontContext } from "@/web/storefront";
 import { formatHours, zonedNow } from "@/shared/hours";
 import { breadcrumbJsonLd, restaurantJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
@@ -19,8 +21,10 @@ export async function generateMetadata({ params }: LocationsPageProps): Promise<
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     return {
-      title: "Locations",
-      description: `Addresses, opening hours and phone numbers for ${restaurant.name}.`,
+      ...(await configuredPageMetadata(restaurant.id, "locations", {
+        title: "Locations",
+        description: `Addresses, opening hours and phone numbers for ${restaurant.name}.`,
+      })),
       alternates: { canonical: `/r/${restaurant.slug}/locations` },
     };
   } catch {
@@ -30,9 +34,10 @@ export async function generateMetadata({ params }: LocationsPageProps): Promise<
 
 export default async function LocationsPage({ params }: LocationsPageProps) {
   const { restaurantSlug } = await params;
+  return <ConfiguredPage restaurantSlug={restaurantSlug} pageSlug="locations" render={renderLocations} />;
+}
 
-  const context = await requireStorefront(restaurantSlug);
-
+async function renderLocations(context: StorefrontContext, heading: PageHeading) {
   const { restaurant } = context;
   const [allLocations, zones] = await Promise.all([
     getLocations(restaurant.id),
@@ -52,10 +57,10 @@ export default async function LocationsPage({ params }: LocationsPageProps) {
       />
 
       <header className="max-w-2xl">
-        <h1 className="text-3xl font-semibold md:text-4xl">Find us</h1>
+        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{heading.title ?? "Find us"}</h1>
         <p className="mt-3 text-[var(--color-muted-ink)]">
-          {locations.length} kitchen{locations.length === 1 ? "" : "s"} in {restaurant.country}. Delivery zones and hours
-          differ per location.
+          {heading.subtitle ??
+            `${locations.length} kitchen${locations.length === 1 ? "" : "s"} in ${restaurant.country}. Delivery zones and hours differ per location.`}
         </p>
       </header>
 
@@ -74,7 +79,7 @@ export default async function LocationsPage({ params }: LocationsPageProps) {
           return (
             <li
               key={location.id}
-              className="flex flex-col gap-5 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6"
+              className="flex flex-col gap-5 surface-flat p-6"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-semibold">{location.name}</h2>
