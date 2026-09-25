@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -46,7 +47,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     const reason = pricingResult.blockers[0] ?? availability.message;
     return (
       <div className="container-page py-20">
-        <div className="mx-auto max-w-lg rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
+        <div className="mx-auto max-w-lg surface-flat p-8 text-center">
           <h1 className="text-2xl font-semibold">We cannot take this order yet</h1>
           <p className="mt-3 text-[var(--color-muted-ink)]">{reason}</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -66,14 +67,21 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
   return (
     <div className="container-page py-10 md:py-14">
-      <header className="max-w-2xl">
-        <h1 className="text-3xl font-semibold md:text-4xl">Checkout</h1>
+      <header className="mx-auto max-w-3xl">
+        <Link
+          href={`/r/${restaurant.slug}/cart`}
+          className="group mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
+        >
+          <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden />
+          Back to cart
+        </Link>
+        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">Checkout</h1>
         <p className="mt-2 text-[var(--color-muted-ink)]">
           {cart.itemCount} item{cart.itemCount === 1 ? "" : "s"} from {restaurant.name} · no account required
         </p>
       </header>
 
-      <div className="mt-8 max-w-3xl">
+      <div className="mx-auto mt-8 max-w-3xl">
         <CheckoutForm
           restaurantSlug={restaurant.slug}
           orderType={cart.orderType}

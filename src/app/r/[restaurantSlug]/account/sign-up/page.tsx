@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireStorefront } from "@/web/storefront";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/components/storefront/auth-shell";
 import { SignUpForm } from "@/components/storefront/sign-up-form";
 import { googleAuthAvailable } from "@/server/services/customer-auth";
 
@@ -12,18 +12,11 @@ export const metadata: Metadata = { title: "Create account", robots: { index: fa
 
 export default async function SignUpPage({ params }: Props) {
   const { restaurantSlug } = await params;
-  await requireStorefront(restaurantSlug);
+  const context = await requireStorefront(restaurantSlug);
 
   return (
-    <div className="container-page flex justify-center py-12 md:py-16">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-xl">Create your account</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SignUpForm restaurantSlug={restaurantSlug} googleEnabled={googleAuthAvailable()} />
-        </CardContent>
-      </Card>
-    </div>
+    <AuthShell context={context} title="Create your account" description="Save your details, follow your orders and reorder in a tap.">
+      <SignUpForm restaurantSlug={restaurantSlug} googleEnabled={googleAuthAvailable()} />
+    </AuthShell>
   );
 }

@@ -13,7 +13,7 @@ export default function MyOrdersError({ error, reset }: { error: Error & { diges
 
   return (
     <div className="container-page py-24">
-      <div role="alert" className="mx-auto max-w-lg rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
+      <div role="alert" className="mx-auto max-w-lg surface-flat p-8 text-center">
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-amber-500/15 text-amber-700">
           <AlertTriangle className="size-6" aria-hidden />
         </span>

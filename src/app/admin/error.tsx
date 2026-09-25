@@ -13,7 +13,7 @@ export default function AdminError({ error, reset }: { error: Error & { digest?:
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-[var(--color-canvas)] px-4">
-      <div className="w-full max-w-md rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
+      <div className="w-full max-w-md surface-flat p-8 text-center">
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-amber-500/15 text-amber-700">
           <AlertTriangle className="size-6" aria-hidden />
         </span>

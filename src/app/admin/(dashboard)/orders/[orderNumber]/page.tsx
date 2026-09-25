@@ -48,7 +48,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
           <ArrowLeft className="size-4" aria-hidden /> Back to orders
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">Order {order.orderNumber}</h1>
+          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Order {order.orderNumber}</h1>
           <Badge variant={orderStatusBadgeVariant(order.status)}>{ORDER_STATUS_LABELS[order.status]}</Badge>
         </div>
         <p className="mt-1 text-[var(--color-muted-ink)]">

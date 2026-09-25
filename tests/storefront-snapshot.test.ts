@@ -6,6 +6,7 @@ import {
   readMenuCategories,
   readMenuItem,
   readMenuItems,
+  readPageBySlug,
   readPublicReviews,
 } from "@/server/cache/storefront-queries";
 import { buildStorefrontSnapshot, SnapshotValidationError, snapshotStats } from "@/server/cache/storefront-snapshot";
@@ -155,6 +156,9 @@ describe("other reads", () => {
   it("serves the home page and limited, featured-first reviews", () => {
     expect(readHomePage(snapshot)?.id).toBe("p-home");
     expect(readHomePage(build({ pages: [] }))).toBeNull();
+    expect(readPageBySlug(snapshot, "about")?.id).toBe("p-about");
+    expect(readPageBySlug(snapshot, "home")).toBeNull(); // the home page is served by the restaurant root
+    expect(readPageBySlug(snapshot, "missing")).toBeNull();
     expect(readPublicReviews(snapshot, { limit: 2 }).map((review) => review.id)).toEqual(["r-1", "r-2"]);
     expect(readPublicReviews(snapshot, { featuredOnly: true }).map((review) => review.id)).toEqual(["r-1"]);
     expect(readPublicReviews(snapshot)).toHaveLength(3);

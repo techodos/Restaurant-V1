@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Info, ShoppingBag, UtensilsCrossed } from "lucide-react";
+import { ArrowRight, Info, ShoppingBag, UtensilsCrossed, Plus } from "lucide-react";
 import { ORDER_TYPE_LABELS } from "@/shared/contract/enums";
 import { readCart, requireStorefront } from "@/web/storefront";
 import { priceCart, serviceAvailability } from "@/server/services/cart";
@@ -35,12 +35,12 @@ export default async function CartPage({ params }: CartPageProps) {
       <div className="container-page py-20">
         <CartCountSync count={0} />
         <div className="mx-auto max-w-lg text-center">
-          <span className="mx-auto grid size-14 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] text-[var(--color-brand)]">
+          <span className="mx-auto grid size-16 place-items-center rounded-[var(--radius-card)] ring-8 ring-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] text-[var(--color-brand)]">
             <ShoppingBag className="size-6" aria-hidden />
           </span>
-          <h1 className="mt-6 text-2xl font-semibold">Your cart is empty</h1>
+          <h1 className="mt-7 text-[2rem] font-semibold leading-tight">Your cart is empty</h1>
           <p className="mt-3 text-[var(--color-muted-ink)]">
-            Add something from the menu and it will show up here — nothing is charged until you place the order.
+            Add something from the menu and it will show up here. Nothing is charged until you place the order.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Button asChild size="lg">
@@ -70,14 +70,14 @@ export default async function CartPage({ params }: CartPageProps) {
   return (
     <div className="container-page py-10 md:py-14">
       <CartCountSync count={cart.itemCount} />
-      <h1 className="text-3xl font-semibold md:text-4xl">Your cart</h1>
+      <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">Your cart</h1>
       <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
         {cart.itemCount} item{cart.itemCount === 1 ? "" : "s"} · prices confirmed by the kitchen when you place the order
       </p>
 
-      <div className="mt-8 grid gap-10 lg:grid-cols-[1.6fr_1fr] lg:gap-14">
+      <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:gap-14">
         <div>
-          <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-5">
+          <div className="surface-flat p-5">
             <p className="text-sm font-semibold">How would you like your order?</p>
             <div className="mt-3">
               <OrderTypePicker restaurantSlug={restaurant.slug} current={cart.orderType} available={availableTypes} />
@@ -95,7 +95,7 @@ export default async function CartPage({ params }: CartPageProps) {
             ) : null}
           </div>
 
-          <ul className="mt-6 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-5">
+          <ul className="mt-6 surface-flat px-5">
             {cart.items.map((item) => (
               <CartLineItem
                 key={item.id}
@@ -111,9 +111,10 @@ export default async function CartPage({ params }: CartPageProps) {
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <Link
               href={`/r/${restaurant.slug}/menu`}
-              className="text-sm font-medium text-[var(--color-brand)] underline-offset-4 hover:underline"
+              className="inline-flex h-10 items-center gap-1.5 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 text-sm font-semibold transition-colors hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
             >
-              ← Add more items
+              <Plus className="size-4" aria-hidden />
+              Add more items
             </Link>
             {restaurant.features.coupons ? (
               <div className="w-full sm:max-w-xs">
@@ -123,12 +124,12 @@ export default async function CartPage({ params }: CartPageProps) {
           </div>
         </div>
 
-        <aside className="lg:sticky lg:top-28 lg:self-start">
-          <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
+        <aside className="lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
+          <div className="surface-card p-6 md:p-7">
             <h2 className="text-lg font-semibold">Order summary</h2>
 
             {pricing ? (
-              <dl className="mt-4 space-y-2.5 text-sm">
+              <dl className="tabular mt-5 space-y-3 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-[var(--color-muted-ink)]">Subtotal</dt>
                   <dd>{money(pricing.subtotal)}</dd>
@@ -158,14 +159,14 @@ export default async function CartPage({ params }: CartPageProps) {
                     {pricing.taxIncluded ? <span className="ml-1 text-xs">(included)</span> : null}
                   </dd>
                 </div>
-                <div className="flex justify-between border-t border-[var(--color-hairline)] pt-3 text-base font-semibold">
+                <div className="flex items-baseline justify-between border-t border-[var(--color-hairline)] pt-4 text-lg font-semibold">
                   <dt>Total</dt>
                   <dd>{money(pricing.total)}</dd>
                 </div>
               </dl>
             ) : (
               <p className="mt-4 text-sm text-[var(--color-muted-ink)]">
-                We cannot price this cart yet — see the note below.
+                We cannot price this cart yet. See the note below.
               </p>
             )}
 

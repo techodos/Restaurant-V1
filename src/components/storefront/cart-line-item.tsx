@@ -39,7 +39,7 @@ export function CartLineItem({ restaurantSlug, item, image, currencySymbol, loca
 
   return (
     <li className="flex gap-4 border-b border-[var(--color-hairline)] py-5 last:border-b-0">
-      <div className="relative size-20 shrink-0 overflow-hidden rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)] sm:size-24">
+      <div className="relative size-20 shrink-0 overflow-hidden rounded-[var(--radius-card)] bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)] sm:size-24">
         {image ? (
           <Image src={image} alt="" fill sizes="96px" className="object-cover" />
         ) : (
@@ -52,7 +52,7 @@ export function CartLineItem({ restaurantSlug, item, image, currencySymbol, loca
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate font-medium">
+            <p className="truncate font-semibold">
               {item.slug ? (
                 <Link href={`/r/${restaurantSlug}/menu/${item.slug}`} className="hover:text-[var(--color-brand)]">
                   {item.itemName}
@@ -76,13 +76,13 @@ export function CartLineItem({ restaurantSlug, item, image, currencySymbol, loca
               <p className="mt-1 text-xs italic text-[var(--color-muted-ink)]">“{item.specialInstructions}”</p>
             ) : null}
           </div>
-          <p className="whitespace-nowrap font-semibold">
+          <p className="tabular whitespace-nowrap font-semibold">
             {formatMoney(item.lineTotal, { currency: currencySymbol, locale })}
           </p>
         </div>
 
         <div className="mt-3 flex items-center gap-3">
-          <div className="flex items-center rounded-[var(--radius-brand)] border border-[var(--color-hairline)]">
+          <div className="flex items-center rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]">
             <button
               type="button"
               aria-label={`Decrease quantity of ${item.itemName}`}

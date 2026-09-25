@@ -44,7 +44,7 @@ export function AdminLoginForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]"
+      className="surface-card space-y-5 p-6 sm:p-8"
     >
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>

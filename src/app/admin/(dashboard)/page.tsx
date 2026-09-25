@@ -22,7 +22,7 @@ export default async function AdminDashboardPage() {
   if (!hasAnyPermission(actor.permissions, ["orders.view"])) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">Welcome, {actor.name}</h1>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Welcome, {actor.name}</h1>
         <p className="mt-2 text-[var(--color-muted-ink)]">You do not have access to any dashboard widgets yet.</p>
       </div>
     );
@@ -37,20 +37,33 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{restaurant.name} — order overview.</p>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Dashboard</h1>
+        <p className="mt-1 text-[var(--color-muted-ink)]">Live order overview for {restaurant.name}.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {DASHBOARD_STATUSES.map((status) => (
-          <Card key={status}>
-            <CardContent className="space-y-1 py-5">
-              <p className="text-sm text-[var(--color-muted-ink)]">{ORDER_STATUS_LABELS[status]}</p>
-              <p className="text-3xl font-semibold">{counts[status]}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
+        {DASHBOARD_STATUSES.map((status) => {
+          // "pending" is the one that needs a person right now: give it the brand panel when orders wait
+          const urgent = status === "pending" && counts[status] > 0;
+          return (
+            <li key={status} className={status === "pending" ? "col-span-2 sm:col-span-1" : undefined}>
+              <Link
+                href={`/admin/orders?status=${status}`}
+                className={
+                  urgent
+                    ? "flex h-full flex-col justify-between gap-6 rounded-[var(--radius-card)] bg-[var(--color-brand)] p-5 text-[var(--color-brand-foreground)] shadow-[var(--shadow-brand)] transition-transform duration-300 hover:-translate-y-0.5"
+                    : "surface-card hover-lift flex h-full flex-col justify-between gap-6 p-5"
+                }
+              >
+                <span className={urgent ? "text-sm font-medium opacity-85" : "text-sm font-medium text-[var(--color-muted-ink)]"}>
+                  {ORDER_STATUS_LABELS[status]}
+                </span>
+                <span className="tabular text-4xl font-semibold leading-none tracking-[-0.03em]">{counts[status]}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between pb-4">

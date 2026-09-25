@@ -48,7 +48,7 @@ function CategoryEditForm({ category, onCancel }: { category?: MenuCategory; onC
   return (
     <form
       onSubmit={submit}
-      className="flex flex-wrap items-start gap-2 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-3"
+      className="flex flex-wrap items-start gap-2 surface-flat p-3"
     >
       <div>
         <Input
@@ -118,7 +118,7 @@ export function CategoryManager({ categories }: { categories: MenuCategory[] }) 
         ) : (
           <div
             key={category.id}
-            className="flex items-center justify-between gap-3 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 py-2.5"
+            className="flex items-center justify-between gap-3 surface-flat px-3.5 py-2.5"
           >
             <div className="flex items-center gap-2">
               <span className="font-medium">{category.name}</span>

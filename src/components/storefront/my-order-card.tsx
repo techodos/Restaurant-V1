@@ -41,7 +41,7 @@ function fulfilment(order: Order, restaurant: OrderCardRestaurant) {
 
 const itemCount = (order: Order) => (order.items ?? []).reduce((sum, item) => sum + item.quantity, 0);
 const orderHref = (restaurant: OrderCardRestaurant, order: Order) => `/r/${restaurant.slug}/order/${encodeURIComponent(order.orderNumber)}`;
-const cardClass = "rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-5 sm:p-6";
+const cardClass = "surface-card p-5 sm:p-7";
 
 /**
  * An order in progress. Reuses the live order provider from the order page: the status badge moves
@@ -67,7 +67,7 @@ export function CurrentOrderCard({ order, restaurant }: { order: Order; restaura
       <article className={cardClass} data-testid="current-order" aria-label={`Order ${order.orderNumber}`}>
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold">Order {order.orderNumber}</h3>
+            <h3 className="tabular text-xl font-semibold tracking-[-0.01em]">Order {order.orderNumber}</h3>
             <p className="mt-1 text-sm text-[var(--color-muted-ink)]">
               {restaurant.name} · {ORDER_TYPE_LABELS[order.orderType]} · {whenPlaced(order, restaurant)}
             </p>
@@ -82,7 +82,7 @@ export function CurrentOrderCard({ order, restaurant }: { order: Order; restaura
                 {item.quantity} × {item.itemName}
                 {item.variantName ? <span className="text-[var(--color-muted-ink)]"> · {item.variantName}</span> : null}
               </span>
-              <span className="whitespace-nowrap">{money(item.lineTotal)}</span>
+              <span className="tabular whitespace-nowrap">{money(item.lineTotal)}</span>
             </li>
           ))}
         </ul>
@@ -93,7 +93,7 @@ export function CurrentOrderCard({ order, restaurant }: { order: Order; restaura
         </p>
 
         <footer className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-4">
-          <p className="text-base font-semibold">
+          <p className="tabular text-base font-semibold">
             Total <span className="ml-1">{money(order.total)}</span>
           </p>
           <Button asChild>
@@ -116,7 +116,7 @@ export function PreviousOrderCard({ order, restaurant }: { order: Order; restaur
     <article className={cardClass} data-testid="previous-order" aria-label={`Order ${order.orderNumber}`}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold">Order {order.orderNumber}</h3>
+          <h3 className="tabular text-base font-semibold">Order {order.orderNumber}</h3>
           <p className="mt-1 text-sm text-[var(--color-muted-ink)]">
             {restaurant.name} · {whenPlaced(order, restaurant)}
           </p>
@@ -128,7 +128,7 @@ export function PreviousOrderCard({ order, restaurant }: { order: Order; restaur
         {preview ? ` · ${preview}` : ""}
       </p>
       <footer className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold">{money(order.total)}</p>
+        <p className="tabular text-sm font-semibold">{money(order.total)}</p>
         <Button asChild variant="outline" size="sm">
           <Link href={orderHref(restaurant, order)}>View order</Link>
         </Button>

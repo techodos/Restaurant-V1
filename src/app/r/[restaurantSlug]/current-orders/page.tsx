@@ -39,7 +39,7 @@ export default async function CurrentOrdersPage({ params }: CurrentOrdersPagePro
   return (
     <div className="container-page py-10 md:py-14">
       <header>
-        <h1 className="text-3xl font-semibold md:text-4xl">{current.length > 1 ? "Current orders" : "Current order"}</h1>
+        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{current.length > 1 ? "Current orders" : "Current order"}</h1>
         <p className="mt-2 text-sm text-[var(--color-muted-ink)]">Live status for every order in progress right now.</p>
       </header>
 

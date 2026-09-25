@@ -1,10 +1,10 @@
 import type { StorefrontContext, WebsitePage } from "@/shared/contract/models";
-import { readHomePage, snapshotForRestaurant, snapshotForSlug } from "@/server/cache";
+import { readHomePage, readPageBySlug, snapshotForRestaurant, snapshotForSlug } from "@/server/cache";
 import { assembleStorefrontContext, isStorefrontPublic, resolveTheme } from "@/server/domain/storefront-context";
 import { errors } from "@/server/errors";
 import { forRestaurant } from "@/server/context";
 import { getRestaurantBySlug, listLocations } from "@/server/repositories/restaurants";
-import { getHomePage, getWebsite } from "@/server/repositories/websites";
+import { getHomePage, getPageBySlug, getWebsite } from "@/server/repositories/websites";
 
 /**
  * Everything the storefront shell needs for a restaurant in one place:
@@ -40,4 +40,12 @@ export async function getHomePageContent(restaurantId: string): Promise<WebsiteP
   const snapshot = snapshotForRestaurant(restaurantId);
   if (snapshot) return readHomePage(snapshot);
   return getHomePage(restaurantId, forRestaurant(restaurantId));
+}
+
+/** A published page other than home (`/r/<slug>/about`); null when it does not exist or is unpublished. */
+export async function getPageContent(restaurantId: string, slug: string): Promise<WebsitePage | null> {
+  const snapshot = snapshotForRestaurant(restaurantId);
+  if (snapshot) return readPageBySlug(snapshot, slug);
+  const page = await getPageBySlug(restaurantId, slug, forRestaurant(restaurantId), { publishedOnly: true });
+  return page && !page.isHome ? page : null;
 }

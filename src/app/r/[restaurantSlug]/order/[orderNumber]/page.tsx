@@ -107,7 +107,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
               <CheckCircle2 className="size-4" aria-hidden />
               Order received
             </p>
-            <h1 className="mt-2 text-3xl font-semibold md:text-4xl">Order {order.orderNumber}</h1>
+            <h1 className="mt-2 text-[2.25rem] font-semibold leading-[1.05] md:text-[3rem]">Order {order.orderNumber}</h1>
             <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
               {ORDER_TYPE_LABELS[order.orderType]} · placed{" "}
               {placedAt.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -119,16 +119,16 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
 
         <OrderReceivedNotice />
 
-        <div className="mt-10 grid gap-10 lg:grid-cols-[1.5fr_1fr] lg:gap-14">
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-14">
           <div className="space-y-8">
-            <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+            <section className="surface-card p-6 md:p-7">
               <h2 className="text-lg font-semibold">Progress</h2>
               <div className="mt-5">
                 <LiveOrderTimeline />
               </div>
             </section>
 
-            <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+            <section className="surface-card p-6 md:p-7">
               <h2 className="text-lg font-semibold">Your items</h2>
               <ul className="mt-4 divide-y divide-[var(--color-hairline)]">
                 {(order.items ?? []).map((item) => (
@@ -157,7 +157,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 ))}
               </ul>
 
-              <dl className="mt-4 space-y-2 border-t border-[var(--color-hairline)] pt-4 text-sm">
+              <dl className="tabular mt-4 space-y-2.5 border-t border-[var(--color-hairline)] pt-4 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-[var(--color-muted-ink)]">Subtotal</dt>
                   <dd>{money(order.subtotal)}</dd>
@@ -201,7 +201,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
           </div>
 
           <aside className="space-y-5">
-            <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+            <section className="surface-card p-6 md:p-7">
               <h2 className="text-base font-semibold">
                 {order.orderType === "delivery" ? "Delivering to" : order.orderType === "pickup" ? "Pickup from" : "Dine-in"}
               </h2>
@@ -239,7 +239,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
             </section>
 
             {order.status === "completed" || order.status === "cancelled" ? (
-              <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+              <section className="surface-card p-6 md:p-7">
                 <h2 className="text-base font-semibold">Order this again</h2>
                 <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
                   Add these items to your cart at today's prices and availability.
@@ -249,7 +249,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
             ) : null}
 
             {order.status === "completed" && restaurant.features.reviews ? (
-              <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+              <section className="surface-card p-6 md:p-7">
                 <h2 className="text-base font-semibold">How was it?</h2>
                 <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
                   Leave a review and help the next customer decide.
@@ -275,7 +275,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
               />
             ) : null}
 
-            <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted-ink)]">
+            <section className="surface-card p-6 md:p-7 text-sm text-[var(--color-muted-ink)]">
               <p>
                 Keep this page bookmarked — it always shows the live status of order {order.orderNumber}. Need a hand? Call{" "}
                 {restaurant.phone ?? "the restaurant"}.

@@ -12,7 +12,8 @@ import { calculatePricing } from "../../src/server/domain/pricing";
 import { restaurantSettingsSchema, restaurantFeaturesSchema } from "../../src/shared/contract/settings";
 import { toMoney, dec } from "../../src/shared/money";
 import {
-  ADDRESSES, BELLA, CATEGORIES, COUPONS, CUSTOMERS, IDS, ITEMS, ORDERS, RESERVATIONS, REVIEWS, SAKURA, ZONES,
+  ADDRESSES, BELLA, CATEGORIES, COUPONS, CUSTOMERS, IDS, ITEMS, LOCATIONS_SECTIONS, MENU_SECTIONS, ORDERS, RESERVATIONS,
+  RESERVATION_SECTIONS, REVIEWS, REVIEWS_SECTIONS, SAKURA, ZONES,
 } from "./seed-data";
 
 loadEnv();
@@ -375,6 +376,10 @@ const pages = [
   { id: IDS.pageHome, slug: "home", title: "Home", description: BELLA.shortDescription, isHome: true, sections: homeSections, sort: 1 },
   { id: IDS.pageAbout, slug: "about", title: "Our story", description: "How Bella Napoli brought Neapolitan pizza to Lahore.", isHome: false, sections: aboutSections, sort: 2 },
   { id: IDS.pageContact, slug: "contact", title: "Contact", description: "Reach the Bella Napoli team.", isHome: false, sections: contactSections, sort: 3 },
+  { id: IDS.pageMenu, slug: "menu", title: "Menu", description: "Browse the full Bella Napoli menu: pizza, pasta, grill, dolci and drinks.", isHome: false, sections: MENU_SECTIONS, sort: 4 },
+  { id: IDS.pageReservation, slug: "reservation", title: "Book a table", description: "Reserve a table at Bella Napoli. Live availability, instant confirmation.", isHome: false, sections: RESERVATION_SECTIONS, sort: 5 },
+  { id: IDS.pageReviews, slug: "reviews", title: "Reviews", description: "What guests say about Bella Napoli.", isHome: false, sections: REVIEWS_SECTIONS, sort: 6 },
+  { id: IDS.pageLocations, slug: "locations", title: "Locations", description: "Addresses, opening hours and phone numbers for both Bella Napoli kitchens.", isHome: false, sections: LOCATIONS_SECTIONS, sort: 7 },
 ];
 for (const page of pages) {
   await query(

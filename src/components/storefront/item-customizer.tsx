@@ -129,10 +129,10 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {variationGroups > 0 ? (
         <fieldset className="space-y-3">
-          <legend className="text-sm font-semibold">
+          <legend className="mb-1 text-[15px] font-semibold">
             Choose your option <span className="text-[var(--color-muted-ink)]">(required)</span>
           </legend>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -140,10 +140,10 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
               <label
                 key={option.id}
                 className={cn(
-                  "flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-brand)] border p-3 text-sm transition-colors",
+                  "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-card)] border bg-[var(--color-surface)] px-4 py-3 text-sm transition-[border-color,background-color,box-shadow] duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand)]",
                   variantId === option.id
-                    ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,transparent)]"
-                    : "border-[var(--color-hairline)] hover:border-[var(--color-brand)]",
+                    ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]"
+                    : "border-[var(--color-hairline)] hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))]",
                   !option.isAvailable && "cursor-not-allowed opacity-50",
                 )}
               >
@@ -178,7 +178,7 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
         const limitReached = chosen.length >= group.maxSelect;
         return (
           <fieldset key={group.id} className="space-y-3">
-            <legend className="text-sm font-semibold">
+            <legend className="mb-1 text-[15px] font-semibold">
               {group.name}
               <span className="ml-2 font-normal text-[var(--color-muted-ink)]">
                 {group.minSelect > 0 ? `choose ${group.minSelect}` : "optional"}
@@ -193,10 +193,10 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
                   <label
                     key={addon.id}
                     className={cn(
-                      "flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-brand)] border p-3 text-sm transition-colors",
+                      "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-card)] border bg-[var(--color-surface)] px-4 py-3 text-sm transition-[border-color,background-color,box-shadow] duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand)]",
                       checked
-                        ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,transparent)]"
-                        : "border-[var(--color-hairline)] hover:border-[var(--color-brand)]",
+                        ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]"
+                        : "border-[var(--color-hairline)] hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))]",
                       !addon.isAvailable && "cursor-not-allowed opacity-50",
                       !checked && limitReached && group.maxSelect > 1 && "cursor-not-allowed opacity-60",
                     )}
@@ -244,9 +244,9 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
         <FieldHint>We pass this straight to the kitchen.</FieldHint>
       </div>
 
-      <div className="sticky bottom-0 -mx-4 border-t border-[var(--color-hairline)] bg-[var(--color-surface)]/95 px-4 py-4 backdrop-blur sm:mx-0 sm:rounded-[var(--radius-brand)] sm:border">
+      <div className="sticky bottom-0 z-20 -mx-4 border-t border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur-xl sm:bottom-4 sm:mx-0 sm:rounded-[var(--radius-card)] sm:border sm:shadow-[var(--shadow-raised)]">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center rounded-[var(--radius-brand)] border border-[var(--color-hairline)]">
+          <div className="flex items-center rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]">
             <button
               type="button"
               aria-label="Decrease quantity"
@@ -257,7 +257,7 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
             >
               <Minus className="size-4" aria-hidden />
             </button>
-            <span aria-live="polite" className="w-10 text-center text-sm font-medium">
+            <span aria-live="polite" className="tabular w-8 text-center text-sm font-semibold">
               {quantity}
             </span>
             <button
@@ -277,12 +277,19 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
             data-testid="add-to-cart"
             onClick={addToCart}
             disabled={pending || !item.isAvailable}
-            className="flex-1 sm:flex-none"
+            className="min-w-0 flex-1 sm:flex-none"
           >
             {pending ? <Loader2 className="animate-spin" aria-hidden /> : <ShoppingBag aria-hidden />}
             <span>
-              {item.isAvailable ? "Add to cart" : "Unavailable"}
-              <span className="ml-2 font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale })}</span>
+              {item.isAvailable ? (
+                <>
+                  <span className="sm:hidden">Add</span>
+                  <span className="hidden sm:inline">Add to cart</span>
+                </>
+              ) : (
+                "Unavailable"
+              )}
+              <span className="tabular ml-2 border-l border-current/25 pl-2 font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale })}</span>
             </span>
           </Button>
         </div>

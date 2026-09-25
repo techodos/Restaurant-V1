@@ -104,7 +104,7 @@ function AddonGroupCard({ menuItemId, group, onChanged }: { menuItemId: string; 
   }
 
   return (
-    <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
+    <div className="surface-flat p-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-medium">{group.name}</p>

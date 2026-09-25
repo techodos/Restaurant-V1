@@ -17,10 +17,10 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
   return (
     <SectionShell>
       <SectionHeading title={section.title} subtitle={section.subtitle} />
-      <div className="mt-10 grid gap-8 lg:grid-cols-2">
-        <ul className="space-y-5">
+      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16">
+        <ul className="divide-y divide-[var(--color-hairline)] border-y border-[var(--color-hairline)]">
           {primaryLocation ? (
-            <li className="flex gap-3">
+            <li className="flex gap-4 py-5">
               <MapPin className="mt-0.5 size-5 shrink-0 text-[var(--color-brand)]" aria-hidden />
               <div>
                 <p className="font-medium">{primaryLocation.name}</p>
@@ -31,7 +31,7 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
             </li>
           ) : null}
           {phone ? (
-            <li className="flex gap-3">
+            <li className="flex gap-4 py-5">
               <Phone className="mt-0.5 size-5 shrink-0 text-[var(--color-brand)]" aria-hidden />
               <div>
                 <p className="font-medium">Call us</p>
@@ -42,7 +42,7 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
             </li>
           ) : null}
           {whatsapp && config.contact.showWhatsapp ? (
-            <li className="flex gap-3">
+            <li className="flex gap-4 py-5">
               <MessageCircle className="mt-0.5 size-5 shrink-0 text-[var(--color-brand)]" aria-hidden />
               <div>
                 <p className="font-medium">WhatsApp</p>
@@ -58,7 +58,7 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
             </li>
           ) : null}
           {email ? (
-            <li className="flex gap-3">
+            <li className="flex gap-4 py-5">
               <Mail className="mt-0.5 size-5 shrink-0 text-[var(--color-brand)]" aria-hidden />
               <div>
                 <p className="font-medium">Email</p>
@@ -69,7 +69,7 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
             </li>
           ) : null}
           {todayRow ? (
-            <li className="flex gap-3">
+            <li className="flex gap-4 py-5">
               <Clock className="mt-0.5 size-5 shrink-0 text-[var(--color-brand)]" aria-hidden />
               <div>
                 <p className="font-medium">Opening hours</p>
@@ -82,7 +82,7 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
         {section.showForm ? (
           <ContactForm restaurantSlug={restaurant.slug} restaurantName={restaurant.name} />
         ) : (
-          <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+          <div className="surface-flat self-start p-6">
             <p className="text-sm text-[var(--color-muted-ink)]">
               Questions about a large order, catering or a recent visit? Call us during service hours and we will sort it
               out quickly.

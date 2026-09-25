@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
+import type { StorefrontContext } from "@/shared/contract/models";
 import { CalendarX, Clock, Phone, Users } from "lucide-react";
 import { getStorefrontCustomer } from "@/web/session";
-import { getStorefrontContext, requireStorefront } from "@/web/storefront";
+import { getStorefrontContext } from "@/web/storefront";
 import { isOpenAt, minutesToTime, timeToMinutes, zonedNow } from "@/shared/hours";
 import { ReservationForm } from "@/components/storefront/reservation-form";
 import { Button } from "@/components/ui/button";
@@ -21,8 +23,10 @@ export async function generateMetadata({ params }: ReservationPageProps): Promis
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     return {
-      title: "Book a table",
-      description: `Reserve a table at ${restaurant.name}. Live availability, instant confirmation.`,
+      ...(await configuredPageMetadata(restaurant.id, "reservation", {
+        title: "Book a table",
+        description: `Reserve a table at ${restaurant.name}. Live availability, instant confirmation.`,
+      })),
       alternates: { canonical: `/r/${restaurant.slug}/reservation` },
     };
   } catch {
@@ -36,9 +40,10 @@ export async function generateMetadata({ params }: ReservationPageProps): Promis
  */
 export default async function ReservationPage({ params }: ReservationPageProps) {
   const { restaurantSlug } = await params;
+  return <ConfiguredPage restaurantSlug={restaurantSlug} pageSlug="reservation" render={renderReservation} />;
+}
 
-  const context = await requireStorefront(restaurantSlug);
-
+async function renderReservation(context: StorefrontContext, heading: PageHeading) {
   const { restaurant } = context;
   const settings = restaurant.settings.reservations;
 
@@ -46,10 +51,10 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
     return (
       <div className="container-page py-20">
         <div className="mx-auto max-w-lg text-center">
-          <span className="mx-auto grid size-14 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-ink)_8%,transparent)] text-[var(--color-muted-ink)]">
+          <span className="mx-auto grid size-16 place-items-center rounded-[var(--radius-card)] ring-8 ring-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] bg-[color-mix(in_srgb,var(--color-ink)_8%,transparent)] text-[var(--color-muted-ink)]">
             <CalendarX className="size-6" aria-hidden />
           </span>
-          <h1 className="mt-6 text-2xl font-semibold">Online reservations are closed</h1>
+          <h1 className="mt-7 text-[2rem] font-semibold leading-tight">Online reservations are closed</h1>
           <p className="mt-3 text-[var(--color-muted-ink)]">
             {restaurant.name} is not taking bookings through the website right now.
             {restaurant.phone ? " You can still call us and we will find you a table." : ""}
@@ -137,12 +142,14 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
         ])}
       />
 
-      <div className="grid gap-10 lg:grid-cols-[1.5fr_1fr] lg:gap-14">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-14">
         <div>
-          <h1 className="text-3xl font-semibold md:text-4xl">Book a table at {restaurant.name}</h1>
+          <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{heading.title ?? `Book a table at ${restaurant.name}`}</h1>
           <p className="mt-3 max-w-xl text-[var(--color-muted-ink)]">
-            Choose a time below — you will get a confirmation code immediately
-            {settings.autoConfirm ? "" : " and a call if we need to adjust anything"}.
+            {heading.subtitle ??
+              `Choose a time below — you will get a confirmation code immediately${
+                settings.autoConfirm ? "" : " and a call if we need to adjust anything"
+              }.`}
           </p>
 
           <div className="mt-8">
@@ -166,7 +173,7 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+          <div className="surface-card p-6 md:p-7">
             <h2 className="text-base font-semibold">Good to know</h2>
             <ul className="mt-3 space-y-3 text-sm text-[var(--color-muted-ink)]">
               <li className="flex gap-2">
@@ -185,7 +192,7 @@ export default async function ReservationPage({ params }: ReservationPageProps) 
           </div>
 
           {restaurant.phone ? (
-            <div className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+            <div className="surface-card p-6 md:p-7">
               <h2 className="text-base font-semibold">Prefer to talk to us?</h2>
               <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
                 Our team answers the phone during service hours.

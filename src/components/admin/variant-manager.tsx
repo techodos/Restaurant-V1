@@ -79,7 +79,7 @@ export function VariantManager({ menuItemId, variants }: { menuItemId: string; v
       {variants.map((variant) => (
         <div
           key={variant.id}
-          className="flex items-center justify-between gap-3 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 py-2.5"
+          className="flex items-center justify-between gap-3 surface-flat px-3.5 py-2.5"
         >
           <VariantRow menuItemId={menuItemId} variant={variant} onSaved={() => router.refresh()} />
           <Button

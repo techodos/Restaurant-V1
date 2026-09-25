@@ -39,7 +39,7 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
   if (!signedIn) {
     return (
       <div className="container-page flex justify-center py-14 md:py-20">
-        <div className="w-full max-w-md rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
+        <div className="w-full max-w-md surface-flat p-8 text-center">
           <span className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]">
             <LogIn className="size-6" aria-hidden />
           </span>
@@ -64,7 +64,7 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
   return (
     <div className="container-page py-10 md:py-14">
       <header>
-        <h1 className="text-3xl font-semibold md:text-4xl">My orders</h1>
+        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">My orders</h1>
         <p className="mt-2 text-sm text-[var(--color-muted-ink)]">Your previous orders at {restaurant.name}.</p>
       </header>
 

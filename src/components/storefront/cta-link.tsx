@@ -4,7 +4,7 @@ import { Button, type ButtonProps } from "@/components/ui/button";
 export interface CtaConfig {
   label: string;
   href: string;
-  style?: "primary" | "outline" | "ghost" | "secondary" | undefined;
+  style?: "primary" | "outline" | "ghost" | "secondary" | "glass" | "inverse" | undefined;
 }
 
 const STYLE_MAP: Record<string, NonNullable<ButtonProps["variant"]>> = {
@@ -12,6 +12,8 @@ const STYLE_MAP: Record<string, NonNullable<ButtonProps["variant"]>> = {
   outline: "outline",
   ghost: "ghost",
   secondary: "secondary",
+  glass: "glass",
+  inverse: "inverse",
 };
 
 /** Section CTAs come from JSONB: style names map to variants, unknown → outline. */

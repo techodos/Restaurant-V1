@@ -9,7 +9,7 @@ export function MenuGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: count }).map((_, index) => (
-        <li key={index} className="overflow-hidden rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)]">
+        <li key={index} className="surface-flat overflow-hidden">
           <Skeleton className="aspect-4/3 w-full rounded-none" />
           <div className="space-y-3 p-4">
             <Skeleton className="h-5 w-2/3" />

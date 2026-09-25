@@ -174,8 +174,11 @@ export function CheckoutForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-8">
-      <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
-        <h2 className="text-lg font-semibold">1. How would you like your order?</h2>
+      <section className="surface-card p-5 sm:p-7">
+        <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
+          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">1</span>
+          How would you like your order?
+        </h2>
         <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Order type">
           {orderTypeOptions.map((type) => (
             <button
@@ -185,8 +188,8 @@ export function CheckoutForm({
               onClick={() => setOrderTypeState(type)}
               className={
                 orderTypeState === type
-                  ? "rounded-full border border-[var(--color-brand)] bg-[var(--color-brand)] px-4 py-2 text-sm text-[var(--color-brand-foreground)]"
-                  : "rounded-full border border-[var(--color-hairline)] px-4 py-2 text-sm hover:border-[var(--color-brand)]"
+                  ? "h-11 rounded-full border border-[var(--color-ink)] bg-[var(--color-ink)] px-5 text-sm font-semibold text-[var(--color-surface)] transition-colors"
+                  : "h-11 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)] px-5 text-sm font-medium transition-colors hover:border-[color-mix(in_srgb,var(--color-ink)_35%,var(--color-hairline))]"
               }
             >
               {type === "delivery" ? "Delivery" : type === "pickup" ? "Pickup" : "Dine-in"}
@@ -195,12 +198,15 @@ export function CheckoutForm({
         </div>
       </section>
 
-      <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
-        <h2 className="text-lg font-semibold">2. Your details</h2>
+      <section className="surface-card p-5 sm:p-7">
+        <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
+          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">2</span>
+          Your details
+        </h2>
         {!isSignedIn ? (
           <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
             {allowGuestCheckout
-              ? "No account needed — we only use these details for this order."
+              ? "No account needed. We only use these details for this order."
               : "Please sign in before checking out."}
           </p>
         ) : null}
@@ -249,8 +255,11 @@ export function CheckoutForm({
       </section>
 
       {orderTypeState === "delivery" ? (
-        <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
-          <h2 className="text-lg font-semibold">3. Delivery address</h2>
+        <section className="surface-card p-5 sm:p-7">
+          <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
+          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">3</span>
+          Delivery address
+        </h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="addressLine1">Street address</Label>
@@ -292,8 +301,11 @@ export function CheckoutForm({
       ) : null}
 
       {orderTypeState === "dine_in" ? (
-        <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
-          <h2 className="text-lg font-semibold">3. Your table</h2>
+        <section className="surface-card p-5 sm:p-7">
+          <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
+          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">3</span>
+          Your table
+        </h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="tableNumber">Table number</Label>
@@ -308,16 +320,19 @@ export function CheckoutForm({
         </section>
       ) : null}
 
-      <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
-        <h2 className="text-lg font-semibold">4. Payment</h2>
+      <section className="surface-card p-5 sm:p-7">
+        <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
+          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">4</span>
+          Payment
+        </h2>
         <div className="mt-4 space-y-2">
           {paymentMethods.map((method) => (
             <label
               key={method}
               className={
                 paymentMethod === method
-                  ? "flex cursor-pointer items-center gap-3 rounded-[var(--radius-brand)] border border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,transparent)] p-3.5"
-                  : "flex cursor-pointer items-center gap-3 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] p-3.5"
+                  ? "flex min-h-14 cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] px-4 py-3 shadow-[0_0_0_1px_var(--color-brand)] transition-colors"
+                  : "flex min-h-14 cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 py-3 transition-colors hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))]"
               }
             >
               <input
@@ -328,7 +343,7 @@ export function CheckoutForm({
                 onChange={() => setPaymentMethod(method)}
                 className="size-4 accent-[var(--color-brand)]"
               />
-              <span className="text-sm">{PAYMENT_METHOD_LABELS[method]}</span>
+              <span className="text-sm font-medium">{PAYMENT_METHOD_LABELS[method]}</span>
             </label>
           ))}
         </div>
@@ -352,8 +367,8 @@ export function CheckoutForm({
                 onClick={() => setTip(value === 0 ? "" : String(value))}
                 className={
                   (value === 0 && !tip) || tip === String(value)
-                    ? "rounded-full border border-[var(--color-brand)] bg-[var(--color-brand)] px-3.5 py-1.5 text-sm text-[var(--color-brand-foreground)]"
-                    : "rounded-full border border-[var(--color-hairline)] px-3.5 py-1.5 text-sm hover:border-[var(--color-brand)]"
+                    ? "tabular h-10 rounded-full border border-[var(--color-ink)] bg-[var(--color-ink)] px-4 text-sm font-semibold text-[var(--color-surface)]"
+                    : "tabular h-10 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 text-sm font-medium hover:border-[color-mix(in_srgb,var(--color-ink)_35%,var(--color-hairline))]"
                 }
               >
                 {value === 0 ? "No tip" : money(String(value))}
@@ -378,9 +393,9 @@ export function CheckoutForm({
         </div>
       </section>
 
-      <section className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6">
+      <section className="surface-card p-5 sm:p-7">
         <h2 className="text-lg font-semibold">Order summary</h2>
-        <dl className="mt-4 space-y-2.5 text-sm">
+        <dl className="tabular mt-5 space-y-3 text-sm">
           <div className="flex justify-between">
             <dt className="text-[var(--color-muted-ink)]">Subtotal</dt>
             <dd>{money(pricing.subtotal)}</dd>
@@ -413,7 +428,7 @@ export function CheckoutForm({
               <dd>{money(tip)}</dd>
             </div>
           ) : null}
-          <div className="flex justify-between border-t border-[var(--color-hairline)] pt-3 text-base font-semibold">
+          <div className="flex items-baseline justify-between border-t border-[var(--color-hairline)] pt-4 text-lg font-semibold">
             <dt>Total due</dt>
             <dd>{money(pricing.total)}</dd>
           </div>

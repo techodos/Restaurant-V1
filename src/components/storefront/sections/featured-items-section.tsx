@@ -9,6 +9,7 @@ import { searchMenu } from "@/server/services/catalog";
 /**
  * Featured items come from the database: explicit slugs from the section config
  * when provided, otherwise whatever the restaurant marked as featured.
+ * Phones get a swipeable rail (one card plus a peek of the next), wider screens a grid.
  */
 export async function FeaturedItemsSection({
   section,
@@ -32,7 +33,7 @@ export async function FeaturedItemsSection({
 
   return (
     <SectionShell>
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-6">
         <SectionHeading title={section.title} subtitle={section.subtitle} />
         {section.cta ? (
           <div className="hidden md:block">
@@ -41,9 +42,9 @@ export async function FeaturedItemsSection({
         ) : null}
       </div>
 
-      <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="scrollbar-none -mx-4 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
         {ordered.map((item) => (
-          <li key={item.id} className="h-full">
+          <li key={item.id} className="w-[82%] shrink-0 snap-start sm:w-auto">
             <MenuItemCard
               item={item}
               restaurantSlug={context.restaurant.slug}
@@ -55,7 +56,7 @@ export async function FeaturedItemsSection({
       </ul>
 
       {section.cta ? (
-        <div className="mt-8 md:hidden">
+        <div className="mt-6 md:hidden">
           <CtaLink cta={section.cta} />
         </div>
       ) : null}

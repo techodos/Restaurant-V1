@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, Flame, Info } from "lucide-react";
+import { ArrowLeft, Clock, Flame, Info } from "lucide-react";
 import { ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import { getStorefrontContext, requireStorefront } from "@/web/storefront";
 import { resolveMenuImage } from "@/web/media";
@@ -83,14 +83,18 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
       />
 
       <nav aria-label="Breadcrumb" className="text-sm text-[var(--color-muted-ink)]">
-        <Link href={`/r/${restaurant.slug}/menu`} className="hover:text-[var(--color-brand)]">
-          ← Back to menu
+        <Link
+          href={`/r/${restaurant.slug}/menu`}
+          className="group inline-flex items-center gap-1.5 font-medium transition-colors hover:text-[var(--color-ink)]"
+        >
+          <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden />
+          Back to menu
         </Link>
       </nav>
 
-      <div className="mt-6 grid gap-10 lg:grid-cols-2 lg:gap-14">
-        <div>
-          <div className="relative aspect-4/3 overflow-hidden rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]">
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16">
+        <div className="lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-panel)] bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)] shadow-[var(--shadow-raised)]">
             {image ? (
               <Image
                 src={image}
@@ -107,7 +111,7 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
             )}
           </div>
 
-          <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+          <dl className="surface-flat mt-5 grid grid-cols-2 gap-4 p-5 text-sm sm:grid-cols-4">
             <div>
               <dt className="text-[var(--color-muted-ink)]">Prep time</dt>
               <dd className="mt-1 flex items-center gap-1.5 font-medium">
@@ -150,12 +154,12 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
             {!item.isAvailable ? <Badge variant="danger">Sold out today</Badge> : null}
           </div>
 
-          <h1 className="mt-3 text-3xl font-semibold md:text-4xl">{item.name}</h1>
+          <h1 className="mt-4 text-[2.25rem] font-semibold leading-[1.05] md:text-[3rem]">{item.name}</h1>
           {item.description ? (
-            <p className="mt-3 text-pretty leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
+            <p className="mt-4 max-w-[58ch] text-pretty text-base leading-relaxed text-[var(--color-muted-ink)] md:text-[17px]">{item.description}</p>
           ) : null}
 
-          <p className="mt-4 text-xl font-semibold text-[var(--color-brand)]">
+          <p className="tabular mt-5 text-2xl font-semibold text-[var(--color-ink)]">
             {formatMoney(item.basePrice, { currency: restaurant.currencySymbol, locale: restaurant.locale })}
             {fromPrice ? (
               <span className="ml-2 text-sm font-normal text-[var(--color-muted-ink)]">
@@ -164,7 +168,7 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
             ) : null}
           </p>
 
-          <div className="mt-7">
+          <div className="mt-8 border-t border-[var(--color-hairline)] pt-8">
             <ItemCustomizer
               restaurantSlug={restaurant.slug}
               item={item}
@@ -184,8 +188,8 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
       </div>
 
       {related.length ? (
-        <section className="mt-16 border-t border-[var(--color-hairline)] pt-10">
-          <h2 className="text-2xl font-semibold">You may also like</h2>
+        <section className="mt-20 border-t border-[var(--color-hairline)] pt-12">
+          <h2 className="text-[1.75rem] font-semibold md:text-[2rem]">You may also like</h2>
           <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((entry) => (
               <li key={entry.id} className="h-full">
