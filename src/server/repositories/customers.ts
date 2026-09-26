@@ -1,5 +1,6 @@
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
+import { errors } from "@/server/errors";
 import { mapAddress, mapCustomer, num, str, type Row } from "@/server/db/mappers";
 import type { Customer, CustomerAddress } from "@/shared/contract/models";
 import type { Paginated } from "@/shared/contract/api";
@@ -238,10 +239,76 @@ export async function saveAddress(
   });
 }
 
-export async function deleteAddress(addressId: string, ctx: RequestContext): Promise<void> {
-  await getDb(ctx).asRuntime(ctx, async (tx) => {
-    await tx.query(`delete from customer_addresses where id = $1`, [addressId]);
+/** Deletes one of this customer's own addresses (RLS + an explicit owner predicate); false when not theirs. */
+export async function deleteAddress(addressId: string, customerId: string, restaurantId: string, ctx: RequestContext): Promise<boolean> {
+  return getDb({ restaurantId }).asRuntime({ ...ctx, restaurantId, customerId }, async (tx) => {
+    const rows = await tx.query<Row>(
+      `delete from customer_addresses where id = $1 and customer_id = $2 returning id`,
+      [addressId, customerId],
+    );
+    return rows.length > 0;
   });
+}
+
+/** Updates one of this customer's own addresses; null when the address is not theirs. */
+export async function updateAddress(
+  addressId: string,
+  customerId: string,
+  restaurantId: string,
+  input: AddressInput,
+  ctx: RequestContext,
+): Promise<CustomerAddress | null> {
+  return getDb({ restaurantId }).asRuntime({ ...ctx, restaurantId, customerId }, async (tx) => {
+    if (input.isDefault) {
+      await tx.query(`update customer_addresses set is_default = false where customer_id = $1 and id <> $2`, [customerId, addressId]);
+    }
+    const row = await tx.queryOne<Row>(
+      `update customer_addresses set
+         label = coalesce($3, label), address_line1 = $4, address_line2 = $5, area = $6, city = $7,
+         postal_code = $8, delivery_notes = $9, is_default = coalesce($10, is_default), updated_at = now()
+       where id = $1 and customer_id = $2
+       returning *`,
+      [
+        addressId, customerId, input.label ?? null, input.addressLine1, input.addressLine2 ?? null, input.area ?? null,
+        input.city ?? null, input.postalCode ?? null, input.deliveryNotes ?? null, input.isDefault ?? null,
+      ],
+    );
+    return row ? mapAddress(row) : null;
+  });
+}
+
+/**
+ * The customer's own editable profile: phone (optional) and the details kept in metadata.profile
+ * (gender, date of birth; merged, so other metadata keys are untouched). A phone already used by another
+ * customer of this restaurant (unique per restaurant) is refused with a CONFLICT instead of a raw 23505.
+ */
+export async function updateCustomerProfile(
+  customerId: string,
+  restaurantId: string,
+  input: { phone?: string | null; gender: string | null; dateOfBirth: string | null },
+  ctx: RequestContext,
+): Promise<Customer> {
+  try {
+    const row = await getDb({ restaurantId }).write({ ...ctx, restaurantId, customerId }, (tx) =>
+      tx.queryOne<Row>(
+        `update customers set
+           phone = coalesce(nullif($3, ''), phone),
+           metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{profile}',
+                                coalesce(metadata->'profile', '{}'::jsonb) || $4::jsonb),
+           updated_at = now()
+         where id = $1 and restaurant_id = $2
+         returning ${CUSTOMER_COLUMNS}`,
+        [customerId, restaurantId, input.phone ?? null, JSON.stringify({ gender: input.gender, dateOfBirth: input.dateOfBirth })],
+      ),
+    );
+    if (!row) throw errors.notFound("Customer");
+    return mapCustomer(row);
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") {
+      throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
+    }
+    throw error;
+  }
 }
 
 /** Aggregates for the customer detail screen. */

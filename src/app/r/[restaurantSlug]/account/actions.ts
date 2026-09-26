@@ -31,6 +31,18 @@ import {
 } from "@/web/session";
 import { requireRestaurant } from "@/server/services/restaurants";
 import { config } from "@/server/config";
+import { revalidatePath } from "next/cache";
+import {
+  deleteCustomerAddress,
+  requestAccountDeletion,
+  getCustomerProfile,
+  saveCustomerAddress,
+  updateCustomerProfile,
+  type CustomerProfile,
+} from "@/server/services/customer-profile";
+import { customerAddressSchema, updateProfileSchema } from "@/server/validation/customer-profile";
+import { getVisitorContext } from "@/web/session";
+import type { CustomerAddress } from "@/shared/contract/models";
 
 async function callerIdentifier(): Promise<string> {
   const store = await headers();
@@ -168,4 +180,61 @@ export async function getCustomerSessionSummary(slug: string): Promise<{ signedI
   const restaurant = await requireRestaurant(slug);
   const customer = await getStorefrontCustomer(restaurant.id);
   return { signedIn: Boolean(customer), name: customer?.name ?? null };
+}
+
+// ── Profile + saved addresses (the header profile drawer; checkout reads the same service) ──────────
+
+export interface ProfilePayload {
+  profile: CustomerProfile;
+}
+
+async function profileScope(slug: string) {
+  const restaurant = await requireRestaurant(slug);
+  const visitor = await getVisitorContext(restaurant.id);
+  return { restaurant, visitor };
+}
+
+export async function getProfileAction(slug: string): Promise<ApiResult<ProfilePayload>> {
+  return action(async () => {
+    const { restaurant, visitor } = await profileScope(slug);
+    return { profile: await getCustomerProfile(restaurant, visitor) };
+  });
+}
+
+export async function updateProfileAction(slug: string, payload: unknown): Promise<ApiResult<CustomerProfile>> {
+  return action(async () => {
+    const input = updateProfileSchema.parse(payload);
+    const { restaurant, visitor } = await profileScope(slug);
+    const profile = await updateCustomerProfile(restaurant, visitor, input);
+    revalidatePath(`/r/${slug}/checkout`);
+    return profile;
+  });
+}
+
+export async function saveAddressAction(slug: string, payload: unknown): Promise<ApiResult<CustomerAddress[]>> {
+  return action(async () => {
+    const input = customerAddressSchema.parse(payload);
+    const { restaurant, visitor } = await profileScope(slug);
+    const addresses = await saveCustomerAddress(restaurant, visitor, input);
+    revalidatePath(`/r/${slug}/checkout`);
+    return addresses;
+  });
+}
+
+export async function deleteAddressAction(slug: string, addressId: string): Promise<ApiResult<CustomerAddress[]>> {
+  return action(async () => {
+    const { restaurant, visitor } = await profileScope(slug);
+    const addresses = await deleteCustomerAddress(restaurant, visitor, String(addressId));
+    revalidatePath(`/r/${slug}/checkout`);
+    return addresses;
+  });
+}
+
+/** Emails the restaurant a request to delete this customer's account (Google accounts; see the profile drawer). */
+export async function requestAccountDeletionAction(slug: string): Promise<ApiResult<null>> {
+  return action(async () => {
+    const { restaurant, visitor } = await profileScope(slug);
+    await requestAccountDeletion(restaurant, visitor);
+    return null;
+  });
 }

@@ -52,22 +52,37 @@ export function findCart(restaurant: Restaurant, token: string, customerId?: str
   return getCartByToken(restaurant.id, token, cartContext(restaurant.id, token, customerId));
 }
 
-/** Loads the active cart for a token, creating it when needed. */
-export function openCart(
+/**
+ * Loads the active cart for a token, creating it when needed. The lookup runs as the signed-in customer:
+ * once a cart is linked to a customer, RLS hides it from a lookup that does not carry their id, which made
+ * every add after the first look like "no cart yet" and collide with the cart it could not see.
+ *
+ * When the token is held by a cart this visitor cannot read (another account's, or another restaurant's),
+ * a fresh cart is started under a new token. The caller compares `cart.sessionToken` with the token it
+ * passed and stores the new one in the cookie.
+ */
+export async function openCart(
   restaurant: Restaurant,
   token: string,
   options: { customerId?: string | null; locationId?: string | null } = {},
 ): Promise<Cart> {
-  return getOrCreateCart(
-    {
-      restaurantId: restaurant.id,
-      cartToken: token,
-      currency: restaurant.currency,
-      customerId: options.customerId ?? null,
-      locationId: options.locationId ?? null,
-    },
-    cartContext(restaurant.id, token),
-  );
+  const open = (cartToken: string) =>
+    getOrCreateCart(
+      {
+        restaurantId: restaurant.id,
+        cartToken,
+        currency: restaurant.currency,
+        customerId: options.customerId ?? null,
+        locationId: options.locationId ?? null,
+      },
+      cartContext(restaurant.id, cartToken, options.customerId),
+    );
+  try {
+    return await open(token);
+  } catch (error) {
+    if ((error as { code?: string }).code !== "CART_TOKEN_TAKEN") throw error;
+    return open(generateCartToken());
+  }
 }
 
 // ─── mutations ───────────────────────────────────────────────────────────────

@@ -32,8 +32,9 @@ export function AdminHeader({
     });
   }
 
+  // the same night surface as the sidebar, and the same height as its brand block so the two rules line up
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-surface)_85%,transparent)] px-4 backdrop-blur-xl sm:px-6">
+    <header className="tone-night sticky top-0 z-30 flex h-[4.75rem] items-center justify-between gap-4 border-b border-[var(--rule)] px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         {mobileNav}
         <p className="truncate text-sm font-medium text-[var(--color-muted-ink)] lg:hidden">{restaurantName}</p>
@@ -42,7 +43,7 @@ export function AdminHeader({
         <div className="flex items-center gap-3">
           <span
             aria-hidden
-            className="hidden size-9 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] text-sm font-semibold text-[var(--color-brand)] sm:grid"
+            className="hidden size-9 place-items-center rounded-full bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)] sm:grid"
           >
             {name.slice(0, 1)}
           </span>

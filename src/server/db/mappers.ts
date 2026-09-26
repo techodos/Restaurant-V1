@@ -2,8 +2,9 @@ import type {
   Cart, CartItem, Coupon, Customer, CustomerAddress, Delivery, DeliveryZone, MediaAsset, MenuAddon,
   MenuAddonGroup, MenuCategory, MenuItem, MenuItemVariant, Order, OrderItem, OrderItemAddon,
   OrderStatusEvent, Payment, Reservation, Restaurant, RestaurantLocation, Review, TeamMember,
-  Website, WebsitePage,
+  Website, WebsitePage, CustomerGender,
 } from "@/shared/contract/models";
+import { CUSTOMER_GENDERS } from "@/shared/contract/models";
 import { restaurantFeaturesSchema, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
 import type { MediaPurpose, OrderStatus, OrderType, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus, TeamRole, WebsiteStatus, CartStatus, DeliveryStatus, CouponDiscountType } from "@/shared/contract/enums";
 import { parseOpeningHours, parseAvailabilityWindow } from "@/shared/hours";
@@ -323,6 +324,14 @@ export function mapDeliveryZone(row: Row): DeliveryZone {
   };
 }
 
+/** customers.metadata.profile -> {gender, dateOfBirth}; anything unexpected reads as "not set". */
+function customerProfile(metadata: unknown): Pick<Customer, "gender" | "dateOfBirth"> {
+  const profile = jsonObject(jsonObject(metadata).profile);
+  const gender = (CUSTOMER_GENDERS as readonly string[]).includes(String(profile.gender)) ? (profile.gender as CustomerGender) : null;
+  const dateOfBirth = typeof profile.dateOfBirth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(profile.dateOfBirth) ? profile.dateOfBirth : null;
+  return { gender, dateOfBirth };
+}
+
 export function mapCustomer(row: Row): Customer {
   return {
     id: str(row.id),
@@ -336,6 +345,7 @@ export function mapCustomer(row: Row): Customer {
     isGuest: bool(row.is_guest, true),
     emailVerified: bool(row.is_email_verified, false),
     authProvider: strOrNull(row.auth_provider) ?? "password",
+    ...customerProfile(row.metadata),
     totalOrders: num(row.total_orders),
     totalSpent: money(row.total_spent),
     lastOrderAt: iso(row.last_order_at),

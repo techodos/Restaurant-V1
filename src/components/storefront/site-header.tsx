@@ -9,9 +9,11 @@ import type { WebsiteConfig } from "@/shared/contract/settings";
 import { cn } from "@/shared/utils";
 import { Sheet } from "@/components/motion/sheet";
 import { TrayCount } from "./tray-count";
+import { ProfileDrawer } from "./profile-drawer";
+import { isSupportedCountry } from "libphonenumber-js";
 
 interface SiteHeaderProps {
-  restaurant: { name: string; slug: string; logoUrl: string | null; phone: string | null };
+  restaurant: { name: string; slug: string; logoUrl: string | null; phone: string | null; country: string };
   config: WebsiteConfig;
   itemCount: number;
   orderingOpen: boolean;
@@ -80,6 +82,8 @@ const HERO_SELECTOR = "main [data-hero-overlay]";
  */
 export function SiteHeader({ restaurant, config, itemCount, orderingOpen, customer }: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const signedIn = Boolean(customer?.signedIn);
   const [overHero, setOverHero] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
@@ -229,11 +233,15 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen, custom
               />
             ) : null}
 
-            <Link
-              href={accountHref}
-              title={accountLabel}
-              className="press hidden h-10 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] pl-1.5 pr-4 text-[13px] font-semibold text-[var(--color-brand-foreground)] transition-[background-color,box-shadow] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)] hover:shadow-[var(--shadow-brand)] sm:flex"
-            >
+            {signedIn ? (
+              <button
+                type="button"
+                onClick={() => setProfileOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={profileOpen}
+                title="Your profile"
+                className="press hidden h-10 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] pl-1.5 pr-4 text-[13px] font-semibold text-[var(--color-brand-foreground)] transition-[background-color,box-shadow] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)] hover:shadow-[var(--shadow-brand)] sm:flex"
+              >
               <span aria-hidden className="grid size-7 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand-foreground)_18%,transparent)]">
                 {customer?.signedIn && customer.name ? (
                   <span className="text-[11px] font-bold uppercase">{customer.name.slice(0, 1)}</span>
@@ -242,7 +250,23 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen, custom
                 )}
               </span>
               <span className="max-w-32 truncate">{accountLabel}</span>
-            </Link>
+              </button>
+            ) : (
+              <Link
+                href={accountHref}
+                title={accountLabel}
+                className="press hidden h-10 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] pl-1.5 pr-4 text-[13px] font-semibold text-[var(--color-brand-foreground)] transition-[background-color,box-shadow] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)] hover:shadow-[var(--shadow-brand)] sm:flex"
+              >
+              <span aria-hidden className="grid size-7 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand-foreground)_18%,transparent)]">
+                {customer?.signedIn && customer.name ? (
+                  <span className="text-[11px] font-bold uppercase">{customer.name.slice(0, 1)}</span>
+                ) : (
+                  <UserRound className="size-4" />
+                )}
+              </span>
+              <span className="max-w-32 truncate">{accountLabel}</span>
+              </Link>
+            )}
 
             <button
               type="button"
@@ -300,14 +324,28 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen, custom
                 My orders
               </Link>
             ) : null}
-            <Link
-              href={accountHref}
-              onClick={() => setOpen(false)}
-              className="press flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)]"
-            >
-              <UserRound className="size-4" aria-hidden />
-              <span className="max-w-60 truncate">{accountLabel}</span>
-            </Link>
+            {signedIn ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setProfileOpen(true);
+                }}
+                className="press flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)]"
+              >
+                <UserRound className="size-4" aria-hidden />
+                <span className="max-w-60 truncate">{accountLabel}</span>
+              </button>
+            ) : (
+              <Link
+                href={accountHref}
+                onClick={() => setOpen(false)}
+                className="press flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)]"
+              >
+                <UserRound className="size-4" aria-hidden />
+                <span className="max-w-60 truncate">{accountLabel}</span>
+              </Link>
+            )}
             {restaurant.phone ? (
               <a
                 href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
@@ -320,6 +358,15 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen, custom
           </div>
         </nav>
       </Sheet>
+
+      {signedIn ? (
+        <ProfileDrawer
+          restaurantSlug={restaurant.slug}
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
+        />
+      ) : null}
     </>
   );
 }
