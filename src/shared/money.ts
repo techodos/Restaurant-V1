@@ -113,6 +113,11 @@ export function formatMoneyCompact(value: MoneyInput, options: CurrencyFormatOpt
   return formatMoney(amount, { ...options, compact: true });
 }
 
+/** Smallest-unit integer string for a gateway that wants cents/paisas (e.g. "1250.00" -> "125000"). */
+export function toMinorUnits(value: MoneyInput, exponent = 2): string {
+  return round2(dec(value)).times(10 ** exponent).toFixed(0);
+}
+
 export function parseMoneyInput(value: unknown): Decimal {
   if (typeof value === "number" && Number.isFinite(value)) return round2(new Decimal(value.toString()));
   if (typeof value === "string") {

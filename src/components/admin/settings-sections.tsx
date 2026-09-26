@@ -257,6 +257,7 @@ export function PaymentsSettingsSection({ payments, readOnly }: { payments: Rest
         <Select id="onlineProvider" value={state.onlineProvider} onChange={(e) => setState((s) => ({ ...s, onlineProvider: e.target.value as typeof s.onlineProvider }))} className="max-w-48">
           <option value="none">None</option>
           <option value="stripe">Stripe</option>
+          <option value="jazzcash">JazzCash</option>
         </Select>
       </div>
       <Checkbox label="Pay at store enabled" checked={state.payAtStoreEnabled} onChange={(value) => setState((s) => ({ ...s, payAtStoreEnabled: value }))} />

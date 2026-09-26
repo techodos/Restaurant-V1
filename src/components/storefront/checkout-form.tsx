@@ -27,6 +27,28 @@ export interface CheckoutPricing {
   total: string;
 }
 
+/**
+ * Navigates the browser to a gateway's hosted page via a real POST, the way JazzCash's Hosted
+ * Checkout Page (and most redirect-based wallet/card gateways) require — a `fetch`/GET redirect
+ * cannot carry these fields. The form is submitted and left in the DOM; the page is about to
+ * navigate away, so nothing needs to clean it up.
+ */
+function submitWalletForm(formAction: string, formFields: Record<string, string>): void {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = formAction;
+  form.style.display = "none";
+  for (const [name, value] of Object.entries(formFields)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+}
+
 interface CheckoutFormProps {
   restaurantSlug: string;
   orderType: OrderType;
@@ -161,7 +183,17 @@ export function CheckoutForm({
           toast.error(result.error.message, { description: "Nothing has been charged." });
           return;
         }
-        // stays locked while we navigate to the order page
+        // stays locked while we navigate away — either to the order page, or (an online payment)
+        // on to the gateway's own hosted page first
+        if (result.data.payment) {
+          toast.success("Order received", { description: "Redirecting you to complete the payment…" });
+          if (result.data.payment.kind === "redirect") {
+            window.location.href = result.data.payment.redirectUrl; // Stripe Checkout: plain GET
+          } else {
+            submitWalletForm(result.data.payment.formAction, result.data.payment.formFields); // JazzCash: needs a real POST
+          }
+          return;
+        }
         toast.success("Order received", {
           description: "Your order has been received. You will get a confirmation message soon.",
         });

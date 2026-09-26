@@ -753,6 +753,12 @@ export async function listRecentOrders(restaurantId: string, ctx: RequestContext
   return result.rows;
 }
 
+/**
+ * Updates the `payments` row AND `orders.payment_status` together — they used to drift apart
+ * (this function only touched `payments`, so nothing else in the app — order lists, the SSE/live
+ * tracking trigger, the admin payment filter — ever saw the result of a call here; it was dead
+ * code until the JazzCash return callback started using it, which is what surfaced this).
+ */
 export async function setOrderPaymentStatus(
   orderId: string,
   status: "pending" | "authorized" | "paid" | "failed" | "refunded" | "cancelled",
@@ -771,6 +777,7 @@ export async function setOrderPaymentStatus(
        where order_id = $1`,
       [orderId, status, options.transactionId ?? null, options.failureReason ?? null],
     );
+    await tx.query(`update orders set payment_status = $2::payment_status where id = $1`, [orderId, status]);
   });
 }
 

@@ -43,7 +43,7 @@ export const restaurantSettingsSchema = z.object({
     .object({
       enabledMethods: z.array(z.enum(PAYMENT_METHODS)).default(["cash_on_delivery", "cash"]),
       /** providers configured server-side; keys never reach the browser */
-      onlineProvider: z.enum(["none", "stripe"]).default("none"),
+      onlineProvider: z.enum(["none", "stripe", "jazzcash"]).default("none"),
       payAtStoreEnabled: z.boolean().default(true),
     })
     .default({}),

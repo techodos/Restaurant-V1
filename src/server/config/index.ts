@@ -60,6 +60,15 @@ const storageSchema = z.object({
 const paymentsSchema = z.object({
   STRIPE_SECRET_KEY: optionalText,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: optionalText,
+  // Signs the Stripe CLI/Dashboard webhook endpoint (`whsec_...`). Optional: checkout still works
+  // without it (the return-URL redirect alone confirms payment), but a closed tab or dropped
+  // redirect then leaves the order unpaid until staff notice — the webhook is the reliable path.
+  STRIPE_WEBHOOK_SECRET: optionalText,
+  // JazzCash Hosted Checkout Page (Mobile Wallet). All three required together; see SKILL.md section 18.
+  JAZZCASH_MERCHANT_ID: optionalText,
+  JAZZCASH_PASSWORD: optionalText,
+  JAZZCASH_INTEGRITY_SALT: optionalText,
+  JAZZCASH_ENV: z.preprocess(emptyToUndefined, z.enum(["sandbox", "live"]).default("sandbox")),
 });
 
 const emailSchema = z.object({
@@ -162,7 +171,20 @@ const payments = lazy(() => {
   return {
     stripe:
       env.STRIPE_SECRET_KEY && env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-        ? { secretKey: env.STRIPE_SECRET_KEY, publishableKey: env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }
+        ? {
+            secretKey: env.STRIPE_SECRET_KEY,
+            publishableKey: env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+            webhookSecret: env.STRIPE_WEBHOOK_SECRET ?? null,
+          }
+        : null,
+    jazzcash:
+      env.JAZZCASH_MERCHANT_ID && env.JAZZCASH_PASSWORD && env.JAZZCASH_INTEGRITY_SALT
+        ? {
+            merchantId: env.JAZZCASH_MERCHANT_ID,
+            password: env.JAZZCASH_PASSWORD,
+            integritySalt: env.JAZZCASH_INTEGRITY_SALT,
+            env: env.JAZZCASH_ENV,
+          }
         : null,
   };
 });
@@ -266,8 +288,14 @@ export const config = {
   },
 };
 
-/** True when a restaurant's chosen online provider has server-side credentials. */
+/**
+ * True when a restaurant's chosen online provider has server-side credentials.
+ * Reads the typed, already-validated `payments` section rather than guessing an
+ * env var name from the provider id — the previous `${provider}_SECRET_KEY` guess
+ * matched "stripe" by luck but silently returned false for any provider (like
+ * "jazzcash") whose credentials aren't a single `_SECRET_KEY` var.
+ */
 export function isPaymentProviderConfigured(provider: string): boolean {
-  if (!/^[a-z0-9_]+$/i.test(provider)) return false;
-  return Boolean(process.env[`${provider.toUpperCase()}_SECRET_KEY`]);
+  const configured = payments() as Record<string, unknown>;
+  return provider in configured && configured[provider] !== null;
 }
