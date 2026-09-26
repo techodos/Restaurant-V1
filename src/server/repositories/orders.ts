@@ -3,14 +3,14 @@ import { isOrderTypeEnabled } from "@/shared/ordering";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
 import { ACTIVE_ORDER_STATUSES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
-import type { DeliveryZone, Order, OrderItem, OrderSummary } from "@/shared/contract/models";
+import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { getRestaurantById } from "./restaurants";
 import { listDeliveryZones, matchDeliveryZone } from "./deliveries";
 import { countCouponUsageByPhone, toCouponPricing } from "./coupons";
 import { upsertCustomer } from "./customers";
 import { resolveItemSelection } from "./carts";
-import { mapDelivery, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, type Row } from "@/server/db/mappers";
+import { mapCustomer, mapDelivery, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, type Row } from "@/server/db/mappers";
 import { type DbClient } from "@/server/db/database";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
@@ -46,6 +46,13 @@ export interface CreateOrderInput {
   notes?: string | null;
   specialInstructions?: string | null;
   customerId?: string | null;
+  /**
+   * The signed-in customer's own row: the order is linked to it directly (no phone lookup). When
+   * `saveAccountPhone` is set the account had no mobile yet and `customer.phone` is stored on it in the
+   * same transaction, so it is saved only if the order commits.
+   */
+  accountCustomerId?: string | null;
+  saveAccountPhone?: boolean;
   userId?: string | null;
   actor?: string | null;
 }
@@ -54,6 +61,38 @@ export interface CreateOrderResult {
   order: Order;
   paymentId: string;
   requiresOnlinePayment: boolean;
+}
+
+/**
+ * The signed-in customer's row for an order (locked for the rest of the transaction). `newPhone` is stored
+ * only when the account has no mobile yet; a number that already belongs to another customer of this
+ * restaurant is refused with a CONFLICT instead of a raw unique violation.
+ */
+async function attachAccountCustomer(
+  tx: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> },
+  restaurantId: string,
+  customerId: string,
+  newPhone: string | null,
+): Promise<Customer> {
+  const existing = await tx.queryOne<Row>(
+    `select * from customers where id = $1 and restaurant_id = $2 for update`,
+    [customerId, restaurantId],
+  );
+  if (!existing) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
+  if (!newPhone || str(existing.phone).trim()) return mapCustomer(existing);
+
+  const clash = await tx.queryOne<Row>(
+    `select 1 from customers where restaurant_id = $1 and phone = $2 and id <> $3 limit 1`,
+    [restaurantId, newPhone, customerId],
+  );
+  if (clash) {
+    throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
+  }
+  const updated = await tx.queryOne<Row>(
+    `update customers set phone = $2, updated_at = now() where id = $1 returning *`,
+    [customerId, newPhone],
+  );
+  return mapCustomer(updated ?? existing);
 }
 
 export async function createOrder(input: CreateOrderInput, ctx: RequestContext): Promise<CreateOrderResult> {
@@ -234,18 +273,20 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     });
 
     // 7 ─ customer ----------------------------------------------------------
-    const customer = await upsertCustomer(
-      {
-        restaurantId: input.restaurantId,
-        fullName: input.customer.fullName,
-        phone: input.customer.phone,
-        email: input.customer.email ?? null,
-        marketingOptIn: input.customer.marketingOptIn ?? false,
-        isGuest: !input.userId,
-      },
-      context,
-      tx,
-    );
+    const customer = input.accountCustomerId
+      ? await attachAccountCustomer(tx, input.restaurantId, input.accountCustomerId, input.saveAccountPhone ? input.customer.phone : null)
+      : await upsertCustomer(
+          {
+            restaurantId: input.restaurantId,
+            fullName: input.customer.fullName,
+            phone: input.customer.phone,
+            email: input.customer.email ?? null,
+            marketingOptIn: input.customer.marketingOptIn ?? false,
+            isGuest: !input.userId,
+          },
+          context,
+          tx,
+        );
 
     // 8 ─ order -------------------------------------------------------------
     const estimatedReadyAt = estimateReadyAt(maxPrepTime, input.orderType);

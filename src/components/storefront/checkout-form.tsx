@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, MapPin, Plus } from "lucide-react";
+import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,9 @@ import { placeOrderAction } from "@/app/r/[restaurantSlug]/checkout/actions";
 import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/account/actions";
 import { PAYMENT_METHOD_LABELS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import type { DeliveryZone } from "@/shared/contract/models";
+import type { CustomerAddress, DeliveryZone } from "@/shared/contract/models";
+import { cn } from "@/shared/utils";
+import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { signInHref } from "@/shared/return-to";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +67,14 @@ interface CheckoutFormProps {
   customerDefaults: { fullName: string; phone: string; email: string } | null;
   /** the restaurant's own city (primary location), prefilled for delivery */
   defaultCity: string;
+  /** the signed-in account's email: shown read-only and always the one used for the order */
+  accountEmail: string | null;
+  /** the account's saved mobile (E.164): shown read-only; null = ask once, saved with the order */
+  savedPhone: string | null;
+  /** the customer's saved delivery addresses (profile) */
+  savedAddresses: CustomerAddress[];
+  /** country preselected in the phone picker (the restaurant's country) */
+  phoneCountry: CountryCode;
 }
 
 /**
@@ -96,6 +107,10 @@ export function CheckoutForm({
   emailVerified,
   customerDefaults,
   defaultCity,
+  accountEmail,
+  savedPhone,
+  savedAddresses,
+  phoneCountry,
 }: CheckoutFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
@@ -105,6 +120,12 @@ export function CheckoutForm({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(paymentMethods[0] ?? "cash");
   const [tip, setTip] = useState("");
   const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified);
+  const [phone, setPhone] = useState(savedPhone ?? "");
+  // a saved address is the default when there is one; "new" shows the address fields
+  const [addressChoice, setAddressChoice] = useState<string>(
+    () => savedAddresses.find((address) => address.isDefault)?.id ?? savedAddresses[0]?.id ?? "new",
+  );
+  const chosenAddress = savedAddresses.find((address) => address.id === addressChoice) ?? null;
   const router = useRouter();
 
   useEffect(() => {
@@ -129,13 +150,23 @@ export function CheckoutForm({
     const payload = {
       orderType: orderTypeState,
       fullName: value("fullName"),
-      phone: value("phone"),
-      email: value("email"),
-      addressLine1: value("addressLine1"),
-      addressLine2: value("addressLine2"),
-      area: value("area"),
-      city: value("city"),
-      postalCode: value("postalCode"),
+      phone,
+      email: accountEmail ?? value("email"),
+      ...(chosenAddress
+        ? {
+            addressLine1: chosenAddress.addressLine1,
+            addressLine2: chosenAddress.addressLine2 ?? "",
+            area: chosenAddress.area ?? "",
+            city: chosenAddress.city ?? "",
+            postalCode: chosenAddress.postalCode ?? "",
+          }
+        : {
+            addressLine1: value("addressLine1"),
+            addressLine2: value("addressLine2"),
+            area: value("area"),
+            city: value("city"),
+            postalCode: value("postalCode"),
+          }),
       deliveryZoneId: value("deliveryZoneId"),
       tableNumber: value("tableNumber"),
       guests: value("guests") ? Number(value("guests")) : undefined,
@@ -147,11 +178,16 @@ export function CheckoutForm({
 
     const nextErrors: Record<string, string> = {};
     if (payload.fullName.length < 2) nextErrors.fullName = "Please enter your name.";
-    if (!/^[+0-9()\s-]{7,}$/.test(payload.phone)) nextErrors.phone = "Please enter a reachable phone number.";
+    if (!payload.phone) nextErrors.phone = "Please enter your mobile number.";
+    else if (!isValidPhoneNumber(payload.phone)) nextErrors.phone = "That mobile number does not look right for the selected country.";
     if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) nextErrors.email = "That email looks incomplete.";
     if (orderTypeState === "delivery") {
       if (!payload.addressLine1) nextErrors.addressLine1 = "Where should we deliver?";
-      if (!payload.area) nextErrors.area = "Please add your area so we can match a delivery zone.";
+      if (!payload.area) {
+        nextErrors.area = chosenAddress
+          ? "This saved address has no area. Edit it in your profile or use a new address."
+          : "Please add your area so we can match a delivery zone.";
+      }
     }
     if (orderTypeState === "dine_in" && !payload.tableNumber && !payload.guests) {
       nextErrors.tableNumber = "Add a table number or the number of guests.";
@@ -268,30 +304,52 @@ export function CheckoutForm({
             <FieldError>{errors.fullName}</FieldError>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="phone">Phone</Label>
-            <Input
+            <Label htmlFor="phone">
+              Phone number{" "}
+              {savedPhone ? (
+                <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span>
+              ) : (
+                <span aria-hidden className="text-[var(--color-danger)]">*</span>
+              )}
+            </Label>
+            <PhoneInput
               id="phone"
-              name="phone"
-              type="tel"
-              defaultValue={customerDefaults?.phone ?? ""}
-              autoComplete="tel"
-              placeholder="+92 300 1234567"
-              aria-invalid={Boolean(errors.phone)}
-              required
+              value={phone}
+              onChange={setPhone}
+              defaultCountry={phoneCountry}
+              disabled={Boolean(savedPhone)}
+              required={!savedPhone}
+              aria-invalid={Boolean(errors.phone) || undefined}
+              aria-describedby="phone-hint"
             />
-            <FieldHint>We call this number if the driver cannot find you.</FieldHint>
+            <p id="phone-hint" className="text-xs text-[var(--color-muted-ink)]">
+              {savedPhone
+                ? "Saved on your account. You can change it from your profile."
+                : "Required. We save it to your account with this order, so next time it is filled in for you."}
+            </p>
             <FieldError>{errors.phone}</FieldError>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="email">Email (optional)</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              defaultValue={customerDefaults?.email ?? ""}
-              autoComplete="email"
-              aria-invalid={Boolean(errors.email)}
-            />
+            <Label htmlFor="email">
+              Email{" "}
+              {accountEmail ? <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span> : null}
+            </Label>
+            {accountEmail ? (
+              <div className="relative">
+                <Input id="email" type="email" value={accountEmail} readOnly aria-readonly className="pr-10 text-[var(--color-muted-ink)]" />
+                <Lock className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
+              </div>
+            ) : (
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={customerDefaults?.email ?? ""}
+                autoComplete="email"
+                aria-invalid={Boolean(errors.email)}
+              />
+            )}
+            {accountEmail ? <FieldHint>Your order updates and receipt go to this address.</FieldHint> : null}
             <FieldError>{errors.email}</FieldError>
           </div>
         </div>
@@ -300,7 +358,51 @@ export function CheckoutForm({
       {orderTypeState === "delivery" ? (
         <section className="border-t border-[var(--rule)] pt-8">
           <StepTitle index={3}>Delivery address</StepTitle>
+          {savedAddresses.length ? (
+            <div role="radiogroup" aria-label="Delivery address" className="mt-5 grid gap-2 sm:grid-cols-2">
+              {[...savedAddresses.map((address) => ({ id: address.id, title: address.label, lines: [address.addressLine1, address.addressLine2, address.area, address.city].filter(Boolean).join(", ") })), { id: "new", title: "Use a new address", lines: "Enter a different address for this order" }].map((option) => {
+                const on = addressChoice === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setAddressChoice(option.id)}
+                    className={cn(
+                      "press flex items-start gap-3 rounded-[var(--radius-card)] border px-4 py-3.5 text-left transition-[border-color,box-shadow,background-color] duration-200",
+                      on
+                        ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]"
+                        : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))]",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border",
+                        on ? "border-[var(--color-brand)]" : "border-[var(--rule-strong)]",
+                      )}
+                    >
+                      {on ? <span className="size-2 rounded-full bg-[var(--color-brand)]" /> : null}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5 text-sm font-semibold">
+                        {option.id === "new" ? <Plus className="size-3.5" aria-hidden /> : <MapPin className="size-3.5 text-[var(--color-brand-accent)]" aria-hidden />}
+                        {option.title}
+                      </span>
+                      <span className="mt-0.5 block text-[13px] leading-snug text-[var(--color-muted-ink)]">{option.lines}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {chosenAddress && (errors.addressLine1 || errors.area) ? (
+            <div className="mt-3"><FieldError>{errors.area ?? errors.addressLine1}</FieldError></div>
+          ) : null}
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {chosenAddress ? null : (
+            <>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="addressLine1">Street address</Label>
               <Input id="addressLine1" name="addressLine1" autoComplete="address-line1" aria-invalid={Boolean(errors.addressLine1)} />
@@ -310,6 +412,8 @@ export function CheckoutForm({
               <Label htmlFor="addressLine2">Apartment, floor, landmark (optional)</Label>
               <Input id="addressLine2" name="addressLine2" autoComplete="address-line2" />
             </div>
+            </>
+            )}
             {zones.length ? (
               <div className="space-y-1.5">
                 <Label htmlFor="deliveryZoneId">Delivery area</Label>
@@ -323,19 +427,23 @@ export function CheckoutForm({
                 <FieldHint>We match your address to a zone automatically; pick one if you know it.</FieldHint>
               </div>
             ) : null}
-            <div className="space-y-1.5">
-              <Label htmlFor="area">Area</Label>
-              <Input id="area" name="area"  aria-invalid={Boolean(errors.area)} />
-              <FieldError>{errors.area}</FieldError>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="city">City</Label>
-              <Input id="city" name="city" defaultValue={defaultCity} autoComplete="address-level2" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="postalCode">Postal code (optional)</Label>
-              <Input id="postalCode" name="postalCode" autoComplete="postal-code" />
-            </div>
+            {chosenAddress ? null : (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="area">Area</Label>
+                  <Input id="area" name="area" autoComplete="address-level3" aria-invalid={Boolean(errors.area)} />
+                  <FieldError>{errors.area}</FieldError>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="city">City</Label>
+                  <Input id="city" name="city" defaultValue={defaultCity} autoComplete="address-level2" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="postalCode">Postal code (optional)</Label>
+                  <Input id="postalCode" name="postalCode" autoComplete="postal-code" />
+                </div>
+              </>
+            )}
           </div>
         </section>
       ) : null}

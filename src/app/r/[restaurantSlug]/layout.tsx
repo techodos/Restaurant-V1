@@ -120,6 +120,7 @@ export default async function StorefrontLayout({
           slug: restaurant.slug,
           logoUrl: resolveImage(restaurant.logoUrl),
           phone: restaurant.phone,
+          country: restaurant.country,
         }}
         config={config}
         itemCount={itemCount}

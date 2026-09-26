@@ -69,16 +69,36 @@ export async function getOrCreateCart(
   }
 
   const db = getDb({ restaurantId: params.restaurantId });
-  return db.asRuntime({ ...ctx, cartToken: params.cartToken, customerId: params.customerId ?? null }, async (tx) => {
+  const created = await db.asRuntime({ ...ctx, cartToken: params.cartToken, customerId: params.customerId ?? null }, async (tx) => {
+    // "Look for the active cart, else create it" is not atomic: two requests that overlap (a quick
+    // double tap, two dishes added in a row, two tabs) both find nothing and both insert. The
+    // one-active-cart-per-(restaurant, token) index (0010 / 0023) then rejected the second with a raw unique violation
+    // ("That record already exists"). The insert is therefore idempotent: the loser inserts nothing
+    // and takes the winner's cart below.
     const row = await tx.queryOne<Row>(
       `insert into carts (restaurant_id, customer_id, location_id, session_token, currency)
        values ($1, $2, $3, $4, $5)
+       on conflict do nothing
        returning ${CART_SELECT}`,
       [params.restaurantId, params.customerId ?? null, params.locationId ?? null, params.cartToken, params.currency],
     );
-    if (!row) throw errors.internal("Unable to start a cart");
-    return mapCart(row, []);
+    return row ? mapCart(row, []) : null;
   });
+  if (created) return created;
+
+  const winner = await getCartByToken(params.restaurantId, params.cartToken, ctx);
+  if (!winner) {
+    // The token is held by an active cart this visitor cannot read: one owned by another account (RLS),
+    // or one at another restaurant (the active-token index is global). openCart starts a fresh cart.
+    throw errors.custom("CART_TOKEN_TAKEN", "That cart belongs to someone else.");
+  }
+  if (params.customerId && !winner.customerId) {
+    await db.asRuntime({ ...ctx, cartToken: params.cartToken, customerId: params.customerId }, async (tx) => {
+      await tx.query(`update carts set customer_id = $2 where id = $1`, [winner.id, params.customerId]);
+    });
+    winner.customerId = params.customerId;
+  }
+  return winner;
 }
 
 /** Loads items + add-ons and refreshes prices from the live menu. */

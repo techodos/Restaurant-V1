@@ -51,6 +51,10 @@ export async function openStorefrontCart(slug: string): Promise<{ restaurant: Re
     await setCartToken(token);
   }
   const cart = await openCart(restaurant, token, { customerId: customer?.customerId ?? null });
+  if (cart.sessionToken !== token) {
+    token = cart.sessionToken; // the old token was held by a cart this visitor cannot use
+    await setCartToken(token);
+  }
   // the real cart was just loaded: re-sync the header badge so it cannot stay wrong
   await setCartCountHint(cart.itemCount);
   return { restaurant, cart };

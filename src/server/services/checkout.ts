@@ -6,11 +6,12 @@ import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { getPaymentProvider, type PaymentIntentResult } from "@/server/integrations/payments";
 import { createOrder, getOrderForAccessGrant, setOrderPaymentStatus } from "@/server/repositories/orders";
+import { getCustomerById } from "@/server/repositories/customers";
 import type { PlaceOrderInput } from "@/server/validation/checkout";
 import { findCart } from "./cart";
 
 /**
- * Guest checkout.
+ * Checkout (signed-in, email-verified customers; placeOrderAction enforces that).
  *
  * The browser sends customer details and choices only: every price, discount,
  * fee, tax figure, availability flag and coupon is recomputed inside
@@ -38,6 +39,19 @@ export async function placeOrder(
   const cart = await findCart(restaurant, cartToken, visitor.customerId ?? null);
   if (!cart) throw cartExpired();
 
+  // A signed-in customer's account is the source of truth: the saved mobile (else the one entered here,
+  // stored on the account together with the order) and the account email. The order is linked to the
+  // account's own row, never to whatever row a phone lookup would find.
+  const account = visitor.customerId
+    ? await getCustomerById(visitor.customerId, { restaurantId: restaurant.id, customerId: visitor.customerId })
+    : null;
+  if (visitor.customerId && (!account || account.restaurantId !== restaurant.id)) {
+    throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
+  }
+  const savedPhone = account?.phone.trim() ? account.phone : null;
+  const phone = savedPhone ?? input.phone;
+  const email = account?.email || input.email || null;
+
   if (input.orderType === "delivery" && !input.addressLine1) {
     throw errors.validation("Please add a delivery address.", { field: "addressLine1" });
   }
@@ -50,9 +64,11 @@ export async function placeOrder(
       orderType: input.orderType,
       customer: {
         fullName: input.fullName,
-        phone: input.phone,
-        email: input.email || null,
+        phone,
+        email,
       },
+      accountCustomerId: account?.id ?? null,
+      saveAccountPhone: Boolean(account && !savedPhone),
       address: isDineIn
         ? null
         : {
@@ -90,7 +106,8 @@ export async function placeOrder(
       amount: order.total,
       currency: order.currency,
       method: input.paymentMethod,
-      customer: { name: input.fullName, phone: input.phone, email: input.email || null },
+      // the same phone / email the order was saved with (the account's own when signed in), not the browser's
+      customer: { name: input.fullName, phone, email },
       // provider.id, not the payment method, picks the return path — each gateway's callback route
       returnUrl: `${config.app.siteUrl}/r/${restaurant.slug}/checkout/pay/${provider.id}`,
       cancelUrl: `${config.app.siteUrl}/r/${restaurant.slug}/checkout`,

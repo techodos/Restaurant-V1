@@ -126,7 +126,7 @@ function Brand({ restaurantName }: { restaurantName: string }) {
 export function AdminSidebar({ permissions, restaurantName }: { permissions: Permission[]; restaurantName: string }) {
   return (
     <aside className="tone-night sticky top-0 hidden h-dvh w-64 shrink-0 flex-col lg:flex">
-      <div className="border-b border-[var(--rule)] px-5 py-5">
+      <div className="flex h-[4.75rem] items-center border-b border-[var(--rule)] px-5">
         <Brand restaurantName={restaurantName} />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-5">

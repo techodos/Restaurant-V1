@@ -291,11 +291,18 @@ export interface Customer {
   isGuest: boolean;
   emailVerified: boolean;
   authProvider: string;
+  /** optional profile details the customer keeps themselves (stored in customers.metadata.profile) */
+  gender?: CustomerGender | null;
+  /** "YYYY-MM-DD" */
+  dateOfBirth?: string | null;
   totalOrders: number;
   totalSpent: Money;
   lastOrderAt: string | null;
   createdAt: string;
 }
+
+export const CUSTOMER_GENDERS = ["female", "male", "other", "prefer_not_to_say"] as const;
+export type CustomerGender = (typeof CUSTOMER_GENDERS)[number];
 
 export interface CustomerAddress {
   id: string;

@@ -127,6 +127,9 @@ export async function setCustomerSession(token: string, maxAge: number): Promise
 export async function clearCustomerSession(): Promise<void> {
   const store = await cookies();
   store.delete(CUSTOMER_COOKIE);
+  // the cart (and its badge) belonged to the account; a signed-out browser starts a fresh one
+  store.delete(CART_COOKIE);
+  store.delete(CART_COUNT_COOKIE);
 }
 
 /** Stores the CSRF state for a Google sign-in redirect just before leaving for Google. */

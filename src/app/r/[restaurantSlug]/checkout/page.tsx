@@ -2,7 +2,9 @@ import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getStorefrontCustomer } from "@/web/session";
+import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
+import { isSupportedCountry } from "libphonenumber-js";
+import { getCustomerProfile } from "@/server/services/customer-profile";
 import { readCart, requireStorefront } from "@/web/storefront";
 import { priceCart, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
@@ -35,7 +37,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   if (!cart || cart.items.length === 0) redirect(`/r/${restaurant.slug}/menu`);
 
   const availability = serviceAvailability(restaurant, primaryLocation, cart.orderType);
-  const [pricingResult, zones] = await Promise.all([
+  const [pricingResult, zones, profile] = await Promise.all([
     priceCart(restaurant, cart),
     cart.orderType === "delivery"
       ? getLiveDeliveryZones(restaurant.id, {
@@ -43,6 +45,8 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           activeOnly: true,
         })
       : Promise.resolve([]),
+    // the same profile the header drawer shows: account email, saved mobile, saved addresses
+    getCustomerProfile(restaurant, await getVisitorContext(restaurant.id)),
   ]);
   const emailVerified = await isEmailVerified(customer.userId);
 
@@ -132,6 +136,10 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
               : null
           }
           defaultCity={primaryLocation?.city ?? ""}
+          accountEmail={profile.email}
+          savedPhone={profile.phone}
+          savedAddresses={profile.addresses}
+          phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
         />
       </div>
     </div>
