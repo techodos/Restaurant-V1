@@ -1,4 +1,5 @@
 import type { Reservation } from "@/shared/contract/models";
+import { formatDateKey } from "@/shared/hours";
 import type { NotificationRestaurant } from "../types";
 import { escapeHtml, renderEmailLayout } from "./layout";
 import type { RenderedEmail } from "./order-confirmation";
@@ -16,13 +17,7 @@ export interface ReservationEmailInput {
 
 /** "YYYY-MM-DD" → "Friday, 25 September 2026". The date has no time zone, so it is formatted as UTC. */
 export function formatReservationDate(date: string, locale: string): string {
-  const parsed = new Date(`${date}T12:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  try {
-    return parsed.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-  } catch {
-    return date;
-  }
+  return formatDateKey(date, locale);
 }
 
 /** "19:30" is a wall-clock time at the restaurant; shown as written. */

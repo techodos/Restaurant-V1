@@ -42,7 +42,7 @@ export async function findVisitorOrder(
     restaurantId,
     cartToken: visitor.cartToken ?? null,
     customerId: visitor.customerId ?? null,
-    userId: visitor.userId ?? null,
+    userId: null, // a customer is identified by customer_id only (app.current_user_id is staff / auth.users)
   });
 }
 

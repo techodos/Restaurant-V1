@@ -58,10 +58,14 @@ export interface CreateOrderResult {
 
 export async function createOrder(input: CreateOrderInput, ctx: RequestContext): Promise<CreateOrderResult> {
   const db = getDb({ restaurantId: input.restaurantId });
+  // A customer is identified by customer_id only. `userId` (the database session's app.current_user_id /
+  // auth.uid()) is reserved for staff, whose ids live in auth.users: the order triggers write it into
+  // order_status_history.changed_by (FK to auth.users), so a customer's id there failed with 23503.
+  // input.userId still decides below whether the customer row is a guest.
   const context: RequestContext = {
     ...ctx,
     restaurantId: input.restaurantId,
-    userId: input.userId ?? ctx.userId ?? null,
+    userId: null,
     customerId: input.customerId ?? ctx.customerId ?? null,
     actor: input.actor ?? input.customer.fullName,
   };
@@ -495,7 +499,8 @@ export async function listVisitorOrders(
   if (!customerId && !cartToken) return { orders: [], history: false };
 
   const db = getDb({ restaurantId });
-  const ctx: RequestContext = { restaurantId, customerId, cartToken, userId: visitor.userId ?? null };
+  // customer identity is customer_id / cart token only; app.current_user_id (auth.users) is for staff
+  const ctx: RequestContext = { restaurantId, customerId, cartToken, userId: null };
   const active = [...ACTIVE_ORDER_STATUSES];
   const orders = await db.read(ctx, async (tx) => {
     const rows = customerId

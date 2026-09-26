@@ -1,7 +1,7 @@
 import type { Cart, CartItem, Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
 import { DAY_KEYS, type OrderType } from "@/shared/contract/enums";
 import { isOrderTypeEnabled } from "@/shared/ordering";
-import { isOpenAt, timeToMinutes, zonedNow } from "@/shared/hours";
+import { isOpenAt, timeToMinutes, to12Hour, zonedNow } from "@/shared/hours";
 import { forRestaurant, type RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import {
@@ -305,7 +305,7 @@ export function serviceAvailability(
     const reopening = nextOpeningTime(hours, now, restaurant.timezone);
     return closed(
       reopening
-        ? `The kitchen is closed right now — we open again at ${reopening}.`
+        ? `The kitchen is closed right now — we open again at ${to12Hour(reopening)}.`
         : "The kitchen is closed right now — browse the menu and order when we open.",
       reopening,
     );

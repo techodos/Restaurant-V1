@@ -6,7 +6,9 @@ import { getStorefrontCustomer } from "@/web/session";
 import { getStorefrontContext } from "@/web/storefront";
 import { isOpenAt, minutesToTime, timeToMinutes, zonedNow } from "@/shared/hours";
 import { ReservationForm } from "@/components/storefront/reservation-form";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { resolveImage } from "@/web/media";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { breadcrumbJsonLd } from "@/web/seo";
 import { getLocations } from "@/server/services/restaurants";
@@ -49,7 +51,7 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
 
   if (!restaurant.features.reservations || !settings.enabled) {
     return (
-      <div className="container-page py-20">
+      <div className="container-page py-16">
         <div className="mx-auto max-w-lg text-center">
           <span className="mx-auto grid size-16 place-items-center rounded-[var(--radius-card)] ring-8 ring-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] bg-[color-mix(in_srgb,var(--color-ink)_8%,transparent)] text-[var(--color-muted-ink)]">
             <CalendarX className="size-6" aria-hidden />
@@ -133,8 +135,11 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
   const customer = await getStorefrontCustomer(restaurant.id).catch(() => null);
   const defaultDate = dates[0]?.value ?? today.dateKey;
 
+  const cover = resolveImage(restaurant.coverUrl);
+  const phone = restaurant.phone;
+
   return (
-    <div className="container-page py-10 md:py-14">
+    <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: restaurant.name, path: `/r/${restaurant.slug}` },
@@ -142,70 +147,75 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
         ])}
       />
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-14">
-        <div>
-          <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{heading.title ?? `Book a table at ${restaurant.name}`}</h1>
-          <p className="mt-3 max-w-xl text-[var(--color-muted-ink)]">
-            {heading.subtitle ??
-              `Choose a time below — you will get a confirmation code immediately${
-                settings.autoConfirm ? "" : " and a call if we need to adjust anything"
-              }.`}
-          </p>
-
-          <div className="mt-8">
-            <ReservationForm
-              restaurantSlug={restaurant.slug}
-              locations={locations.map((location) => ({
-                id: location.id,
-                name: location.name,
-                area: location.area,
-                city: location.city,
-              }))}
-              dates={dates}
-              slotsByDate={slotsByDate}
-              minGuests={settings.minGuests}
-              maxGuests={settings.maxGuests}
-              slotMinutes={settings.slotMinutes}
-              defaultDate={defaultDate}
-              customerDefaults={customer ? { fullName: customer.name, phone: "", email: "" } : null}
-            />
-          </div>
-        </div>
-
-        <aside className="space-y-5">
-          <div className="surface-card p-6 md:p-7">
-            <h2 className="text-base font-semibold">Good to know</h2>
-            <ul className="mt-3 space-y-3 text-sm text-[var(--color-muted-ink)]">
-              <li className="flex gap-2">
-                <Clock className="mt-0.5 size-4 shrink-0" aria-hidden />
-                Tables are held for 15 minutes after your booking time.
-              </li>
-              <li className="flex gap-2">
-                <Users className="mt-0.5 size-4 shrink-0" aria-hidden />
-                Online bookings take {settings.minGuests}–{settings.maxGuests} guests; call for larger parties.
-              </li>
-              <li className="flex gap-2">
-                <CalendarX className="mt-0.5 size-4 shrink-0" aria-hidden />
-                Need to cancel? Call us and we will release the table for someone else.
-              </li>
-            </ul>
+      {/* the cinematic side: the restaurant's own photograph, the promise and the practical notes */}
+      <aside className="tone-night relative isolate overflow-hidden lg:sticky lg:top-[var(--header-h,4.5rem)] lg:h-[calc(100svh-var(--header-h,4.5rem))]">
+        {cover ? (
+          <>
+            <Image src={cover} alt="" fill priority sizes="(min-width: 1024px) 42vw, 100vw" className="animate-hero -z-20 object-cover" />
+            <span aria-hidden className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgb(0_0_0/0.35)_0%,rgb(0_0_0/0.55)_45%,rgb(0_0_0/0.88)_100%)]" />
+          </>
+        ) : null}
+        <div className="flex h-full flex-col justify-end gap-8 px-5 pb-8 pt-16 md:px-10 lg:px-12 lg:pb-10">
+          <div>
+            <p className="eyebrow animate-rise mb-3 text-white/85">Reservations</p>
+            <h1 className="display-1 animate-rise text-white [animation-delay:80ms]">
+              {heading.title ?? `Book a table at ${restaurant.name}`}
+            </h1>
+            <p className="animate-rise mt-3 max-w-md text-[15px] leading-relaxed text-white/78 [animation-delay:160ms]">
+              {heading.subtitle ??
+                `Choose a time below — you will get a confirmation code immediately${
+                  settings.autoConfirm ? "" : " and a call if we need to adjust anything"
+                }.`}
+            </p>
           </div>
 
-          {restaurant.phone ? (
-            <div className="surface-card p-6 md:p-7">
-              <h2 className="text-base font-semibold">Prefer to talk to us?</h2>
-              <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-                Our team answers the phone during service hours.
-              </p>
-              <Button asChild variant="outline" className="mt-4 w-full">
-                <a href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}>
-                  <Phone aria-hidden />
-                  {restaurant.phone}
+          <ul className="hidden gap-3 border-t border-white/15 pt-6 text-[13.5px] text-white/75 sm:grid">
+            <li className="flex gap-3">
+              <Clock className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+              Tables are held for 15 minutes after your booking time.
+            </li>
+            <li className="flex gap-3">
+              <Users className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+              Online bookings take {settings.minGuests}–{settings.maxGuests} guests; call for larger parties.
+            </li>
+            <li className="flex gap-3">
+              <CalendarX className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+              Need to cancel? Call us and we will release the table for someone else.
+            </li>
+            {phone ? (
+              <li>
+                <a
+                  href={`tel:${phone.replace(/s+/g, "")}`}
+                  className="mt-2 inline-flex items-center gap-2.5 font-semibold text-white underline decoration-white/35 underline-offset-[6px] hover:decoration-white"
+                >
+                  <Phone className="size-4 text-[var(--color-brand-accent)]" aria-hidden />
+                  Prefer to talk? {phone}
                 </a>
-              </Button>
-            </div>
-          ) : null}
-        </aside>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      </aside>
+
+      <div className="px-5 py-10 md:px-10 md:py-12 lg:px-14 xl:px-20">
+        <div className="mx-auto max-w-[46rem]">
+          <ReservationForm
+            restaurantSlug={restaurant.slug}
+            locations={locations.map((location) => ({
+              id: location.id,
+              name: location.name,
+              area: location.area,
+              city: location.city,
+            }))}
+            dates={dates}
+            slotsByDate={slotsByDate}
+            minGuests={settings.minGuests}
+            maxGuests={settings.maxGuests}
+            slotMinutes={settings.slotMinutes}
+            defaultDate={defaultDate}
+            customerDefaults={customer ? { fullName: customer.name, phone: "", email: "" } : null}
+          />
+        </div>
       </div>
     </div>
   );

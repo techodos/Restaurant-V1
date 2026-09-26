@@ -44,7 +44,9 @@ export interface ReservationInput {
 
 export async function createReservation(input: ReservationInput, ctx: RequestContext): Promise<Reservation> {
   const db = getDb({ restaurantId: input.restaurantId });
-  const context: RequestContext = { ...ctx, restaurantId: input.restaurantId, userId: input.userId ?? null };
+  // A customer is identified by customer_id only; the session's app.current_user_id (auth.users, staff) stays
+  // unset (same reason as createOrder). input.userId still decides below whether the customer row is a guest.
+  const context: RequestContext = { ...ctx, restaurantId: input.restaurantId, userId: null };
 
   return db.write(context, async (tx) => {
     if (!input.settings.enabled) {

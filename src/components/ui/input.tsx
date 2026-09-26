@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/shared/utils";
 
 export const inputStyles =
-  "flex h-11 w-full surface-flat px-3.5 py-2 text-[15px] text-[var(--color-ink)] shadow-[0_1px_2px_color-mix(in_srgb,var(--color-ink)_4%,transparent)] transition-[border-color,box-shadow] duration-200 placeholder:text-[color-mix(in_srgb,var(--color-muted-ink)_85%,transparent)] hover:border-[color-mix(in_srgb,var(--color-ink)_22%,var(--color-hairline))] focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-brand)_14%,transparent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-red-500 aria-[invalid=true]:shadow-[0_0_0_4px_rgb(239_68_68/0.12)] sm:text-sm";
+  "flex h-11 w-full surface-flat px-3.5 py-2 text-[15px] text-[var(--color-ink)] shadow-[0_1px_2px_color-mix(in_srgb,var(--color-ink)_4%,transparent)] transition-[border-color,box-shadow] duration-200 placeholder:text-[color-mix(in_srgb,var(--color-muted-ink)_85%,transparent)] hover:border-[color-mix(in_srgb,var(--color-ink)_22%,var(--color-hairline))] focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-brand)_14%,transparent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[var(--color-danger)] aria-[invalid=true]:shadow-[0_0_0_4px_rgb(239_68_68/0.12)] sm:text-sm";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...props }, ref) {
@@ -41,7 +41,7 @@ export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLab
 export function FieldError({ children }: { children?: React.ReactNode }) {
   if (!children) return null;
   return (
-    <p role="alert" className="text-[13px] font-medium text-red-600">
+    <p role="alert" className="text-[13px] font-medium text-[var(--color-danger)]">
       {children}
     </p>
   );

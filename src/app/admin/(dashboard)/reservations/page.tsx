@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { formatDateKey } from "@/shared/hours";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -93,7 +94,7 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
         {result.rows.length === 0 ? (
           <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No reservations match this filter.</p>
         ) : (
-          <table className="tabular w-full text-sm">
+          <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
             <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
               <tr>
                 <th className="px-4 py-3 font-medium">Guest</th>
@@ -113,7 +114,7 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
                     <p className="text-xs text-[var(--color-muted-ink)]">#{reservation.confirmationCode}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <p>{reservation.reservationDate}</p>
+                    <p>{formatDateKey(reservation.reservationDate, undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</p>
                     <p className="text-xs text-[var(--color-muted-ink)]">{reservation.reservationTime}</p>
                   </td>
                   <td className="px-4 py-3">{reservation.guests}</td>
@@ -132,7 +133,7 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
 

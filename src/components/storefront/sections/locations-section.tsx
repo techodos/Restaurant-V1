@@ -1,79 +1,85 @@
-import { Clock, MapPin, Phone } from "lucide-react";
+import { ArrowUpRight, MapPin, Phone } from "lucide-react";
 import type { StorefrontContext } from "@/shared/contract/models";
 import type { LocationsSection as LocationsConfig } from "@/shared/contract/sections";
 import { formatHours, zonedNow } from "@/shared/hours";
+import { cn } from "@/shared/utils";
 import { SectionHeading } from "@/components/storefront/section-heading";
 import { SectionShell } from "@/components/storefront/section-shell";
+import { serviceStatus } from "@/components/storefront/service-status";
 import { getLocations } from "@/server/services/restaurants";
 
+/** Every active location as an editorial block: name, live open / closed line, address, phone and the full week of hours. */
 export async function LocationsSection({ section, context }: { section: LocationsConfig; context: StorefrontContext }) {
   const locations = (await getLocations(context.restaurant.id))
     .filter((location) => location.isActive)
     .slice(0, section.limit);
 
   if (!locations.length) return null;
-  const today = zonedNow(new Date(), context.restaurant.timezone).dayKey;
+  const { timezone } = context.restaurant;
+  const today = zonedNow(new Date(), timezone).dayKey;
   const mapUrl = context.config.contact.mapEmbedUrl;
 
   return (
-    <SectionShell tone="surface">
-      <SectionHeading title={section.title} subtitle={section.subtitle} />
-      <ul className="mt-10 grid gap-5 md:grid-cols-2">
+    <SectionShell tone="paper">
+      <SectionHeading eyebrow="Visit" title={section.title} subtitle={section.subtitle} />
+      <ul className={cn("section-body grid grid-cols-[minmax(0,1fr)] gap-x-14 gap-y-10", locations.length > 1 && "md:grid-cols-2")}>
         {locations.map((location) => {
           const hours = formatHours(location.hours, today);
-          const todayRow = hours.find((row) => row.isToday);
+          const status = serviceStatus(location.hours, new Date(), timezone);
           return (
-            <li
-              key={location.id}
-              className="surface-card flex flex-col gap-5 p-6 md:p-7"
-            >
-              <div>
-                <h3 className="text-2xl font-semibold tracking-[-0.02em]">{location.name}</h3>
-                <p className="mt-2 flex items-start gap-2 text-sm text-[var(--color-muted-ink)]">
-                  <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  <span>
-                    {[location.addressLine1, location.addressLine2, location.area, location.city]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </span>
+            <li key={location.id} className="flex flex-col border-t border-[var(--rule-strong)] pt-8">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                <h3 className="display-2">{location.name}</h3>
+                <p className="flex items-center gap-2 text-[13px] font-semibold">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-2 rounded-full",
+                      status.state === "open"
+                        ? "bg-[var(--color-success)]"
+                        : status.state === "closing"
+                          ? "bg-[var(--color-warning)]"
+                          : "bg-[var(--rule-strong)]",
+                    )}
+                  />
+                  {status.headline}
+                  {status.detail ? <span className="font-normal text-[var(--color-muted-ink)]">{status.detail}</span> : null}
                 </p>
-                {location.phone ? (
-                  <p className="mt-1.5 flex items-center gap-2 text-sm">
-                    <Phone className="size-4 text-[var(--color-muted-ink)]" aria-hidden />
-                    <a href={`tel:${location.phone.replace(/\s+/g, "")}`} className="hover:text-[var(--color-brand)]">
-                      {location.phone}
-                    </a>
-                  </p>
-                ) : null}
               </div>
+              <p className="mt-4 flex items-start gap-2.5 text-[14.5px] text-[var(--color-muted-ink)]">
+                <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+                <span>{[location.addressLine1, location.addressLine2, location.area, location.city].filter(Boolean).join(", ")}</span>
+              </p>
+              {location.phone ? (
+                <p className="mt-2 flex items-center gap-2.5 text-[14.5px]">
+                  <Phone className="size-4 text-[var(--color-brand-accent)]" aria-hidden />
+                  <a href={`tel:${location.phone.replace(/\s+/g, "")}`} className="transition-colors hover:text-[var(--color-brand)]">
+                    {location.phone}
+                  </a>
+                </p>
+              ) : null}
 
-              <div className="flex items-start gap-2 text-sm">
-                <Clock className="mt-0.5 size-4 shrink-0 text-[var(--color-muted-ink)]" aria-hidden />
-                <div>
-                  <p className="font-medium">Today {todayRow?.text ?? "Closed"}</p>
-                  <details className="mt-1 text-[var(--color-muted-ink)]">
-                    <summary className="cursor-pointer text-xs underline-offset-2 hover:underline">All opening hours</summary>
-                    <ul className="mt-2 space-y-1 text-xs">
-                      {hours.map((row) => (
-                        <li key={row.day} className="flex justify-between gap-4">
-                          <span>{row.label}</span>
-                          <span>{row.text || "Closed"}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </div>
-              </div>
+              <dl className="mt-7 grid max-w-sm grid-cols-[auto_minmax(0,1fr)] gap-x-8 gap-y-2 text-[13.5px]">
+                {hours.map((row) => (
+                  <div
+                    key={row.day}
+                    className={cn("contents", row.isToday ? "font-semibold text-[var(--color-ink)]" : "text-[var(--color-muted-ink)]")}
+                  >
+                    <dt>{row.label}</dt>
+                    <dd className="tabular text-right">{row.text || "Closed"}</dd>
+                  </div>
+                ))}
+              </dl>
 
               {section.showMap && location.latitude && location.longitude ? (
                 <a
-                  className="mt-auto inline-flex h-10 w-fit items-center gap-2 rounded-full border border-[var(--color-hairline)] px-4 text-sm font-semibold transition-colors hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
+                  className="link-arrow mt-8"
                   href={mapUrl ?? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`}
                   target="_blank"
                   rel="noreferrer noopener"
                 >
-                  <MapPin className="size-4" aria-hidden />
-                  Open in maps
+                  Get directions
+                  <ArrowUpRight aria-hidden />
                 </a>
               ) : null}
             </li>

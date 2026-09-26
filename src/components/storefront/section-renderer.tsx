@@ -15,6 +15,8 @@ import { ReservationCtaSection } from "@/components/storefront/sections/reservat
 import { ReviewsSection } from "@/components/storefront/sections/reviews-section";
 import { RichTextSection } from "@/components/storefront/sections/rich-text-section";
 import { WhyChooseUsSection } from "@/components/storefront/sections/why-choose-us-section";
+import { sectionTones } from "@/components/storefront/section-rhythm";
+import type { SectionTone } from "@/components/storefront/section-shell";
 import type { StorefrontContext } from "@/shared/contract/models";
 
 /**
@@ -26,7 +28,7 @@ import type { StorefrontContext } from "@/shared/contract/models";
  *    so the page pays only for the sections it actually has.
  */
 
-const RENDERERS: Record<Section["type"], (props: { section: never; context: StorefrontContext }) => React.ReactNode> = {
+const RENDERERS: Record<Section["type"], (props: { section: never; context: StorefrontContext; tone?: SectionTone }) => React.ReactNode> = {
   hero: HeroSection as never,
   announcement: AnnouncementSection as never,
   featured_items: FeaturedItemsSection as never,
@@ -65,19 +67,24 @@ export function SectionRenderer({ context, sections, only, skip, body }: Section
     return true;
   });
 
+  const tones = sectionTones(visible);
+
   return (
     <>
       {visible.map((section, index) => {
         if (section.type === "page_content") return <div key={`body-${index}`}>{body}</div>;
         const Renderer = RENDERERS[section.type];
         if (!Renderer) return null;
+        // A hero that opens the page runs under the header, which floats transparent over it.
+        const overlay = index === 0 && section.type === "hero";
         return (
           <div
             key={`${section.type}-${index}`}
-            className={index === 0 ? "animate-rise" : "reveal"}
+            className={overlay ? "-mt-[var(--header-h,4.25rem)]" : undefined}
+            data-hero-overlay={overlay || undefined}
             data-after={visible[index - 1]?.type}
           >
-            <Renderer section={section as never} context={context} />
+            <Renderer section={section as never} context={context} tone={tones[index]} />
           </div>
         );
       })}

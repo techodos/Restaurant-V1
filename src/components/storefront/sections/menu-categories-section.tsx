@@ -1,21 +1,20 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { StorefrontContext } from "@/shared/contract/models";
 import type { MenuCategoriesSection as CategoriesConfig } from "@/shared/contract/sections";
-import { resolveImage } from "@/web/media";
+import { resolveImage, resolveMenuImage } from "@/web/media";
 import { cn } from "@/shared/utils";
 import { SectionIcon } from "@/components/storefront/icon";
 import { SectionHeading } from "@/components/storefront/section-heading";
 import { SectionShell } from "@/components/storefront/section-shell";
-import { getMenuCategories } from "@/server/services/catalog";
-
-/** extra lg columns the last tile must absorb, by empty-cell count in its row */
-const LG_SPAN: Record<number, string> = { 0: "lg:col-span-1", 1: "lg:col-span-2", 2: "lg:col-span-3", 3: "lg:col-span-4" };
+import { getMenuCategories, searchMenu } from "@/server/services/catalog";
 
 /**
- * Categories as photo tiles. With four or more, the first tile is a double-size feature so the grid has
- * rhythm instead of identical boxes; a tile falls back to its icon when the category has no image.
+ * Visual category discovery. Every category is a tall photograph with its name and dish count. On wide
+ * screens they stand in one row and the one under the pointer widens to show its description; on phones
+ * and tablets they form a two / three column grid. A category without its own photo borrows the photo
+ * of one of its own dishes (real data, never a stock image).
  */
 export async function MenuCategoriesSection({
   section,
@@ -24,75 +23,89 @@ export async function MenuCategoriesSection({
   section: CategoriesConfig;
   context: StorefrontContext;
 }) {
-  const categories = (await getMenuCategories(context.restaurant.id, { withCounts: true })).slice(
-    0,
-    section.limit,
-  );
+  const [allCategories, items] = await Promise.all([
+    getMenuCategories(context.restaurant.id, { withCounts: true }),
+    section.showImages ? searchMenu(context.restaurant.id, { limit: 200 }) : Promise.resolve([]),
+  ]);
+  const categories = allCategories.filter((category) => (category.itemCount ?? 0) > 0).slice(0, section.limit);
   if (!categories.length) return null;
-  const feature = categories.length >= 4;
-  // The last tile stretches to close any gap in its row: the feature tile takes 4 cells, phones have
-  // 2 columns and large screens 4, so the remainder differs per breakpoint.
-  const cells = feature ? categories.length + 3 : categories.length;
-  const phoneSpan = cells % 2 === 1 ? "col-span-2" : "";
-  const desktopSpan = LG_SPAN[(4 - (cells % 4)) % 4] ?? "";
+
+  const photoFor = (categoryId: string, categorySlug: string, own: string | null) => {
+    if (!section.showImages) return null;
+    const direct = resolveImage(own);
+    if (direct) return direct;
+    for (const item of items) {
+      if (item.categoryId !== categoryId) continue;
+      const photo = resolveMenuImage(item.imageUrl, categorySlug);
+      if (photo) return photo;
+    }
+    return null;
+  };
+
+  const menuHref = `/r/${context.restaurant.slug}/menu`;
+  // the last tile closes its row on phones (2 columns) and tablets (3 columns); one row from lg up
+  const phoneSpan = categories.length % 2 === 1 ? "col-span-2" : "col-span-1";
+  const tabletSpan = ["sm:col-span-1", "sm:col-span-3", "sm:col-span-2"][categories.length % 3];
+  const lastSpan = `${phoneSpan} ${tabletSpan}`;
 
   return (
-    <SectionShell tone="surface">
-      <SectionHeading title={section.title} subtitle={section.subtitle} />
-      <ul className="mt-10 grid auto-rows-[10.5rem] grid-cols-2 gap-3 sm:gap-4 md:auto-rows-[13rem] lg:grid-cols-4">
+    <SectionShell tone="muted">
+      <SectionHeading
+        eyebrow="The menu"
+        title={section.title}
+        subtitle={section.subtitle}
+        action={
+          <Link href={menuHref} className="link-arrow">
+            View all categories
+            <ArrowRight aria-hidden />
+          </Link>
+        }
+      />
+
+      <ul className="section-body grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 lg:flex lg:h-[27rem] lg:gap-3">
         {categories.map((category, index) => {
-          const image = section.showImages ? resolveImage(category.imageUrl) : null;
+          const photo = photoFor(category.id, category.slug, category.imageUrl);
           const count = category.itemCount ?? 0;
-          const isFeature = feature && index === 0;
+          const last = index === categories.length - 1;
           return (
             <li
               key={category.id}
               className={cn(
-                isFeature && "col-span-2 row-span-2",
-                index === categories.length - 1 && [phoneSpan, desktopSpan],
+                "group/cat relative lg:min-w-0 lg:flex-1 lg:transition-[flex-grow] lg:duration-700 lg:ease-[cubic-bezier(0.23,1,0.32,1)] lg:hover:flex-[1.9]",
+                last && lastSpan,
               )}
             >
               <Link
-                href={`/r/${context.restaurant.slug}/menu#${category.slug}`}
-                className={cn(
-                  "group relative isolate flex h-full flex-col justify-end overflow-hidden rounded-[var(--radius-card)] p-4 transition-colors md:p-5",
-                  image
-                    ? "bg-[var(--color-brand-secondary)] text-white"
-                    : "border border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-brand)_7%,var(--color-surface))] text-[var(--color-ink)] hover:border-[var(--color-brand)]",
-                )}
+                href={`${menuHref}#${category.slug}`}
+                className="group relative isolate flex h-full min-h-[13rem] flex-col justify-end overflow-hidden rounded-[var(--radius-card)] bg-[var(--color-night)] p-4 text-white sm:min-h-[15rem] md:p-5"
               >
-                {image ? (
-                  <>
-                    <Image
-                      src={image}
-                      alt=""
-                      fill
-                      sizes={isFeature ? "(min-width: 1024px) 50vw, 100vw" : "(min-width: 1024px) 25vw, 50vw"}
-                      className="-z-20 object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.06]"
-                    />
-                    <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-                  </>
+                {photo ? (
+                  <Image
+                    src={photo}
+                    alt=""
+                    fill
+                    sizes="(min-width: 1024px) 24vw, (min-width: 640px) 33vw, 50vw"
+                    className="zoom-on-hover -z-20 object-cover"
+                  />
                 ) : (
-                  <span aria-hidden className="absolute left-4 top-4 -z-10 text-[var(--color-brand)] md:left-5 md:top-5">
-                    <SectionIcon name={category.icon} className={isFeature ? "size-10" : "size-7"} />
+                  <span aria-hidden className="absolute right-4 top-4 -z-10 text-[var(--color-brand-accent)] opacity-70">
+                    <SectionIcon name={category.icon} className="size-7" />
                   </span>
                 )}
-                <span className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-[color-mix(in_srgb,currentColor_14%,transparent)] opacity-0 backdrop-blur-md transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
-                  <ArrowUpRight className="size-4" aria-hidden />
-                </span>
-                <span
-                  className={cn(
-                    "block font-[family-name:var(--font-display)] font-semibold leading-tight tracking-[-0.02em]",
-                    isFeature ? "text-2xl md:text-4xl" : "text-lg md:text-xl",
-                  )}
-                >
+                <span aria-hidden className="scrim-bottom absolute inset-0 -z-10" />
+                <span className="font-[family-name:var(--font-display)] text-[1.2rem] leading-tight md:text-[1.4rem]">
                   {category.name}
                 </span>
-                {isFeature && category.description ? (
-                  <span className="mt-2 hidden max-w-sm text-sm opacity-80 md:block">{category.description}</span>
+                {category.description ? (
+                  <span className="hidden max-h-0 overflow-hidden text-[13px] leading-relaxed text-white/75 opacity-0 transition-[max-height,opacity,margin] duration-500 lg:block lg:group-hover/cat:mt-2 lg:group-hover/cat:max-h-24 lg:group-hover/cat:opacity-100">
+                    {category.description}
+                  </span>
                 ) : null}
-                <span className="mt-1 block text-xs font-medium opacity-70">
-                  {count} dish{count === 1 ? "" : "es"}
+                <span className="mt-2 flex items-center gap-2 text-[12px] font-medium text-white/75">
+                  <span className="tabular">
+                    {count} dish{count === 1 ? "" : "es"}
+                  </span>
+                  <ArrowRight className="size-3.5 transition-transform duration-300 group-hover:translate-x-1" aria-hidden />
                 </span>
               </Link>
             </li>

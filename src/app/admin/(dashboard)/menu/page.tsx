@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
+import { resolveMenuImage } from "@/web/media";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -96,7 +98,7 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
           {items.length === 0 ? (
             <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No items in this category yet.</p>
           ) : (
-            <table className="tabular w-full text-sm">
+            <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
               <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
                 <tr>
                   <th className="px-4 py-3 font-medium">Item</th>
@@ -108,14 +110,22 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
               <tbody className="divide-y divide-[var(--color-hairline)]">
                 {items.map((item) => (
                   <tr key={item.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
-                    <td className="px-4 py-3">
-                      {canManage ? (
-                        <Link href={`/admin/menu/items/${item.id}`} className="font-medium text-[var(--color-brand)] hover:underline">
-                          {item.name}
-                        </Link>
-                      ) : (
-                        <span className="font-medium">{item.name}</span>
-                      )}
+                    <td className="px-4 py-2.5">
+                      <span className="flex items-center gap-3">
+                        {/* the dish photo: staff scan a menu by picture as much as by name */}
+                        <span className="relative size-10 shrink-0 overflow-hidden rounded-[var(--radius-brand)] bg-[var(--steel-2)]">
+                          {resolveMenuImage(item.imageUrl, item.categorySlug ?? null) ? (
+                            <Image src={resolveMenuImage(item.imageUrl, item.categorySlug ?? null)!} alt="" fill sizes="40px" className="object-cover" />
+                          ) : null}
+                        </span>
+                        {canManage ? (
+                          <Link href={`/admin/menu/items/${item.id}`} className="font-medium hover:text-[var(--color-brand)] hover:underline">
+                            {item.name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium">{item.name}</span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-[var(--color-muted-ink)]">{item.categoryName}</td>
                     <td className="px-4 py-3 font-medium">
@@ -130,7 +140,7 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </Card>
       </section>

@@ -50,7 +50,7 @@ export function ContactForm({ restaurantSlug, restaurantName }: ContactFormProps
     <form
       onSubmit={handleSubmit}
       noValidate
-      className="space-y-4 surface-flat p-6"
+      className="space-y-4 rounded-[var(--radius-panel)] bg-[var(--steel-1)] p-6 md:p-7"
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">

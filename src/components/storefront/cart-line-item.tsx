@@ -4,11 +4,12 @@ import { useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Loader2, Minus, Plus, Trash2 } from "lucide-react";
+import { Loader2, Minus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { updateCartItemAction, removeCartItemAction } from "@/app/r/[restaurantSlug]/cart/actions";
 import { formatMoney } from "@/shared/money";
 import type { CartItem } from "@/shared/contract/models";
+import { cn } from "@/shared/utils";
 
 interface CartLineItemProps {
   restaurantSlug: string;
@@ -18,7 +19,7 @@ interface CartLineItemProps {
   locale: string;
 }
 
-/** One cart row: quantity edits and removal both go through server actions. */
+/** One line in the tray: quantity edits and removal both go through server actions. */
 export function CartLineItem({ restaurantSlug, item, image, currencySymbol, locale }: CartLineItemProps) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -38,68 +39,67 @@ export function CartLineItem({ restaurantSlug, item, image, currencySymbol, loca
     run(() => updateCartItemAction(restaurantSlug, { cartItemId: item.id, quantity }));
 
   return (
-    <li className="flex gap-4 border-b border-[var(--color-hairline)] py-5 last:border-b-0">
-      <div className="relative size-20 shrink-0 overflow-hidden rounded-[var(--radius-card)] bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)] sm:size-24">
+    <li className={cn("grid grid-cols-[4.5rem_minmax(0,1fr)] gap-4 py-5 transition-opacity duration-200 sm:grid-cols-[5.5rem_minmax(0,1fr)]", pending && "opacity-60")}>
+      <div className="plate">
         {image ? (
-          <Image src={image} alt="" fill sizes="96px" className="object-cover" />
+          <Image src={image} alt="" fill sizes="88px" className="object-cover" />
         ) : (
-          <span className="grid h-full place-items-center text-xl font-semibold text-[var(--color-muted-ink)]" aria-hidden>
+          <span className="grid h-full place-items-center font-[family-name:var(--font-display)] text-2xl text-[var(--color-muted-ink)]" aria-hidden>
             {item.itemName.slice(0, 1)}
           </span>
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate font-semibold">
+            <p className="truncate text-[15px] font-semibold">
               {item.slug ? (
-                <Link href={`/r/${restaurantSlug}/menu/${item.slug}`} className="hover:text-[var(--color-brand)]">
+                <Link href={`/r/${restaurantSlug}/menu/${item.slug}`} scroll={false} className="hover:text-[var(--color-brand)]">
                   {item.itemName}
                 </Link>
               ) : (
                 item.itemName
               )}
             </p>
-            {item.variantName ? <p className="text-sm text-[var(--color-muted-ink)]">{item.variantName}</p> : null}
-            {item.addons.length ? (
-              <ul className="mt-1 text-xs text-[var(--color-muted-ink)]">
-                {item.addons.map((addon) => (
-                  <li key={addon.id}>
-                    + {addon.addonName}
-                    {addon.quantity > 1 ? ` ×${addon.quantity}` : ""}
-                  </li>
-                ))}
-              </ul>
+            {item.variantName || item.addons.length ? (
+              <p className="mt-0.5 text-[13px] leading-snug text-[var(--color-muted-ink)]">
+                {[
+                  item.variantName,
+                  ...item.addons.map((addon) => `${addon.addonName}${addon.quantity > 1 ? ` ×${addon.quantity}` : ""}`),
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
             ) : null}
             {item.specialInstructions ? (
-              <p className="mt-1 text-xs italic text-[var(--color-muted-ink)]">“{item.specialInstructions}”</p>
+              <p className="mt-1 text-xs italic text-[var(--color-muted-ink)]">&ldquo;{item.specialInstructions}&rdquo;</p>
             ) : null}
           </div>
-          <p className="tabular whitespace-nowrap font-semibold">
+          <p className="tabular whitespace-nowrap text-[15px] font-semibold">
             {formatMoney(item.lineTotal, { currency: currencySymbol, locale })}
           </p>
         </div>
 
-        <div className="mt-3 flex items-center gap-3">
-          <div className="flex items-center rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]">
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="flex h-9 items-center rounded-full border border-[var(--rule-strong)]">
             <button
               type="button"
-              aria-label={`Decrease quantity of ${item.itemName}`}
-              className="grid size-9 place-items-center disabled:opacity-40"
+              aria-label={item.quantity === 1 ? `Remove ${item.itemName}` : `Decrease quantity of ${item.itemName}`}
+              className="press grid size-9 place-items-center disabled:opacity-40"
               onClick={() => setQuantity(item.quantity - 1)}
               disabled={pending}
             >
               <Minus className="size-3.5" aria-hidden />
             </button>
-            <span aria-live="polite" className="w-8 text-center text-sm font-medium">
-              {pending ? <Loader2 className="mx-auto size-3.5 animate-spin" aria-hidden /> : item.quantity}
+            <span aria-live="polite" className="tabular w-7 text-center text-sm font-semibold">
+              {pending ? <Loader2 className="mx-auto size-3.5 animate-spin" aria-hidden /> : <span key={item.quantity} className="animate-tick inline-block">{item.quantity}</span>}
             </span>
             <button
               type="button"
               aria-label={`Increase quantity of ${item.itemName}`}
               data-testid="cart-line-increase"
-              className="grid size-9 place-items-center disabled:opacity-40"
+              className="press grid size-9 place-items-center disabled:opacity-40"
               onClick={() => setQuantity(item.quantity + 1)}
               disabled={pending || item.quantity >= 99}
             >
@@ -109,11 +109,11 @@ export function CartLineItem({ restaurantSlug, item, image, currencySymbol, loca
 
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] hover:text-red-600 disabled:opacity-40"
+            className="press inline-flex items-center gap-1 text-[13px] text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-danger)] disabled:opacity-40"
             onClick={() => run(() => removeCartItemAction(restaurantSlug, { cartItemId: item.id }))}
             disabled={pending}
           >
-            <Trash2 className="size-4" aria-hidden />
+            <X className="size-3.5" aria-hidden />
             Remove
           </button>
         </div>

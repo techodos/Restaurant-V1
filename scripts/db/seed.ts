@@ -145,7 +145,7 @@ await query(
         linkLabel: "Order now",
         linkHref: "/r/bella-napoli/menu",
       },
-      navigation: { items: BELLA.nav, showCart: true, sticky: true },
+      navigation: { items: BELLA.nav, showCart: true, sticky: true, tone: "dark" },
       footer: {
         tagline: "Wood-fired pizza, fresh pasta and dolci — made in Lahore since 2014.",
         columns: [

@@ -11,6 +11,10 @@ import { ReviewForm } from "@/components/storefront/review-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getPublicReviews, getReviewSummary } from "@/server/services/reviews";
+import { MessageSquareQuote } from "lucide-react";
+import { EmptyState } from "@/components/storefront/empty-state";
+import { PageHero } from "@/components/storefront/page-hero";
+import { resolveImage } from "@/web/media";
 
 interface ReviewsPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -62,9 +66,13 @@ async function renderReviews(
   ]);
 
   const maxCount = Math.max(1, ...Object.values(breakdown.distribution));
+  const spotlight = reviews.find((review) => review.isFeatured && review.comment) ?? null;
+  const rest = spotlight ? reviews.filter((review) => review.id !== spotlight.id) : reviews;
+  const date = (value: string) =>
+    new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <div className="container-page py-10 md:py-14">
+    <>
       <JsonLd data={reviewsJsonLd(reviews, restaurant)} />
       <JsonLd
         data={breadcrumbJsonLd([
@@ -73,105 +81,122 @@ async function renderReviews(
         ])}
       />
 
-      <header className="max-w-2xl">
-        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{heading.title ?? "Guest reviews"}</h1>
-        <p className="mt-3 text-[var(--color-muted-ink)]">
-          {heading.subtitle ??
-            (breakdown.count > 0
-              ? `${breakdown.count} verified review${breakdown.count === 1 ? "" : "s"} · ${breakdown.average.toFixed(1)} average`
-              : "No published reviews yet — be the first to write one.")}
-        </p>
-      </header>
-
-      <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-14">
-        <aside className="space-y-6">
-          <div className="surface-card p-6 md:p-7">
-            <p className="font-[family-name:var(--font-heading)] text-4xl font-semibold">{breakdown.average.toFixed(1)}</p>
-            <RatingStars rating={breakdown.average} size="md" className="mt-2" />
-            <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-              {breakdown.count} review{breakdown.count === 1 ? "" : "s"}
-            </p>
-            <ul className="mt-5 space-y-2 text-sm">
-              {([5, 4, 3, 2, 1] as const).map((star) => {
-                const count = breakdown.distribution[star];
-                return (
-                  <li key={star} className="flex items-center gap-3">
-                    <span className="w-8 text-[var(--color-muted-ink)]">{star}★</span>
-                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--color-ink)_8%,transparent)]">
-                      <span
-                        className="block h-full rounded-full bg-[var(--color-brand)]"
-                        style={{ width: `${(count / maxCount) * 100}%` }}
-                      />
-                    </span>
-                    <span className="w-6 text-right text-[var(--color-muted-ink)]">{count}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          {order ? (
-            <ReviewForm restaurantSlug={restaurant.slug} orderNumber={order} accessToken={accessToken} defaultName={customer?.name ?? ""} />
-          ) : (
-            <div className="surface-card p-6 md:p-7">
-              <h2 className="text-base font-semibold">Review your order</h2>
-              <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-                Reviews are linked to completed orders, so we can keep them honest. Open your order page to write one.
+      <PageHero
+        overlay={heading.leading}
+        size="sm"
+        image={resolveImage(restaurant.coverUrl)}
+        eyebrow="Reviews"
+        title={heading.title ?? "Guest reviews"}
+        subtitle={
+          heading.subtitle ??
+          (breakdown.count > 0
+            ? `${breakdown.count} verified review${breakdown.count === 1 ? "" : "s"} from real orders and bookings.`
+            : "No published reviews yet. Be the first to write one.")
+        }
+        aside={
+          breakdown.count > 0 ? (
+            <div className="text-white lg:text-right">
+              <p className="tabular font-[family-name:var(--font-display)] text-[4.5rem] leading-none md:text-[5.5rem]">
+                {breakdown.average.toFixed(1)}
               </p>
-              <Button asChild variant="outline" className="mt-4 w-full">
-                <Link href={`/r/${restaurant.slug}/menu`}>Order something first</Link>
-              </Button>
+              <RatingStars rating={breakdown.average} size="md" className="mt-2 lg:justify-end" />
+              <p className="mt-2 text-[13px] text-white/70">out of 5 · {breakdown.count} verified review{breakdown.count === 1 ? "" : "s"}</p>
             </div>
-          )}
-        </aside>
+          ) : null
+        }
+      />
 
-        <div>
-          {reviews.length === 0 ? (
-            <div className="rounded-[var(--radius-brand)] border border-dashed border-[var(--color-hairline)] p-12 text-center">
-              <p className="font-medium">No published reviews yet</p>
-              <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
+      {spotlight ? (
+        <section className="tone-night">
+          <figure className="container-page py-12 md:py-16">
+            <span aria-hidden className="block font-[family-name:var(--font-display)] text-[5rem] leading-[0.5] text-[var(--color-brand-accent)]">
+              &ldquo;
+            </span>
+            <blockquote className="display-2 mt-5 max-w-4xl md:display-1">{spotlight.comment}</blockquote>
+            <figcaption className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-[var(--color-muted-ink)]">
+              <span className="font-semibold text-[var(--color-ink)]">{spotlight.authorName}</span>
+              <RatingStars rating={spotlight.rating} />
+              {spotlight.itemName ? <span>on {spotlight.itemName}</span> : null}
+              <Badge variant="soft">Featured</Badge>
+            </figcaption>
+          </figure>
+        </section>
+      ) : null}
+
+      <div className="container-page section-y">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-14">
+          <aside className="space-y-8 lg:sticky lg:top-[calc(var(--header-h,4.5rem)+2rem)] lg:self-start">
+            <div>
+              <p className="eyebrow mb-4">How guests rate us</p>
+              <ul className="space-y-3 text-sm">
+                {([5, 4, 3, 2, 1] as const).map((star) => {
+                  const count = breakdown.distribution[star];
+                  return (
+                    <li key={star} className="flex items-center gap-4">
+                      <span className="tabular w-8 text-[var(--color-muted-ink)]">{star}★</span>
+                      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--tint-strong)]">
+                        <span
+                          className="block h-full rounded-full bg-[var(--color-brand-accent)]"
+                          style={{ width: `${(count / maxCount) * 100}%` }}
+                        />
+                      </span>
+                      <span className="tabular w-6 text-right text-[var(--color-muted-ink)]">{count}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {order ? (
+              <ReviewForm restaurantSlug={restaurant.slug} orderNumber={order} accessToken={accessToken} defaultName={customer?.name ?? ""} />
+            ) : (
+              <div className="border-t border-[var(--rule)] pt-6">
+                <h2 className="display-3">Review your order</h2>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--color-muted-ink)]">
+                  Reviews are linked to completed orders, so we can keep them honest. Open your order page to write one.
+                </p>
+                <Button asChild variant="outline" className="mt-5">
+                  <Link href={`/r/${restaurant.slug}/menu`}>Order something first</Link>
+                </Button>
+              </div>
+            )}
+          </aside>
+
+          <div>
+            {reviews.length === 0 ? (
+              <EmptyState icon={MessageSquareQuote} title="No published reviews yet">
                 Reviews appear here after the restaurant approves them.
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-4">
-              {reviews.map((review) => (
-                <li
-                  key={review.id}
-                  className="surface-card p-6 md:p-7"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{review.authorName}</p>
-                      <p className="text-xs text-[var(--color-muted-ink)]">
-                        {new Date(review.createdAt).toLocaleDateString(undefined, {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {review.isFeatured ? <Badge variant="soft">Featured</Badge> : null}
+              </EmptyState>
+            ) : (
+              <ul className="border-b border-[var(--rule)]">
+                {rest.map((review) => (
+                  <li key={review.id} className="reveal border-t border-[var(--rule)] py-7">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                       <RatingStars rating={review.rating} />
+                      {review.isFeatured ? <Badge variant="soft">Featured</Badge> : null}
+                      <span className="text-[12.5px] text-[var(--color-muted-ink)]">{date(review.createdAt)}</span>
                     </div>
-                  </div>
-                  {review.title ? <p className="mt-3 font-semibold">{review.title}</p> : null}
-                  {review.comment ? <p className="mt-2 text-sm text-[var(--color-muted-ink)]">{review.comment}</p> : null}
-                  {review.itemName ? (
-                    <p className="mt-3 text-xs text-[var(--color-muted-ink)]">About: {review.itemName}</p>
-                  ) : null}
-                  {review.response ? (
-                    <p className="mt-4 rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-brand)_8%,transparent)] p-3 text-sm">
-                      <span className="font-semibold">{restaurant.name} replied:</span> {review.response}
+                    {review.title ? <h3 className="display-3 mt-4">{review.title}</h3> : null}
+                    {review.comment ? (
+                      <p className="mt-3 max-w-[62ch] text-[15.5px] leading-relaxed text-[var(--color-muted-ink)]">{review.comment}</p>
+                    ) : null}
+                    <p className="mt-4 text-[13px]">
+                      <span className="font-semibold">{review.authorName}</span>
+                      {review.itemName ? <span className="text-[var(--color-muted-ink)]"> · on {review.itemName}</span> : null}
                     </p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
+                    {review.response ? (
+                      <p className="mt-5 border-l-2 border-[var(--color-brand-accent)] pl-4 text-sm leading-relaxed">
+                        <span className="font-semibold">{restaurant.name} replied:</span>{" "}
+                        <span className="text-[var(--color-muted-ink)]">{review.response}</span>
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

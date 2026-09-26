@@ -57,8 +57,29 @@ test.describe("customer storefront", () => {
     await expect(page.getByText(/Discount \(WELCOME10\)/)).toBeVisible();
   });
 
-  test("places a guest order and tracks it from order_status_history", async ({ page }) => {
+  test("a guest cannot check out: checkout sends them to sign in and back", async ({ page }) => {
     await page.goto(`/r/${SLUG}/menu`);
+    await page.getByTestId("quick-add-gulab-jamun").first().click();
+    await expect(page.getByText(/added$/i)).toBeVisible();
+
+    await page.goto(`/r/${SLUG}/checkout`);
+    await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/account/sign-in\\?returnTo=%2Fr%2F${SLUG}%2Fcheckout`));
+    await expect(page.getByTestId("place-order")).toHaveCount(0);
+  });
+
+  // Orders need a signed-in, email-verified customer: set E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD to a
+  // verified account of this restaurant to run the full order flow.
+  test("a verified customer places an order and tracks it from order_status_history", async ({ page }) => {
+    const email = process.env.E2E_CUSTOMER_EMAIL;
+    const password = process.env.E2E_CUSTOMER_PASSWORD;
+    test.skip(!email || !password, "E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD not set");
+
+    await page.goto(`/r/${SLUG}/account/sign-in?returnTo=${encodeURIComponent(`/r/${SLUG}/menu`)}`);
+    await page.getByLabel("Email").fill(email!);
+    await page.getByLabel("Password").fill(password!);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/menu`));
+
     await page.getByTestId("quick-add-gulab-jamun").first().click();
     await expect(page.getByText(/added$/i)).toBeVisible();
 
@@ -89,7 +110,7 @@ test.describe("customer storefront", () => {
     await expect(page.getByRole("heading", { name: /Book a table/ })).toBeVisible();
 
     // pick a few days out so earlier runs' bookings cannot exhaust the slots
-    await page.getByLabel("Date").selectOption({ index: 3 });
+    await page.getByRole("radiogroup", { name: "Date" }).getByRole("radio").nth(3).click();
 
     const freeSlots = page.locator("button[data-testid^='slot-']:not([disabled])");
     await expect(freeSlots.first()).toBeVisible({ timeout: 15_000 });

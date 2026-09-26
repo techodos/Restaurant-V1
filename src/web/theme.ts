@@ -2,19 +2,21 @@ import type { RestaurantTheme } from "@/shared/contract/settings";
 
 /** Presentation only: turns a resolved theme into CSS custom properties. */
 
+// Every catalogue name maps to its self-hosted next/font variable (web/fonts.ts) first, then fallbacks.
+const SERIF = '"Iowan Old Style", Georgia, serif';
+const SANS = '-apple-system, "Segoe UI", Roboto, sans-serif';
 const FONT_STACKS: Record<string, string> = {
-  // the two fonts next/font loads (app/layout.tsx) go through its variables so the self-hosted file is used
-  "playfair display": 'var(--font-display-fallback), "Playfair Display", "Iowan Old Style", Georgia, serif',
-  "dm serif display": '"DM Serif Display", Georgia, serif',
-  "cormorant garamond": '"Cormorant Garamond", Georgia, serif',
-  "libre baskerville": '"Libre Baskerville", Georgia, serif',
-  merriweather: "Merriweather, Georgia, serif",
-  lora: "Lora, Georgia, serif",
-  inter: 'var(--font-sans-fallback), Inter, -apple-system, "Segoe UI", Roboto, sans-serif',
-  "dm sans": '"DM Sans", -apple-system, "Segoe UI", Roboto, sans-serif',
-  manrope: 'Manrope, -apple-system, "Segoe UI", Roboto, sans-serif',
-  poppins: 'Poppins, -apple-system, "Segoe UI", Roboto, sans-serif',
-  "source sans 3": '"Source Sans 3", -apple-system, "Segoe UI", Roboto, sans-serif',
+  "playfair display": `var(--font-playfair), ${SERIF}`,
+  "dm serif display": `var(--font-dm-serif), ${SERIF}`,
+  "cormorant garamond": `var(--font-cormorant), ${SERIF}`,
+  "libre baskerville": `var(--font-baskerville), ${SERIF}`,
+  merriweather: `var(--font-merriweather), ${SERIF}`,
+  lora: `var(--font-lora), ${SERIF}`,
+  inter: `var(--font-inter), ${SANS}`,
+  "dm sans": `var(--font-dm-sans), ${SANS}`,
+  manrope: `var(--font-manrope), ${SANS}`,
+  poppins: `var(--font-poppins), ${SANS}`,
+  "source sans 3": `var(--font-source-sans), ${SANS}`,
   georgia: 'Georgia, "Times New Roman", serif',
   system: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
 };
@@ -70,5 +72,24 @@ export function themeCssVariables(theme: RestaurantTheme): Record<string, string
     // Same reason for the fonts: without these, headings fell back to Georgia and body text to system-ui.
     "--font-display": vars["--brand-font-heading"]!,
     "--font-sans": vars["--brand-font-body"]!,
+    ...semanticTokens(theme),
+  };
+}
+
+/**
+ * The editorial tokens (dark "night" sections, a muted paper, status colours). Each one is the theme's
+ * own value when set, otherwise derived from the core colours, so an older theme gets a night surface
+ * tinted by its own secondary colour and a paper tinted by its own ink: never a fixed palette.
+ */
+function semanticTokens(theme: RestaurantTheme): Record<string, string> {
+  return {
+    "--color-night": theme.surfaceDark ?? `color-mix(in oklab, ${theme.secondary} 58%, #0a0a09)`,
+    "--color-on-night": theme.foregroundOnDark ?? theme.background,
+    "--color-canvas-muted": theme.surfaceMuted ?? `color-mix(in oklab, ${theme.foreground} 5%, ${theme.background})`,
+    "--color-brand-accent-foreground": theme.accentForeground ?? theme.foreground,
+    "--color-success": theme.success ?? "#2E7D4F",
+    "--color-warning": theme.warning ?? "#B26B00",
+    "--color-danger": theme.danger ?? "#B42318",
+    "--color-info": theme.info ?? "#2F5E9E",
   };
 }

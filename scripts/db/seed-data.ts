@@ -188,6 +188,8 @@ export const BELLA = {
     bodyFont: "Inter",
     radius: "md",
     dark: false,
+    // warm espresso for the night sections and header (the cool secondary slate clashed with the red/gold/cream palette)
+    surfaceDark: "#1C1512",
   },
 
   nav: [

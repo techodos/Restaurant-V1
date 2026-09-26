@@ -8,6 +8,7 @@ import { Input, Label, FieldError } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { signUpAction } from "@/app/r/[restaurantSlug]/account/actions";
+import { signInHref } from "@/shared/return-to";
 
 interface SignUpFormProps {
   restaurantSlug: string;
@@ -16,9 +17,11 @@ interface SignUpFormProps {
   onAuthenticated?: () => void;
   /** Embedded in a modal next to a "Sign in" tab switch instead of a page link. */
   onSwitchToSignIn?: () => void;
+  /** already-sanitized path to land on after verifying (e.g. checkout); defaults to the account page */
+  returnTo?: string | null;
 }
 
-export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignIn }: SignUpFormProps) {
+export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignIn, returnTo = null }: SignUpFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [fullName, setFullName] = useState("");
@@ -56,7 +59,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
               router.refresh();
               return;
             }
-            router.push(`/r/${restaurantSlug}/account`);
+            router.push(returnTo ?? `/r/${restaurantSlug}/account`);
             router.refresh();
           }}
         />
@@ -95,7 +98,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
       </Button>
       {googleEnabled ? (
         <a
-          href={`/r/${restaurantSlug}/account/google?returnTo=${encodeURIComponent(pathname)}`}
+          href={`/r/${restaurantSlug}/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] text-sm font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
         >
           Continue with Google
@@ -108,7 +111,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
             Sign in
           </button>
         ) : (
-          <Link href={`/r/${restaurantSlug}/account/sign-in`} className="font-medium underline">Sign in</Link>
+          <Link href={signInHref(restaurantSlug, returnTo)} className="font-medium underline">Sign in</Link>
         )}
       </p>
     </form>

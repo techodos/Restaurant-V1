@@ -30,7 +30,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Service",
     items: [
-      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/admin", label: "Service", icon: LayoutDashboard },
       { href: "/admin/orders", label: "Orders", icon: ClipboardList, permission: "orders.view" },
       { href: "/admin/kitchen", label: "Kitchen", icon: ChefHat, permission: "kitchen.view" },
       { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck, permission: "reservations.view" },
@@ -69,7 +69,7 @@ function NavList({ permissions, onNavigate }: { permissions: Permission[]; onNav
     <nav aria-label="Admin" className="space-y-6">
       {visibleGroups(permissions).map((group) => (
         <div key={group.title}>
-          <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted-ink)]">
+          <p className="px-3 text-[10.5px] font-semibold uppercase tracking-[0.2em] text-[color-mix(in_srgb,var(--color-muted-ink)_80%,transparent)]">
             {group.title}
           </p>
           <ul className="mt-2 space-y-0.5">
@@ -83,14 +83,14 @@ function NavList({ permissions, onNavigate }: { permissions: Permission[]; onNav
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "group flex items-center gap-3 rounded-[var(--radius-brand)] px-3 py-2 text-sm font-medium transition-colors duration-150",
+                      "group relative flex items-center gap-3 rounded-[var(--radius-brand)] px-3 py-2 text-sm font-medium transition-colors duration-150",
                       active
-                        ? "bg-[var(--color-ink)] text-[var(--color-surface)]"
-                        : "text-[color-mix(in_srgb,var(--color-ink)_72%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-ink)_5%,transparent)] hover:text-[var(--color-ink)]",
+                        ? "bg-[var(--tint-strong)] text-[var(--color-ink)] before:absolute before:inset-y-2 before:left-0 before:w-[2px] before:rounded-full before:bg-[var(--color-brand-accent)]"
+                        : "text-[var(--color-muted-ink)] hover:bg-[var(--tint)] hover:text-[var(--color-ink)]",
                     )}
                   >
                     <Icon
-                      className={cn("size-4 shrink-0", active ? "opacity-100" : "opacity-70 group-hover:opacity-100")}
+                      className={cn("size-4 shrink-0", active ? "text-[var(--color-brand-accent)]" : "opacity-70 group-hover:opacity-100")}
                       aria-hidden
                     />
                     {item.label}
@@ -115,7 +115,7 @@ function Brand({ restaurantName }: { restaurantName: string }) {
         {restaurantName.slice(0, 1)}
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold leading-tight">{restaurantName}</span>
+        <span className="block truncate font-[family-name:var(--font-heading)] text-[1.1rem] leading-tight">{restaurantName}</span>
         <span className="block text-xs text-[var(--color-muted-ink)]">Restaurant admin</span>
       </span>
     </div>
@@ -125,8 +125,8 @@ function Brand({ restaurantName }: { restaurantName: string }) {
 /** Desktop sidebar (lg and up). Phones and tablets use AdminMobileNav in the header instead. */
 export function AdminSidebar({ permissions, restaurantName }: { permissions: Permission[]; restaurantName: string }) {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-[var(--color-hairline)] bg-[var(--color-surface)] lg:flex">
-      <div className="border-b border-[var(--color-hairline)] px-5 py-5">
+    <aside className="tone-night sticky top-0 hidden h-dvh w-64 shrink-0 flex-col lg:flex">
+      <div className="border-b border-[var(--rule)] px-5 py-5">
         <Brand restaurantName={restaurantName} />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-5">
@@ -174,14 +174,14 @@ export function AdminMobileNav({ permissions, restaurantName }: { permissions: P
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-[color-mix(in_srgb,var(--color-ink)_45%,transparent)] backdrop-blur-sm"
           />
-          <div className="animate-sheet absolute inset-y-0 left-0 flex w-[min(20rem,86vw)] flex-col bg-[var(--color-surface)] shadow-[var(--shadow-raised)]">
-            <div className="flex items-center justify-between border-b border-[var(--color-hairline)] px-5 py-4">
+          <div className="tone-night animate-sheet absolute inset-y-0 left-0 flex w-[min(20rem,86vw)] flex-col shadow-[var(--shadow-raised)]">
+            <div className="flex items-center justify-between border-b border-[var(--rule)] px-5 py-4">
               <Brand restaurantName={restaurantName} />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close navigation"
-                className="grid size-9 place-items-center rounded-full hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
+                className="grid size-9 place-items-center rounded-full hover:bg-[var(--tint-strong)]"
               >
                 <X className="size-4" aria-hidden />
               </button>

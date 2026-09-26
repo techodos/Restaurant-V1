@@ -20,7 +20,8 @@ export function parseOpeningHours(raw: unknown): OpeningHours {
       const close = (entry as Record<string, unknown>).close;
       if (typeof open !== "string" || typeof close !== "string") continue;
       if (!isTimeString(open) || !isTimeString(close)) continue;
-      windows.push({ open, close });
+      // "00:00–23:59" is how people type "all day"; store it as the open === close 24h marker
+      windows.push(open === "00:00" && close === "23:59" ? { open, close: open } : { open, close });
     }
     if (windows.length) result[day] = windows;
   }
@@ -130,7 +131,7 @@ export function formatHours(hours: OpeningHours, today?: DayKey): HoursRow[] {
       day,
       label: DAY_LABELS[day],
       text: windows.length
-        ? windows.map((window) => `${to12Hour(window.open)} – ${to12Hour(window.close)}`).join(", ")
+        ? windows.map((window) => (window.open === window.close ? "Open 24 hours" : `${to12Hour(window.open)} – ${to12Hour(window.close)}`)).join(", ")
         : "Closed",
       isToday: day === today,
     };
@@ -185,4 +186,24 @@ export function isWindowActive(window: AvailabilityWindow, date: Date, timeZone:
     return isWithinWindow(now.minutes, { open: window.from, close: window.to });
   }
   return true;
+}
+
+/**
+ * A calendar date key ("2026-09-26", a restaurant-local date with no time) for display. Read in UTC at
+ * noon so the viewer's own time zone can never move it to the neighbouring day. Anything that is not a
+ * date key is returned unchanged.
+ */
+export function formatDateKey(
+  dateKey: string,
+  locale?: string,
+  options: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long", year: "numeric" },
+): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  const parsed = new Date(`${dateKey}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return dateKey;
+  try {
+    return parsed.toLocaleDateString(locale, { ...options, timeZone: "UTC" });
+  } catch {
+    return parsed.toLocaleDateString(undefined, { ...options, timeZone: "UTC" });
+  }
 }

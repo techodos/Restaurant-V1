@@ -2,7 +2,7 @@ import { toMoney } from "@/shared/money";
 import type { OrderStatus } from "@/shared/contract/enums";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
-import { num, str, type Row } from "@/server/db/mappers";
+import { dateOnly, num, str, type Row } from "@/server/db/mappers";
 
 /**
  * Dashboard + analytics queries. All date bucketing happens in the restaurant
@@ -177,7 +177,7 @@ export async function getSalesSeries(
     const orders = num(row.orders);
     const revenue = num(row.revenue);
     return {
-      date: str(row.day).slice(0, 10),
+      date: dateOnly(row.day),
       orders,
       revenue: revenue.toFixed(2),
       averageOrderValue: (orders > 0 ? revenue / orders : 0).toFixed(2),

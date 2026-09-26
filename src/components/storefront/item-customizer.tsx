@@ -6,12 +6,13 @@ import Decimal from "decimal.js";
 import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FieldError, FieldHint, Label, Textarea } from "@/components/ui/input";
 import { addToCartAction } from "@/app/r/[restaurantSlug]/cart/actions";
 import { formatMoney } from "@/shared/money";
 import type { MenuItem } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
+import { flyToTray } from "@/components/motion/fly-to-tray";
+import { CLOSE_ROUTE_SHEET_EVENT } from "@/components/motion/route-sheet";
 
 interface ItemCustomizerProps {
   restaurantSlug: string;
@@ -19,6 +20,8 @@ interface ItemCustomizerProps {
   currencySymbol: string;
   locale: string;
   orderType?: string | undefined;
+  /** rendered inside the dish sheet: a successful add lands in the tray and closes the sheet */
+  inSheet?: boolean;
 }
 
 type GroupState = Record<string, string[]>;
@@ -29,7 +32,7 @@ type GroupState = Record<string, string[]>;
  * shows a live, Decimal-based estimate that is replaced by the server's numbers
  * the moment the item lands in the cart.
  */
-export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, orderType }: ItemCustomizerProps) {
+export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, orderType, inSheet }: ItemCustomizerProps) {
   const variationGroups = item.variants.length > 0 ? 1 : 0;
   const [variantId, setVariantId] = useState<string | null>(
     item.variants.find((variant) => variant.isDefault)?.id ?? item.variants[0]?.id ?? null,
@@ -121,33 +124,37 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
         toast.error(result.error.message);
         return;
       }
-      toast.success(`${quantity} × ${item.name} added`, { description: "Open your cart to check out." });
+      flyToTray(document.querySelector<HTMLImageElement>(`img[data-dish-image="${item.slug}"]`));
+      toast.success(`${quantity} × ${item.name} is in your tray`);
       setNotes("");
       setQuantity(1);
       router.refresh();
+      if (inSheet) window.dispatchEvent(new CustomEvent(CLOSE_ROUTE_SHEET_EVENT));
     });
   }
 
+  // chosen options are solid; unchosen ones stay quiet dashed outlines until picked
+  const optionClass = (checked: boolean, disabled: boolean) =>
+    cn(
+      "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-card)] border px-4 py-3 text-sm transition-[border-color,background-color,box-shadow] duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand)]",
+      checked
+        ? "border-solid border-[var(--color-ink)] bg-[var(--color-surface)] shadow-[inset_0_0_0_1px_var(--color-ink)]"
+        : "border-dashed border-[var(--rule-strong)] hover:border-solid hover:border-[var(--color-muted-ink)]",
+      disabled && "cursor-not-allowed opacity-45",
+    );
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-9">
       {variationGroups > 0 ? (
         <fieldset className="space-y-3">
-          <legend className="mb-1 text-[15px] font-semibold">
-            Choose your option <span className="text-[var(--color-muted-ink)]">(required)</span>
+          <legend className="mb-1 flex w-full items-baseline justify-between text-[15px] font-semibold">
+            Choose a size
+            <span className="text-xs font-medium text-[var(--color-muted-ink)]">Required</span>
           </legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {item.variants.map((option) => (
-              <label
-                key={option.id}
-                className={cn(
-                  "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-card)] border bg-[var(--color-surface)] px-4 py-3 text-sm transition-[border-color,background-color,box-shadow] duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand)]",
-                  variantId === option.id
-                    ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]"
-                    : "border-[var(--color-hairline)] hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))]",
-                  !option.isAvailable && "cursor-not-allowed opacity-50",
-                )}
-              >
-                <span className="flex items-center gap-2">
+              <label key={option.id} className={optionClass(variantId === option.id, !option.isAvailable)}>
+                <span className="flex items-center gap-3">
                   <input
                     type="radio"
                     name="variant"
@@ -155,12 +162,12 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
                     checked={variantId === option.id}
                     disabled={!option.isAvailable}
                     onChange={() => setVariantId(option.id)}
-                    className="size-4 accent-[var(--color-brand)]"
+                    className="size-4"
                   />
-                  <span>{option.name}</span>
-                  {option.isDefault ? <Badge variant="soft">Popular</Badge> : null}
+                  <span className="font-medium">{option.name}</span>
+                  {option.isDefault ? <span className="text-xs text-[var(--color-muted-ink)]">Most ordered</span> : null}
                 </span>
-                <span className="text-[var(--color-muted-ink)]">
+                <span className="tabular text-[var(--color-muted-ink)]">
                   {formatMoney(
                     option.priceMode === "delta" ? new Decimal(item.basePrice).plus(option.price).toFixed(2) : option.price,
                     { currency: currencySymbol, locale },
@@ -178,48 +185,44 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
         const limitReached = chosen.length >= group.maxSelect;
         return (
           <fieldset key={group.id} className="space-y-3">
-            <legend className="mb-1 text-[15px] font-semibold">
+            <legend className="mb-1 flex w-full items-baseline justify-between text-[15px] font-semibold">
               {group.name}
-              <span className="ml-2 font-normal text-[var(--color-muted-ink)]">
-                {group.minSelect > 0 ? `choose ${group.minSelect}` : "optional"}
-                {group.maxSelect > 1 ? ` · up to ${group.maxSelect}` : ""}
+              <span className="text-xs font-medium text-[var(--color-muted-ink)]">
+                {group.minSelect > 0 ? `Choose ${group.minSelect}` : "Optional"}
+                {group.maxSelect > 1 ? (
+                  <span className="tabular">
+                    {" "}
+                    · {chosen.length} of {group.maxSelect}
+                  </span>
+                ) : null}
               </span>
             </legend>
             {group.description ? <FieldHint>{group.description}</FieldHint> : null}
             <div className="grid gap-2 sm:grid-cols-2">
               {group.addons.map((addon) => {
                 const checked = chosen.includes(addon.id);
+                const blocked = !addon.isAvailable || (!checked && limitReached && group.maxSelect > 1);
                 return (
-                  <label
-                    key={addon.id}
-                    className={cn(
-                      "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-card)] border bg-[var(--color-surface)] px-4 py-3 text-sm transition-[border-color,background-color,box-shadow] duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand)]",
-                      checked
-                        ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]"
-                        : "border-[var(--color-hairline)] hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))]",
-                      !addon.isAvailable && "cursor-not-allowed opacity-50",
-                      !checked && limitReached && group.maxSelect > 1 && "cursor-not-allowed opacity-60",
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
+                  <label key={addon.id} className={optionClass(checked, blocked)}>
+                    <span className="flex items-center gap-3">
                       <input
                         type={group.maxSelect === 1 ? "radio" : "checkbox"}
                         name={group.id}
                         checked={checked}
-                        disabled={!addon.isAvailable || (!checked && limitReached && group.maxSelect > 1)}
+                        disabled={blocked}
                         onChange={() => toggleAddon(group.id, addon.id, group.maxSelect)}
-                        className="size-4 accent-[var(--color-brand)]"
+                        className="size-4"
                       />
                       <span>
-                        {addon.name}
+                        <span className="font-medium">{addon.name}</span>
                         {addon.description ? (
                           <span className="block text-xs text-[var(--color-muted-ink)]">{addon.description}</span>
                         ) : null}
                       </span>
                     </span>
-                    <span className="whitespace-nowrap text-[var(--color-muted-ink)]">
+                    <span className="tabular whitespace-nowrap text-[var(--color-muted-ink)]">
                       {new Decimal(addon.price).isZero()
-                        ? "Free"
+                        ? "Included"
                         : `+ ${formatMoney(addon.price, { currency: currencySymbol, locale })}`}
                     </span>
                   </label>
@@ -232,39 +235,44 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
       })}
 
       <div className="space-y-2">
-        <Label htmlFor="item-notes">Special instructions</Label>
+        <Label htmlFor="item-notes">Note for the kitchen</Label>
         <Textarea
           id="item-notes"
           rows={2}
           maxLength={280}
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
-          placeholder="No onions, extra crispy, allergy notes…"
+          placeholder="No onions, extra crispy, allergy notes"
         />
-        <FieldHint>We pass this straight to the kitchen.</FieldHint>
+        <FieldHint>Passed straight to the kitchen with this dish.</FieldHint>
       </div>
 
-      <div className="sticky bottom-0 z-20 -mx-4 border-t border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur-xl sm:bottom-4 sm:mx-0 sm:rounded-[var(--radius-card)] sm:border sm:shadow-[var(--shadow-raised)]">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]">
+      <div
+        className={cn(
+          "sticky bottom-0 z-20 -mx-5 border-t border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:-mx-7 md:px-7",
+          !inSheet && "sm:bottom-4 sm:mx-0 sm:rounded-[var(--radius-card)] sm:border sm:px-4 sm:shadow-[var(--shadow-raised)]",
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 items-center rounded-full border border-[var(--rule-strong)]">
             <button
               type="button"
               aria-label="Decrease quantity"
               data-testid="quantity-decrease"
-              className="grid size-11 place-items-center disabled:opacity-40"
+              className="press grid size-11 place-items-center disabled:opacity-35 sm:size-12"
               onClick={() => setQuantity((value) => Math.max(1, value - 1))}
               disabled={quantity <= 1}
             >
               <Minus className="size-4" aria-hidden />
             </button>
-            <span aria-live="polite" className="tabular w-8 text-center text-sm font-semibold">
+            <span aria-live="polite" key={quantity} className="tabular animate-tick w-6 text-center text-[15px] font-semibold">
               {quantity}
             </span>
             <button
               type="button"
               aria-label="Increase quantity"
               data-testid="quantity-increase"
-              className="grid size-11 place-items-center disabled:opacity-40"
+              className="press grid size-11 place-items-center disabled:opacity-35 sm:size-12"
               onClick={() => setQuantity((value) => Math.min(99, value + 1))}
               disabled={quantity >= 99}
             >
@@ -277,23 +285,27 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
             data-testid="add-to-cart"
             onClick={addToCart}
             disabled={pending || !item.isAvailable}
-            className="min-w-0 flex-1 sm:flex-none"
+            className="h-12 min-w-0 flex-1 justify-between gap-2 rounded-full px-4 sm:px-5"
           >
-            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <ShoppingBag aria-hidden />}
-            <span>
+            <span className="flex items-center gap-2">
+              {pending ? <Loader2 className="animate-spin" aria-hidden /> : <ShoppingBag aria-hidden />}
               {item.isAvailable ? (
-                <>
-                  <span className="sm:hidden">Add</span>
-                  <span className="hidden sm:inline">Add to cart</span>
-                </>
+                pending ? (
+                  "Adding"
+                ) : (
+                  <>
+                    <span className="sm:hidden">Add</span>
+                    <span className="hidden sm:inline">Add to tray</span>
+                  </>
+                )
               ) : (
                 "Unavailable"
               )}
-              <span className="tabular ml-2 border-l border-current/25 pl-2 font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale })}</span>
             </span>
+            <span className="tabular font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale })}</span>
           </Button>
         </div>
-        <FieldHint>Prices are confirmed by the kitchen system when your order is placed.</FieldHint>
+        <p className="mt-2 text-center text-[11px] text-[var(--color-muted-ink)]">Prices are confirmed when your order is placed.</p>
       </div>
     </div>
   );

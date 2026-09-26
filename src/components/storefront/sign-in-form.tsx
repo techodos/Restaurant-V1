@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { signInAction, ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/account/actions";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
+import { signInHref } from "@/shared/return-to";
 
 interface SignInFormProps {
   restaurantSlug: string;
@@ -16,9 +17,11 @@ interface SignInFormProps {
   onAuthenticated?: () => void;
   /** Embedded in a modal next to a "Create account" tab switch instead of a page link. */
   onSwitchToSignUp?: () => void;
+  /** already-sanitized path to land on after signing in (e.g. checkout); defaults to the account page */
+  returnTo?: string | null;
 }
 
-export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignUp }: SignInFormProps) {
+export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignUp, returnTo = null }: SignInFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [email, setEmail] = useState("");
@@ -34,7 +37,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
       router.refresh();
       return;
     }
-    router.push(`/r/${restaurantSlug}/account`);
+    router.push(returnTo ?? `/r/${restaurantSlug}/account`);
     router.refresh();
   }
 
@@ -89,7 +92,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
       </Button>
       {googleEnabled ? (
         <a
-          href={`/r/${restaurantSlug}/account/google?returnTo=${encodeURIComponent(pathname)}`}
+          href={`/r/${restaurantSlug}/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] text-sm font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
         >
           Continue with Google
@@ -102,7 +105,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
             Create an account
           </button>
         ) : (
-          <Link href={`/r/${restaurantSlug}/account/sign-up`} className="font-medium underline">Create an account</Link>
+          <Link href={signInHref(restaurantSlug, returnTo, "sign-up")} className="font-medium underline">Create an account</Link>
         )}
       </p>
     </form>

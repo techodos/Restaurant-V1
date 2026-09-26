@@ -16,6 +16,8 @@ import { SectionRenderer } from "@/components/storefront/section-renderer";
 export interface PageHeading {
   title: string | undefined;
   subtitle: string | undefined;
+  /** true when the body opens the page (no configured section above it), so it may run under the header */
+  leading: boolean;
 }
 
 export type FunctionalPageSlug = "menu" | "reservation" | "reviews" | "locations";
@@ -30,10 +32,12 @@ interface ConfiguredPageProps {
 export async function ConfiguredPage({ restaurantSlug, pageSlug, render }: ConfiguredPageProps) {
   const context = await requireStorefront(restaurantSlug);
   const page = await getPageContent(context.restaurant.id, pageSlug);
-  const marker = parseSections(page?.sections).find((section) => section.type === "page_content");
+  const visible = parseSections(page?.sections).filter((section) => section.enabled);
+  const marker = visible.find((section) => section.type === "page_content");
   const body = await render(context, {
     title: marker?.title,
     subtitle: marker?.subtitle,
+    leading: visible.length === 0 || visible[0]?.type === "page_content",
   });
   return <SectionRenderer context={context} sections={page?.sections ?? []} body={body} />;
 }

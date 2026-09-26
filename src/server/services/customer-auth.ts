@@ -1,5 +1,6 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
 import { config } from "@/server/config";
+import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { checkRateLimit } from "@/server/rate-limit";
 import {
@@ -61,7 +62,21 @@ function hashCode(code: string): string {
   return createHmac("sha256", config.auth.secret).update(code).digest("hex");
 }
 
-/** True once the signed-in customer's login email is verified. Guests are never gated. */
+/**
+ * Who may place an order: a signed-in customer (a customer session for this restaurant) whose login
+ * email is verified. Guests are refused with SIGN_IN_REQUIRED, unverified customers with
+ * EMAIL_NOT_VERIFIED (the checkout form turns that code into the inline verify-code step). This is the
+ * authoritative check; hiding the checkout button for guests is only UX.
+ */
+export async function assertCanPlaceOrder(visitor: Pick<RequestContext, "userId" | "customerId">): Promise<void> {
+  const customerId = visitor.userId ?? null;
+  if (!customerId) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in to place an order.");
+  if (!(await isEmailVerified(customerId))) {
+    throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
+  }
+}
+
+/** True once the signed-in customer's login email is verified. */
 export async function isEmailVerified(customerId: string): Promise<boolean> {
   const customer = await getCustomerById(customerId, { customerId });
   return customer?.emailVerified ?? false;

@@ -13,6 +13,7 @@ import { PAYMENT_METHOD_LABELS, type OrderType, type PaymentMethod } from "@/sha
 import { formatMoney } from "@/shared/money";
 import type { DeliveryZone } from "@/shared/contract/models";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
+import { signInHref } from "@/shared/return-to";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface CheckoutPricing {
@@ -39,7 +40,8 @@ interface CheckoutFormProps {
   isSignedIn: boolean;
   emailVerified: boolean;
   customerDefaults: { fullName: string; phone: string; email: string } | null;
-  allowGuestCheckout: boolean;
+  /** the restaurant's own city (primary location), prefilled for delivery */
+  defaultCity: string;
 }
 
 /**
@@ -47,6 +49,17 @@ interface CheckoutFormProps {
  * authoritative validation, pricing and coupon checks all run inside the server
  * action (createOrder) before anything is written.
  */
+function StepTitle({ index, children }: { index: number; children: React.ReactNode }) {
+  return (
+    <h2 className="flex items-baseline gap-4">
+      <span aria-hidden className="tabular font-[family-name:var(--font-display)] text-[1.7rem] leading-none text-[var(--color-brand-accent)]">
+        {String(index).padStart(2, "0")}
+      </span>
+      <span className="display-3">{children}</span>
+    </h2>
+  );
+}
+
 export function CheckoutForm({
   restaurantSlug,
   orderType,
@@ -60,7 +73,7 @@ export function CheckoutForm({
   isSignedIn,
   emailVerified,
   customerDefaults,
-  allowGuestCheckout,
+  defaultCity,
 }: CheckoutFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
@@ -139,6 +152,12 @@ export function CheckoutForm({
             setNeedsVerification(true);
             return;
           }
+          if (result.error.code === "SIGN_IN_REQUIRED") {
+            // the session ended mid-checkout: sign in again and come straight back here
+            toast.error(result.error.message, { description: "Your tray is kept." });
+            router.push(signInHref(restaurantSlug, `/r/${restaurantSlug}/checkout`));
+            return;
+          }
           toast.error(result.error.message, { description: "Nothing has been charged." });
           return;
         }
@@ -173,13 +192,15 @@ export function CheckoutForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-8">
-      <section className="surface-card p-5 sm:p-7">
-        <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
-          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">1</span>
-          How would you like your order?
-        </h2>
-        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Order type">
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      className="grid grid-cols-[minmax(0,1fr)] gap-8 pb-28 lg:grid-cols-[minmax(0,1fr)_23rem] lg:gap-12 lg:pb-0"
+    >
+      <div className="space-y-8">
+      <section className="pt-2">
+        <StepTitle index={1}>How would you like your order?</StepTitle>
+        <div className="mt-5 flex max-w-md rounded-full bg-[var(--steel-2)] p-1" role="group" aria-label="Order type">
           {orderTypeOptions.map((type) => (
             <button
               key={type}
@@ -188,8 +209,8 @@ export function CheckoutForm({
               onClick={() => setOrderTypeState(type)}
               className={
                 orderTypeState === type
-                  ? "h-11 rounded-full border border-[var(--color-ink)] bg-[var(--color-ink)] px-5 text-sm font-semibold text-[var(--color-surface)] transition-colors"
-                  : "h-11 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)] px-5 text-sm font-medium transition-colors hover:border-[color-mix(in_srgb,var(--color-ink)_35%,var(--color-hairline))]"
+                  ? "h-10 flex-1 rounded-full bg-[var(--color-surface)] text-sm font-semibold shadow-[0_1px_3px_color-mix(in_srgb,var(--color-ink)_14%,transparent)] transition-[background-color,box-shadow] duration-200"
+                  : "h-10 flex-1 rounded-full text-sm font-medium text-[var(--color-muted-ink)] transition-colors duration-200 hover:text-[var(--color-ink)]"
               }
             >
               {type === "delivery" ? "Delivery" : type === "pickup" ? "Pickup" : "Dine-in"}
@@ -198,18 +219,8 @@ export function CheckoutForm({
         </div>
       </section>
 
-      <section className="surface-card p-5 sm:p-7">
-        <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
-          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">2</span>
-          Your details
-        </h2>
-        {!isSignedIn ? (
-          <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-            {allowGuestCheckout
-              ? "No account needed. We only use these details for this order."
-              : "Please sign in before checking out."}
-          </p>
-        ) : null}
+      <section className="border-t border-[var(--rule)] pt-8">
+        <StepTitle index={2}>Your details</StepTitle>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -255,11 +266,8 @@ export function CheckoutForm({
       </section>
 
       {orderTypeState === "delivery" ? (
-        <section className="surface-card p-5 sm:p-7">
-          <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
-          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">3</span>
-          Delivery address
-        </h2>
+        <section className="border-t border-[var(--rule)] pt-8">
+          <StepTitle index={3}>Delivery address</StepTitle>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="addressLine1">Street address</Label>
@@ -285,12 +293,12 @@ export function CheckoutForm({
             ) : null}
             <div className="space-y-1.5">
               <Label htmlFor="area">Area</Label>
-              <Input id="area" name="area" placeholder="Gulberg III" aria-invalid={Boolean(errors.area)} />
+              <Input id="area" name="area"  aria-invalid={Boolean(errors.area)} />
               <FieldError>{errors.area}</FieldError>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="city">City</Label>
-              <Input id="city" name="city" defaultValue="Lahore" autoComplete="address-level2" />
+              <Input id="city" name="city" defaultValue={defaultCity} autoComplete="address-level2" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="postalCode">Postal code (optional)</Label>
@@ -301,11 +309,8 @@ export function CheckoutForm({
       ) : null}
 
       {orderTypeState === "dine_in" ? (
-        <section className="surface-card p-5 sm:p-7">
-          <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
-          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">3</span>
-          Your table
-        </h2>
+        <section className="border-t border-[var(--rule)] pt-8">
+          <StepTitle index={3}>Your table</StepTitle>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="tableNumber">Table number</Label>
@@ -320,11 +325,8 @@ export function CheckoutForm({
         </section>
       ) : null}
 
-      <section className="surface-card p-5 sm:p-7">
-        <h2 className="flex items-center gap-3 text-lg font-semibold tracking-[-0.01em]">
-          <span aria-hidden className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-xs font-bold text-[var(--color-surface)]">4</span>
-          Payment
-        </h2>
+      <section className="border-t border-[var(--rule)] pt-8">
+        <StepTitle index={4}>Payment</StepTitle>
         <div className="mt-4 space-y-2">
           {paymentMethods.map((method) => (
             <label
@@ -349,7 +351,7 @@ export function CheckoutForm({
         </div>
 
         {showOnlineNotice ? (
-          <p className="mt-3 rounded-[var(--radius-brand)] bg-amber-500/10 p-3 text-xs text-amber-800">
+          <p className="mt-3 rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] p-3 text-xs text-[color-mix(in_srgb,var(--color-warning)_70%,var(--color-ink))]">
             Card payments are handled by the restaurant&apos;s payment provider at the confirmation step. We never store
             card details.
           </p>
@@ -367,8 +369,8 @@ export function CheckoutForm({
                 onClick={() => setTip(value === 0 ? "" : String(value))}
                 className={
                   (value === 0 && !tip) || tip === String(value)
-                    ? "tabular h-10 rounded-full border border-[var(--color-ink)] bg-[var(--color-ink)] px-4 text-sm font-semibold text-[var(--color-surface)]"
-                    : "tabular h-10 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 text-sm font-medium hover:border-[color-mix(in_srgb,var(--color-ink)_35%,var(--color-hairline))]"
+                    ? "press tabular h-10 rounded-[var(--radius-control)] border border-[var(--color-brand)] bg-[var(--color-brand)] px-4 text-sm font-semibold text-[var(--color-brand-foreground)]"
+                    : "press tabular h-10 rounded-[var(--radius-control)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 text-sm font-medium hover:border-[color-mix(in_srgb,var(--color-ink)_35%,var(--color-hairline))]"
                 }
               >
                 {value === 0 ? "No tip" : money(String(value))}
@@ -393,17 +395,21 @@ export function CheckoutForm({
         </div>
       </section>
 
-      <section className="surface-card p-5 sm:p-7">
-        <h2 className="text-lg font-semibold">Order summary</h2>
+      </div>
+
+      <aside className="lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
+      <section className="tone-night rounded-[var(--radius-panel)] p-6 shadow-[var(--shadow-raised)] md:p-8">
+        <h2 className="display-3">Order summary</h2>
+        <span aria-hidden className="mt-5 block h-px bg-[var(--rule)]" />
         <dl className="tabular mt-5 space-y-3 text-sm">
           <div className="flex justify-between">
             <dt className="text-[var(--color-muted-ink)]">Subtotal</dt>
             <dd>{money(pricing.subtotal)}</dd>
           </div>
           {Number(pricing.discount) > 0 ? (
-            <div className="flex justify-between text-emerald-700">
+            <div className="flex justify-between text-[var(--color-success)]">
               <dt>Discount{couponCode ? ` (${couponCode})` : ""}</dt>
-              <dd>− {money(pricing.discount)}</dd>
+              <dd>-{money(pricing.discount)}</dd>
             </div>
           ) : null}
           {orderTypeState === "delivery" ? (
@@ -428,7 +434,7 @@ export function CheckoutForm({
               <dd>{money(tip)}</dd>
             </div>
           ) : null}
-          <div className="flex items-baseline justify-between border-t border-[var(--color-hairline)] pt-4 text-lg font-semibold">
+          <div className="flex items-baseline justify-between border-t border-dashed border-[var(--rule-strong)] pt-4 text-lg font-semibold">
             <dt>Total due</dt>
             <dd>{money(pricing.total)}</dd>
           </div>
@@ -439,14 +445,29 @@ export function CheckoutForm({
           </p>
         ) : null}
 
-        <Button type="submit" size="lg" data-testid="place-order" className="mt-6 w-full" disabled={pending}>
-          {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Lock aria-hidden />}
-          {pending ? "Placing your order…" : `Place order · ${money(pricing.total)}`}
+        <Button type="submit" size="lg" data-testid="place-order" className="mt-6 hidden h-13 w-full justify-between px-6 lg:flex" disabled={pending}>
+          <span className="flex items-center gap-2">
+            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Lock aria-hidden />}
+            {pending ? "Placing your order" : "Place order"}
+          </span>
+          <span className="tabular">{money(pricing.total)}</span>
         </Button>
-        <p className="mt-2 text-center text-xs text-[var(--color-muted-ink)]">
-          Your order will be received right away. You will get a confirmation message once the restaurant confirms it.
+        <p className="mt-3 text-center text-xs leading-relaxed text-[var(--color-muted-ink)]">
+          The kitchen receives your order right away. You will get a confirmation once the restaurant accepts it.
         </p>
       </section>
+      </aside>
+
+      {/* phones: the place-order action stays under the thumb with the live total */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl lg:hidden">
+        <Button type="submit" size="lg" className="h-13 w-full justify-between px-6" disabled={pending}>
+          <span className="flex items-center gap-2">
+            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Lock aria-hidden />}
+            {pending ? "Placing your order" : "Place order"}
+          </span>
+          <span className="tabular">{money(pricing.total)}</span>
+        </Button>
+      </div>
     </form>
   );
 }

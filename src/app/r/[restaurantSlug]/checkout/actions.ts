@@ -3,27 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import type { ApiResult } from "@/shared/contract/api";
-import { action, errors } from "@/server/errors";
+import { action } from "@/server/errors";
 import { placeOrder, type PlaceOrderResult } from "@/server/services/checkout";
 import { dispatchDueNotifications } from "@/server/services/notifications";
 import { requireRestaurant } from "@/server/services/restaurants";
-import { isEmailVerified } from "@/server/services/customer-auth";
+import { assertCanPlaceOrder } from "@/server/services/customer-auth";
 import { placeOrderSchema } from "@/server/validation/checkout";
 import { getVisitorContext, setCartCountHint } from "@/web/session";
 
 export type { PlaceOrderResult };
 
-/** Guest checkout: parse input, delegate to the checkout service. */
+/** Checkout for signed-in, email-verified customers: parse input, check the customer, delegate to the checkout service. */
 export async function placeOrderAction(slug: string, payload: unknown): Promise<ApiResult<PlaceOrderResult>> {
   return action(async () => {
     const input = placeOrderSchema.parse(payload);
     const restaurant = await requireRestaurant(slug);
     const visitor = await getVisitorContext(restaurant.id);
-    // Guests are never gated; a signed-in customer's login email must be verified before an order
-    // can go through (server-side, not just hidden in the UI — see server/services/customer-auth.ts).
-    if (visitor.userId && !(await isEmailVerified(visitor.userId))) {
-      throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
-    }
+    // Only signed-in customers with a verified email may order (enforced here, server-side; hiding the
+    // checkout for guests is only UX). See server/services/customer-auth.ts#assertCanPlaceOrder.
+    await assertCanPlaceOrder(visitor);
     const result = await placeOrder(restaurant, input, visitor);
     await setCartCountHint(0); // the order consumed the cart
     revalidatePath(`/r/${slug}`, "layout");
