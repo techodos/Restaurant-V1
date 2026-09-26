@@ -6,6 +6,9 @@ import { requireStorefront } from "@/web/storefront";
 import { getMyOrders } from "@/server/services/orders";
 import { CurrentOrderCard } from "@/components/storefront/my-order-card";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/storefront/empty-state";
+import { PageHero } from "@/components/storefront/page-hero";
+import { resolveImage } from "@/web/media";
 
 interface CurrentOrdersPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -37,37 +40,37 @@ export default async function CurrentOrdersPage({ params }: CurrentOrdersPagePro
   const menuHref = `/r/${restaurant.slug}/menu`;
 
   return (
-    <div className="container-page py-10 md:py-14">
-      <header>
-        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{current.length > 1 ? "Current orders" : "Current order"}</h1>
-        <p className="mt-2 text-sm text-[var(--color-muted-ink)]">Live status for every order in progress right now.</p>
-      </header>
-
-      <div className="mx-auto mt-8 max-w-3xl md:mx-0">
+    <>
+      <PageHero
+        overlay
+        size="sm"
+        image={resolveImage(restaurant.coverUrl)}
+        eyebrow="Live"
+        title={current.length > 1 ? "Current orders" : "Current order"}
+        subtitle="Live status for every order in progress right now."
+      />
+      <div className="container-page py-10 md:py-12">
         {current.length ? (
-          <div className="space-y-4">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-2">
             {current.map((order) => (
               <CurrentOrderCard key={order.id} order={order} restaurant={card} />
             ))}
           </div>
         ) : (
-          <div
-            className="rounded-[var(--radius-brand)] border border-dashed border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center"
+          <EmptyState
+            icon={ClipboardList}
+            title="No active order"
             data-testid="no-current-order"
+            actions={
+              <Button asChild size="lg">
+                <Link href={menuHref}>Browse the menu</Link>
+              </Button>
+            }
           >
-            <span className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]">
-              <ClipboardList className="size-6" aria-hidden />
-            </span>
-            <h2 className="mt-4 text-lg font-semibold">No active order</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-muted-ink)]">
-              When you place an order it shows up here and updates live until it is ready.
-            </p>
-            <Button asChild className="mt-5">
-              <Link href={menuHref}>Browse the menu</Link>
-            </Button>
-          </div>
+            When you place an order it shows up here and updates live until it is ready.
+          </EmptyState>
         )}
       </div>
-    </div>
+    </>
   );
 }

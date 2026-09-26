@@ -9,3 +9,6 @@ coverage
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# alternate Next output folders (NEXT_DIST_DIR)
+.next-*/

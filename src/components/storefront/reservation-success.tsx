@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { formatDateKey } from "@/shared/hours";
 import Link from "next/link";
 import { CalendarCheck, CheckCircle2, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +31,7 @@ export function ReservationSuccess({ restaurantSlug, booking, onBookAnother }: R
   const details: [string, string][] = [
     ["Restaurant", booking.restaurantName],
     ...(booking.locationName ? ([["Location", booking.locationName]] as [string, string][]) : []),
-    ["Date", booking.date],
+    ["Date", formatDateKey(booking.date)],
     ["Time", booking.time],
     ["Guests", String(booking.guests)],
     ["Name", booking.guestName],
@@ -42,7 +43,7 @@ export function ReservationSuccess({ restaurantSlug, booking, onBookAnother }: R
       data-testid="reservation-success"
       className="mx-auto w-full max-w-xl surface-flat p-6 text-center sm:p-10"
     >
-      <span className="mx-auto grid size-16 place-items-center rounded-[var(--radius-card)] ring-8 ring-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] bg-emerald-600/12 text-emerald-700">
+      <span className="mx-auto grid size-16 place-items-center rounded-[var(--radius-card)] ring-8 ring-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_12%,transparent)] text-[color-mix(in_srgb,var(--color-success)_80%,var(--color-ink))]">
         {confirmed ? <CalendarCheck className="size-7" aria-hidden /> : <CheckCircle2 className="size-7" aria-hidden />}
       </span>
       <h2 ref={heading} tabIndex={-1} className="mt-5 text-2xl font-semibold outline-none sm:text-3xl">

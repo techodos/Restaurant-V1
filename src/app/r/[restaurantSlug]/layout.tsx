@@ -4,6 +4,7 @@ import { getStorefrontContext, requireStorefront } from '@/web/storefront';
 import { themeCssVariables, fontStack } from '@/web/theme';
 import { SiteHeader } from '@/components/storefront/site-header';
 import { CurrentOrdersWidget } from '@/components/storefront/current-orders-widget';
+import { MobileDock } from '@/components/storefront/mobile-dock';
 import { resolveImage } from '@/web/media';
 import { SiteFooter } from '@/components/storefront/site-footer';
 import { getCustomerSessionSummary } from './account/actions';
@@ -12,6 +13,8 @@ import { googleAuthAvailable } from '@/server/services/customer-auth';
 
 interface StorefrontLayoutProps {
   children: React.ReactNode;
+  /** intercepted routes (dish sheet, tray drawer) render here over the current page */
+  modal: React.ReactNode;
   params: Promise<{ restaurantSlug: string }>;
 }
 
@@ -69,6 +72,7 @@ export async function generateMetadata({
 
 export default async function StorefrontLayout({
   children,
+  modal,
   params,
 }: StorefrontLayoutProps) {
   const { restaurantSlug } = await params;
@@ -130,6 +134,8 @@ export default async function StorefrontLayout({
         {children}
       </main>
 
+      {modal}
+
       <SiteFooter
         restaurant={restaurant}
         config={config}
@@ -138,6 +144,14 @@ export default async function StorefrontLayout({
       />
 
       <CurrentOrdersWidget restaurantSlug={restaurant.slug} count={activeOrders.length} />
+      <MobileDock
+        restaurantSlug={restaurant.slug}
+        itemCount={itemCount}
+        activeOrders={activeOrders.length}
+        showCart={config.navigation.showCart}
+        reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
+        accountHref={customer?.signedIn ? `/r/${restaurant.slug}/account` : `/r/${restaurant.slug}/account/sign-in`}
+      />
     </div>
   );
 }

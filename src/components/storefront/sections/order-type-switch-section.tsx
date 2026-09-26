@@ -5,7 +5,6 @@ import type { StorefrontContext } from "@/shared/contract/models";
 import type { OrderTypeSwitchSection as SwitchConfig } from "@/shared/contract/sections";
 import { ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
 import { cn } from "@/shared/utils";
-import { SectionHeading } from "@/components/storefront/section-heading";
 
 const ICONS: Record<OrderType, typeof ShoppingBag> = {
   delivery: ShoppingBag,
@@ -20,31 +19,24 @@ const BLURBS: Record<OrderType, string> = {
 };
 
 /**
- * Choosing an order type here primes the menu link with ?orderType=…, which the
- * menu page passes into the cart on the next add: one decision, applied once.
- * Rendered as a compact panel; right after a hero it overlaps the hero edge, so it reads as the next step.
+ * Three doors into the menu, one per enabled order type. Choosing one primes the menu link with
+ * ?orderType=…, which the menu passes into the cart on the next add. Right after a hero the doors
+ * join its bottom edge as one band; elsewhere they stand as their own strip.
  */
-export function OrderTypeSwitchSection({
-  section,
-  context,
-}: {
-  section: SwitchConfig;
-  context: StorefrontContext;
-}) {
-  const features = context.restaurant.features;
-  const options = enabledOrderTypes(features, section.orderTypes);
-
+export function OrderTypeSwitchSection({ section, context }: { section: SwitchConfig; context: StorefrontContext }) {
+  const options = enabledOrderTypes(context.restaurant.features, section.orderTypes);
   if (!options.length) return null;
 
   return (
-    <section className="container-page relative z-10 py-10 [[data-after=hero]>&]:-mt-10 [[data-after=hero]>&]:pt-0 md:[[data-after=hero]>&]:-mt-14">
-      <div className="surface-card grid gap-6 p-5 shadow-[var(--shadow-raised)] md:p-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)] lg:items-center">
-        <SectionHeading
-          title={section.title}
-          subtitle={section.subtitle}
-          className="[&_h2]:text-2xl [&_h2]:md:text-[1.75rem] [&_p]:mt-2 [&_p]:text-sm"
-        />
-        <ul className={cn("grid gap-3", options.length === 3 ? "sm:grid-cols-3" : options.length === 2 ? "sm:grid-cols-2" : "")}>
+    <section aria-label={section.title} className="tone-night border-t border-[var(--rule)] [[data-after=hero]>&]:border-t-[color-mix(in_srgb,var(--color-on-night)_10%,transparent)]">
+      <div className="container-page">
+        <h2 className="sr-only">{section.title}</h2>
+        <ul
+          className={cn(
+            "grid divide-y divide-[var(--rule)] sm:divide-x sm:divide-y-0",
+            options.length === 3 ? "sm:grid-cols-3" : options.length === 2 ? "sm:grid-cols-2" : "",
+          )}
+        >
           {options.map((type) => {
             const Icon = ICONS[type];
             const eta = type === "delivery" ? context.restaurant.settings.delivery.defaultEtaMinutes : null;
@@ -52,22 +44,22 @@ export function OrderTypeSwitchSection({
               <li key={type}>
                 <Link
                   href={`/r/${context.restaurant.slug}/menu?orderType=${type}`}
-                  className="group flex h-full items-start gap-4 rounded-[var(--radius-card)] border border-[var(--color-hairline)] p-4 transition-[border-color,background-color,transform] duration-300 hover:border-[var(--color-brand)] hover:bg-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] active:scale-[0.99] sm:flex-col sm:gap-3"
+                  className="group flex h-full items-center gap-4 py-5 sm:px-6 sm:py-7 sm:first:pl-0 lg:px-10 lg:first:pl-0"
                 >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] text-[var(--color-brand)] transition-colors group-hover:bg-[var(--color-brand)] group-hover:text-[var(--color-brand-foreground)]">
-                    <Icon className="size-5" aria-hidden />
+                  <span className="grid size-11 shrink-0 place-items-center rounded-full border border-[var(--rule-strong)] text-[var(--color-brand-accent)] transition-colors duration-300 group-hover:border-[var(--color-brand-accent)]">
+                    <Icon className="size-[18px]" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-2 text-base font-semibold">
-                      {ORDER_TYPE_LABELS[type]}
-                      <ArrowRight
-                        className="size-4 text-[var(--color-muted-ink)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--color-brand)]"
-                        aria-hidden
-                      />
+                    <span className="display-3 block">{ORDER_TYPE_LABELS[type]}</span>
+                    <span className="mt-1 block text-[13px] leading-snug text-[var(--color-muted-ink)]">
+                      {BLURBS[type]}
+                      {eta ? <span className="tabular"> About {eta} min.</span> : null}
                     </span>
-                    <span className="mt-1 block text-sm leading-snug text-[var(--color-muted-ink)]">{BLURBS[type]}</span>
-                    {eta ? <span className="mt-1.5 block text-xs font-medium text-[var(--color-brand)]">Around {eta} min</span> : null}
                   </span>
+                  <ArrowRight
+                    className="size-5 shrink-0 text-[var(--color-muted-ink)] transition-[transform,color] duration-300 group-hover:translate-x-1 group-hover:text-[var(--color-ink)]"
+                    aria-hidden
+                  />
                 </Link>
               </li>
             );

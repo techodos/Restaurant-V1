@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { fontVariables } from "@/web/fonts";
 import { Toaster } from "sonner";
 import { config } from "@/server/config";
 import "./globals.css";
 
-const bodyFont = Inter({ subsets: ["latin"], variable: "--font-sans-fallback", display: "swap" });
-const displayFont = Playfair_Display({ subsets: ["latin"], variable: "--font-display-fallback", display: "swap" });
 
 const siteUrl = config.app.siteUrl;
 
@@ -25,7 +23,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={`${bodyFont.variable} ${displayFont.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={fontVariables}>
       <body className="min-h-dvh antialiased">
         {children}
         <Toaster

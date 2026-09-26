@@ -1,12 +1,14 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Design tokens. Brand values are injected per restaurant from the database
-   (websites.theme → --brand-*), so everything here is a fallback and a scale,
-   never a hardcoded palette.
+   EDITORIAL: the design language for every restaurant on the platform.
+   Cinematic photography, a serif display voice, and a rhythm of light paper
+   and dark "night" sections. Every colour, font and radius comes from the
+   restaurant's websites.theme (web/theme.ts); this file is structure, scale
+   and fallbacks only, never a palette.
    --------------------------------------------------------------------------- */
 @theme {
-  --font-sans: var(--font-body, ui-sans-serif, system-ui, sans-serif);
+  --font-sans: var(--font-body, var(--font-inter), ui-sans-serif, system-ui, sans-serif);
   --font-display: var(--font-heading, Georgia, serif);
 
   --color-brand: var(--brand-primary, #c8102e);
@@ -24,37 +26,109 @@
 
 :root {
   color-scheme: light;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* motion tokens: one curve family for the whole product (strong ease-out for
+     entrances, in-out for on-screen movement, the iOS drawer curve for sheets) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 140ms;
+  --dur-ui: 220ms;
+  --dur-sheet: 420ms;
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.18);
   --shadow-raised: 0 2px 4px rgba(16, 24, 40, 0.06), 0 18px 40px -18px rgba(16, 24, 40, 0.28);
 }
 
 /* ---------------------------------------------------------------------------
-   Themed scale. Declared on the element that carries the restaurant's inline
-   --brand-* / --color-* variables (storefront layout and admin shell), because a
-   var() inside a custom property resolves where it is declared: on :root these
-   would never see the restaurant's values.
+   Theme root and tones.
+
+   `.theme-root` carries the restaurant's inline variables (storefront layout,
+   admin shell). A tone class re-scopes the SAME semantic tokens (canvas, ink,
+   muted ink, hairline, surface) for a section, so every component inside a
+   dark section adapts without knowing it is dark:
+
+     tone-paper  the theme background          tone-muted  a slightly deeper paper
+     tone-night  the dark editorial surface    tone-brand  the brand colour as ground
+
+   The derived scale below is declared on the root AND on every tone, because a
+   var() inside a custom property resolves on the element that declares it.
    --------------------------------------------------------------------------- */
-.theme-root {
-  font-family: var(--font-sans);
-  /* one radius system: controls (buttons, inputs) = the brand radius, cards a
-     step softer, large panels softer again; capped so radius "full" stays sane */
-  --radius-card: min(calc(var(--radius-brand) * 1.5 + 2px), 24px);
-  --radius-panel: min(calc(var(--radius-brand) * 2 + 4px), 32px);
-  --tint: color-mix(in srgb, var(--color-ink) 4%, transparent);
-  --tint-strong: color-mix(in srgb, var(--color-ink) 7%, transparent);
-  --brand-tint: color-mix(in srgb, var(--color-brand) 9%, transparent);
-  /* shadows carry the ink hue instead of pure black */
-  --shadow-card:
-    0 1px 2px color-mix(in srgb, var(--color-ink) 5%, transparent),
-    0 10px 30px -18px color-mix(in srgb, var(--color-ink) 28%, transparent);
-  --shadow-raised:
-    0 2px 6px color-mix(in srgb, var(--color-ink) 6%, transparent),
-    0 24px 48px -22px color-mix(in srgb, var(--color-ink) 38%, transparent);
-  --shadow-brand: 0 10px 24px -12px color-mix(in srgb, var(--color-brand) 60%, transparent);
+@layer components {
+  .theme-root {
+    font-family: var(--font-sans);
+    /* radius system: controls = the brand radius; cards and panels one step
+       softer, capped so a theme radius of "full" stays sane */
+    --radius-card: min(calc(var(--radius-brand) * 0.75 + 2px), 12px);
+    --radius-panel: min(calc(var(--radius-brand) * 1.25 + 2px), 20px);
+    /* buttons and chips: a pill for any rounded theme, square when the theme radius is "none" */
+    --radius-control: min(calc(var(--radius-brand) * 1000), 9999px);
+    --shadow-brand: 0 12px 28px -14px color-mix(in srgb, var(--color-brand) 70%, transparent);
+
+    /* browser surfaces carry the design too */
+    accent-color: var(--color-brand);
+    caret-color: var(--color-brand);
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+
+  .tone-paper {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  .tone-muted {
+    --color-canvas: var(--color-canvas-muted);
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  .tone-night {
+    --color-canvas: var(--color-night);
+    --color-surface: color-mix(in oklab, var(--color-on-night) 6%, var(--color-night));
+    --color-ink: var(--color-on-night);
+    --color-muted-ink: color-mix(in oklab, var(--color-on-night) 68%, var(--color-night));
+    --color-hairline: color-mix(in oklab, var(--color-on-night) 16%, var(--color-night));
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    color-scheme: dark;
+  }
+
+  .tone-brand {
+    --color-canvas: var(--brand-primary);
+    --color-surface: color-mix(in oklab, var(--brand-primary-foreground) 10%, var(--brand-primary));
+    --color-ink: var(--brand-primary-foreground);
+    --color-muted-ink: color-mix(in oklab, var(--brand-primary-foreground) 78%, var(--brand-primary));
+    --color-hairline: color-mix(in oklab, var(--brand-primary-foreground) 24%, var(--brand-primary));
+    /* the primary action on a brand ground inverts, or it would vanish */
+    --color-brand: var(--brand-primary-foreground);
+    --color-brand-foreground: var(--brand-primary);
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  .theme-root,
+  .tone-paper,
+  .tone-muted,
+  .tone-night,
+  .tone-brand {
+    /* steel: a neutral scale derived from the local ink, so it suits any tone */
+    --steel-1: color-mix(in srgb, var(--color-ink) 3.5%, var(--color-canvas));
+    --steel-2: color-mix(in srgb, var(--color-ink) 7%, var(--color-canvas));
+    --rule: color-mix(in srgb, var(--color-ink) 12%, transparent);
+    --rule-strong: color-mix(in srgb, var(--color-ink) 22%, transparent);
+    --tint: color-mix(in srgb, var(--color-ink) 4%, transparent);
+    --tint-strong: color-mix(in srgb, var(--color-ink) 7%, transparent);
+    --brand-tint: color-mix(in srgb, var(--color-brand) 10%, transparent);
+    /* depth is declared once: raised things (sheets, the tray, menus) get a real
+       offset shadow; everything else is flat and separated by rules */
+    --shadow-card:
+      0 1px 2px color-mix(in srgb, #000 6%, transparent),
+      0 14px 34px -20px color-mix(in srgb, #000 40%, transparent);
+    --shadow-raised:
+      0 2px 6px color-mix(in srgb, #000 8%, transparent),
+      0 28px 60px -26px color-mix(in srgb, #000 48%, transparent);
+  }
 }
 
-/* element defaults live in the base layer so utilities (e.g. a sans card title) can override them */
+/* element defaults live in the base layer so utilities can override them */
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -66,11 +140,13 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
   }
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    font-weight: 500;
+    letter-spacing: -0.015em;
     text-wrap: balance;
   }
 
@@ -78,15 +154,18 @@
     text-wrap: pretty;
   }
 
-  /* Visible, consistent focus for keyboard users only */
+  a, button {
+    touch-action: manipulation;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-brand);
-    outline-offset: 2px;
+    outline-offset: 3px;
     border-radius: 4px;
   }
 
   ::selection {
-    background-color: color-mix(in srgb, var(--color-brand) 22%, transparent);
+    background-color: color-mix(in srgb, var(--color-brand) 28%, transparent);
   }
 }
 
@@ -99,24 +178,334 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Layout
+   --------------------------------------------------------------------------- */
 @utility container-page {
   width: 100%;
   margin-inline: auto;
-  padding-inline: 1rem;
-  max-width: 80rem;
+  padding-inline: 1.25rem;
+  max-width: 82rem;
   @media (min-width: 768px) {
-    padding-inline: 2rem;
+    padding-inline: 2.5rem;
+  }
+  @media (min-width: 1280px) {
+    padding-inline: 3.5rem;
   }
 }
 
-/* Entrance used by sections that come into view; subtle, once, no loops. */
+/* narrower column for forms and reading */
+@utility container-narrow {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  max-width: 64rem;
+  @media (min-width: 768px) {
+    padding-inline: 2.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Spacing scale. A few named steps instead of scattered values:
+     section-y      a full-width section's own padding (the gap between two
+                    sections is twice this, so it stays moderate)
+     section-body   heading group -> the section's content
+     stack-tight    eyebrow -> title, title -> lede (inside a heading group)
+   Phones are tighter than desktop; related content stays close, a new section
+   is where the breathing room goes.
+   --------------------------------------------------------------------------- */
+@utility section-y {
+  padding-block: 3rem;
+  @media (min-width: 768px) {
+    padding-block: 4rem;
+  }
+  @media (min-width: 1280px) {
+    padding-block: 4.75rem;
+  }
+}
+
+/* space between a section's heading group and its content */
+@utility section-body {
+  margin-top: 1.75rem;
+  @media (min-width: 768px) {
+    margin-top: 2.25rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Typography. Display sizes are fluid; the display face is the theme's font.
+   --------------------------------------------------------------------------- */
+@utility display-hero {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.5rem, 1.55rem + 3.8vw, 5.25rem);
+  line-height: 1;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+@utility display-1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2rem, 1.45rem + 2vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+@utility display-2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.55rem, 1.3rem + 0.9vw, 2.2rem);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+@utility display-3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.2rem, 1.1rem + 0.4vw, 1.45rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+/* small tracked label above a heading; a short accent rule leads it */
+@utility eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-ink) 78%, transparent);
+  &::before {
+    content: "";
+    width: 1.5rem;
+    height: 1px;
+    background-color: var(--color-brand-accent);
+  }
+}
+
+@utility lede {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-muted-ink);
+  max-width: 58ch;
+  @media (min-width: 768px) {
+    font-size: 1.0625rem;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* a text link with a travelling arrow (put an svg inside) */
+@utility link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-underline-offset: 6px;
+  transition: color var(--dur-ui) ease;
+  & svg {
+    width: 1rem;
+    height: 1rem;
+    transition: transform var(--dur-ui) var(--ease-out);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+    }
+    &:hover svg {
+      transform: translateX(3px);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Surfaces. Flat, separated by rules; shadows only where a surface floats.
+   --------------------------------------------------------------------------- */
+@utility surface-card {
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-card, var(--radius-brand));
+}
+
+@utility surface-flat {
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-card, var(--radius-brand));
+}
+
+@utility surface-raised {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-panel, var(--radius-brand));
+  box-shadow: var(--shadow-raised);
+}
+
+@utility surface-tint {
+  background-color: var(--tint);
+  border-radius: var(--radius-card, var(--radius-brand));
+}
+
+/* a photo plate: every dish image at one scale and crop */
+@utility plate {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-card, var(--radius-brand));
+  background-color: var(--steel-2, var(--tint));
+  isolation: isolate;
+}
+
+/* full-bleed or framed photography with a bottom-weighted scrim for type */
+@utility scrim-bottom {
+  background-image: linear-gradient(180deg, transparent 30%, rgb(0 0 0 / 0.72) 100%);
+}
+
+@utility scrim-left {
+  background-image: linear-gradient(90deg, rgb(0 0 0 / 0.78) 0%, rgb(0 0 0 / 0.5) 45%, rgb(0 0 0 / 0.08) 100%);
+}
+
+@utility rule-t {
+  border-top: 1px solid var(--rule, var(--color-hairline));
+}
+
+@utility rule-b {
+  border-bottom: 1px solid var(--rule, var(--color-hairline));
+}
+
+/* interactive surface: hover only on real pointers, press on everything */
+@utility hover-lift {
+  transition:
+    transform var(--dur-ui) var(--ease-out),
+    border-color var(--dur-ui) ease;
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      border-color: var(--rule-strong, var(--color-hairline));
+    }
+  }
+  &:active {
+    transform: scale(0.99);
+  }
+}
+
+@utility press {
+  transition: transform var(--dur-press) var(--ease-out);
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+/* image zoom on hover of the nearest .group, for photography inside links */
+@utility zoom-on-hover {
+  transition: transform 900ms var(--ease-out);
+  @media (hover: hover) and (pointer: fine) {
+    :where(.group):hover & {
+      transform: scale(1.045);
+    }
+  }
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion. CSS owns the simple, frequent transitions; the `motion` library
+   (components/motion) owns sheets, the tray and order progress. Everything is
+   transform / opacity / clip-path, and softened by the reduced-motion block.
+   --------------------------------------------------------------------------- */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
 }
 
 @utility animate-rise {
-  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.7s var(--ease-out) both;
+}
+
+/* Staggered entrance for lists: set --i on each child */
+@utility stagger-in {
+  animation: rise 0.55s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* sections fade up as they scroll in (browsers without scroll timelines just show them) */
+@utility reveal {
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 28%;
+    }
+  }
+}
+
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@utility animate-sheet {
+  animation: sheet-in var(--dur-ui) var(--ease-out) both;
+}
+
+/* hero photograph settles into place once, on load */
+@keyframes hero-settle {
+  from { transform: scale(1.08); }
+  to { transform: scale(1); }
+}
+
+@utility animate-hero {
+  animation: hero-settle 2.2s var(--ease-out) both;
+}
+
+/* photography is uncovered by a clip as it scrolls in */
+@keyframes plate-reveal {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@utility reveal-plate {
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: plate-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
+
+/* the scroll cue in the hero */
+@keyframes cue {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(5px); opacity: 0.45; }
+}
+
+@utility animate-cue {
+  animation: cue 2.2s var(--ease-in-out) infinite;
+}
+
+/* the tray count ticks when something lands in it */
+@keyframes tick {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+@utility animate-tick {
+  animation: tick 0.36s var(--ease-out);
 }
 
 /* Skeleton shimmer for loading states */
@@ -129,112 +518,9 @@
   background-image: linear-gradient(
     90deg,
     color-mix(in srgb, var(--color-ink) 6%, transparent) 25%,
-    color-mix(in srgb, var(--color-ink) 12%, transparent) 37%,
+    color-mix(in srgb, var(--color-ink) 11%, transparent) 37%,
     color-mix(in srgb, var(--color-ink) 6%, transparent) 63%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-}
-
-/* ---------------------------------------------------------------------------
-   Surfaces
-   --------------------------------------------------------------------------- */
-@utility surface-card {
-  border: 1px solid var(--color-hairline);
-  background-color: var(--color-surface);
-  border-radius: var(--radius-card, var(--radius-brand));
-  box-shadow: var(--shadow-card);
-}
-
-@utility surface-flat {
-  border: 1px solid var(--color-hairline);
-  background-color: var(--color-surface);
-  border-radius: var(--radius-card, var(--radius-brand));
-}
-
-@utility surface-tint {
-  background-color: var(--tint);
-  border-radius: var(--radius-card, var(--radius-brand));
-}
-
-/* interactive card: lifts on hover, presses on click (transform + shadow only) */
-@utility hover-lift {
-  transition:
-    transform 0.4s var(--ease-out),
-    box-shadow 0.4s var(--ease-out),
-    border-color 0.2s ease;
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-raised);
-    border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-hairline));
-  }
-  &:active {
-    transform: translateY(-1px) scale(0.995);
-  }
-}
-
-@utility tabular {
-  font-variant-numeric: tabular-nums;
-}
-
-@utility eyebrow {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-brand);
-}
-
-@utility scrollbar-none {
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-/* ---------------------------------------------------------------------------
-   Motion. Everything here is transform/opacity only and switched off by the
-   prefers-reduced-motion block above.
-   --------------------------------------------------------------------------- */
-
-/* Scroll reveal without JS: sections fade up as they enter the viewport. Only
-   where scroll-driven animations exist, so other browsers simply show content. */
-@keyframes reveal-up {
-  from { opacity: 0; transform: translateY(28px); }
-  to { opacity: 1; transform: none; }
-}
-
-@utility reveal {
-  @supports (animation-timeline: view()) {
-    @media (prefers-reduced-motion: no-preference) {
-      animation: reveal-up linear both;
-      animation-timeline: view();
-      animation-range: entry 0px entry 240px;
-    }
-  }
-}
-
-/* Staggered entrance for lists: set --i on each child */
-@utility stagger-in {
-  animation: rise 0.6s var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 60ms);
-}
-
-@keyframes sheet-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: none; }
-}
-
-@utility animate-sheet {
-  animation: sheet-in 0.35s var(--ease-out) both;
-}
-
-/* slow ken-burns on hero photography */
-@keyframes hero-zoom {
-  from { transform: scale(1.08); }
-  to { transform: scale(1); }
-}
-
-@utility animate-hero {
-  animation: hero-zoom 1.6s var(--ease-out) both;
+  animation: shimmer 1.4s linear infinite;
 }

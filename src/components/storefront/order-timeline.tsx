@@ -25,7 +25,7 @@ export function OrderTimeline({ steps }: { steps: TimelineStep[] }) {
                 step.state === "done" && "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]",
                 step.state === "current" && "border-2 border-[var(--color-brand)] bg-[var(--color-surface)] text-[var(--color-brand)]",
                 step.state === "upcoming" && "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-muted-ink)]",
-                step.state === "cancelled" && "border-red-500 bg-red-500 text-white",
+                step.state === "cancelled" && "border-[var(--color-danger)] bg-[var(--color-danger)] text-white",
               )}
               aria-hidden
             >

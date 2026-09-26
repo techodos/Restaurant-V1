@@ -6,6 +6,9 @@ import { requireStorefront } from "@/web/storefront";
 import { getMyOrders } from "@/server/services/orders";
 import { PreviousOrderCard } from "@/components/storefront/my-order-card";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/storefront/empty-state";
+import { PageHero } from "@/components/storefront/page-hero";
+import { resolveImage } from "@/web/media";
 
 interface MyOrdersPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -36,55 +39,56 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
     timezone: restaurant.timezone,
   };
 
+  const hero = (subtitle: string) => (
+    <PageHero overlay size="sm" image={resolveImage(restaurant.coverUrl)} eyebrow="Your account" title="My orders" subtitle={subtitle} />
+  );
+
   if (!signedIn) {
     return (
-      <div className="container-page flex justify-center py-14 md:py-20">
-        <div className="w-full max-w-md surface-flat p-8 text-center">
-          <span className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]">
-            <LogIn className="size-6" aria-hidden />
-          </span>
-          <h1 className="mt-4 text-xl font-semibold">Sign in to see your orders</h1>
-          <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
+      <>
+        {hero(`Every order you have placed at ${restaurant.name}, in one place.`)}
+        <div className="container-page">
+          <EmptyState
+            icon={LogIn}
+            title="Sign in to see your orders"
+            className="py-12 md:py-16"
+            actions={
+              <>
+                <Button asChild size="lg">
+                  <Link href={`/r/${restaurantSlug}/account/sign-in`}>Sign in</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href={`/r/${restaurantSlug}/account/sign-up`}>Sign up</Link>
+                </Button>
+              </>
+            }
+          >
             Sign in or create an account to view your previous orders. An order you have just placed stays available
-            without an account — look for the order button in the corner of the screen.
-          </p>
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button asChild>
-              <Link href={`/r/${restaurantSlug}/account/sign-in`}>Sign in</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={`/r/${restaurantSlug}/account/sign-up`}>Sign up</Link>
-            </Button>
-          </div>
+            without an account: look for the order button in the corner of the screen.
+          </EmptyState>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="container-page py-10 md:py-14">
-      <header>
-        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">My orders</h1>
-        <p className="mt-2 text-sm text-[var(--color-muted-ink)]">Your previous orders at {restaurant.name}.</p>
-      </header>
-
-      <div className="mx-auto mt-8 max-w-3xl md:mx-0">
+    <>
+      {hero(`Your previous orders at ${restaurant.name}.`)}
+      <div className="container-page py-10 md:py-12">
         {previous.length ? (
-          <div className="space-y-4">
+          <ol className="border-b border-[var(--rule)]">
             {previous.map((order) => (
-              <PreviousOrderCard key={order.id} order={order} restaurant={card} />
+              <li key={order.id}>
+                <PreviousOrderCard order={order} restaurant={card} />
+              </li>
             ))}
-          </div>
+          </ol>
         ) : (
-          <p
-            className="flex items-center gap-2 rounded-[var(--radius-brand)] border border-dashed border-[var(--color-hairline)] p-5 text-sm text-[var(--color-muted-ink)]"
-            data-testid="no-previous-orders"
-          >
-            <History className="size-4 shrink-0" aria-hidden />
+          <EmptyState icon={History} title="No orders yet" data-testid="no-previous-orders">
             Completed and cancelled orders will be listed here.
-          </p>
+          </EmptyState>
         )}
       </div>
-    </div>
+    </>
   );
 }

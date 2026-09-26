@@ -41,8 +41,9 @@ export function restaurantJsonLd(
         (windows ?? []).map((window) => ({
           "@type": "OpeningHoursSpecification",
           dayOfWeek: `https://schema.org/${DAY_MAP[day] ?? day}`,
-          opens: window.open,
-          closes: window.close,
+          opens: window.open === window.close ? "00:00" : window.open,
+          // schema.org spells a 24h day as 00:00–23:59; open === close is our 24h marker
+          closes: window.open === window.close ? "23:59" : window.close,
         })),
       )
     : [];

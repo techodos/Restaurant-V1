@@ -33,6 +33,19 @@ export const iso = (value: unknown): string | null => {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 export const isoRequired = (value: unknown): string => iso(value) ?? new Date().toISOString();
+/**
+ * A Postgres `date` as "YYYY-MM-DD". node-postgres parses `date` into a JS Date at LOCAL midnight, so
+ * String(value) is "Sat Sep 26 2026 ..." and toISOString() can shift the day in zones east of UTC:
+ * read the local calendar fields instead. Strings (to_char, or a text type parser) pass through.
+ */
+export const dateOnly = (value: unknown): string => {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "";
+    const pad = (part: number) => String(part).padStart(2, "0");
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
+  return str(value).slice(0, 10);
+};
 export const jsonObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 export const jsonArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
@@ -553,7 +566,7 @@ export function mapReservation(row: Row): Reservation {
     guestName: str(row.guest_name),
     guestEmail: strOrNull(row.guest_email),
     guestPhone: str(row.guest_phone),
-    reservationDate: str(row.reservation_date).slice(0, 10),
+    reservationDate: dateOnly(row.reservation_date),
     reservationTime: str(row.reservation_time).slice(0, 5),
     durationMinutes: num(row.duration_minutes, 90),
     guests: num(row.guests, 2),

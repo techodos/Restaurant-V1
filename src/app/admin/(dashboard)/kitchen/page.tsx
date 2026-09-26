@@ -43,7 +43,7 @@ export default async function AdminKitchenPage() {
           {orders.map((order) => {
             const minutes = elapsedMinutes(order.createdAt);
             return (
-              <Card key={order.id} className={minutes >= 20 ? "border-red-400" : undefined}>
+              <Card key={order.id} className={minutes >= 20 ? "border-[var(--color-danger)]" : undefined}>
                 <CardHeader className="flex-row items-start justify-between gap-2 pb-3">
                   <div>
                     <CardTitle>{order.orderNumber}</CardTitle>

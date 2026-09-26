@@ -10,6 +10,7 @@ import { getLiveDeliveryZones } from "@/server/services/restaurants";
 import { isEmailVerified } from "@/server/services/customer-auth";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { Button } from "@/components/ui/button";
+import { signInHref } from "@/shared/return-to";
 
 interface CheckoutPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -25,11 +26,16 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const context = await requireStorefront(restaurantSlug);
 
   const { restaurant, primaryLocation } = context;
+  // Orders are for signed-in customers only (placeOrderAction enforces it; this sends a guest to sign in
+  // and straight back here). An unverified customer stays: the form shows the verify-code step.
+  const customer = await getStorefrontCustomer(restaurant.id);
+  if (!customer) redirect(signInHref(restaurant.slug, `/r/${restaurant.slug}/checkout`));
+
   const cart = await readCart(restaurant);
   if (!cart || cart.items.length === 0) redirect(`/r/${restaurant.slug}/menu`);
 
   const availability = serviceAvailability(restaurant, primaryLocation, cart.orderType);
-  const [pricingResult, zones, customer] = await Promise.all([
+  const [pricingResult, zones] = await Promise.all([
     priceCart(restaurant, cart),
     cart.orderType === "delivery"
       ? getLiveDeliveryZones(restaurant.id, {
@@ -37,18 +43,18 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           activeOnly: true,
         })
       : Promise.resolve([]),
-    getStorefrontCustomer(restaurant.id),
   ]);
-  const emailVerified = customer ? await isEmailVerified(customer.userId) : true;
+  const emailVerified = await isEmailVerified(customer.userId);
 
   const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant);
 
   if (!pricingResult.pricing || pricingResult.blockers.length > 0 || !availability.acceptsOrders) {
     const reason = pricingResult.blockers[0] ?? availability.message;
     return (
-      <div className="container-page py-20">
-        <div className="mx-auto max-w-lg surface-flat p-8 text-center">
-          <h1 className="text-2xl font-semibold">We cannot take this order yet</h1>
+      <div className="container-page py-16">
+        <div className="mx-auto max-w-lg text-center">
+          <p className="eyebrow mb-4 justify-center">Checkout</p>
+          <h1 className="display-2">We cannot take this order yet</h1>
           <p className="mt-3 text-[var(--color-muted-ink)]">{reason}</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button asChild>
@@ -66,22 +72,34 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const pricing = pricingResult.pricing;
 
   return (
-    <div className="container-page py-10 md:py-14">
-      <header className="mx-auto max-w-3xl">
+    <div className="container-page pb-12 pt-6 md:pb-16 md:pt-10">
+      <header className="border-b border-[var(--rule)] pb-6">
         <Link
           href={`/r/${restaurant.slug}/cart`}
-          className="group mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
+          className="group mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
         >
           <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden />
-          Back to cart
+          Back to tray
         </Link>
-        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">Checkout</h1>
-        <p className="mt-2 text-[var(--color-muted-ink)]">
-          {cart.itemCount} item{cart.itemCount === 1 ? "" : "s"} from {restaurant.name} · no account required
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <p className="eyebrow mb-3">Almost there</p>
+            <h1 className="display-1">Checkout</h1>
+            <p className="tabular mt-3 text-[15px] text-[var(--color-muted-ink)]">
+              {cart.itemCount} item{cart.itemCount === 1 ? "" : "s"} from {restaurant.name}
+            </p>
+          </div>
+          <ol aria-label="Order progress" className="flex items-center gap-2 text-[13px] font-medium">
+            <li className="text-[var(--color-muted-ink)]">Tray</li>
+            <li aria-hidden className="h-px w-6 bg-[var(--rule-strong)]" />
+            <li aria-current="step" className="text-[var(--color-ink)]">Checkout</li>
+            <li aria-hidden className="h-px w-6 bg-[var(--rule-strong)]" />
+            <li className="text-[var(--color-muted-ink)]">Tracking</li>
+          </ol>
+        </div>
       </header>
 
-      <div className="mx-auto mt-8 max-w-3xl">
+      <div className="mt-8">
         <CheckoutForm
           restaurantSlug={restaurant.slug}
           orderType={cart.orderType}
@@ -113,7 +131,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
               ? { fullName: customer.name, phone: "", email: "" }
               : null
           }
-          allowGuestCheckout={context.config.ordering.allowGuestCheckout}
+          defaultCity={primaryLocation?.city ?? ""}
         />
       </div>
     </div>

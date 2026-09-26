@@ -42,3 +42,22 @@ describe("navigation item `enabled` flag", () => {
     expect(config.navigation.items.map((item) => item.enabled)).toEqual([true, false]);
   });
 });
+
+describe("navigation `tone` (header ground)", () => {
+  const tone = (navigation: unknown) => websiteConfigSchema.parse({ navigation }).navigation.tone;
+
+  it("defaults to dark when the key is missing, so existing restaurants keep their header", () => {
+    expect(tone({ items: [] })).toBe("dark");
+    expect(websiteConfigSchema.parse({}).navigation.tone).toBe("dark");
+  });
+
+  it("reads the configured value", () => {
+    expect(tone({ tone: "light" })).toBe("light");
+    expect(tone({ tone: "dark" })).toBe("dark");
+  });
+
+  it("falls back to dark on a bad value instead of rejecting the whole config", () => {
+    expect(tone({ tone: "purple" })).toBe("dark");
+    expect(tone({ tone: 3 })).toBe("dark");
+  });
+});

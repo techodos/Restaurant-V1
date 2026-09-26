@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, MapPin, Phone, Receipt, Store } from "lucide-react";
+import { CheckCircle2, MapPin, Phone, Receipt, SearchX, Store } from "lucide-react";
+import { EmptyState } from "@/components/storefront/empty-state";
 import { ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
 import { getVisitorContext } from "@/web/session";
 import { requireStorefront } from "@/web/storefront";
@@ -9,7 +10,7 @@ import { getPushClientConfigFor } from "@/server/services/notifications";
 import { describeEta } from "@/shared/order-timeline";
 import { formatMoney } from "@/shared/money";
 import { Button } from "@/components/ui/button";
-import { LiveOrderTimeline, OrderLiveProvider, OrderLiveStatus, OrderReceivedNotice } from "@/components/storefront/order-live-status";
+import { LiveOrderTimeline, OrderLiveProvider, OrderLiveStatus, OrderPass, OrderReceivedNotice } from "@/components/storefront/order-live-status";
 import { PushOptIn } from "@/components/storefront/push-opt-in";
 import { ReorderButton } from "@/components/storefront/reorder-button";
 import { JsonLd } from "@/components/storefront/json-ld";
@@ -42,27 +43,30 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
   const order = await trackOrder(context.restaurant.id, decodeURIComponent(orderNumber), visitor, accessToken);
   if (!order) {
     return (
-      <div className="container-page py-20">
-        <div className="mx-auto max-w-lg text-center">
-          <h1 className="text-2xl font-semibold">We cannot show this order</h1>
-          <p className="mt-3 text-[var(--color-muted-ink)]">
-            Orders are visible from the device that placed them. If you ordered from another phone or browser, call{" "}
-            {context.restaurant.phone ?? "the restaurant"} with your order number and we will look it up.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button asChild>
-              <Link href={`/r/${context.restaurant.slug}/menu`}>Back to the menu</Link>
-            </Button>
-            {context.restaurant.phone ? (
-              <Button asChild variant="outline">
-                <a href={`tel:${context.restaurant.phone.replace(/\s+/g, "")}`}>
-                  <Phone aria-hidden />
-                  Call us
-                </a>
+      <div className="container-page py-12 md:py-16">
+        <EmptyState
+          icon={SearchX}
+          title="We cannot show this order"
+          titleAs="h1"
+          actions={
+            <>
+              <Button asChild size="lg">
+                <Link href={`/r/${context.restaurant.slug}/menu`}>Back to the menu</Link>
               </Button>
-            ) : null}
-          </div>
-        </div>
+              {context.restaurant.phone ? (
+                <Button asChild size="lg" variant="outline">
+                  <a href={`tel:${context.restaurant.phone.replace(/s+/g, "")}`}>
+                    <Phone aria-hidden />
+                    Call us
+                  </a>
+                </Button>
+              ) : null}
+            </>
+          }
+        >
+          Orders are visible from the device that placed them. If you ordered from another phone or browser, call{" "}
+          {context.restaurant.phone ?? "the restaurant"} with your order number and we will look it up.
+        </EmptyState>
       </div>
     );
   }
@@ -89,7 +93,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
       history={order.statusHistory ?? []}
       orderType={order.orderType}
     >
-      <div className="container-page py-10 md:py-14">
+      <div className="pb-12 md:pb-16">
         <JsonLd
           data={{
             "@context": "https://schema.org",
@@ -101,71 +105,77 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
           }}
         />
 
-        <header className="flex flex-wrap items-start justify-between gap-4">
+        {/* the pass: the live status on the night ground, the rest of the order on paper below */}
+        <section className="tone-night relative isolate overflow-hidden">
+          <span
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_85%_0%,color-mix(in_srgb,var(--color-brand-accent)_16%,transparent),transparent_55%)]"
+          />
+          <div className="container-page pt-8 md:pt-10">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--rule)] pb-6">
           <div>
-            <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-              <CheckCircle2 className="size-4" aria-hidden />
-              Order received
-            </p>
-            <h1 className="mt-2 text-[2.25rem] font-semibold leading-[1.05] md:text-[3rem]">Order {order.orderNumber}</h1>
-            <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-              {ORDER_TYPE_LABELS[order.orderType]} · placed{" "}
+            <p className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-muted-ink)]">
+              <CheckCircle2 className="size-4 text-[var(--color-brand-accent)]" aria-hidden />
+              {ORDER_TYPE_LABELS[order.orderType]} order, placed{" "}
               {placedAt.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-              {eta ? ` · ${eta}` : ""}
             </p>
+            <h1 className="tabular mt-3 font-[family-name:var(--font-sans)] text-[1.35rem] font-semibold tracking-[0.04em] md:text-[1.6rem]">
+              {order.orderNumber}
+            </h1>
+            {eta ? <p className="mt-3 text-[15px] font-medium">{eta}</p> : null}
           </div>
           <OrderLiveStatus />
         </header>
 
-        <OrderReceivedNotice />
+        <OrderPass />
+        <div className="pb-6">
+          <OrderReceivedNotice />
+        </div>
+          </div>
+        </section>
 
-        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-14">
-          <div className="space-y-8">
-            <section className="surface-card p-6 md:p-7">
-              <h2 className="text-lg font-semibold">Progress</h2>
-              <div className="mt-5">
-                <LiveOrderTimeline />
-              </div>
-            </section>
-
-            <section className="surface-card p-6 md:p-7">
-              <h2 className="text-lg font-semibold">Your items</h2>
-              <ul className="mt-4 divide-y divide-[var(--color-hairline)]">
+        <div className="container-page mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
+          <div className="space-y-10">
+            <section>
+              <h2 className="display-2">Your order</h2>
+              <ul className="mt-4 divide-y divide-[var(--rule)] border-y border-[var(--rule)]">
                 {(order.items ?? []).map((item) => (
-                  <li key={item.id} className="flex items-start justify-between gap-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium">
-                        {item.quantity} × {item.itemName}
-                        {item.variantName ? <span className="text-[var(--color-muted-ink)]"> · {item.variantName}</span> : null}
-                      </p>
-                      {item.addons.length ? (
-                        <ul className="mt-1 text-xs text-[var(--color-muted-ink)]">
-                          {item.addons.map((addon) => (
-                            <li key={addon.id}>
-                              + {addon.addonName}
-                              {addon.quantity > 1 ? ` ×${addon.quantity}` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {item.specialInstructions ? (
-                        <p className="mt-1 text-xs italic text-[var(--color-muted-ink)]">“{item.specialInstructions}”</p>
-                      ) : null}
+                  <li key={item.id} className="flex items-start justify-between gap-4 py-4">
+                    <div className="flex min-w-0 gap-3">
+                      <span className="tabular grid size-7 shrink-0 place-items-center rounded-full bg-[var(--steel-2)] text-xs font-semibold">
+                        {item.quantity}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[15px] font-medium">{item.itemName}</p>
+                        {item.variantName || item.addons.length ? (
+                          <p className="mt-0.5 text-[13px] text-[var(--color-muted-ink)]">
+                            {[
+                              item.variantName,
+                              ...item.addons.map((addon) => `${addon.addonName}${addon.quantity > 1 ? ` ×${addon.quantity}` : ""}`),
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </p>
+                        ) : null}
+                        {item.specialInstructions ? (
+                          <p className="mt-1 text-xs italic text-[var(--color-muted-ink)]">&ldquo;{item.specialInstructions}&rdquo;</p>
+                        ) : null}
+                      </div>
                     </div>
-                    <p className="whitespace-nowrap text-sm font-medium">{money(item.lineTotal)}</p>
+                    <p className="tabular whitespace-nowrap text-[15px] font-medium">{money(item.lineTotal)}</p>
                   </li>
                 ))}
               </ul>
 
-              <dl className="tabular mt-4 space-y-2.5 border-t border-[var(--color-hairline)] pt-4 text-sm">
+              <dl className="tabular mt-4 space-y-2.5 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-[var(--color-muted-ink)]">Subtotal</dt>
                   <dd>{money(order.subtotal)}</dd>
                 </div>
                 {Number(order.discountAmount) > 0 ? (
-                  <div className="flex justify-between text-emerald-700">
+                  <div className="flex justify-between text-[var(--color-success)]">
                     <dt>Discount{order.couponCode ? ` (${order.couponCode})` : ""}</dt>
-                    <dd>− {money(order.discountAmount)}</dd>
+                    <dd>-{money(order.discountAmount)}</dd>
                   </div>
                 ) : null}
                 {Number(order.deliveryFee) > 0 ? (
@@ -192,20 +202,27 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                     <dd>{money(order.tipAmount)}</dd>
                   </div>
                 ) : null}
-                <div className="flex justify-between border-t border-[var(--color-hairline)] pt-3 text-base font-semibold">
+                <div className="flex items-baseline justify-between border-t border-dashed border-[var(--rule-strong)] pt-3 text-lg font-semibold">
                   <dt>Total</dt>
                   <dd>{money(order.total)}</dd>
                 </div>
               </dl>
             </section>
+
+            <section>
+              <h2 className="display-2">Timeline</h2>
+              <div className="mt-5">
+                <LiveOrderTimeline />
+              </div>
+            </section>
           </div>
 
-          <aside className="space-y-5">
-            <section className="surface-card p-6 md:p-7">
-              <h2 className="text-base font-semibold">
+          <aside className="space-y-8 lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
+            <section className="rounded-[var(--radius-panel)] bg-[var(--steel-1)] p-6">
+              <h2 className="font-[family-name:var(--font-sans)] text-sm font-semibold">
                 {order.orderType === "delivery" ? "Delivering to" : order.orderType === "pickup" ? "Pickup from" : "Dine-in"}
               </h2>
-              <div className="mt-3 space-y-2 text-sm text-[var(--color-muted-ink)]">
+              <div className="mt-3 space-y-2.5 text-sm text-[var(--color-muted-ink)]">
                 {order.orderType === "delivery" && order.deliveryAddress ? (
                   <p className="flex items-start gap-2">
                     <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -221,7 +238,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                     <Store className="mt-0.5 size-4 shrink-0" aria-hidden />
                     <span>
                       {order.locationName ?? context.primaryLocation?.name ?? restaurant.name}
-                      {order.tableNumber ? ` · table ${order.tableNumber}` : ""}
+                      {order.tableNumber ? `, table ${order.tableNumber}` : ""}
                     </span>
                   </p>
                 ) : null}
@@ -232,28 +249,35 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 <p className="flex items-start gap-2">
                   <Receipt className="mt-0.5 size-4 shrink-0" aria-hidden />
                   <span>
-                    {PAYMENT_METHOD_LABELS[order.paymentMethod]} · {order.paymentStatus}
+                    {PAYMENT_METHOD_LABELS[order.paymentMethod]}, {order.paymentStatus}
                   </span>
                 </p>
               </div>
             </section>
 
+            {pushConfig && order.status !== "completed" && order.status !== "cancelled" ? (
+              <PushOptIn
+                restaurantSlug={restaurant.slug}
+                orderNumber={order.orderNumber}
+                accessToken={accessToken}
+                firebase={pushConfig}
+              />
+            ) : null}
+
             {order.status === "completed" || order.status === "cancelled" ? (
-              <section className="surface-card p-6 md:p-7">
-                <h2 className="text-base font-semibold">Order this again</h2>
+              <section className="border-t border-[var(--rule)] pt-5">
+                <h2 className="font-[family-name:var(--font-sans)] text-sm font-semibold">Order this again</h2>
                 <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-                  Add these items to your cart at today's prices and availability.
+                  Adds these dishes to your tray at today&apos;s prices and availability.
                 </p>
                 <ReorderButton restaurantSlug={restaurant.slug} orderNumber={order.orderNumber} accessToken={accessToken} />
               </section>
             ) : null}
 
             {order.status === "completed" && restaurant.features.reviews ? (
-              <section className="surface-card p-6 md:p-7">
-                <h2 className="text-base font-semibold">How was it?</h2>
-                <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-                  Leave a review and help the next customer decide.
-                </p>
+              <section className="border-t border-[var(--rule)] pt-5">
+                <h2 className="font-[family-name:var(--font-sans)] text-sm font-semibold">How was it?</h2>
+                <p className="mt-2 text-sm text-[var(--color-muted-ink)]">A short review helps the next guest decide.</p>
                 <Button asChild variant="outline" className="mt-4 w-full">
                   <Link
                     href={`/r/${restaurant.slug}/reviews?order=${encodeURIComponent(order.orderNumber)}${
@@ -266,23 +290,14 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
               </section>
             ) : null}
 
-            {pushConfig && order.status !== "completed" && order.status !== "cancelled" ? (
-              <PushOptIn
-                restaurantSlug={restaurant.slug}
-                orderNumber={order.orderNumber}
-                accessToken={accessToken}
-                firebase={pushConfig}
-              />
-            ) : null}
-
-            <section className="surface-card p-6 md:p-7 text-sm text-[var(--color-muted-ink)]">
+            <section className="border-t border-[var(--rule)] pt-5 text-sm text-[var(--color-muted-ink)]">
               <p>
-                Keep this page bookmarked — it always shows the live status of order {order.orderNumber}. Need a hand? Call{" "}
+                This page always shows the live status of order {order.orderNumber}. Need a hand? Call{" "}
                 {restaurant.phone ?? "the restaurant"}.
               </p>
-              <Button asChild variant="outline" size="sm" className="mt-4">
-                <Link href={`/r/${restaurant.slug}/orders`}>My orders</Link>
-              </Button>
+              <Link href={`/r/${restaurant.slug}/orders`} className="mt-3 inline-block font-semibold text-[var(--color-ink)] underline-offset-4 hover:underline">
+                My orders
+              </Link>
             </section>
           </aside>
         </div>

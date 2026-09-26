@@ -5,7 +5,7 @@ import { cn } from "@/shared/utils";
 const TONES = {
   primary: "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]",
   neutral: "bg-[color-mix(in_srgb,var(--color-ink)_8%,transparent)] text-[var(--color-ink)]",
-  accent: "bg-[var(--color-brand-accent)] text-[#1a1a1a]",
+  accent: "bg-[var(--color-brand-accent)] text-[var(--color-brand-accent-foreground)]",
 } as const;
 
 export function AnnouncementSection({ section }: { section: AnnouncementConfig }) {

@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import type { StorefrontContext } from "@/shared/contract/models";
 import type { MenuPreviewSection as PreviewConfig } from "@/shared/contract/sections";
-import { MenuItemCard } from "@/components/storefront/menu-item-card";
+import { DishTile } from "@/components/storefront/dish-tile";
 import { SectionHeading } from "@/components/storefront/section-heading";
 import { SectionShell } from "@/components/storefront/section-shell";
 import { searchMenu } from "@/server/services/catalog";
@@ -28,20 +29,21 @@ export async function MenuPreviewSection({
     : items;
 
   return (
-    <SectionShell tone="surface">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <SectionHeading title={section.title} subtitle={section.subtitle} />
-        <Link
-          href={`/r/${context.restaurant.slug}/menu`}
-          className="text-sm font-medium text-[var(--color-brand)] underline-offset-4 hover:underline"
-        >
-          Full menu →
-        </Link>
-      </div>
-      <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+    <SectionShell tone="paper">
+      <SectionHeading
+        title={section.title}
+        subtitle={section.subtitle}
+        action={
+          <Link href={`/r/${context.restaurant.slug}/menu`} className="link-arrow">
+            Full menu
+            <ArrowRight aria-hidden />
+          </Link>
+        }
+      />
+      <ul className="section-body grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
         {ordered.map((item) => (
-          <li key={item.id} className="h-full">
-            <MenuItemCard
+          <li key={item.id}>
+            <DishTile
               item={item}
               restaurantSlug={context.restaurant.slug}
               currencySymbol={context.restaurant.currencySymbol}

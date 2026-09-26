@@ -142,7 +142,24 @@ export const themeSchema = z.object({
   bodyFont: z.string().trim().max(60).default("Inter"),
   radius: z.enum(["none", "sm", "md", "lg", "xl", "full"]).default("md"),
   dark: z.boolean().default(false),
+  /*
+   * Optional semantic tokens for the editorial layout (dark/light section rhythm, status colours).
+   * Absent, or malformed, means "derive from the core colours above" (web/theme.ts), so every existing
+   * theme keeps working and a bad value can never invalidate the whole theme.
+   */
+  surfaceMuted: optionalHex(),
+  surfaceDark: optionalHex(),
+  foregroundOnDark: optionalHex(),
+  accentForeground: optionalHex(),
+  success: optionalHex(),
+  warning: optionalHex(),
+  danger: optionalHex(),
+  info: optionalHex(),
 });
+
+function optionalHex() {
+  return z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().catch(undefined);
+}
 
 export type RestaurantTheme = z.infer<typeof themeSchema>;
 
@@ -169,6 +186,12 @@ export const websiteConfigSchema = z.object({
         .default([]),
       showCart: z.boolean().default(true),
       sticky: z.boolean().default(true),
+      /*
+       * The header's ground once it is not floating over a hero photo: "dark" = the theme's night surface
+       * (surfaceDark), "light" = the theme's background. Missing or unknown means "dark", so existing
+       * restaurants keep today's look. Over a hero the header is always transparent with light type.
+       */
+      tone: z.enum(["dark", "light"]).catch("dark"),
     })
     .default({}),
   footer: z
@@ -188,6 +211,7 @@ export const websiteConfigSchema = z.object({
   ordering: z
     .object({
       defaultOrderType: z.enum(ORDER_TYPES).default("delivery"),
+      /** No longer used (2026-09-26): every order needs a signed-in, email-verified customer (customer-auth.ts#assertCanPlaceOrder). Kept so stored configs still parse. */
       allowGuestCheckout: z.boolean().default(true),
       showPrepTime: z.boolean().default(true),
       ctaLabel: z.string().trim().max(40).default("Order now"),

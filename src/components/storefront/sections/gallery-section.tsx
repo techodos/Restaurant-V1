@@ -3,58 +3,90 @@ import type { GallerySection as GalleryConfig } from "@/shared/contract/sections
 import { resolveImage } from "@/web/media";
 import { cn } from "@/shared/utils";
 import { SectionHeading } from "@/components/storefront/section-heading";
-import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
 
-const COLUMNS: Record<number, string> = {
-  2: "md:grid-cols-2",
-  3: "md:grid-cols-3",
-  4: "md:grid-cols-4",
-};
+interface Photo {
+  resolved: string;
+  alt: string;
+  caption: string;
+}
 
-/** md column span for the last photo: 1 + the number of empty cells it absorbs */
-const MD_SPAN: Record<number, string> = { 1: "md:col-span-1", 2: "md:col-span-2", 3: "md:col-span-3", 4: "md:col-span-4" };
+/** Split the photographs into spreads of three; one or two left over form a closing spread of their own. */
+function spreads(photos: Photo[]): Photo[][] {
+  const out: Photo[][] = [];
+  for (let index = 0; index < photos.length; index += 3) out.push(photos.slice(index, index + 3));
+  return out;
+}
+
+function Plate({ photo, className, sizes }: { photo: Photo; className?: string; sizes: string }) {
+  return (
+    <figure className={cn("group relative overflow-hidden rounded-[var(--radius-card)] bg-[var(--steel-2)]", className)}>
+      <Image src={photo.resolved} alt={photo.alt} fill sizes={sizes} className="zoom-on-hover reveal-plate object-cover" />
+      {photo.caption ? (
+        <figcaption className="scrim-bottom absolute inset-x-0 bottom-0 p-4 pt-14 text-[13px] text-white md:translate-y-2 md:opacity-0 md:transition-[opacity,transform] md:duration-500 md:group-hover:translate-y-0 md:group-hover:opacity-100">
+          {photo.caption}
+        </figcaption>
+      ) : null}
+    </figure>
+  );
+}
 
 /**
- * Bento gallery: with five or more photos the first becomes a large feature tile, so the grid reads as a
- * composed spread rather than a contact sheet. Phones get a two-column grid.
+ * The restaurant's photographs as magazine spreads: each group of three is one large plate beside two
+ * stacked ones, the large side alternating from spread to spread; a spread of two sits side by side and a
+ * single photograph runs as a wide panorama. Any count, never a hole.
  */
-export function GallerySection({ section }: { section: GalleryConfig }) {
-  const images = section.images.flatMap((image) => {
+export function GallerySection({ section, tone = "paper" }: { section: GalleryConfig; tone?: SectionTone }) {
+  const photos = section.images.flatMap((image) => {
     const resolved = resolveImage(image.url);
-    return resolved ? [{ resolved, alt: image.alt ?? "" }] : [];
+    return resolved ? [{ resolved, alt: image.alt ?? "", caption: image.caption ?? image.alt ?? "" }] : [];
   });
-
-  if (!images.length) return null;
-  const columns = COLUMNS[section.columns] ?? COLUMNS[3];
-  const feature = images.length >= 5 && section.columns >= 3;
-  // The last photo stretches to close any gap in its row (phones: 2 columns, md+: the configured count).
-  const cells = feature ? images.length + 3 : images.length;
-  const mdColumns = COLUMNS[section.columns] ? section.columns : 3;
-  const lastSpan = [cells % 2 === 1 ? "col-span-2" : "", MD_SPAN[((mdColumns - (cells % mdColumns)) % mdColumns) + 1] ?? ""];
+  if (!photos.length) return null;
 
   return (
-    <SectionShell tone="surface">
-      <SectionHeading title={section.title} subtitle={section.subtitle} />
-      <ul className={cn("mt-10 grid auto-rows-[10rem] grid-cols-2 gap-3 sm:auto-rows-[13rem] md:gap-4", columns)}>
-        {images.map((image, index) => (
-          <li
-            key={`${image.resolved}-${index}`}
-            className={cn(
-              "group relative overflow-hidden rounded-[var(--radius-card)] bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]",
-              feature && index === 0 && "col-span-2 row-span-2",
-              index === images.length - 1 && lastSpan,
-            )}
-          >
-            <Image
-              src={image.resolved}
-              alt={image.alt}
-              fill
-              sizes={feature && index === 0 ? "(min-width: 768px) 66vw, 100vw" : "(min-width: 768px) 33vw, 50vw"}
-              className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04]"
-            />
-          </li>
-        ))}
-      </ul>
+    <SectionShell tone={tone}>
+      <SectionHeading eyebrow="Gallery" title={section.title} subtitle={section.subtitle} />
+      <div className="section-body space-y-3 md:space-y-4">
+        {spreads(photos).map((spread, index) => {
+          const flip = index % 2 === 1;
+          if (spread.length === 1) {
+            return <Plate key={index} photo={spread[0]!} className="aspect-[16/9] md:aspect-[21/9]" sizes="100vw" />;
+          }
+          if (spread.length === 2) {
+            return (
+              <div key={index} className="grid grid-cols-2 gap-3 md:gap-4">
+                {spread.map((photo) => (
+                  <Plate key={photo.resolved} photo={photo} className="aspect-[4/5] md:aspect-[4/3]" sizes="50vw" />
+                ))}
+              </div>
+            );
+          }
+          const [lead, ...pair] = spread;
+          return (
+            <div
+              key={index}
+              className={cn(
+                "grid grid-cols-2 gap-3 md:h-[36rem] md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] md:grid-rows-2 md:gap-4",
+                flip && "md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]",
+              )}
+            >
+              <Plate
+                photo={lead!}
+                className={cn("col-span-2 aspect-[4/3] md:col-span-1 md:row-span-2 md:aspect-auto", flip && "md:col-start-2 md:row-start-1")}
+                sizes="(min-width: 768px) 60vw, 100vw"
+              />
+              {pair.map((photo) => (
+                <Plate
+                  key={photo.resolved}
+                  photo={photo}
+                  className={cn("aspect-square md:aspect-auto", flip && "md:col-start-1")}
+                  sizes="(min-width: 768px) 40vw, 50vw"
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </SectionShell>
   );
 }

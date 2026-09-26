@@ -609,7 +609,7 @@ export const WEBSITE_CONFIG = {
     linkLabel: "Order now",
     linkHref: `${BASE}/menu`,
   },
-  navigation: { items: NAV, showCart: true, sticky: true },
+  navigation: { items: NAV, showCart: true, sticky: true, tone: "dark" },
   footer: {
     tagline: "Charcoal, olive oil and a table full of sharing plates — Levantine cooking in Islamabad.",
     columns: [

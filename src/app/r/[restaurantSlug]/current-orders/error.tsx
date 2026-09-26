@@ -12,9 +12,9 @@ export default function CurrentOrdersError({ error, reset }: { error: Error & { 
   }, [error]);
 
   return (
-    <div className="container-page py-24">
+    <div className="container-page py-16">
       <div role="alert" className="mx-auto max-w-lg surface-flat p-8 text-center">
-        <span className="mx-auto grid size-12 place-items-center rounded-full bg-amber-500/15 text-amber-700">
+        <span className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)] text-[color-mix(in_srgb,var(--color-warning)_80%,var(--color-ink))]">
           <AlertTriangle className="size-6" aria-hidden />
         </span>
         <h1 className="mt-5 text-2xl font-semibold">We could not load your current orders</h1>

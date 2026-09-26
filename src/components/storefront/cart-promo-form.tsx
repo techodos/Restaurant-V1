@@ -22,14 +22,14 @@ export function CartPromoForm({ restaurantSlug, appliedCode }: CartPromoFormProp
 
   if (appliedCode) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-brand)_6%,transparent)] px-4 py-3">
+      <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-dashed border-[var(--rule-strong)] px-4 py-3">
         <span className="inline-flex items-center gap-2 text-sm font-medium">
           <Tag className="size-4 text-[var(--color-brand)]" aria-hidden />
           {appliedCode} applied
         </span>
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-sm text-[var(--color-muted-ink)] hover:text-red-600"
+          className="inline-flex items-center gap-1 text-sm text-[var(--color-muted-ink)] hover:text-[var(--color-danger)]"
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
@@ -76,11 +76,11 @@ export function CartPromoForm({ restaurantSlug, appliedCode }: CartPromoFormProp
           name="code"
           value={code}
           onChange={(event) => setCode(event.target.value.toUpperCase())}
-          placeholder="WELCOME10"
+          placeholder="Enter code"
           autoComplete="off"
           className="uppercase"
         />
-        <Button type="submit" variant="outline" disabled={pending || !code.trim()}>
+        <Button type="submit" variant="outline" className="rounded-full" disabled={pending || !code.trim()}>
           {pending ? <Loader2 className="animate-spin" aria-hidden /> : "Apply"}
         </Button>
       </div>

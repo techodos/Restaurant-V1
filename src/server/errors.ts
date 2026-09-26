@@ -25,6 +25,7 @@ function statusForCode(code: ErrorCode): number {
     case "VALIDATION_ERROR":
       return 422;
     case "UNAUTHORIZED":
+    case "SIGN_IN_REQUIRED":
       return 401;
     case "FORBIDDEN":
       return 403;

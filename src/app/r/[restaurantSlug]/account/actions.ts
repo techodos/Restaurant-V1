@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { safeReturnTo as safeReturnToPath } from "@/shared/return-to";
 import { randomUUID } from "node:crypto";
 import type { ApiResult } from "@/shared/contract/api";
 import { action, errors } from "@/server/errors";
@@ -128,19 +129,10 @@ function googleRedirectUri(slug: string): string {
   return `${config.app.siteUrl}/r/${slug}/account/google/callback`;
 }
 
-/** Only ever redirect back into this restaurant's own storefront — never an absolute or cross-tenant URL. */
-function sanitizeReturnTo(slug: string, returnTo: string | null): string | null {
-  if (!returnTo || (!returnTo.startsWith(`/r/${slug}/`) && returnTo !== `/r/${slug}`)) return null;
-  if (returnTo.startsWith("//") || returnTo.includes("://")) return null;
-  // Landing back on the sign-in/sign-up page itself while now authenticated is a confusing loop — go to /account instead.
-  if (/^\/r\/[^/]+\/account\/(sign-in|sign-up)\/?$/.test(returnTo)) return null;
-  return returnTo;
-}
-
 export async function beginGoogleSignIn(slug: string, returnTo: string | null): Promise<never> {
   const state = randomUUID();
   await setGoogleState(state);
-  const safeReturnTo = sanitizeReturnTo(slug, returnTo);
+  const safeReturnTo = safeReturnToPath(slug, returnTo);
   if (safeReturnTo) await setGoogleReturnTo(safeReturnTo);
   const url = startGoogleAuth(googleRedirectUri(slug), state);
   redirect(url);

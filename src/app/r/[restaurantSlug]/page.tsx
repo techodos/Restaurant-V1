@@ -51,7 +51,7 @@ export default async function RestaurantHomePage({ params }: HomePageProps) {
       {sections.length ? (
         <SectionRenderer context={context} sections={sections} />
       ) : (
-        <div className="container-page py-24 text-center">
+        <div className="container-page py-16 text-center">
           <h1 className="text-3xl font-semibold">{context.restaurant.name}</h1>
           <p className="mt-3 text-[var(--color-muted-ink)]">
             This website has no published sections yet. The menu is still available.

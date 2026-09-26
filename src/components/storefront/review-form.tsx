@@ -27,7 +27,7 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
 
   if (done) {
     return (
-      <div className="surface-card p-6 md:p-7">
+      <div className="rounded-[var(--radius-panel)] bg-[var(--steel-1)] p-6 md:p-7">
         <h2 className="text-lg font-semibold">Thank you</h2>
         <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
           Your review is with the restaurant for moderation. It will appear on this page once approved.
@@ -70,7 +70,7 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4 surface-flat p-6">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4 rounded-[var(--radius-panel)] bg-[var(--steel-1)] p-6 md:p-7">
       <div>
         <h2 className="text-lg font-semibold">Review order {orderNumber}</h2>
         <p className="mt-1 text-sm text-[var(--color-muted-ink)]">

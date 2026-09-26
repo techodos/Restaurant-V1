@@ -22,7 +22,7 @@ export function OrderTypePicker({ restaurantSlug, current, available, labels }: 
   const router = useRouter();
 
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="Order type">
+    <div className="flex rounded-full bg-[var(--steel-2)] p-1" role="group" aria-label="Order type">
       {available.map((type) => (
         <button
           key={type}
@@ -43,10 +43,10 @@ export function OrderTypePicker({ restaurantSlug, current, available, labels }: 
             });
           }}
           className={cn(
-            "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors disabled:opacity-60",
+            "inline-flex flex-1 items-center justify-center gap-2 rounded-full py-2 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-200 disabled:opacity-60",
             current === type
-              ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-              : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[var(--color-brand)]",
+              ? "bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[0_1px_3px_color-mix(in_srgb,var(--color-ink)_14%,transparent)]"
+              : "text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]",
           )}
         >
           {busyType === type ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}

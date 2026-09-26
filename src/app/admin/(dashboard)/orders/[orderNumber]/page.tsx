@@ -103,7 +103,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
                 <dd>{money(order.subtotal)}</dd>
               </div>
               {Number(order.discountAmount) > 0 ? (
-                <div className="flex justify-between text-emerald-700">
+                <div className="flex justify-between text-[color-mix(in_srgb,var(--color-success)_80%,var(--color-ink))]">
                   <dt>Discount{order.couponCode ? ` (${order.couponCode})` : ""}</dt>
                   <dd>− {money(order.discountAmount)}</dd>
                 </div>

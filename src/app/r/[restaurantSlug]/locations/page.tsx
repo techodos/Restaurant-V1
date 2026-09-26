@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
 import type { StorefrontContext } from "@/shared/contract/models";
-import { Clock, Mail, MapPin, Phone } from "lucide-react";
+import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import { getStorefrontContext } from "@/web/storefront";
 import { formatHours, zonedNow } from "@/shared/hours";
 import { breadcrumbJsonLd, restaurantJsonLd } from "@/web/seo";
@@ -9,6 +9,10 @@ import { JsonLd } from "@/components/storefront/json-ld";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getDeliveryZones, getLocations } from "@/server/services/restaurants";
+import { PageHero } from "@/components/storefront/page-hero";
+import { serviceStatus } from "@/components/storefront/service-status";
+import { resolveImage } from "@/web/media";
+import { cn } from "@/shared/utils";
 
 interface LocationsPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -46,8 +50,10 @@ async function renderLocations(context: StorefrontContext, heading: PageHeading)
   const locations = allLocations.filter((location) => location.isActive);
   const today = zonedNow(new Date(), restaurant.timezone).dayKey;
 
+  const now = new Date();
+
   return (
-    <div className="container-page py-10 md:py-14">
+    <>
       <JsonLd data={restaurantJsonLd(restaurant, context.primaryLocation)} />
       <JsonLd
         data={breadcrumbJsonLd([
@@ -56,105 +62,123 @@ async function renderLocations(context: StorefrontContext, heading: PageHeading)
         ])}
       />
 
-      <header className="max-w-2xl">
-        <h1 className="text-[2.25rem] font-semibold leading-[1.05] md:text-[3.25rem]">{heading.title ?? "Find us"}</h1>
-        <p className="mt-3 text-[var(--color-muted-ink)]">
-          {heading.subtitle ??
-            `${locations.length} kitchen${locations.length === 1 ? "" : "s"} in ${restaurant.country}. Delivery zones and hours differ per location.`}
-        </p>
-      </header>
+      <PageHero
+        overlay={heading.leading}
+        size="sm"
+        image={resolveImage(restaurant.coverUrl)}
+        eyebrow="Visit"
+        title={heading.title ?? "Find us"}
+        subtitle={
+          heading.subtitle ??
+          `${locations.length} kitchen${locations.length === 1 ? "" : "s"} in ${restaurant.country}. Delivery zones and hours differ per location.`
+        }
+      />
 
-      <ul className="mt-10 grid gap-6 lg:grid-cols-2">
-        {locations.map((location) => {
-          const hours = formatHours(location.hours, today);
-          const todayRow = hours.find((row) => row.isToday);
-          const phone = location.phone ?? restaurant.phone;
-          const mapHref =
-            location.latitude && location.longitude
-              ? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`
-              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  [location.addressLine1, location.area, location.city].filter(Boolean).join(", "),
-                )}`;
+      {/* one full-width band per kitchen, alternating paper and night */}
+      {locations.map((location, index) => {
+        const hours = formatHours(location.hours, today);
+        const status = serviceStatus(location.hours, now, restaurant.timezone);
+        const phone = location.phone ?? restaurant.phone;
+        const mapHref =
+          location.latitude && location.longitude
+            ? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                [location.addressLine1, location.area, location.city].filter(Boolean).join(", "),
+              )}`;
+        const night = index % 2 === 1;
 
-          return (
-            <li
-              key={location.id}
-              className="flex flex-col gap-5 surface-flat p-6"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-semibold">{location.name}</h2>
-                {location.isPrimary ? <Badge variant="soft">Flagship</Badge> : null}
-                {todayRow ? (
-                  <Badge variant="neutral">Today {todayRow.text || "closed"}</Badge>
-                ) : null}
-              </div>
-
-              <div className="space-y-2 text-sm text-[var(--color-muted-ink)]">
-                <p className="flex items-start gap-2">
-                  <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  <span>
-                    {[location.addressLine1, location.addressLine2, location.area, location.city, location.postalCode]
-                      .filter(Boolean)
-                      .join(", ")}
+        return (
+          <section key={location.id} className={cn(night ? "tone-night" : "tone-paper", "section-y")} aria-labelledby={`loc-${location.id}`}>
+            <div className="container-page grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-14">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="tabular font-[family-name:var(--font-display)] text-[1.4rem] text-[var(--color-brand-accent)]">
+                    {String(index + 1).padStart(2, "0")}
                   </span>
-                </p>
-                {phone ? (
-                  <p className="flex items-center gap-2">
-                    <Phone className="size-4 shrink-0" aria-hidden />
-                    <a href={`tel:${phone.replace(/\s+/g, "")}`} className="hover:text-[var(--color-brand)]">
-                      {phone}
-                    </a>
-                  </p>
-                ) : null}
-                {location.email ? (
-                  <p className="flex items-center gap-2">
-                    <Mail className="size-4 shrink-0" aria-hidden />
-                    <a href={`mailto:${location.email}`} className="hover:text-[var(--color-brand)]">
-                      {location.email}
-                    </a>
-                  </p>
-                ) : null}
-              </div>
+                  {location.isPrimary ? <Badge variant="soft">Flagship</Badge> : null}
+                  <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-2 rounded-full",
+                        status.state === "open" ? "bg-[var(--color-success)]" : status.state === "closing" ? "bg-[var(--color-warning)]" : "bg-[var(--rule-strong)]",
+                      )}
+                    />
+                    {status.headline}
+                    {status.detail ? <span className="font-normal text-[var(--color-muted-ink)]">{status.detail}</span> : null}
+                  </span>
+                </div>
+                <h2 id={`loc-${location.id}`} className="display-1 mt-4">
+                  {location.name}
+                </h2>
 
-              <details className="rounded-[var(--radius-brand)] border border-[var(--color-hairline)] p-4">
-                <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-                  <Clock className="size-4" aria-hidden />
-                  Opening hours
-                </summary>
-                <ul className="mt-3 space-y-1.5 text-sm">
-                  {hours.map((row) => (
-                    <li key={row.day} className="flex justify-between gap-4">
-                      <span className={row.isToday ? "font-medium" : "text-[var(--color-muted-ink)]"}>{row.label}</span>
-                      <span className={row.isToday ? "font-medium" : "text-[var(--color-muted-ink)]"}>
-                        {row.text || "Closed"}
-                      </span>
+                <ul className="mt-6 space-y-2.5 text-[15px]">
+                  <li className="flex items-start gap-3">
+                    <MapPin className="mt-1 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+                    <span>
+                      {[location.addressLine1, location.addressLine2, location.area, location.city, location.postalCode].filter(Boolean).join(", ")}
+                    </span>
+                  </li>
+                  {phone ? (
+                    <li className="flex items-center gap-3">
+                      <Phone className="size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+                      <a href={`tel:${phone.replace(/\s+/g, "")}`} className="underline-offset-4 hover:underline">
+                        {phone}
+                      </a>
                     </li>
-                  ))}
+                  ) : null}
+                  {location.email ? (
+                    <li className="flex items-center gap-3">
+                      <Mail className="size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+                      <a href={`mailto:${location.email}`} className="underline-offset-4 hover:underline">
+                        {location.email}
+                      </a>
+                    </li>
+                  ) : null}
                 </ul>
-              </details>
 
-              <div className="flex flex-wrap gap-3">
-                <Button asChild variant="outline" size="sm">
-                  <a href={mapHref} target="_blank" rel="noreferrer noopener">
-                    <MapPin aria-hidden />
-                    Directions
-                  </a>
-                </Button>
-                {restaurant.features.pickup ? (
-                  <Button asChild size="sm">
-                    <a href={`/r/${restaurant.slug}/menu?orderType=pickup`}>Order for pickup</a>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  {restaurant.features.pickup ? (
+                    <Button asChild size="lg">
+                      <a href={`/r/${restaurant.slug}/menu?orderType=pickup`}>Order for pickup</a>
+                    </Button>
+                  ) : null}
+                  {restaurant.features.delivery && zones.some((zone) => zone.locationId === location.id) ? (
+                    <Button asChild size="lg" variant="outline">
+                      <a href={`/r/${restaurant.slug}/menu?orderType=delivery`}>Order delivery</a>
+                    </Button>
+                  ) : null}
+                  <Button asChild size="lg" variant="ghost">
+                    <a href={mapHref} target="_blank" rel="noreferrer noopener">
+                      Directions
+                      <ArrowUpRight aria-hidden />
+                    </a>
                   </Button>
-                ) : null}
-                {restaurant.features.delivery && zones.some((zone) => zone.locationId === location.id) ? (
-                  <Button asChild size="sm" variant="secondary">
-                    <a href={`/r/${restaurant.slug}/menu?orderType=delivery`}>Order delivery</a>
-                  </Button>
-                ) : null}
+                </div>
               </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+
+              <div>
+                <p className="eyebrow mb-4">Opening hours</p>
+                <table className="w-full text-[14.5px]">
+                  <tbody>
+                    {hours.map((row) => (
+                      <tr key={row.day} className="border-t border-[var(--rule)] last:border-b">
+                        <th scope="row" className={cn("py-2.5 text-left", row.isToday ? "font-semibold" : "font-normal text-[var(--color-muted-ink)]")}>
+                          {row.label}
+                          {row.isToday ? <span className="ml-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-brand-accent)]">Today</span> : null}
+                        </th>
+                        <td className={cn("tabular py-2.5 text-right", row.isToday ? "font-semibold" : "text-[var(--color-muted-ink)]")}>
+                          {row.text || "Closed"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        );
+      })}
+    </>
   );
 }

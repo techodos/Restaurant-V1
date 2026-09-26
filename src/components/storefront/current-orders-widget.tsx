@@ -42,7 +42,7 @@ export function CurrentOrdersWidget({ restaurantSlug, count }: { restaurantSlug:
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+    <div className="fixed bottom-5 right-5 z-40 hidden flex-col items-end gap-3 md:flex">
       {!dismissed ? (
         <div className="flex items-center gap-2 rounded-2xl bg-[var(--color-surface)] py-2.5 pl-4 pr-2 shadow-lg ring-1 ring-[var(--color-hairline)]">
           <Link

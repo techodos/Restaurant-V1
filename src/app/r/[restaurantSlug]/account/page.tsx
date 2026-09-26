@@ -38,12 +38,12 @@ export default async function AccountPage({ params }: Props) {
             <div className="flex items-center gap-2 text-sm">
               {verified ? (
                 <>
-                  <CheckCircle2 className="size-4 text-green-600" aria-hidden />
+                  <CheckCircle2 className="size-4 text-[var(--color-success)]" aria-hidden />
                   Email verified
                 </>
               ) : (
                 <>
-                  <CircleAlert className="size-4 text-amber-600" aria-hidden />
+                  <CircleAlert className="size-4 text-[var(--color-warning)]" aria-hidden />
                   Email not verified — you will need to verify it before placing an order.
                 </>
               )}
