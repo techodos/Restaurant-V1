@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { placeOrderAction } from "@/app/r/[restaurantSlug]/checkout/actions";
 import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/account/actions";
-import { PAYMENT_METHOD_LABELS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import type { CustomerAddress, DeliveryZone } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
@@ -117,7 +117,20 @@ export function CheckoutForm({
   // state updates are async; this closes the window in which a fast double-click could submit twice
   const submitting = useRef(false);
   const [orderTypeState, setOrderTypeState] = useState<OrderType>(orderType);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(paymentMethods[0] ?? "cash");
+  // The server already filters `paymentMethods` for the cart's order type at load ("cash on
+  // delivery" for pickup/dine-in makes no sense) — this re-filters client-side too, because
+  // switching order type on this page (below) doesn't re-render from the server.
+  const availablePaymentMethods = useMemo(
+    () => paymentMethods.filter((method) => PAYMENT_METHOD_ORDER_TYPES[method].includes(orderTypeState)),
+    [paymentMethods, orderTypeState],
+  );
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(availablePaymentMethods[0] ?? "cash");
+  useEffect(() => {
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(availablePaymentMethods[0] ?? "cash");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availablePaymentMethods]);
   const [tip, setTip] = useState("");
   const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified);
   const [phone, setPhone] = useState(savedPhone ?? "");
@@ -468,7 +481,7 @@ export function CheckoutForm({
       <section className="border-t border-[var(--rule)] pt-8">
         <StepTitle index={4}>Payment</StepTitle>
         <div className="mt-4 space-y-2">
-          {paymentMethods.map((method) => (
+          {availablePaymentMethods.map((method) => (
             <label
               key={method}
               className={

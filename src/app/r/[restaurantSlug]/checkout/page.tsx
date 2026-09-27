@@ -50,7 +50,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   ]);
   const emailVerified = await isEmailVerified(customer.userId);
 
-  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant);
+  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant, cart.orderType);
 
   if (!pricingResult.pricing || pricingResult.blockers.length > 0 || !availability.acceptsOrders) {
     const reason = pricingResult.blockers[0] ?? availability.message;

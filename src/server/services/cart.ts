@@ -6,6 +6,7 @@ import { forRestaurant, type RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import {
   addItemToCart,
+  cartHasBuffetItem,
   clearCart,
   getCartByToken,
   getOrCreateCart,
@@ -15,9 +16,11 @@ import {
   setCartOrderType,
   updateCartItemQuantity,
 } from "@/server/repositories/carts";
-import { getCouponByCode, getCouponById, toCouponPricing } from "@/server/repositories/coupons";
+import { countCouponUsageByPhone, getCouponByCode, getCouponById, toCouponPricing } from "@/server/repositories/coupons";
+import { getCustomerById } from "@/server/repositories/customers";
 import { matchDeliveryZone } from "@/server/repositories/deliveries";
-import { PricingError, tryCalculatePricing, type PricingResult, type ZonePricing } from "@/server/domain/pricing";
+import { getMenuItem } from "@/server/repositories/menu";
+import { calculatePricing, PricingError, tryCalculatePricing, type PricingResult, type ZonePricing } from "@/server/domain/pricing";
 import type { AddToCartInput, UpdateCartItemInput } from "@/server/validation/cart";
 import { getLiveDeliveryZones } from "./restaurants";
 
@@ -94,6 +97,18 @@ export async function addToCart(restaurant: Restaurant, cart: Cart, input: AddTo
 
   const ctx = cartContext(restaurant.id, cart.sessionToken, cart.customerId);
   const orderType = input.orderType ?? cart.orderType;
+
+  // A buffet package (priced per head, e.g. "The Grand Dinner") is a dine-in booking, not a
+  // deliverable/collectible dish — it must never be added under delivery/pickup, and cash on
+  // delivery specifically makes no sense for it either way (nothing is being delivered).
+  const menuItem = await getMenuItem(restaurant.id, { id: input.menuItemId }, ctx);
+  if (menuItem?.isBuffetPackage && orderType !== "dine_in") {
+    throw errors.custom(
+      "BUFFET_REQUIRES_DINE_IN",
+      `${menuItem.name} is a dine-in buffet — switch to Dine-in to add it.`,
+    );
+  }
+
   if (orderType !== cart.orderType) {
     await setCartOrderType(cart.id, orderType, ctx);
   }
@@ -167,7 +182,14 @@ export async function changeOrderType(restaurant: Restaurant, cart: Cart, orderT
   if (!isOrderTypeEnabled(restaurant.features, orderType)) {
     throw errors.custom("ORDERING_DISABLED", "That ordering option is currently unavailable.");
   }
-  await setCartOrderType(cart.id, orderType, cartContext(restaurant.id, cart.sessionToken, cart.customerId));
+  const ctx = cartContext(restaurant.id, cart.sessionToken, cart.customerId);
+  if (orderType !== "dine_in" && (await cartHasBuffetItem(cart.id, ctx))) {
+    throw errors.custom(
+      "BUFFET_REQUIRES_DINE_IN",
+      "Your tray has a dine-in buffet in it — remove it before switching to delivery or pickup.",
+    );
+  }
+  await setCartOrderType(cart.id, orderType, ctx);
 }
 
 export async function changeCartLocation(cart: Cart, locationId: string): Promise<void> {
@@ -260,9 +282,25 @@ export async function priceCart(
 }
 
 /**
- * Validates a promo code for this cart. Runs server-side (coupons are not
- * readable from the storefront role) and throws a PricingError when the code
- * would not work at checkout.
+ * The signed-in customer's own email/phone, for coupon checks that need to know who is applying the
+ * code (a per-customer usage limit, a coupon restricted to specific customers). A guest cart
+ * (`customerId` null) has no identity yet — callers get nulls back and can only check what they can
+ * without it; the real, unbypassable check always happens again at `createOrder`, which requires a
+ * signed-in, verified customer and so always has both.
+ */
+async function resolveCartCustomerIdentity(restaurant: Restaurant, cart: Cart): Promise<{ email: string | null; phone: string | null }> {
+  if (!cart.customerId) return { email: null, phone: null };
+  const customer = await getCustomerById(cart.customerId, { customerId: cart.customerId, restaurantId: restaurant.id });
+  return { email: customer?.email ?? null, phone: customer?.phone ?? null };
+}
+
+/**
+ * Validates a promo code for this cart. Runs server-side (coupons are not readable from the
+ * storefront role) and throws a PricingError when the code would not work at checkout — including
+ * the coupon's date range, minimum order, order-type restriction, usage limits and customer
+ * restriction, all reused from the checkout engine (`calculatePricing`, not the non-throwing
+ * `tryCalculatePricing`: its result used to be discarded here, so a code that failed one of those
+ * checks still looked "applied" until checkout re-ran the same validation for real and rejected it).
  */
 export async function validatePromoCode(restaurant: Restaurant, cart: Cart, code: string): Promise<Coupon | null> {
   const trimmed = code.trim();
@@ -274,14 +312,19 @@ export async function validatePromoCode(restaurant: Restaurant, cart: Cart, code
   }
 
   const zone = cart.orderType === "delivery" ? await resolveCartZone(restaurant, cart, null) : null;
+  const identity = await resolveCartCustomerIdentity(restaurant, cart);
+  const couponUsageByCustomer = identity.phone ? await countCouponUsageByPhone(restaurant.id, coupon.id, identity.phone) : 0;
 
   // Reuse the checkout rules so a code that works here always works at checkout.
-  tryCalculatePricing({
+  calculatePricing({
     lines: toPricingLines(cart),
     orderType: cart.orderType,
     settings: restaurant.settings,
     zone,
     coupon: toCouponPricing(coupon),
+    couponUsageByCustomer,
+    customerEmail: identity.email,
+    customerPhone: identity.phone,
   });
 
   return coupon;

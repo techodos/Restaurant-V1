@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { updateSettingsAction } from "@/app/admin/(dashboard)/settings/actions";
 import {
+  CANCELLABLE_ORDER_STATUSES,
+  ORDER_STATUS_LABELS,
   ORDER_TYPES,
   ORDER_TYPE_LABELS,
   PAYMENT_METHODS,
@@ -99,6 +101,7 @@ export function FeaturesSection({ features, readOnly }: { features: RestaurantFe
     { key: "analytics", label: "Analytics" },
     { key: "onlinePayments", label: "Online payments" },
     { key: "notifications", label: "Notifications" },
+    { key: "alaCarteEnabled", label: "A la carte menu (off = buffet packages only)" },
   ];
 
   return (
@@ -171,23 +174,40 @@ export function TaxSection({ tax, readOnly }: { tax: RestaurantSettings["tax"]; 
 
 export function ServiceFeeSection({ serviceFee, readOnly }: { serviceFee: RestaurantSettings["serviceFee"]; readOnly: boolean }) {
   const [state, setState] = useState(serviceFee);
-  function toggleType(type: OrderType) {
-    setState((s) => ({ ...s, orderTypes: s.orderTypes.includes(type) ? s.orderTypes.filter((t) => t !== type) : [...s.orderTypes, type] }));
+  function setFor(type: OrderType, patch: Partial<{ enabled: boolean; rate: number }>) {
+    setState((s) => ({ ...s, [type]: { ...s[type], ...patch } }));
   }
   return (
-    <SectionForm title="Service fee" description="Extra fee applied per order type." section="serviceFee" patch={() => state} readOnly={readOnly}>
-      <Checkbox label="Enabled" checked={state.enabled} onChange={(value) => setState((s) => ({ ...s, enabled: value }))} />
-      <div>
-        <Label htmlFor="serviceFeeRate">Rate (%)</Label>
-        <Input id="serviceFeeRate" type="number" min={0} max={50} step="0.01" value={state.rate} onChange={(e) => setState((s) => ({ ...s, rate: Number(e.target.value) }))} className="max-w-40" />
-      </div>
-      <div>
-        <Label>Applies to</Label>
-        <div className="mt-1.5 flex flex-wrap gap-3">
-          {ORDER_TYPES.map((type) => (
-            <Checkbox key={type} label={ORDER_TYPE_LABELS[type]} checked={state.orderTypes.includes(type)} onChange={() => toggleType(type)} />
-          ))}
-        </div>
+    <SectionForm
+      title="Service fee"
+      description="Each order type has its own switch and rate — delivery, pickup and dine-in can charge different fees at the same time."
+      section="serviceFee"
+      patch={() => state}
+      readOnly={readOnly}
+    >
+      <div className="space-y-3">
+        {ORDER_TYPES.map((type) => (
+          <div key={type} className="flex flex-wrap items-center gap-3 rounded-md border border-[var(--color-hairline)] p-3">
+            <Checkbox
+              label={ORDER_TYPE_LABELS[type]}
+              checked={state[type].enabled}
+              onChange={(value) => setFor(type, { enabled: value })}
+            />
+            <div className="ml-auto flex items-center gap-2">
+              <Label htmlFor={`serviceFeeRate-${type}`} className="text-xs">Rate (%)</Label>
+              <Input
+                id={`serviceFeeRate-${type}`}
+                type="number"
+                min={0}
+                max={50}
+                step="0.01"
+                value={state[type].rate}
+                onChange={(e) => setFor(type, { rate: Number(e.target.value) })}
+                className="max-w-28"
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </SectionForm>
   );
@@ -230,6 +250,68 @@ export function OrderingSection({ ordering, readOnly }: { ordering: RestaurantSe
         checked={state.requirePhoneVerification}
         onChange={(value) => setState((s) => ({ ...s, requirePhoneVerification: value }))}
       />
+
+      <div className="border-t border-[var(--color-hairline)] pt-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-muted-ink)]">
+          Customer self-cancellation
+        </p>
+        <Checkbox
+          label="Customers can cancel their own order from the order page"
+          checked={state.customerCancellation.enabled}
+          onChange={(value) =>
+            setState((s) => ({ ...s, customerCancellation: { ...s.customerCancellation, enabled: value } }))
+          }
+        />
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label>Eligible payment methods</Label>
+            <p className="mb-1.5 text-xs text-[var(--color-muted-ink)]">
+              Orders paid another way (e.g. online card) are not cancellable here — no refund is triggered automatically.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map((method) => (
+                <Checkbox
+                  key={method}
+                  label={PAYMENT_METHOD_LABELS[method]}
+                  checked={state.customerCancellation.allowedPaymentMethods.includes(method)}
+                  onChange={() =>
+                    setState((s) => {
+                      const list = s.customerCancellation.allowedPaymentMethods;
+                      const allowedPaymentMethods: PaymentMethod[] = list.includes(method)
+                        ? list.filter((m) => m !== method)
+                        : [...list, method];
+                      return { ...s, customerCancellation: { ...s.customerCancellation, allowedPaymentMethods } };
+                    })
+                  }
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="cancelCutoff">Cancellable until</Label>
+            <p className="mb-1.5 text-xs text-[var(--color-muted-ink)]">
+              Once the order reaches the next status, the customer can no longer cancel it themselves.
+            </p>
+            <Select
+              id="cancelCutoff"
+              value={state.customerCancellation.cutoffStatus}
+              onChange={(e) =>
+                setState((s) => ({
+                  ...s,
+                  customerCancellation: { ...s.customerCancellation, cutoffStatus: e.target.value as typeof s.customerCancellation.cutoffStatus },
+                }))
+              }
+              className="max-w-56"
+            >
+              {CANCELLABLE_ORDER_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {ORDER_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+      </div>
     </SectionForm>
   );
 }

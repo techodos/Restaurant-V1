@@ -32,6 +32,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
   const [isActive, setIsActive] = useState(item?.isActive ?? true);
   const [isAvailable, setIsAvailable] = useState(item?.isAvailable ?? true);
   const [isFeatured, setIsFeatured] = useState(item?.isFeatured ?? false);
+  const [isBuffetPackage, setIsBuffetPackage] = useState(item?.isBuffetPackage ?? false);
   const [dietaryTags, setDietaryTags] = useState((item?.dietaryTags ?? []).join(", "));
   const [allergens, setAllergens] = useState((item?.allergens ?? []).join(", "));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -56,6 +57,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
       isActive,
       isAvailable,
       isFeatured,
+      isBuffetPackage,
       dietaryTags: dietaryTags.split(",").map((tag) => tag.trim()).filter(Boolean),
       allergens: allergens.split(",").map((tag) => tag.trim()).filter(Boolean),
     };
@@ -192,6 +194,9 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isFeatured} onChange={(event) => setIsFeatured(event.target.checked)} /> Featured
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={isBuffetPackage} onChange={(event) => setIsBuffetPackage(event.target.checked)} /> Buffet package (priced per head; shows &quot;Reserve a table&quot; too)
         </label>
       </div>
 

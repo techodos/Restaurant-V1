@@ -68,7 +68,18 @@ export function DishDetail({ context, item, orderType, variant }: DishDetailProp
         ) : null}
       </p>
       {item.description ? (
-        <p className="mt-4 max-w-[60ch] text-[15px] leading-relaxed text-[var(--color-muted-ink)] md:text-base">{item.description}</p>
+        // whitespace-pre-line: a buffet package's description is a real list (one line per live
+        // station — "Carving Experience: ...", "Teppanyaki: ...") which a plain <p> would collapse
+        // into one unreadable run-on paragraph, since HTML ignores \n by default. A wider column
+        // for buffet items too — 60ch reads fine for a one-sentence dish blurb, not for 10+ lines.
+        <p
+          className={cn(
+            "mt-4 whitespace-pre-line text-[15px] leading-relaxed text-[var(--color-muted-ink)] md:text-base",
+            item.isBuffetPackage ? "max-w-[70ch]" : "max-w-[60ch]",
+          )}
+        >
+          {item.description}
+        </p>
       ) : null}
 
       <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-y border-[var(--rule)] py-4 text-sm">

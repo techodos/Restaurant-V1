@@ -1,11 +1,34 @@
 import { z } from "zod";
-import { ORDER_TYPES, PAYMENT_METHODS } from "./enums";
+import { CANCELLABLE_ORDER_STATUSES, ORDER_TYPES, PAYMENT_METHODS } from "./enums";
 
 /**
  * restaurants.settings / restaurants.features / websites.config are JSONB and
  * therefore untrusted. Everything read from them is parsed defensively with a
  * fallback so malformed configuration can never break a page.
  */
+
+/**
+ * Upgrades a still-stored old-shape `serviceFee` (`{enabled, rate, orderTypes: OrderType[]}`, one
+ * shared rate across whichever order types were checked) to the new per-order-type shape, so a
+ * restaurant configured before this change keeps its fee instead of it silently resetting to
+ * "disabled" the first time `restaurantSettingsSchema.parse` sees the row. Called once, at the
+ * DB-row boundary (`db/mappers.ts#mapRestaurant`) — everywhere else already reads the parsed,
+ * migrated shape. Not a schema-level `z.preprocess` because `restaurantSettingsSchema.shape` is
+ * used elsewhere (`server/validation/settings.ts`) with `.removeDefault().partial()`, which needs
+ * `serviceFee` to stay a plain `z.object(...).default(...)`, not wrapped in a transform.
+ */
+export function migrateServiceFeeShape(settings: unknown): unknown {
+  if (settings === null || typeof settings !== "object") return settings;
+  const raw = (settings as Record<string, unknown>).serviceFee;
+  if (raw === null || typeof raw !== "object" || !("orderTypes" in raw)) return settings;
+  const old = raw as { enabled?: unknown; rate?: unknown; orderTypes?: unknown };
+  const applies = new Set(Array.isArray(old.orderTypes) ? old.orderTypes : []);
+  const enabled = Boolean(old.enabled);
+  const rate = typeof old.rate === "number" ? old.rate : Number(old.rate) || 0;
+  const serviceFee: Record<string, { enabled: boolean; rate: number }> = {};
+  for (const type of ORDER_TYPES) serviceFee[type] = { enabled: enabled && applies.has(type), rate };
+  return { ...(settings as Record<string, unknown>), serviceFee };
+}
 
 export const restaurantSettingsSchema = z.object({
   tax: z
@@ -21,11 +44,18 @@ export const restaurantSettingsSchema = z.object({
       registrationNumber: z.string().trim().max(60).optional(),
     })
     .default({}),
+  /**
+   * One independent enabled+rate pair per order type (delivery/pickup/dine-in can each have their
+   * own fee, or none) — replaces the older `{enabled, rate, orderTypes[]}` shape, which could only
+   * ever hold one shared rate across whichever order types were checked, so delivery and pickup
+   * could never carry different fees at the same time. `migrateServiceFeeShape` upgrades any
+   * still-stored old-shape JSONB on read; new saves always write this shape.
+   */
   serviceFee: z
     .object({
-      enabled: z.boolean().default(false),
-      rate: z.coerce.number().min(0).max(50).default(0),
-      orderTypes: z.array(z.enum(ORDER_TYPES)).default(["dine_in"]),
+      delivery: z.object({ enabled: z.boolean().default(false), rate: z.coerce.number().min(0).max(50).default(0) }).default({}),
+      pickup: z.object({ enabled: z.boolean().default(false), rate: z.coerce.number().min(0).max(50).default(0) }).default({}),
+      dine_in: z.object({ enabled: z.boolean().default(false), rate: z.coerce.number().min(0).max(50).default(0) }).default({}),
     })
     .default({}),
   ordering: z
@@ -37,6 +67,27 @@ export const restaurantSettingsSchema = z.object({
       preparationTimeMinutes: z.coerce.number().int().min(0).max(240).default(20),
       packagingCharge: z.coerce.number().min(0).default(0),
       requirePhoneVerification: z.boolean().default(false),
+      /**
+       * Whether, and how far, a customer can cancel their own order from the order page (as opposed
+       * to calling the restaurant, or staff cancelling from /admin, which is unaffected by this and
+       * always allowed). See `shared/order-cancellation.ts#canCustomerCancelOrder`, the one place this
+       * is interpreted.
+       */
+      customerCancellation: z
+        .object({
+          enabled: z.boolean().default(true),
+          /**
+           * Payment methods eligible for customer self-cancellation. Defaults to the offline methods
+           * only (cash on delivery, cash/card at the counter) — an order already paid online (card,
+           * wallet, bank transfer) is excluded by default since cancelling it does not refund it; an
+           * admin can opt an online method in, but no refund is triggered automatically (staff must
+           * handle that manually, same as any admin-initiated cancellation today).
+           */
+          allowedPaymentMethods: z.array(z.enum(PAYMENT_METHODS)).default(["cash_on_delivery", "cash", "card_terminal"]),
+          /** last status (inclusive) a customer can still cancel from; blocked once the order moves past it */
+          cutoffStatus: z.enum(CANCELLABLE_ORDER_STATUSES).default("pending"),
+        })
+        .default({}),
     })
     .default({}),
   payments: z
@@ -109,6 +160,13 @@ export const restaurantFeaturesSchema = z.object({
   customDomain: z.boolean().default(false),
   analytics: z.boolean().default(true),
   onlinePayments: z.boolean().default(false),
+  /**
+   * Off for a buffet-only restaurant (e.g. Villa The Grand Buffet): the storefront menu shows only
+   * items flagged `isBuffetPackage` and hides everything else, instead of showing both an a la
+   * carte menu and buffet packages side by side. On (default) changes nothing for a restaurant
+   * that has no buffet items at all. Filtered in `services/catalog.ts`.
+   */
+  alaCarteEnabled: z.boolean().default(true),
   /**
    * Customer notifications. `notifications` is the master switch; `emailNotify` / `pushNotify`
    * pick the channels. A channel is on only when BOTH the master switch and its own flag are true

@@ -688,6 +688,7 @@ for (const [index, template] of ORDERS.entries()) {
           orderTypes: couponRow.order_types as never, startsAt: couponRow.starts_at, endsAt: couponRow.ends_at,
           usageLimit: couponRow.usage_limit, usageLimitPerCustomer: couponRow.usage_limit_per_customer,
           usedCount: couponRow.used_count, isActive: couponRow.is_active,
+          eligibleEmails: [], eligiblePhones: [],
         }
       : null,
     now: new Date(createdAt),

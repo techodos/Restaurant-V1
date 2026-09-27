@@ -8,6 +8,7 @@ import {
   updateCoupon,
   type CouponInput,
 } from "@/server/repositories/coupons";
+import { parseCouponEligibility, type CouponFormInput } from "@/server/validation/coupons";
 
 function normalize(value: string | undefined): string | null {
   return value && value.trim() ? value.trim() : null;
@@ -18,7 +19,8 @@ export function listCouponsForAdmin(restaurantId: string, ctx: RequestContext): 
   return listCoupons(restaurantId, ctx);
 }
 
-export function saveCoupon(restaurantId: string, input: CouponInput & { id?: string }, ctx: RequestContext): Promise<Coupon> {
+export function saveCoupon(restaurantId: string, input: CouponFormInput & { id?: string }, ctx: RequestContext): Promise<Coupon> {
+  const { emails, phones } = parseCouponEligibility(input.eligibleCustomers);
   const patch: CouponInput = {
     ...input,
     description: normalize(input.description ?? undefined),
@@ -26,6 +28,8 @@ export function saveCoupon(restaurantId: string, input: CouponInput & { id?: str
     maxDiscountAmount: normalize(input.maxDiscountAmount ?? undefined),
     startsAt: normalize(input.startsAt ?? undefined),
     endsAt: normalize(input.endsAt ?? undefined),
+    eligibleEmails: emails,
+    eligiblePhones: phones,
   };
   return input.id ? updateCoupon(input.id, patch, ctx) : createCoupon(restaurantId, patch, ctx);
 }

@@ -2,12 +2,15 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import type { ApiResult } from "@/shared/contract/api";
+import type { OrderStatus } from "@/shared/contract/enums";
 import { action, errors } from "@/server/errors";
-import { registerPushToken } from "@/server/services/notifications";
-import { findVisitorOrder, reorderOrder, type ReorderResult } from "@/server/services/orders";
+import { dispatchDueNotifications, registerPushToken } from "@/server/services/notifications";
+import { cancelOrderByCustomer, findVisitorOrder, reorderOrder, type ReorderResult } from "@/server/services/orders";
 import { requireRestaurant } from "@/server/services/restaurants";
 import { registerPushTokenSchema } from "@/server/validation/notifications";
+import { cancelOrderSchema } from "@/server/validation/orders";
 import { getVisitorContext, setCartCountHint } from "@/web/session";
 import { openStorefrontCart } from "@/web/storefront";
 
@@ -43,5 +46,36 @@ export async function reorderAction(
     await setCartCountHint(result.itemCount);
     revalidatePath(`/r/${slug}`, "layout");
     return result;
+  });
+}
+
+/**
+ * Customer self-cancellation. Ownership is proven the same way every other order action proves it
+ * (findVisitorOrder); eligibility (feature on, payment method allowed, not past the cutoff status)
+ * is enforced by `cancelOrderByCustomer`, not here — this action does not re-check anything the
+ * service already checks. Dispatches notifications immediately after, same as every other action
+ * that changes an order's status (cancelled sends a push, no email — see rules.ts).
+ */
+export async function cancelOrderAction(
+  slug: string,
+  orderNumber: string,
+  accessToken?: string,
+  payload: unknown = {},
+): Promise<ApiResult<{ status: OrderStatus }>> {
+  return action(async () => {
+    const input = cancelOrderSchema.parse(payload);
+    const restaurant = await requireRestaurant(slug);
+    const visitor = await getVisitorContext(restaurant.id);
+    const order = await findVisitorOrder(restaurant.id, orderNumber, visitor, accessToken);
+    if (!order) throw errors.notFound("Order");
+
+    const ctx = { ...visitor, restaurantId: restaurant.id };
+    const updated = await cancelOrderByCustomer(order, restaurant, ctx, input.reason || null);
+
+    revalidatePath(`/r/${slug}/order/${encodeURIComponent(orderNumber)}`);
+    revalidatePath(`/r/${slug}/current-orders`);
+    revalidatePath(`/r/${slug}/orders`);
+    after(() => dispatchDueNotifications({ restaurantId: restaurant.id }, { restaurantId: restaurant.id }));
+    return { status: updated.status };
   });
 }

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { resolveMenuImage } from "@/web/media";
 import { Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { listCategoriesForAdmin, listMenuItemsForAdmin } from "@/server/services/menu-admin";
@@ -125,6 +126,7 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
                         ) : (
                           <span className="font-medium">{item.name}</span>
                         )}
+                        {item.isBuffetPackage ? <Badge variant="soft">Buffet</Badge> : null}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-[var(--color-muted-ink)]">{item.categoryName}</td>

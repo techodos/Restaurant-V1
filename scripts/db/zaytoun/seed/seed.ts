@@ -320,6 +320,7 @@ try {
             minOrderAmount: couponRow.min_order_amount, maxDiscountAmount: couponRow.max_discount_amount, appliesTo: couponRow.applies_to,
             orderTypes: couponRow.order_types as never, startsAt: couponRow.starts_at, endsAt: couponRow.ends_at,
             usageLimit: couponRow.usage_limit, usageLimitPerCustomer: couponRow.usage_limit_per_customer, usedCount: couponRow.used_count, isActive: couponRow.is_active,
+            eligibleEmails: [], eligiblePhones: [],
           }
         : null,
       now: new Date(createdAt),

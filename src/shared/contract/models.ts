@@ -209,6 +209,9 @@ export interface MenuItem {
   isActive: boolean;
   isAvailable: boolean;
   isFeatured: boolean;
+  /** Priced per head, normally booked rather than delivered (e.g. a hi-tea/dinner buffet); the
+   *  storefront shows a "Reserve a table" CTA alongside "Add to cart" for these. */
+  isBuffetPackage: boolean;
   dietaryTags: string[];
   allergens: string[];
   sortOrder: number;
@@ -240,6 +243,7 @@ export interface MenuItemSummary {
   compareAtPrice: Money | null;
   isAvailable: boolean;
   isFeatured: boolean;
+  isBuffetPackage: boolean;
   hasVariants: boolean;
   hasAddons: boolean;
   requiresSelection: boolean;
@@ -399,6 +403,9 @@ export interface Coupon {
   usageLimit: number | null;
   usageLimitPerCustomer: number | null;
   usedCount: number;
+  /** empty = open to everyone; non-empty = only a matching email/phone may redeem it */
+  eligibleEmails: string[];
+  eligiblePhones: string[];
   isActive: boolean;
 }
 

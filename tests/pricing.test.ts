@@ -7,7 +7,7 @@ const settings = restaurantSettingsSchema.parse({
   tax: { enabled: true, rate: 5, included: false, applyOnDeliveryFee: false, label: "GST" },
   ordering: { minimumOrderAmount: 500, preparationTimeMinutes: 20 },
   delivery: { enabled: true, defaultEtaMinutes: 40 },
-  serviceFee: { enabled: false, rate: 0, orderTypes: ["dine_in"] },
+  serviceFee: { delivery: { enabled: false, rate: 0 }, pickup: { enabled: false, rate: 0 }, dine_in: { enabled: false, rate: 0 } },
 });
 
 const zone = {
@@ -33,6 +33,8 @@ const welcomeCoupon: CouponPricing = {
   usageLimitPerCustomer: 1,
   usedCount: 0,
   isActive: true,
+  eligibleEmails: [],
+  eligiblePhones: [],
 };
 
 describe("pricing engine", () => {
@@ -160,10 +162,14 @@ describe("pricing engine", () => {
     ).toThrowError(PricingError);
   });
 
-  it("charges a service fee only for the configured order types", () => {
+  it("charges a service fee only for the configured order types, and a different rate per type at the same time", () => {
     const withService = restaurantSettingsSchema.parse({
       ...settings,
-      serviceFee: { enabled: true, rate: 10, orderTypes: ["dine_in"] },
+      serviceFee: {
+        delivery: { enabled: true, rate: 7 },
+        pickup: { enabled: false, rate: 0 },
+        dine_in: { enabled: true, rate: 10 },
+      },
     });
     const dineIn = calculatePricing({
       lines: [{ unitPrice: "1000.00", addonsTotal: "0", quantity: 1 }],
@@ -179,6 +185,15 @@ describe("pricing engine", () => {
       settings: withService,
     });
     expect(pickup.serviceFee).toBe("0.00");
+
+    // delivery's own, different rate applies at the same time as dine-in's — the actual bug being fixed
+    const delivery = calculatePricing({
+      lines: [{ unitPrice: "1000.00", addonsTotal: "0", quantity: 1 }],
+      orderType: "delivery",
+      zone,
+      settings: withService,
+    });
+    expect(delivery.serviceFee).toBe("70.00");
   });
 });
 
@@ -211,6 +226,31 @@ describe("coupon validation", () => {
     expect(() => validateCouponOrThrow(welcomeCoupon, { subtotal: "500.00", orderType: "delivery", now })).toThrowError(/minimum/i);
     const deliveryOnly = { ...welcomeCoupon, orderTypes: ["delivery" as const] };
     expect(() => validateCouponOrThrow(deliveryOnly, { subtotal, orderType: "pickup", now })).toThrowError(/order type/i);
+  });
+
+  it("open coupons (no eligible list) work for anyone", () => {
+    expect(() => validateCouponOrThrow(welcomeCoupon, { subtotal, orderType: "delivery", now })).not.toThrow();
+    expect(() =>
+      validateCouponOrThrow(welcomeCoupon, { subtotal, orderType: "delivery", now, customerEmail: null, customerPhone: null }),
+    ).not.toThrow();
+  });
+
+  it("rejects a restricted coupon for anyone not on the list, with the same generic message a wrong code gets", () => {
+    const restricted = { ...welcomeCoupon, eligibleEmails: ["vip@example.com"], eligiblePhones: ["+923001234567"] };
+    expect(() =>
+      validateCouponOrThrow(restricted, { subtotal, orderType: "delivery", now, customerEmail: "someone-else@example.com" }),
+    ).toThrowError(/not valid/i);
+    expect(() => validateCouponOrThrow(restricted, { subtotal, orderType: "delivery", now })).toThrowError(/not valid/i);
+  });
+
+  it("accepts a restricted coupon for a matching email or phone (case-insensitive email)", () => {
+    const restricted = { ...welcomeCoupon, eligibleEmails: ["vip@example.com"], eligiblePhones: ["+923001234567"] };
+    expect(() =>
+      validateCouponOrThrow(restricted, { subtotal, orderType: "delivery", now, customerEmail: "VIP@Example.com" }),
+    ).not.toThrow();
+    expect(() =>
+      validateCouponOrThrow(restricted, { subtotal, orderType: "delivery", now, customerPhone: "+923001234567" }),
+    ).not.toThrow();
   });
 
   it("caps fixed discounts at the eligible amount", () => {

@@ -2,7 +2,7 @@ import { dec, sumMoney, toMoney } from "@/shared/money";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
-import { ACTIVE_ORDER_STATUSES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { getRestaurantById } from "./restaurants";
@@ -10,7 +10,7 @@ import { listDeliveryZones, matchDeliveryZone } from "./deliveries";
 import { countCouponUsageByPhone, toCouponPricing } from "./coupons";
 import { upsertCustomer } from "./customers";
 import { resolveItemSelection } from "./carts";
-import { mapCustomer, mapDelivery, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, type Row } from "@/server/db/mappers";
+import { mapCustomer, mapDelivery, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, textArray, type Row } from "@/server/db/mappers";
 import { type DbClient } from "@/server/db/database";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
@@ -126,6 +126,12 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     if (!settings.payments.enabledMethods.includes(input.paymentMethod)) {
       throw errors.custom("PAYMENT_UNAVAILABLE", "That payment method is not available.");
     }
+    // "Cash on delivery" for a dine-in order, a terminal payment for delivery, etc. make no sense —
+    // the checkout page already filters these (getCheckoutOptions), this is the boundary that
+    // cannot be bypassed by a stale form submission.
+    if (!PAYMENT_METHOD_ORDER_TYPES[input.paymentMethod].includes(input.orderType)) {
+      throw errors.custom("PAYMENT_UNAVAILABLE", "That payment method is not available for this order type.");
+    }
     const requiresOnlinePayment = input.paymentMethod === "card_online" || input.paymentMethod === "wallet";
 
     // 2 ─ cart --------------------------------------------------------------
@@ -139,6 +145,21 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
 
     const cartItemRows = await tx.query<Row>(`select * from cart_items where cart_id = $1 order by created_at`, [cartId]);
     if (cartItemRows.length === 0) throw errors.custom("CART_EMPTY", "Your cart is empty.");
+
+    // Final commit-time check: a buffet package (priced per head) is a dine-in booking. The cart
+    // already blocks adding one outside dine-in and blocks switching away from dine-in with one in
+    // the tray (services/cart.ts), but this is the actual point an order gets written, so it is the
+    // one place that can never be bypassed by a stale form submission.
+    if (input.orderType !== "dine_in") {
+      const buffetLine = await tx.queryOne<Row>(
+        `select 1 from cart_items ci join menu_items mi on mi.id = ci.menu_item_id
+          where ci.cart_id = $1 and mi.is_buffet_package limit 1`,
+        [cartId],
+      );
+      if (buffetLine) {
+        throw errors.custom("BUFFET_REQUIRES_DINE_IN", "A dine-in buffet in your tray can only be ordered as Dine-in.");
+      }
+    }
 
     // 3 ─ re-validate every line against the live menu ----------------------
     const resolvedLines: {
@@ -251,6 +272,8 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
             : num(row.usage_limit_per_customer),
         usedCount: num(row.used_count),
         isActive: Boolean(row.is_active),
+        eligibleEmails: textArray(row.eligible_emails),
+        eligiblePhones: textArray(row.eligible_phones),
       };
       coupon = toCouponPricing(mapped);
     }
@@ -270,6 +293,8 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
       couponUsageByCustomer: coupon
         ? await countCouponUsageByPhone(input.restaurantId, coupon.id, input.customer.phone, context)
         : 0,
+      customerEmail: input.customer.email ?? null,
+      customerPhone: input.customer.phone,
     });
 
     // 7 ─ customer ----------------------------------------------------------

@@ -8,9 +8,11 @@ import { requireStorefront } from "@/web/storefront";
 import { trackOrder } from "@/server/services/orders";
 import { getPushClientConfigFor } from "@/server/services/notifications";
 import { describeEta } from "@/shared/order-timeline";
+import { canCustomerCancelOrder } from "@/shared/order-cancellation";
 import { formatMoney } from "@/shared/money";
 import { Button } from "@/components/ui/button";
 import { LiveOrderTimeline, OrderLiveProvider, OrderLiveStatus, OrderPass, OrderReceivedNotice } from "@/components/storefront/order-live-status";
+import { CancelOrderButton } from "@/components/storefront/cancel-order-button";
 import { PushOptIn } from "@/components/storefront/push-opt-in";
 import { ReorderButton } from "@/components/storefront/reorder-button";
 import { JsonLd } from "@/components/storefront/json-ld";
@@ -78,6 +80,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
   const eta =
     order.status === "completed" || order.status === "cancelled" ? null : describeEta(order.estimatedReadyAt);
   const placedAt = new Date(order.createdAt);
+  const canCancel = canCustomerCancelOrder(order, restaurant.settings);
 
   return (
     <OrderLiveProvider
@@ -254,6 +257,10 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 </p>
               </div>
             </section>
+
+            {canCancel ? (
+              <CancelOrderButton restaurantSlug={restaurant.slug} orderNumber={order.orderNumber} accessToken={accessToken} />
+            ) : null}
 
             {pushConfig && order.status !== "completed" && order.status !== "cancelled" ? (
               <PushOptIn

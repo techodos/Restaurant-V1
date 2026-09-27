@@ -14,15 +14,20 @@ export async function listCoupons(restaurantId: string, ctx: RequestContext = {}
   return rows.map(mapCoupon);
 }
 
+/**
+ * Coupon lookup by code, for a guest or customer applying a promo at the cart/checkout. Coupons are
+ * commercial data with no `app_runtime` select policy (RLS only lets staff with `coupons.view` read
+ * this table, see `coupons_team_select` in migration 0006) — a plain RLS-scoped read here always
+ * returns zero rows for a customer, which looked like "every code says invalid" even for a live,
+ * active coupon. Runs on the privileged connection instead, same as `getCouponById` below.
+ */
 export async function getCouponByCode(
   restaurantId: string,
   code: string,
   ctx: RequestContext = {},
 ): Promise<Coupon | null> {
-  const row = await getDb({ restaurantId }).queryOne<Row>(
-    ctx,
-    `select * from coupons where restaurant_id = $1 and code = upper(trim($2)) limit 1`,
-    [restaurantId, code],
+  const row = await getDb({ restaurantId }).write(ctx, async (tx) =>
+    tx.queryOne<Row>(`select * from coupons where restaurant_id = $1 and code = upper(trim($2)) limit 1`, [restaurantId, code]),
   );
   return row ? mapCoupon(row) : null;
 }
@@ -56,21 +61,32 @@ export function toCouponPricing(coupon: Coupon): CouponPricing {
     usageLimitPerCustomer: coupon.usageLimitPerCustomer,
     usedCount: coupon.usedCount,
     isActive: coupon.isActive,
+    eligibleEmails: coupon.eligibleEmails,
+    eligiblePhones: coupon.eligiblePhones,
   };
 }
 
-/** How many times this phone number already used the coupon. */
+/**
+ * How many times this phone number already used the coupon — restaurant-wide, across every
+ * customer, which is exactly what `orders_customer` (RLS, migration 0006) never allows: that policy
+ * only ever exposes the current visitor's own `customer_id` rows. Read via `.queryOne` this always
+ * undercounted (0 for a guest, at most the current customer's own orders otherwise), which silently
+ * defeated `usageLimitPerCustomer` — the same coupon could be reused past its per-customer cap from
+ * a fresh guest cart / another account. Runs on the privileged connection, same reasoning as
+ * `getCouponByCode` above.
+ */
 export async function countCouponUsageByPhone(
   restaurantId: string,
   couponId: string,
   phone: string,
   ctx: RequestContext = {},
 ): Promise<number> {
-  const row = await getDb({ restaurantId }).queryOne<{ count: string }>(
-    ctx,
-    `select count(*) from orders
-      where restaurant_id = $1 and coupon_id = $2 and customer_phone = $3 and status <> 'cancelled'`,
-    [restaurantId, couponId, phone],
+  const row = await getDb({ restaurantId }).write(ctx, async (tx) =>
+    tx.queryOne<{ count: string }>(
+      `select count(*) from orders
+        where restaurant_id = $1 and coupon_id = $2 and customer_phone = $3 and status <> 'cancelled'`,
+      [restaurantId, couponId, phone],
+    ),
   );
   return row ? Number.parseInt(row.count, 10) : 0;
 }
@@ -89,6 +105,9 @@ export interface CouponInput {
   usageLimit?: number | null;
   usageLimitPerCustomer?: number | null;
   isActive?: boolean;
+  /** empty = open to everyone; non-empty = only these (lowercased emails / E.164 phones) may redeem it */
+  eligibleEmails?: string[];
+  eligiblePhones?: string[];
 }
 
 export async function createCoupon(restaurantId: string, input: CouponInput, ctx: RequestContext): Promise<Coupon> {
@@ -97,16 +116,19 @@ export async function createCoupon(restaurantId: string, input: CouponInput, ctx
     const row = await tx.queryOne<Row>(
       `insert into coupons
          (restaurant_id, code, description, discount_type, discount_value, min_order_amount, max_discount_amount,
-          applies_to, order_types, starts_at, ends_at, usage_limit, usage_limit_per_customer, is_active)
+          applies_to, order_types, starts_at, ends_at, usage_limit, usage_limit_per_customer, is_active,
+          eligible_emails, eligible_phones)
        values ($1, upper(trim($2)), $3, $4, $5::numeric, coalesce($6::numeric,0), $7::numeric,
                coalesce($8,'order'), coalesce($9::order_type[], '{delivery,pickup,dine_in}'::order_type[]),
-               $10::timestamptz, $11::timestamptz, $12, $13, coalesce($14, true))
+               $10::timestamptz, $11::timestamptz, $12, $13, coalesce($14, true),
+               coalesce($15::text[], '{}'::text[]), coalesce($16::text[], '{}'::text[]))
        returning *`,
       [
         restaurantId, input.code, input.description ?? null, input.discountType, input.discountValue,
         input.minOrderAmount ?? null, input.maxDiscountAmount ?? null, input.appliesTo ?? null,
         input.orderTypes ?? null, input.startsAt ?? null, input.endsAt ?? null,
         input.usageLimit ?? null, input.usageLimitPerCustomer ?? null, input.isActive ?? null,
+        input.eligibleEmails ?? null, input.eligiblePhones ?? null,
       ],
     );
     if (!row) throw new Error("Coupon insert failed");
@@ -131,7 +153,9 @@ export async function updateCoupon(couponId: string, patch: Partial<CouponInput>
          ends_at = coalesce($11::timestamptz, ends_at),
          usage_limit = coalesce($12, usage_limit),
          usage_limit_per_customer = coalesce($13, usage_limit_per_customer),
-         is_active = coalesce($14, is_active)
+         is_active = coalesce($14, is_active),
+         eligible_emails = coalesce($15::text[], eligible_emails),
+         eligible_phones = coalesce($16::text[], eligible_phones)
        where id = $1
        returning *`,
       [
@@ -139,6 +163,7 @@ export async function updateCoupon(couponId: string, patch: Partial<CouponInput>
         patch.discountValue ?? null, patch.minOrderAmount ?? null, patch.maxDiscountAmount ?? null,
         patch.appliesTo ?? null, patch.orderTypes ?? null, patch.startsAt ?? null, patch.endsAt ?? null,
         patch.usageLimit ?? null, patch.usageLimitPerCustomer ?? null, patch.isActive ?? null,
+        patch.eligibleEmails ?? null, patch.eligiblePhones ?? null,
       ],
     );
     if (!row) throw new Error("Coupon not found");

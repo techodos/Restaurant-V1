@@ -309,6 +309,7 @@ export async function resolveItemSelection(
       isActive: Boolean(itemRow.is_active),
       isAvailable: Boolean(itemRow.is_available),
       isFeatured: Boolean(itemRow.is_featured),
+      isBuffetPackage: Boolean(itemRow.is_buffet_package),
       dietaryTags: Array.isArray(itemRow.dietary_tags) ? (itemRow.dietary_tags as string[]) : [],
       allergens: Array.isArray(itemRow.allergens) ? (itemRow.allergens as string[]) : [],
       sortOrder: num(itemRow.sort_order),
@@ -394,6 +395,18 @@ export async function removeCartItem(cartItemId: string, ctx: RequestContext): P
 export async function setCartOrderType(cartId: string, orderType: OrderType, ctx: RequestContext): Promise<void> {
   await getDb(ctx).asRuntime(ctx, async (tx) => {
     await tx.query(`update carts set order_type = $2, updated_at = now() where id = $1`, [cartId, orderType]);
+  });
+}
+
+/** A buffet package (priced per head) is a dine-in booking; a cart holding one cannot switch to delivery/pickup. */
+export async function cartHasBuffetItem(cartId: string, ctx: RequestContext): Promise<boolean> {
+  return getDb(ctx).asRuntime(ctx, async (tx) => {
+    const row = await tx.queryOne<Row>(
+      `select 1 from cart_items ci join menu_items mi on mi.id = ci.menu_item_id
+        where ci.cart_id = $1 and mi.is_buffet_package limit 1`,
+      [cartId],
+    );
+    return Boolean(row);
   });
 }
 

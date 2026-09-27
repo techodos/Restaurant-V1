@@ -5,7 +5,7 @@ import type {
   Website, WebsitePage, CustomerGender,
 } from "@/shared/contract/models";
 import { CUSTOMER_GENDERS } from "@/shared/contract/models";
-import { restaurantFeaturesSchema, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
+import { migrateServiceFeeShape, restaurantFeaturesSchema, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
 import type { MediaPurpose, OrderStatus, OrderType, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus, TeamRole, WebsiteStatus, CartStatus, DeliveryStatus, CouponDiscountType } from "@/shared/contract/enums";
 import { parseOpeningHours, parseAvailabilityWindow } from "@/shared/hours";
 
@@ -83,7 +83,7 @@ export function mapRestaurant(row: Row): Restaurant {
     plan: str(row.plan) || "standard",
     planStatus: str(row.plan_status) || "active",
     features: restaurantFeaturesSchema.parse(jsonObject(row.features)),
-    settings: restaurantSettingsSchema.parse(jsonObject(row.settings)),
+    settings: restaurantSettingsSchema.parse(migrateServiceFeeShape(jsonObject(row.settings))),
     social: Object.fromEntries(
       Object.entries(jsonObject(row.social)).filter(([, value]) => typeof value === "string"),
     ) as Record<string, string>,
@@ -273,6 +273,7 @@ export function mapMenuItem(row: Row): MenuItem {
     isActive: bool(row.is_active, true),
     isAvailable: bool(row.is_available, true),
     isFeatured: bool(row.is_featured),
+    isBuffetPackage: bool(row.is_buffet_package),
     dietaryTags: textArray(row.dietary_tags),
     allergens: textArray(row.allergens),
     sortOrder: num(row.sort_order),
@@ -302,6 +303,8 @@ export function mapCoupon(row: Row): Coupon {
     usageLimitPerCustomer: numOrNull(row.usage_limit_per_customer),
     usedCount: num(row.used_count),
     isActive: bool(row.is_active, true),
+    eligibleEmails: textArray(row.eligible_emails),
+    eligiblePhones: textArray(row.eligible_phones),
   };
 }
 

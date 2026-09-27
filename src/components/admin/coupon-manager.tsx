@@ -6,7 +6,7 @@ import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FieldError, Input, Label, Select } from "@/components/ui/input";
+import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { deleteCouponAction, saveCouponAction } from "@/app/admin/(dashboard)/coupons/actions";
 import { COUPON_DISCOUNT_TYPES, ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import type { Coupon } from "@/shared/contract/models";
@@ -29,6 +29,9 @@ function CouponEditForm({ coupon, onCancel }: CouponEditFormProps) {
     coupon?.usageLimitPerCustomer ? String(coupon.usageLimitPerCustomer) : "",
   );
   const [isActive, setIsActive] = useState(coupon?.isActive ?? true);
+  const [eligibleCustomers, setEligibleCustomers] = useState(
+    [...(coupon?.eligibleEmails ?? []), ...(coupon?.eligiblePhones ?? [])].join("\n"),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -52,6 +55,7 @@ function CouponEditForm({ coupon, onCancel }: CouponEditFormProps) {
       usageLimit: usageLimit || undefined,
       usageLimitPerCustomer: usageLimitPerCustomer || undefined,
       isActive,
+      eligibleCustomers,
     };
     startTransition(() => {
       saveCouponAction(payload).then((result) => {
@@ -141,6 +145,21 @@ function CouponEditForm({ coupon, onCancel }: CouponEditFormProps) {
         </div>
       </div>
 
+      <div>
+        <Label htmlFor="eligibleCustomers">Restrict to specific customers (optional)</Label>
+        <p className="mb-1.5 text-xs text-[var(--color-muted-ink)]">
+          One email or phone number per line (or comma-separated). Phone numbers need a country code, e.g. +923001234567.
+          Leave blank for a coupon anyone can use. When set, this code is rejected for anyone not on the list.
+        </p>
+        <Textarea
+          id="eligibleCustomers"
+          rows={3}
+          value={eligibleCustomers}
+          onChange={(event) => setEligibleCustomers(event.target.value)}
+          placeholder={"amina@example.com\n+923001234567"}
+        />
+      </div>
+
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active
@@ -205,6 +224,11 @@ export function CouponManager({
                   {coupon.discountType === "percentage" ? `${coupon.discountValue}% off` : `${coupon.discountValue} off`}
                 </Badge>
                 {!coupon.isActive ? <Badge variant="neutral">Inactive</Badge> : null}
+                {coupon.eligibleEmails.length + coupon.eligiblePhones.length > 0 ? (
+                  <Badge variant="soft">
+                    {coupon.eligibleEmails.length + coupon.eligiblePhones.length} customer(s) only
+                  </Badge>
+                ) : null}
               </div>
               {coupon.description ? <p className="mt-1 text-xs text-[var(--color-muted-ink)]">{coupon.description}</p> : null}
               {(() => {
