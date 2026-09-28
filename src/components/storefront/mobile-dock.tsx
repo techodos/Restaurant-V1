@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, MapPin, ShoppingBag, User, UtensilsCrossed } from "lucide-react";
+import { CalendarDays, ClipboardList, MapPin, ShoppingBag, User, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/shared/utils";
+import { signInHref } from "@/shared/return-to";
 import { TrayCount } from "./tray-count";
 
 interface MobileDockProps {
@@ -12,7 +13,7 @@ interface MobileDockProps {
   activeOrders: number;
   showCart: boolean;
   reservationsEnabled: boolean;
-  accountHref: string;
+  signedIn: boolean;
 }
 
 /** Routes with their own sticky primary action: the dock steps aside there. */
@@ -31,7 +32,7 @@ function hiddenOn(pathname: string, home: string): boolean {
  * is live) or Account, and the Cart, which is the brand-coloured next action and the fly-to-cart target.
  * A floating night capsule, so it reads on paper and on dark sections alike.
  */
-export function MobileDock({ restaurantSlug, itemCount, activeOrders, showCart, reservationsEnabled, accountHref }: MobileDockProps) {
+export function MobileDock({ restaurantSlug, itemCount, activeOrders, showCart, reservationsEnabled, signedIn }: MobileDockProps) {
   const pathname = usePathname();
   const home = `/r/${restaurantSlug}`;
   if (hiddenOn(pathname, home)) return null;
@@ -71,7 +72,9 @@ export function MobileDock({ restaurantSlug, itemCount, activeOrders, showCart, 
                 <span className="absolute inset-0 animate-ping rounded-full bg-[var(--color-brand)]" />
               </span>,
             )
-          : item(accountHref, "Account", User)}
+          : signedIn
+            ? item(`${home}/orders`, "Orders", ClipboardList)
+            : item(signInHref(restaurantSlug, pathname), "Sign in", User)}
         {showCart ? (
           <Link
             href={`${home}/cart`}

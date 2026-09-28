@@ -33,7 +33,6 @@ import { config } from "@/server/config";
 import { revalidatePath } from "next/cache";
 import {
   deleteCustomerAddress,
-  requestAccountDeletion,
   getCustomerProfile,
   saveCustomerAddress,
   updateCustomerProfile,
@@ -221,14 +220,5 @@ export async function deleteAddressAction(slug: string, addressId: string): Prom
     const addresses = await deleteCustomerAddress(restaurant, visitor, String(addressId));
     revalidatePath(`/r/${slug}/checkout`);
     return addresses;
-  });
-}
-
-/** Emails the restaurant a request to delete this customer's account (Google accounts; see the profile drawer). */
-export async function requestAccountDeletionAction(slug: string): Promise<ApiResult<null>> {
-  return action(async () => {
-    const { restaurant, visitor } = await profileScope(slug);
-    await requestAccountDeletion(restaurant, visitor);
-    return null;
   });
 }

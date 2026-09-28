@@ -74,5 +74,8 @@ describe("safeReturnTo", () => {
   it("builds the sign-in link that returns to checkout", () => {
     expect(signInHref("zaytoun", "/r/zaytoun/checkout")).toBe("/r/zaytoun/account/sign-in?returnTo=%2Fr%2Fzaytoun%2Fcheckout");
     expect(signInHref("zaytoun", "https://evil.example", "sign-up")).toBe("/r/zaytoun/account/sign-up");
+    // the header's sign-in: back to whichever page it was clicked on, never back onto the auth page itself
+    expect(signInHref("zaytoun", "/r/zaytoun/menu/shawarma")).toBe("/r/zaytoun/account/sign-in?returnTo=%2Fr%2Fzaytoun%2Fmenu%2Fshawarma");
+    expect(signInHref("zaytoun", "/r/zaytoun/account/sign-in")).toBe("/r/zaytoun/account/sign-in");
   });
 });

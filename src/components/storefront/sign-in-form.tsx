@@ -37,7 +37,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
       router.refresh();
       return;
     }
-    router.push(returnTo ?? `/r/${restaurantSlug}/account`);
+    router.push(returnTo ?? `/r/${restaurantSlug}`);
     router.refresh();
   }
 

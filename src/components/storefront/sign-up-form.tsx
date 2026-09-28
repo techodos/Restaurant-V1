@@ -59,7 +59,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
               router.refresh();
               return;
             }
-            router.push(returnTo ?? `/r/${restaurantSlug}/account`);
+            router.push(returnTo ?? `/r/${restaurantSlug}`);
             router.refresh();
           }}
         />

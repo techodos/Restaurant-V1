@@ -8,11 +8,6 @@ import {
   updateAddress,
   updateCustomerProfile as updateCustomerProfileRow,
 } from "@/server/repositories/customers";
-import { randomUUID } from "node:crypto";
-import { logger } from "@/server/logger";
-import { checkRateLimit } from "@/server/rate-limit";
-import { getEmailProvider } from "@/server/services/notifications";
-import { renderAccountDeletionRequestEmail } from "@/server/notifications/templates/deletion-request";
 import type { Customer, CustomerAddress, CustomerGender, Restaurant } from "@/shared/contract/models";
 import type { CustomerAddressInput, UpdateProfileInput } from "@/server/validation/customer-profile";
 
@@ -113,56 +108,4 @@ export async function deleteCustomerAddress(
   const ctx = { restaurantId: restaurant.id, customerId };
   if (!(await deleteAddress(addressId, customerId, restaurant.id, ctx))) throw errors.notFound("Address");
   return listAddresses(customerId, ctx);
-}
-
-/**
- * "Request account deletion": there is no automated deletion, so the request is emailed to the
- * restaurant's own contact address by the server (Reply-To = the customer), not left to the customer's
- * mail app. Rate limited per customer; the provider also de-duplicates a repeat within the hour.
- */
-export async function requestAccountDeletion(
-  restaurant: Pick<Restaurant, "id" | "name" | "email" | "phone" | "logoUrl" | "primaryColor">,
-  visitor: Visitor,
-): Promise<void> {
-  const customerId = requireCustomerId(visitor);
-  const customer = await loadCustomer(restaurant, customerId);
-
-  if (!restaurant.email) {
-    throw errors.validation("This restaurant has no contact email yet. Please call them to delete your account.");
-  }
-  checkRateLimit({ key: "account-deletion-request", identifier: customerId, limit: 2, windowMs: 60 * 60_000 });
-
-  const provider = getEmailProvider();
-  if (!provider) {
-    throw errors.validation("We cannot send the request right now. Please contact the restaurant to delete your account.");
-  }
-  const rendered = renderAccountDeletionRequestEmail({
-    brand: {
-      name: restaurant.name,
-      logoUrl: restaurant.logoUrl ?? null,
-      primaryColor: restaurant.primaryColor ?? null,
-      email: restaurant.email,
-      phone: restaurant.phone ?? null,
-    },
-    customerName: customer.fullName,
-    customerEmail: customer.email,
-    customerPhone: customer.phone.trim() ? customer.phone : null,
-    requestedAt: new Date(),
-  });
-  const result = await provider.send({
-    to: restaurant.email,
-    fromName: restaurant.name,
-    replyTo: customer.email,
-    subject: rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
-    // One key per request. Resend refuses a key it has seen (for 24 h) with a different body (409
-    // invalid_idempotent_request), and this body carries the request time, so a key derived from the customer
-    // and the hour made every second request in that hour fail. The per-customer rate limit stops repeats.
-    idempotencyKey: `account-deletion-${customerId}-${randomUUID()}`,
-  });
-  if (!result.ok) {
-    logger.error("notifications", `account deletion request for customer ${customerId} not sent`, result.error);
-    throw errors.validation("We could not send your request. Please try again in a moment.");
-  }
 }

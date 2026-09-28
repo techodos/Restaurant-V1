@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
-import { CheckCircle2, ClipboardList, Loader2, Lock, LogOut, MapPin, Pencil, Plus, Trash2, UserRoundX } from "lucide-react";
+import { ClipboardList, Loader2, Lock, LogOut, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 import { Sheet } from "@/components/motion/sheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +17,6 @@ import { LocationPicker, type ResolvedLocation } from "@/components/storefront/l
 import {
   deleteAddressAction,
   getProfileAction,
-  requestAccountDeletionAction,
   saveAddressAction,
   signOutAction,
   updateProfileAction,
@@ -76,8 +75,8 @@ function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: 
 
 /**
  * The signed-in customer's profile, opened from the header account pill: read-only identity (name, email),
- * editable mobile / gender / date of birth, saved delivery addresses (add, edit inline, delete), and the
- * account action that fits how they signed in (Google: request account deletion; password: sign out).
+ * editable mobile / gender / date of birth, saved delivery addresses (add, edit inline, delete), and sign out
+ * (the same for Google and password accounts).
  * Everything is loaded from and saved to the server (account/actions -> services/customer-profile); the
  * checkout reads the same data.
  */
@@ -111,13 +110,9 @@ export function ProfileDrawer({
   }, [open, load]);
 
   const profile = data?.profile ?? null;
-  const google = profile?.authProvider === "google";
-
+  // one sign-out for every customer, whether they signed in with a password or with Google
   const footer = profile ? (
     <div className="px-5 py-4 md:px-7">
-    {google ? (
-      <DeletionRequest restaurantSlug={restaurantSlug} email={profile.email} />
-    ) : (
       <Button
         variant="outline"
         className="w-full"
@@ -132,7 +127,6 @@ export function ProfileDrawer({
         <LogOut aria-hidden />
         Sign out
       </Button>
-    )}
     </div>
   ) : null;
 
@@ -548,63 +542,5 @@ function AddressForm({
         </Button>
       </div>
     </form>
-  );
-}
-
-/**
- * Google accounts: "Request account deletion". There is no automated deletion, so the server emails the
- * request to the restaurant (Reply-To = the customer). The button asks for a confirmation first, shows
- * progress, and afterwards says the request was sent (it cannot be sent twice from here).
- */
-function DeletionRequest({ restaurantSlug, email }: { restaurantSlug: string; email: string | null }) {
-  const [step, setStep] = useState<"idle" | "confirm" | "sent">("idle");
-  const [pending, startTransition] = useTransition();
-
-  function send() {
-    startTransition(async () => {
-      const result = await requestAccountDeletionAction(restaurantSlug);
-      if (!result.success) {
-        toast.error(result.error.message);
-        setStep("idle");
-        return;
-      }
-      toast.success("Request sent");
-      setStep("sent");
-    });
-  }
-
-  if (step === "sent") {
-    return (
-      <p className="flex items-start gap-2 text-[13px] leading-snug text-[var(--color-muted-ink)]" role="status">
-        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--color-success)]" aria-hidden />
-        <span>
-          Your deletion request was sent to the restaurant.{email ? ` They will contact you at ${email}.` : ""}
-        </span>
-      </p>
-    );
-  }
-  if (step === "confirm") {
-    return (
-      <div className="space-y-3">
-        <p className="text-[13px] leading-snug">
-          This asks the restaurant to delete your account and personal data. Send the request?
-        </p>
-        <div className="flex gap-2">
-          <Button variant="danger" className="flex-1" disabled={pending} onClick={send}>
-            {pending ? <Loader2 className="animate-spin" aria-hidden /> : null}
-            {pending ? "Sending…" : "Send request"}
-          </Button>
-          <Button variant="ghost" disabled={pending} onClick={() => setStep("idle")}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <Button variant="outline" className="w-full text-[var(--color-danger)]" onClick={() => setStep("confirm")}>
-      <UserRoundX aria-hidden />
-      Request account deletion
-    </Button>
   );
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/storefront/empty-state";
 import { PageHero } from "@/components/storefront/page-hero";
 import { resolveImage } from "@/web/media";
+import { signInHref } from "@/shared/return-to";
 
 interface MyOrdersPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -55,10 +56,10 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
             actions={
               <>
                 <Button asChild size="lg">
-                  <Link href={`/r/${restaurantSlug}/account/sign-in`}>Sign in</Link>
+                  <Link href={signInHref(restaurantSlug, `/r/${restaurantSlug}/orders`)}>Sign in</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href={`/r/${restaurantSlug}/account/sign-up`}>Sign up</Link>
+                  <Link href={signInHref(restaurantSlug, `/r/${restaurantSlug}/orders`, "sign-up")}>Sign up</Link>
                 </Button>
               </>
             }

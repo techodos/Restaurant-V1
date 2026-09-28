@@ -154,7 +154,7 @@ export default async function StorefrontLayout({
         activeOrders={activeOrders.length}
         showCart={config.navigation.showCart}
         reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
-        accountHref={customer?.signedIn ? `/r/${restaurant.slug}/account` : `/r/${restaurant.slug}/account/sign-in`}
+        signedIn={Boolean(customer?.signedIn)}
       />
     </div>
   );
