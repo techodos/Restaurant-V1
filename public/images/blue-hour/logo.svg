@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-label="Blue Hour Coffee">
+  <rect width="320" height="96" rx="14" fill="#0B1B36"/>
+  <g transform="translate(14 12)">
+    <circle cx="36" cy="36" r="34" fill="none" stroke="#4C86F0" stroke-width="2.5"/>
+    <mask id="moon"><rect width="72" height="72" fill="#fff"/><circle cx="43" cy="22" r="10" fill="#000"/></mask>
+    <circle cx="36" cy="28" r="12" fill="#4C86F0" mask="url(#moon)"/>
+    <path d="M20 44h28v4a10 10 0 0 1-10 10h-8a10 10 0 0 1-10-10v-4Z" fill="#F4F7FC"/>
+    <path d="M48 47h3a4 4 0 0 1 0 8h-4" stroke="#F4F7FC" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  </g>
+  <text x="98" y="48" fill="#F4F7FC" font-family="Georgia, 'Times New Roman', serif" font-size="29" letter-spacing="0.6">Blue Hour</text>
+  <text x="99" y="67" fill="#8FB4F5" font-family="Helvetica, Arial, sans-serif" font-size="9.5" letter-spacing="3.4">COFFEE · BAKERY</text>
+</svg>

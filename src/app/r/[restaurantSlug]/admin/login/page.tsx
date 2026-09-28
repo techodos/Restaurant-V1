@@ -22,8 +22,9 @@ export default async function AdminLoginPage({ params }: AdminLoginPageProps) {
   if (await getCurrentStaff(restaurantSlug)) redirect(adminPath(restaurantSlug));
 
   return (
-    // no storefront header here: the shell fills the viewport
-    <div className="min-h-dvh [--header-h:0px]">
+    // no storefront header here: the shell fills the viewport. `grid` stretches AuthShell to the full height —
+    // its own lg:min-h caps at 46rem for the storefront pages (header + footer around it), which left a blank strip here.
+    <div className="grid min-h-dvh [--header-h:0px]">
       <AuthShell
         restaurant={restaurant}
         title="Staff sign in"

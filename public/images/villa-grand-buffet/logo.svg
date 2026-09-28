@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-label="Villa — The Grand Buffet">
+  <rect width="320" height="96" rx="14" fill="#0F2451"/>
+  <g fill="none" stroke="#C6A15B" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M18 70V44l20-18 20 18v26Z"/>
+    <path d="M12 48l26-24 26 24"/>
+    <path d="M31 70V56a7 7 0 0 1 14 0v14"/>
+    <path d="M24 46h7v7h-7zM45 46h7v7h-7z"/>
+    <path d="M34 36h8"/>
+    <path d="M14 70h48"/>
+  </g>
+  <text x="80" y="58" fill="#C6A15B" font-family="Georgia, 'Times New Roman', serif" font-size="30" letter-spacing="7">VILLA</text>
+  <path d="M206 30v40" stroke="#C6A15B" stroke-width="1.2"/>
+  <g fill="#C6A15B" font-family="Georgia, 'Times New Roman', serif" font-size="10.5" letter-spacing="2.6">
+    <text x="218" y="42">THE</text>
+    <text x="218" y="55">GRAND</text>
+    <text x="218" y="68">BUFFET</text>
+  </g>
+</svg>
