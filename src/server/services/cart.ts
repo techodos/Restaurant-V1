@@ -1,195 +1,107 @@
-import type { Cart, CartItem, Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
+import type { Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
 import { DAY_KEYS, type OrderType } from "@/shared/contract/enums";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { isOpenAt, timeToMinutes, to12Hour, zonedNow } from "@/shared/hours";
-import { forRestaurant, type RequestContext } from "@/server/context";
+import { dec, toMoney, ZERO } from "@/shared/money";
+import { trayItemCount, type Tray, type TrayLine } from "@/shared/tray";
 import { errors } from "@/server/errors";
-import {
-  addItemToCart,
-  clearCart,
-  getCartByToken,
-  getOrCreateCart,
-  removeCartItem,
-  setCartCoupon,
-  setCartLocation,
-  setCartOrderType,
-  updateCartItemQuantity,
-} from "@/server/repositories/carts";
-import { getCouponByCode, getCouponById, toCouponPricing } from "@/server/repositories/coupons";
+import { toCouponPricing } from "@/server/repositories/coupons";
 import { matchDeliveryZone } from "@/server/repositories/deliveries";
-import { PricingError, tryCalculatePricing, type PricingResult, type ZonePricing } from "@/server/domain/pricing";
-import type { AddToCartInput, UpdateCartItemInput } from "@/server/validation/cart";
-import { getLiveDeliveryZones } from "./restaurants";
+import { resolveMenuSelection } from "@/server/domain/menu-selection";
+import {
+  computeCouponDiscount,
+  tryCalculatePricing,
+  validateCouponOrThrow,
+  type PricingResult,
+  type ZonePricing,
+} from "@/server/domain/pricing";
+import { getOrderableMenuItems } from "./catalog";
+import { findPreviewCoupon } from "./coupons";
 
 /**
- * Cart use cases. The opaque cart token is the guest identity; where it is
- * stored (cookie today) is the delivery layer's concern. Every price shown to a
- * customer is computed by the same engine checkout uses.
+ * The tray (cart) before an order exists. It lives in a browser cookie (`shared/tray.ts`,
+ * DECISIONS.md §28) — there is no cart row, and nothing here touches the database: lines are priced
+ * from the in-memory storefront menu and the preview coupon from the snapshot, through the SAME
+ * resolver (`resolveMenuSelection`) and pricing engine (`calculatePricing`) the order transaction
+ * uses. These numbers are a faithful preview; `createOrder` re-derives every one of them from the
+ * live database when the order is placed, and only those are ever charged.
  */
 
-const TOKEN_BYTES = 24;
-const MAX_LINE_QUANTITY = 99;
-
-export function generateCartToken(): string {
-  const bytes = new Uint8Array(TOKEN_BYTES);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+export interface TrayLineView {
+  /** position in the tray — lines have no id of their own */
+  index: number;
+  line: TrayLine;
+  name: string;
+  slug: string | null;
+  /** the menu's raw image path; the web layer resolves it for display */
+  imageUrl: string | null;
+  variantName: string | null;
+  addons: { addonId: string; quantity: number; name: string; price: string }[];
+  unitPrice: string;
+  addonsTotal: string;
+  lineTotal: string;
+  /** why this line cannot be ordered right now (sold out, removed, option gone…), else null */
+  problem: string | null;
 }
 
-/**
- * Cart requests authorise with the cart token for guests. A signed-in customer's
- * cart also carries `customer_id` (set by `openCart`), and `cart_is_owned`'s RLS
- * check (0005) requires `app.current_customer_id()` to match it in that case — the
- * token alone stops satisfying either branch of that check once a cart is linked
- * to a customer, so `customerId` must be threaded through here too.
- */
-function cartContext(restaurantId: string, cartToken: string, customerId?: string | null): RequestContext {
-  return forRestaurant(restaurantId, { cartToken, customerId: customerId ?? null });
+export interface TrayView {
+  lines: TrayLineView[];
+  itemCount: number;
+  /** of the orderable lines only */
+  subtotal: string;
 }
 
-/** Read-only cart lookup (never creates anything). */
-export function findCart(restaurant: Restaurant, token: string, customerId?: string | null): Promise<Cart | null> {
-  return getCartByToken(restaurant.id, token, cartContext(restaurant.id, token, customerId));
+/** Resolves every tray line against the current menu. Unorderable lines are kept and flagged, never dropped silently. */
+export async function viewTray(restaurant: Restaurant, tray: Tray, now = new Date()): Promise<TrayView> {
+  const menu = await getOrderableMenuItems(restaurant.id, tray.lines.map((line) => line.menuItemId));
+  let subtotal = ZERO;
+  const lines = tray.lines.map((line, index): TrayLineView => {
+    const entry = menu.get(line.menuItemId);
+    try {
+      const resolved = resolveMenuSelection(entry, line, restaurant.timezone, now);
+      const lineTotal = dec(resolved.unitPrice).plus(dec(resolved.addonsTotal)).times(line.quantity);
+      subtotal = subtotal.plus(lineTotal);
+      return {
+        index,
+        line,
+        name: resolved.item.name,
+        slug: resolved.item.slug,
+        imageUrl: resolved.item.imageUrl,
+        variantName: resolved.variant?.name ?? null,
+        addons: resolved.addons.map((addon) => ({ addonId: addon.addonId, quantity: addon.quantity, name: addon.name, price: addon.price })),
+        unitPrice: resolved.unitPrice,
+        addonsTotal: resolved.addonsTotal,
+        lineTotal: toMoney(lineTotal),
+        problem: null,
+      };
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      return {
+        index,
+        line,
+        name: entry?.item.name ?? "An item no longer on the menu",
+        slug: entry?.item.slug ?? null,
+        imageUrl: entry?.item.imageUrl ?? null,
+        variantName: null,
+        addons: [],
+        unitPrice: "0.00",
+        addonsTotal: "0.00",
+        lineTotal: "0.00",
+        problem: error.message,
+      };
+    }
+  });
+  return { lines, itemCount: trayItemCount(tray), subtotal: toMoney(subtotal) };
 }
 
-/**
- * Loads the active cart for a token, creating it when needed. The lookup runs as the signed-in customer:
- * once a cart is linked to a customer, RLS hides it from a lookup that does not carry their id, which made
- * every add after the first look like "no cart yet" and collide with the cart it could not see.
- *
- * When the token is held by a cart this visitor cannot read (another account's, or another restaurant's),
- * a fresh cart is started under a new token. The caller compares `cart.sessionToken` with the token it
- * passed and stores the new one in the cookie.
- */
-export async function openCart(
-  restaurant: Restaurant,
-  token: string,
-  options: { customerId?: string | null; locationId?: string | null } = {},
-): Promise<Cart> {
-  const open = (cartToken: string) =>
-    getOrCreateCart(
-      {
-        restaurantId: restaurant.id,
-        cartToken,
-        currency: restaurant.currency,
-        customerId: options.customerId ?? null,
-        locationId: options.locationId ?? null,
-      },
-      cartContext(restaurant.id, cartToken, options.customerId),
-    );
-  try {
-    return await open(token);
-  } catch (error) {
-    if ((error as { code?: string }).code !== "CART_TOKEN_TAKEN") throw error;
-    return open(generateCartToken());
-  }
-}
-
-// ─── mutations ───────────────────────────────────────────────────────────────
-
-export async function addToCart(restaurant: Restaurant, cart: Cart, input: AddToCartInput): Promise<{ itemCount: number }> {
-  if (!restaurant.features.onlineOrdering) {
-    throw errors.custom("ORDERING_DISABLED", "Online ordering is paused right now.");
-  }
-
-  const ctx = cartContext(restaurant.id, cart.sessionToken, cart.customerId);
-  const orderType = input.orderType ?? cart.orderType;
-  if (orderType !== cart.orderType) {
-    await setCartOrderType(cart.id, orderType, ctx);
-  }
-
-  await addItemToCart(
-    {
-      cartId: cart.id,
-      restaurantId: restaurant.id,
-      timezone: restaurant.timezone,
-      input: {
-        menuItemId: input.menuItemId,
-        variantId: input.variantId ?? null,
-        quantity: input.quantity,
-        addons: input.addons,
-        specialInstructions: input.specialInstructions ?? null,
-      },
-    },
-    ctx,
-  );
-  return { itemCount: cart.itemCount + input.quantity };
-}
-
-function requireLine(cart: Cart, cartItemId: string): CartItem {
-  const line = cart.items.find((item) => item.id === cartItemId);
-  if (!line) throw errors.forbidden("That item is not in your cart.");
-  return line;
-}
-
-/** Mutations that change quantities report the cart's new size, so callers need not reload it. */
-export async function updateCartItem(cart: Cart, input: UpdateCartItemInput): Promise<{ itemCount: number }> {
-  const line = requireLine(cart, input.cartItemId);
-  await updateCartItemQuantity(
-    { cartItemId: input.cartItemId, quantity: input.quantity },
-    cartContext(cart.restaurantId, cart.sessionToken, cart.customerId),
-  );
-  // the repository caps a line at 99 and treats 0 as removal
-  const newQuantity = Math.min(Math.max(input.quantity, 0), MAX_LINE_QUANTITY);
-  return { itemCount: Math.max(0, cart.itemCount - line.quantity + newQuantity) };
-}
-
-export async function removeFromCart(cart: Cart, cartItemId: string): Promise<{ itemCount: number }> {
-  const line = requireLine(cart, cartItemId);
-  await removeCartItem(cartItemId, cartContext(cart.restaurantId, cart.sessionToken, cart.customerId));
-  return { itemCount: Math.max(0, cart.itemCount - line.quantity) };
-}
-
-export async function emptyCart(cart: Cart): Promise<{ itemCount: number }> {
-  await clearCart(cart.id, cartContext(cart.restaurantId, cart.sessionToken, cart.customerId));
-  return { itemCount: 0 };
-}
-
-/** Applies (or, with an empty code, removes) a promo code; returns the stored code. */
-export async function applyCoupon(restaurant: Restaurant, cart: Cart, code: string): Promise<string> {
-  if (!restaurant.features.coupons) {
-    throw errors.custom("ORDERING_DISABLED", "Promo codes are not available here.");
-  }
-  const ctx = cartContext(restaurant.id, cart.sessionToken, cart.customerId);
-  if (!code) {
-    await setCartCoupon(cart.id, null, ctx);
-    return "";
-  }
-
-  // validated with the checkout engine before we store it
-  const coupon = await validatePromoCode(restaurant, cart, code);
-  if (!coupon) throw errors.custom("COUPON_INVALID", "That promo code is not valid.");
-  await setCartCoupon(cart.id, { id: coupon.id, code: coupon.code }, ctx);
-  return coupon.code;
-}
-
-export async function changeOrderType(restaurant: Restaurant, cart: Cart, orderType: OrderType): Promise<void> {
-  if (!isOrderTypeEnabled(restaurant.features, orderType)) {
-    throw errors.custom("ORDERING_DISABLED", "That ordering option is currently unavailable.");
-  }
-  await setCartOrderType(cart.id, orderType, cartContext(restaurant.id, cart.sessionToken, cart.customerId));
-}
-
-export async function changeCartLocation(cart: Cart, locationId: string): Promise<void> {
-  await setCartLocation(cart.id, locationId, cartContext(cart.restaurantId, cart.sessionToken, cart.customerId));
-}
-
-// ─── pricing ─────────────────────────────────────────────────────────────────
-
-export interface CartPricingResult {
+export interface TrayPricingResult {
   pricing: PricingResult | null;
   zone: ZonePricing | null;
   coupon: Coupon | null;
-  /** human-readable reasons the cart cannot be checked out yet */
+  /** human-readable reasons the tray cannot be checked out yet */
   blockers: string[];
-}
-
-function toPricingLines(cart: Cart) {
-  return cart.items.map((item) => ({
-    unitPrice: item.unitPrice,
-    addonsTotal: item.addonsTotal,
-    quantity: item.quantity,
-  }));
+  /** set when the tray's promo code no longer applies (the tray is priced without it, not blocked) */
+  couponNotice: string | null;
 }
 
 function toZonePricing(zone: DeliveryZone): ZonePricing {
@@ -204,87 +116,94 @@ function toZonePricing(zone: DeliveryZone): ZonePricing {
   };
 }
 
-/** The zone a cart is priced against: matched by address when known, else the cart's own. */
-async function resolveCartZone(
-  restaurant: Restaurant,
-  cart: Cart,
-  address?: { area?: string | null; city?: string | null; postalCode?: string | null } | null,
-): Promise<ZonePricing | null> {
-  // pricing input: always the live database, never the storefront snapshot
-  const zones = await getLiveDeliveryZones(restaurant.id, {
-    locationId: cart.locationId ?? undefined,
-    activeOnly: true,
-  });
-  const matched = address
-    ? matchDeliveryZone(zones, address)
-    : (zones.find((candidate) => candidate.id === cart.locationId) ?? zones[0] ?? null);
-  return matched ? toZonePricing(matched) : null;
-}
-
-/** Coupons are privileged data: read them on the server connection so guests still see their own discount. */
-async function loadCartCoupon(restaurant: Restaurant, cart: Cart): Promise<Coupon | null> {
-  const ctx = forRestaurant(restaurant.id);
-  if (cart.couponId) return getCouponById(cart.couponId, ctx);
-  if (cart.couponCode) return getCouponByCode(restaurant.id, cart.couponCode, ctx);
-  return null;
-}
-
 /**
- * Prices a cart for display: same engine as checkout, but validation failures
- * become messages instead of exceptions so the cart page can stay usable.
+ * The checkout page's price breakdown for a tray: same engine as the order, fed from the storefront
+ * snapshot (menu, zones, coupon definition). Validation failures become messages, not exceptions, so
+ * the page can say what to fix. `zones` are the active zones the page already shows in its picker.
  */
-export async function priceCart(
+export async function priceTray(
   restaurant: Restaurant,
-  cart: Cart,
+  tray: Tray,
+  view: TrayView,
   options: {
+    zones: DeliveryZone[];
     orderType?: OrderType;
     address?: { area?: string | null; city?: string | null; postalCode?: string | null } | null;
-  } = {},
-): Promise<CartPricingResult> {
-  const orderType = options.orderType ?? cart.orderType;
-  const zone = orderType === "delivery" ? await resolveCartZone(restaurant, cart, options.address) : null;
-  const coupon = await loadCartCoupon(restaurant, cart);
+  },
+): Promise<TrayPricingResult> {
+  const orderType = options.orderType ?? tray.orderType;
+  const problems = view.lines.filter((line) => line.problem);
+  const blockers = problems.map((line) => `${line.name}: ${line.problem} Remove it from your tray to continue.`);
 
-  const result = tryCalculatePricing({
-    lines: toPricingLines(cart),
-    orderType,
-    settings: restaurant.settings,
-    zone,
-    coupon: coupon ? toCouponPricing(coupon) : null,
-  });
+  const matched =
+    orderType === "delivery"
+      ? options.address
+        ? matchDeliveryZone(options.zones, options.address)
+        : (options.zones.find((candidate) => candidate.locationId === tray.locationId) ?? options.zones[0] ?? null)
+      : null;
+  const zone = matched ? toZonePricing(matched) : null;
+  const coupon = tray.couponCode ? await findPreviewCoupon(restaurant.id, tray.couponCode) : null;
 
-  if (!result.ok) {
-    return { pricing: null, zone, coupon, blockers: [result.error.message] };
+  const orderable = view.lines.filter((line) => !line.problem);
+  if (orderable.length === 0 && blockers.length === 0) blockers.push("Your tray is empty.");
+
+  const price = (withCoupon: Coupon | null) =>
+    tryCalculatePricing({
+      lines: orderable.map((line) => ({ unitPrice: line.unitPrice, addonsTotal: line.addonsTotal, quantity: line.line.quantity })),
+      orderType,
+      settings: restaurant.settings,
+      zone,
+      coupon: withCoupon ? toCouponPricing(withCoupon) : null,
+    });
+
+  let couponNotice: string | null =
+    tray.couponCode && !coupon ? `Promo code ${tray.couponCode.toUpperCase()} is no longer valid.` : null;
+  let applied = coupon;
+  let result = price(applied);
+  if (!result.ok && applied && result.error.code.startsWith("COUPON")) {
+    // a code that stopped applying (minimum not met any more, wrong order type, expired) must not block
+    // the order — price without it and say why
+    couponNotice = `Promo code ${applied.code} was not applied: ${result.error.message}`;
+    applied = null;
+    result = price(null);
   }
-  return { pricing: result.pricing, zone, coupon, blockers: [] };
+  if (!result.ok) return { pricing: null, zone, coupon: applied, blockers: [...blockers, result.error.message], couponNotice };
+  return { pricing: result.pricing, zone, coupon: applied, blockers, couponNotice };
+}
+
+export interface CouponPreview {
+  code: string;
+  discount: string;
 }
 
 /**
- * Validates a promo code for this cart. Runs server-side (coupons are not
- * readable from the storefront role) and throws a PricingError when the code
- * would not work at checkout.
+ * Validates a promo code against the tray's subtotal for the cart page — from the snapshot, no
+ * database round trip. Usage limits (per code, per customer) are enforced when the order is placed.
  */
-export async function validatePromoCode(restaurant: Restaurant, cart: Cart, code: string): Promise<Coupon | null> {
-  const trimmed = code.trim();
-  if (!trimmed) return null;
+export async function previewCoupon(
+  restaurant: Restaurant,
+  code: string,
+  orderType: OrderType,
+  subtotal: string,
+): Promise<CouponPreview> {
+  if (!code.trim()) return { code: "", discount: "0.00" };
+  if (!restaurant.features.coupons) throw errors.custom("COUPON_INVALID", "Promo codes are not available right now.");
+  const coupon = await findPreviewCoupon(restaurant.id, code);
+  if (!coupon) throw errors.custom("COUPON_INVALID", "That promo code is not valid.");
 
-  const coupon = await getCouponByCode(restaurant.id, trimmed, forRestaurant(restaurant.id));
-  if (!coupon || !coupon.isActive) {
-    throw new PricingError("COUPON_INVALID", "That promo code is not valid.");
+  const validated = validateCouponOrThrow(toCouponPricing(coupon), { subtotal, orderType });
+  // the delivery fee is not known on the cart page, so a delivery-fee coupon previews as "no discount yet"
+  const discount = validated.appliesTo === "delivery_fee" ? ZERO : computeCouponDiscount(validated, dec(subtotal), ZERO);
+  return { code: validated.code, discount: toMoney(discount) };
+}
+
+/** Rejects a tray whose ordering option is switched off before anything is written. */
+export function assertTrayOrderable(restaurant: Restaurant, tray: Tray): void {
+  if (!restaurant.features.onlineOrdering) throw errors.custom("ORDERING_DISABLED", "Online ordering is paused right now.");
+  if (!isOrderTypeEnabled(restaurant.features, tray.orderType)) {
+    throw errors.custom("ORDERING_DISABLED", "That ordering option is currently unavailable.");
   }
-
-  const zone = cart.orderType === "delivery" ? await resolveCartZone(restaurant, cart, null) : null;
-
-  // Reuse the checkout rules so a code that works here always works at checkout.
-  tryCalculatePricing({
-    lines: toPricingLines(cart),
-    orderType: cart.orderType,
-    settings: restaurant.settings,
-    zone,
-    coupon: toCouponPricing(coupon),
-  });
-
-  return coupon;
+  if (tray.lines.length === 0) throw errors.custom("CART_EMPTY", "Your tray is empty.");
 }
 
 // ─── availability ────────────────────────────────────────────────────────────

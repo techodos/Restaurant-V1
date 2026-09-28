@@ -1,8 +1,7 @@
-import type { Cart, Order, OrderSummary, Restaurant } from "@/shared/contract/models";
+import type { Order, OrderSummary, Restaurant } from "@/shared/contract/models";
 import type { OrderStatus } from "@/shared/contract/enums";
 import type { Paginated } from "@/shared/contract/api";
 import type { RequestContext } from "@/server/context";
-import { AppError } from "@/server/errors";
 import { verifyOrderAccessToken } from "@/server/auth/tokens";
 import { ACTIVE_ORDER_STATUSES } from "@/shared/contract/enums";
 import {
@@ -17,7 +16,7 @@ import {
   updateOrderStatus,
   type OrderListFilters,
 } from "@/server/repositories/orders";
-import { addToCart } from "@/server/services/cart";
+import { viewTray, type TrayLineView } from "@/server/services/cart";
 
 /**
  * Finds the order a visitor is entitled to see. Access is decided by one of two proofs:
@@ -82,54 +81,29 @@ export async function getMyOrders(restaurantId: string, visitor: RequestContext)
 }
 
 export interface ReorderResult {
-  addedCount: number;
+  /** the past order's lines that are still orderable, priced from the current menu, for the browser's tray */
+  lines: TrayLineView[];
   /** names of items from the past order that could not be re-added (deleted, disabled, out of window) */
   skippedItemNames: string[];
-  /** the cart's real item count after the reorder, straight from addToCart — never recomputed by hand */
-  itemCount: number;
 }
 
 /**
- * Re-adds a past order's lines to the visitor's current cart, repriced from the live menu (never
- * the order's old prices). `order` must already be a visitor-owned order (from findVisitorOrder/
- * trackOrder) — this function does not re-check ownership, only recomputes what is still orderable.
- * An item that was deleted, disabled, or fell outside its availability window is skipped, not fatal:
- * `resolveItemSelection` (via addToCart) throws a PricingError for exactly that, which is caught and
- * reported by name from the order snapshot instead of failing the whole reorder.
+ * A past order's lines, ready to go back into the visitor's tray (the browser adds them to its cookie —
+ * no cart row is written). Repriced from the current menu, never the order's old prices. `order` must
+ * already be a visitor-owned order (from findVisitorOrder/trackOrder) — this does not re-check ownership.
+ * An item that was deleted, disabled, or fell outside its availability window is reported by the name
+ * it had on the order instead of failing the whole reorder.
  */
-export async function reorderOrder(
-  restaurant: Restaurant,
-  cart: Cart,
-  order: Order,
-  ctx: RequestContext,
-): Promise<ReorderResult> {
+export async function reorderLines(restaurant: Restaurant, order: Order, ctx: RequestContext): Promise<ReorderResult> {
   const lines = await buildReorderLines(order.id, ctx);
+  const view = await viewTray(restaurant, { orderType: order.orderType, locationId: null, couponCode: null, lines });
   const nameFor = (menuItemId: string, variantId: string | null) =>
     order.items?.find((item) => item.menuItemId === menuItemId && (item.variantId ?? null) === variantId)?.itemName ??
     "an item";
-
-  let addedCount = 0;
-  let itemCount = cart.itemCount;
-  const skippedItemNames: string[] = [];
-  for (const line of lines) {
-    try {
-      const result = await addToCart(restaurant, cart, {
-        menuItemId: line.menuItemId,
-        variantId: line.variantId,
-        quantity: line.quantity,
-        addons: line.addons,
-      });
-      itemCount = result.itemCount;
-      addedCount += 1;
-    } catch (error) {
-      if (error instanceof AppError) {
-        skippedItemNames.push(nameFor(line.menuItemId, line.variantId));
-        continue;
-      }
-      throw error;
-    }
-  }
-  return { addedCount, skippedItemNames, itemCount };
+  return {
+    lines: view.lines.filter((line) => !line.problem),
+    skippedItemNames: view.lines.filter((line) => line.problem).map((line) => nameFor(line.line.menuItemId, line.line.variantId)),
+  };
 }
 
 /** Staff-facing order list (admin). */

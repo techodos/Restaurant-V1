@@ -1,10 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { addItemToCart, clearCart, getOrCreateCart, resolveItemSelection, updateCartItemQuantity } from "@/server/repositories/carts";
-import { createOrder } from "@/server/repositories/orders";
-import { getMenuItem } from "@/server/repositories/menu";
+import { createOrder, type CreateOrderLine } from "@/server/repositories/orders";
+import { getMenuItem, loadOrderableItems } from "@/server/repositories/menu";
 import { getOrderById, updateOrderStatus } from "@/server/repositories/orders";
-import { ANON, BELLA, cartContext, newCartToken, testDatabase } from "./helpers/db";
+import { resolveMenuSelection, type SelectionInput } from "@/server/domain/menu-selection";
+import { ANON, BELLA, OWNER, testDatabase } from "./helpers/db";
 import type { MenuItem } from "@/shared/contract/models";
+
+/**
+ * Order placement against a real (local test) database. There is no cart row any more: the tray is a
+ * browser cookie and `createOrder` receives its lines directly, re-resolving every one of them from the
+ * live menu inside the single order transaction.
+ */
 
 const restaurantId = BELLA.restaurantId;
 const timezone = "Asia/Karachi";
@@ -36,175 +42,103 @@ function addonId(item: MenuItem, groupName: string, addonName: string): string {
   return addon.id;
 }
 
-describe("cart item validation", () => {
+/** The order transaction's own view of a line: rows read by `loadOrderableItems`, rules by `resolveMenuSelection`. */
+async function resolveLine(input: SelectionInput) {
+  const menu = await testDatabase.read({}, (tx) => loadOrderableItems(tx, restaurantId, [input.menuItemId]));
+  return resolveMenuSelection(menu.get(input.menuItemId), input, timezone);
+}
+
+describe("line validation against the live menu", () => {
   it("falls back to the default variant and applies the default add-ons", async () => {
-    const token = newCartToken();
-    const cart = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
-    const line = await addItemToCart(
-      { cartId: cart.id, restaurantId, timezone, input: { menuItemId: margherita.id, quantity: 1 } },
-      cartContext(token),
-    );
-    expect(line.variantName).toBe('Small 9"');
+    const line = await resolveLine({ menuItemId: margherita.id, quantity: 1 });
+    expect(line.variant?.name).toBe('Small 9"');
     expect(line.unitPrice).toBe("950.00");
     expect(line.addonsTotal).toBe("0.00"); // house crust is free
-    expect(line.addons.map((addon) => addon.addonName)).toEqual(["Classic Neapolitan"]);
-    await clearCart(cart.id, cartContext(token));
+    expect(line.addons.map((addon) => addon.name)).toEqual(["Classic Neapolitan"]);
   });
 
   it("rejects a variant that does not belong to the item", async () => {
-    const token = newCartToken();
-    const cart = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
-    await expect(
-      addItemToCart(
-        { cartId: cart.id, restaurantId, timezone, input: { menuItemId: margherita.id, variantId: gulabJamun.variants[0]!.id } },
-        cartContext(token),
-      ),
-    ).rejects.toThrowError(/option/i);
+    await expect(resolveLine({ menuItemId: margherita.id, variantId: gulabJamun.variants[0]!.id })).rejects.toThrowError(/option/i);
   });
 
   it("auto-satisfies a required group from its defaults, but still rejects unknown extras", async () => {
-    const resolved = await testDatabase.read({}, (tx) =>
-      resolveItemSelection(tx, restaurantId, timezone, {
-        menuItemId: margherita.id,
-        variantId: margherita.variants[0]!.id,
-        quantity: 1,
-        addons: [],
-      }),
-    );
+    const resolved = await resolveLine({ menuItemId: margherita.id, variantId: margherita.variants[0]!.id, quantity: 1, addons: [] });
     expect(resolved.addons).toHaveLength(1);
     expect(resolved.addons[0]?.name).toBe("Classic Neapolitan");
     expect(resolved.addonsTotal).toBe("0.00");
 
-    const token = newCartToken();
-    const cart = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
-    await expect(
-      addItemToCart(
-        {
-          cartId: cart.id,
-          restaurantId,
-          timezone,
-          input: { menuItemId: margherita.id, quantity: 1, addons: [{ addonId: gulabJamun.id }] },
-        },
-        cartContext(token),
-      ),
-    ).rejects.toThrowError(/not available/i);
+    await expect(resolveLine({ menuItemId: margherita.id, quantity: 1, addons: [{ addonId: gulabJamun.id }] })).rejects.toThrowError(
+      /not available/i,
+    );
   });
 
   it("enforces max_select per add-on group", async () => {
-    const token = newCartToken();
-    const cart = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
     await expect(
-      addItemToCart(
-        {
-          cartId: cart.id,
-          restaurantId,
-          timezone,
-          input: {
-            menuItemId: margherita.id,
-            variantId: margherita.variants[0]!.id,
-            quantity: 1,
-            addons: [
-              { addonId: addonId(margherita, "Extra toppings", "Extra mozzarella") },
-              { addonId: addonId(margherita, "Extra toppings", "Grilled chicken") },
-              { addonId: addonId(margherita, "Extra toppings", "Black olives") },
-              { addonId: addonId(margherita, "Extra toppings", "Mushrooms") },
-              { addonId: addonId(margherita, "Extra toppings", "Jalapeños") },
-            ],
-          },
-        },
-        cartContext(token),
-      ),
+      resolveLine({
+        menuItemId: margherita.id,
+        variantId: margherita.variants[0]!.id,
+        quantity: 1,
+        addons: [
+          { addonId: addonId(margherita, "Extra toppings", "Extra mozzarella") },
+          { addonId: addonId(margherita, "Extra toppings", "Grilled chicken") },
+          { addonId: addonId(margherita, "Extra toppings", "Black olives") },
+          { addonId: addonId(margherita, "Extra toppings", "Mushrooms") },
+          { addonId: addonId(margherita, "Extra toppings", "Jalapeños") },
+        ],
+      }),
     ).rejects.toThrowError(/at most/i);
   });
 
   it("refuses items that are switched off, and prices the rest server-side", async () => {
-    const token = newCartToken();
-    const cart = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
-    await expect(
-      addItemToCart(
-        { cartId: cart.id, restaurantId, timezone, input: { menuItemId: pannaCotta.id, quantity: 1 } },
-        cartContext(token),
-      ),
-    ).rejects.toThrowError(/unavailable/i);
+    await expect(resolveLine({ menuItemId: pannaCotta.id, quantity: 1 })).rejects.toThrowError(/unavailable/i);
 
-    const line = await addItemToCart(
-      {
-        cartId: cart.id,
-        restaurantId,
-        timezone,
-        input: {
-          menuItemId: margherita.id,
-          variantId: margherita.variants[1]!.id, // Medium 12"
-          quantity: 2,
-          addons: [
-            { addonId: addonId(margherita, "Choose your crust", "Stuffed crust") },
-            { addonId: addonId(margherita, "Extra toppings", "Extra mozzarella") },
-          ],
-        },
-      },
-      cartContext(token),
-    );
-    // (1250 + 250 stuffed crust + 200 extra mozzarella) × 2 — all from the database
+    const line = await resolveLine({
+      menuItemId: margherita.id,
+      variantId: margherita.variants[1]!.id, // Medium 12"
+      quantity: 2,
+      addons: [
+        { addonId: addonId(margherita, "Choose your crust", "Stuffed crust") },
+        { addonId: addonId(margherita, "Extra toppings", "Extra mozzarella") },
+      ],
+    });
+    // 1250 + (250 stuffed crust + 200 extra mozzarella) — all from the database
     expect(line.unitPrice).toBe("1250.00");
     expect(line.addonsTotal).toBe("450.00");
-    expect(line.lineTotal).toBe("3400.00");
-
-    await updateCartItemQuantity({ cartItemId: line.id, quantity: 1 }, cartContext(token));
-    const refreshed = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
-    expect(refreshed.items[0]?.lineTotal).toBe("1700.00");
-    await clearCart(cart.id, cartContext(token));
   });
 });
 
-async function buildCart(token: string, options: { addGulabJamun?: boolean } = {}) {
-  const cart = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
-  await addItemToCart(
+/** A tray: the lines a browser's cookie would carry. */
+function buildLines(options: { addGulabJamun?: boolean } = {}): CreateOrderLine[] {
+  const lines: CreateOrderLine[] = [
     {
-      cartId: cart.id,
-      restaurantId,
-      timezone,
-      input: {
-        menuItemId: margherita.id,
-        variantId: margherita.variants[1]!.id,
-        quantity: 1,
-        addons: [
-          { addonId: addonId(margherita, "Choose your crust", "Classic Neapolitan") },
-          { addonId: addonId(margherita, "Extra toppings", "Extra mozzarella") },
-        ],
-      },
+      menuItemId: margherita.id,
+      variantId: margherita.variants[1]!.id,
+      quantity: 1,
+      addons: [
+        { addonId: addonId(margherita, "Choose your crust", "Classic Neapolitan"), quantity: 1 },
+        { addonId: addonId(margherita, "Extra toppings", "Extra mozzarella"), quantity: 1 },
+      ],
     },
-    cartContext(token),
-  );
+  ];
   if (options.addGulabJamun) {
-    await addItemToCart(
-      {
-        cartId: cart.id,
-        restaurantId,
-        timezone,
-        input: { menuItemId: gulabJamun.id, variantId: gulabJamun.variants[0]!.id, quantity: 2 },
-      },
-      cartContext(token),
-    );
+    lines.push({ menuItemId: gulabJamun.id, variantId: gulabJamun.variants[0]!.id, quantity: 2, addons: [] });
   }
-  return cart;
+  return lines;
 }
 
 describe("order creation", () => {
   it("creates a guest delivery order and records payment, delivery and status history", async () => {
-    const token = newCartToken();
-    const cart = await buildCart(token);
-
     const { order, paymentId } = await createOrder(
       {
         restaurantId,
-        cartId: cart.id,
+        lines: buildLines(),
         orderType: "delivery",
         customer: { fullName: "Test Guest", phone: "+92 300 0000001", email: "guest@example.com" },
         address: { line1: "House 1, Street 1", area: "Gulberg III", city: "Lahore" },
         paymentMethod: "cash_on_delivery",
         actor: "Test Guest",
       },
-      cartContext(token),
+      ANON,
     );
 
     expect(order.orderNumber).toMatch(/^ORD-\d{4}-\d{5}$/);
@@ -216,22 +150,15 @@ describe("order creation", () => {
     expect(order.deliveryAddress?.area).toBe("Gulberg III");
     expect(paymentId).not.toBe("");
 
-    // guests read their order back through the cart token (no account needed)
-    const details = await getOrderById(order.id, cartContext(token));
+    const details = await getOrderById(order.id, OWNER);
     expect(details?.items).toHaveLength(1);
     expect(details?.items?.[0]?.addons).toHaveLength(2);
     expect(details?.statusHistory?.map((event) => event.toStatus)).toEqual(["pending"]);
     expect(details?.delivery?.status).toBe("unassigned");
     expect(details?.payment?.status).toBe("pending");
-
-    // the cart is closed and cannot be reused
-    const reuse = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
-    expect(reuse.id).not.toBe(cart.id);
   });
 
   it("applies a valid coupon, recalculates tax and increments usage", async () => {
-    const token = newCartToken();
-    const cart = await buildCart(token, { addGulabJamun: true });
 
     const owner = { userId: BELLA.userOwner, restaurantId: BELLA.restaurantId, actor: "Owner" };
     const before = await testDatabase.read(owner, (db) =>
@@ -241,13 +168,13 @@ describe("order creation", () => {
     const { order } = await createOrder(
       {
         restaurantId,
-        cartId: cart.id,
+        lines: buildLines({ addGulabJamun: true }),
         orderType: "pickup",
         customer: { fullName: "Coupon Guest", phone: "+92 300 0000002" },
         paymentMethod: "cash",
         couponCode: "WELCOME10",
       },
-      cartContext(token),
+      ANON,
     );
 
     // 1250 + 200 (pizza) + 2 × 350 (gulab jamun) = 2150
@@ -263,85 +190,75 @@ describe("order creation", () => {
     expect((after?.used_count ?? 0)).toBe((before?.used_count ?? 0) + 1);
 
     // a promo whose minimum is not met is refused before any order row is written
-    const smallToken = newCartToken();
-    const smallCart = await buildCart(smallToken);
     await expect(
       createOrder(
         {
           restaurantId,
-          cartId: smallCart.id,
+          lines: buildLines(),
           orderType: "pickup",
           customer: { fullName: "Coupon Guest", phone: "+92 300 0000002" },
           paymentMethod: "cash",
           couponCode: "FLAT250", // requires 2,500 — this cart totals 1,450
         },
-        cartContext(smallToken),
+        ANON,
       ),
     ).rejects.toThrowError(/minimum/i);
   });
 
   it("rejects expired coupons, unavailable payment methods and unknown delivery areas", async () => {
-    const expiredToken = newCartToken();
-    const expiredCart = await buildCart(expiredToken);
     await expect(
       createOrder(
         {
           restaurantId,
-          cartId: expiredCart.id,
+          lines: buildLines(),
           orderType: "pickup",
           customer: { fullName: "Guest", phone: "+92 300 0000003" },
           paymentMethod: "cash",
           couponCode: "RAMADAN15",
         },
-        cartContext(expiredToken),
+        ANON,
       ),
     ).rejects.toThrowError(/expired/i);
 
-    const walletToken = newCartToken();
-    const walletCart = await buildCart(walletToken);
     await expect(
       createOrder(
         {
           restaurantId,
-          cartId: walletCart.id,
+          lines: buildLines(),
           orderType: "pickup",
           customer: { fullName: "Guest", phone: "+92 300 0000004" },
           paymentMethod: "wallet",
         },
-        cartContext(walletToken),
+        ANON,
       ),
     ).rejects.toThrowError(/payment method/i);
 
-    const farToken = newCartToken();
-    const farCart = await buildCart(farToken);
     await expect(
       createOrder(
         {
           restaurantId,
-          cartId: farCart.id,
+          lines: buildLines(),
           orderType: "delivery",
           customer: { fullName: "Guest", phone: "+92 300 0000005" },
           address: { line1: "Somewhere", area: "Islamabad G-11", city: "Islamabad" },
           paymentMethod: "cash_on_delivery",
         },
-        cartContext(farToken),
+        ANON,
       ),
     ).rejects.toThrowError(/do not deliver/i);
   });
 
-  it("refuses an empty cart", async () => {
-    const token = newCartToken();
-    const cart = await getOrCreateCart({ restaurantId, cartToken: token, currency: "PKR" }, cartContext(token));
+  it("refuses an empty tray", async () => {
     await expect(
       createOrder(
         {
           restaurantId,
-          cartId: cart.id,
+          lines: [],
           orderType: "pickup",
           customer: { fullName: "Guest", phone: "+92 300 0000006" },
           paymentMethod: "cash",
         },
-        cartContext(token),
+        ANON,
       ),
     ).rejects.toThrowError(/empty/i);
   });
@@ -349,17 +266,15 @@ describe("order creation", () => {
 
 describe("order status machine", () => {
   async function placeSimpleOrder(label: string) {
-    const token = newCartToken();
-    const cart = await buildCart(token);
     const { order } = await createOrder(
       {
         restaurantId,
-        cartId: cart.id,
+        lines: buildLines(),
         orderType: "pickup",
         customer: { fullName: `Status ${label}`, phone: `+92 300 10000${Math.floor(Math.random() * 90 + 10)}` },
         paymentMethod: "cash",
       },
-      cartContext(token),
+      ANON,
     );
     return order;
   }

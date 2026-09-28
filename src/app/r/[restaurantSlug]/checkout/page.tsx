@@ -5,11 +5,10 @@ import { redirect } from "next/navigation";
 import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
 import { isSupportedCountry } from "libphonenumber-js";
 import { getCustomerProfile } from "@/server/services/customer-profile";
-import { readCart, requireStorefront } from "@/web/storefront";
-import { priceCart, serviceAvailability } from "@/server/services/cart";
+import { readTrayView, requireStorefront } from "@/web/storefront";
+import { priceTray, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
-import { getLiveDeliveryZones } from "@/server/services/restaurants";
-import { isEmailVerified } from "@/server/services/customer-auth";
+import { getDeliveryZones } from "@/server/services/restaurants";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { Button } from "@/components/ui/button";
 import { signInHref } from "@/shared/return-to";
@@ -33,22 +32,25 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const customer = await getStorefrontCustomer(restaurant.id);
   if (!customer) redirect(signInHref(restaurant.slug, `/r/${restaurant.slug}/checkout`));
 
-  const cart = await readCart(restaurant);
-  if (!cart || cart.items.length === 0) redirect(`/r/${restaurant.slug}/menu`);
+  // The tray is the browser's cookie and is priced from the in-memory menu, zones and coupon definitions:
+  // no database. The page makes exactly one database read — the account's own profile (saved mobile,
+  // addresses, email verification) in one transaction. The order itself re-prices everything from the
+  // database when it is placed.
+  const { tray, view } = await readTrayView(context);
+  if (view.lines.length === 0) redirect(`/r/${restaurant.slug}/menu`);
 
-  const availability = serviceAvailability(restaurant, primaryLocation, cart.orderType);
-  const [pricingResult, zones, profile] = await Promise.all([
-    priceCart(restaurant, cart),
-    cart.orderType === "delivery"
-      ? getLiveDeliveryZones(restaurant.id, {
-          locationId: cart.locationId ?? undefined,
-          activeOnly: true,
-        })
-      : Promise.resolve([]),
+  const availability = serviceAvailability(restaurant, primaryLocation, tray.orderType);
+  const zones =
+    tray.orderType === "delivery"
+      ? await getDeliveryZones(restaurant.id, { locationId: tray.locationId ?? undefined, activeOnly: true })
+      : [];
+  const [pricingResult, profile] = await Promise.all([
+    priceTray(restaurant, tray, view, { zones }),
     // the same profile the header drawer shows: account email, saved mobile, saved addresses
     getCustomerProfile(restaurant, await getVisitorContext(restaurant.id)),
   ]);
-  const emailVerified = await isEmailVerified(customer.userId);
+  const emailVerified = profile.emailVerified;
+  const couponCode = pricingResult.coupon?.code ?? null;
 
   const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant);
 
@@ -90,7 +92,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
             <p className="eyebrow mb-3">Almost there</p>
             <h1 className="display-1">Checkout</h1>
             <p className="tabular mt-3 text-[15px] text-[var(--color-muted-ink)]">
-              {cart.itemCount} item{cart.itemCount === 1 ? "" : "s"} from {restaurant.name}
+              {view.itemCount} item{view.itemCount === 1 ? "" : "s"} from {restaurant.name}
             </p>
           </div>
           <ol aria-label="Order progress" className="flex items-center gap-2 text-[13px] font-medium">
@@ -103,10 +105,16 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
         </div>
       </header>
 
+      {pricingResult.couponNotice ? (
+        <p role="status" className="mt-6 rounded-[var(--radius-card)] bg-[var(--steel-2)] p-3.5 text-sm text-[var(--color-muted-ink)]">
+          {pricingResult.couponNotice}
+        </p>
+      ) : null}
+
       <div className="mt-8">
         <CheckoutForm
           restaurantSlug={restaurant.slug}
-          orderType={cart.orderType}
+          orderType={tray.orderType}
           orderTypeOptions={orderTypeOptions}
           pricing={{
             subtotal: pricing.subtotal,
@@ -118,7 +126,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
             taxIncluded: pricing.taxIncluded,
             total: pricing.total,
           }}
-          couponCode={cart.couponCode}
+          couponCode={couponCode}
           zones={zones.map((zone) => ({
             id: zone.id,
             name: zone.name,

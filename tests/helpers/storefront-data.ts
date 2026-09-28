@@ -237,6 +237,7 @@ export function storefrontData(overrides: Partial<StorefrontData> = {}): Storefr
       seo: {},
       publishedAt: null,
     },
+    coupons: [],
     pages: [page("p-home", "home", { isHome: true }), page("p-about", "about")],
     locations: [
       location("loc-1", { isPrimary: true }),

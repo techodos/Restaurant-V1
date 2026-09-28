@@ -1,17 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Check, Loader2, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/shared/utils";
-import { addToCartAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { useLocalCart } from "./local-cart";
 import { flyToTray } from "@/components/motion/fly-to-tray";
 
 interface QuickAddButtonProps {
   restaurantSlug: string;
-  item: { id: string; name: string; slug: string; requiresSelection: boolean; isAvailable: boolean };
+  item: {
+    id: string;
+    name: string;
+    slug: string;
+    requiresSelection: boolean;
+    isAvailable: boolean;
+    basePrice: string;
+    imageUrl: string | null;
+  };
   orderType?: string | undefined;
   /** smaller control for menu rows */
   compact?: boolean;
@@ -22,14 +29,14 @@ const ROUND =
 const IDLE = "bg-[var(--brand-surface,#fff)] text-[var(--brand-foreground,#1a1a1a)]";
 
 /**
- * A dish's add control. A simple dish goes straight into the cart (its photo flies there);
- * a dish with required choices opens its sheet instead, because the server requires those choices.
+ * A dish's add control. A simple dish goes straight into the tray (a browser cookie) — its photo flies
+ * there instantly, no request at all; a dish with required choices opens its sheet instead, where a
+ * chosen variant/add-ons need the same validation the sheet already mirrors.
  */
 export function QuickAddButton({ restaurantSlug, item, orderType, compact = false }: QuickAddButtonProps) {
   const size = compact ? "size-9 [&_svg]:size-4" : "size-11 [&_svg]:size-5";
-  const [pending, startTransition] = useTransition();
+  const { addLine } = useLocalCart();
   const [added, setAdded] = useState(false);
-  const router = useRouter();
 
   if (!item.isAvailable) return null;
 
@@ -51,7 +58,6 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
       type="button"
       data-testid={`quick-add-${item.slug}`}
       aria-label={added ? `${item.name} added to your order` : `Add ${item.name} to your order`}
-      disabled={pending}
       className={cn(
         ROUND,
         size,
@@ -59,32 +65,35 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
       )}
       onClick={(event) => {
         const plateImage = event.currentTarget.closest("[data-dish]")?.querySelector("img") ?? null;
-        startTransition(async () => {
-          const result = await addToCartAction(restaurantSlug, {
-            menuItemId: item.id,
-            quantity: 1,
-            addons: [],
-            ...(orderType ? { orderType } : {}),
-          });
-          if (!result.success) {
-            toast.error(result.error.message);
-            return;
-          }
-          flyToTray(plateImage);
-          setAdded(true);
-          window.setTimeout(() => setAdded(false), 1600);
-          toast.success(`${item.name} added to your order`);
-          router.refresh();
+        // requiresSelection is false: no variant, and no addon group forces a default (see
+        // resolveMenuSelection) — the item's base price is the whole line.
+        const added = addLine({
+          menuItemId: item.id,
+          variantId: null,
+          quantity: 1,
+          addons: [],
+          display: {
+            name: item.name,
+            slug: item.slug,
+            imageUrl: item.imageUrl,
+            variantName: null,
+            addonNames: [],
+            unitPrice: item.basePrice,
+            addonsTotal: "0.00",
+            problem: null,
+          },
         });
+        if (!added) {
+          toast.error("Your tray is full", { description: "Check out or remove something before adding more." });
+          return;
+        }
+        flyToTray(plateImage);
+        setAdded(true);
+        window.setTimeout(() => setAdded(false), 1600);
+        toast.success(`${item.name} added to your order`);
       }}
     >
-      {pending ? (
-        <Loader2 className="animate-spin" aria-hidden />
-      ) : added ? (
-        <Check aria-hidden />
-      ) : (
-        <Plus aria-hidden />
-      )}
+      {added ? <Check aria-hidden /> : <Plus aria-hidden />}
     </button>
   );
 }

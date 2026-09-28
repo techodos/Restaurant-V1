@@ -1,5 +1,5 @@
 import type {
-  CartStatus, CouponDiscountType, DeliveryStatus, MediaPurpose, OrderStatus, OrderType,
+  CouponDiscountType, DeliveryStatus, MediaPurpose, OrderStatus, OrderType,
   PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus,
   TeamRole, WebsiteStatus,
 } from "./enums";
@@ -332,39 +332,7 @@ export interface CartAddon {
   quantity: number;
 }
 
-export interface CartItem {
-  id: string;
-  cartId: string;
-  menuItemId: string;
-  variantId: string | null;
-  itemName: string;
-  variantName: string | null;
-  imageUrl: string | null;
-  slug: string | null;
-  quantity: number;
-  unitPrice: Money;
-  addonsTotal: Money;
-  lineTotal: Money;
-  specialInstructions: string | null;
-  isAvailable: boolean;
-  addons: CartAddon[];
-}
 
-export interface Cart {
-  id: string;
-  restaurantId: string;
-  customerId: string | null;
-  locationId: string | null;
-  sessionToken: string;
-  status: CartStatus;
-  orderType: OrderType;
-  couponId: string | null;
-  couponCode: string | null;
-  currency: string;
-  notes: string | null;
-  items: CartItem[];
-  itemCount: number;
-}
 
 export interface DeliveryZone {
   id: string;

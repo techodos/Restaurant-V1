@@ -14,6 +14,21 @@ export async function listCoupons(restaurantId: string, ctx: RequestContext = {}
   return rows.map(mapCoupon);
 }
 
+/**
+ * Active, not-yet-expired coupons for the storefront snapshot (cart-page previews only; the order
+ * transaction re-reads the row and enforces usage limits). Privileged read, like every coupon read:
+ * coupons are never readable from the storefront role.
+ */
+export async function listPreviewableCoupons(restaurantId: string): Promise<Coupon[]> {
+  const rows = await getDb({ restaurantId }).write({ restaurantId }, (tx) =>
+    tx.query<Row>(
+      `select * from coupons where restaurant_id = $1 and is_active and (ends_at is null or ends_at > now())`,
+      [restaurantId],
+    ),
+  );
+  return rows.map(mapCoupon);
+}
+
 export async function getCouponByCode(
   restaurantId: string,
   code: string,
@@ -57,22 +72,6 @@ export function toCouponPricing(coupon: Coupon): CouponPricing {
     usedCount: coupon.usedCount,
     isActive: coupon.isActive,
   };
-}
-
-/** How many times this phone number already used the coupon. */
-export async function countCouponUsageByPhone(
-  restaurantId: string,
-  couponId: string,
-  phone: string,
-  ctx: RequestContext = {},
-): Promise<number> {
-  const row = await getDb({ restaurantId }).queryOne<{ count: string }>(
-    ctx,
-    `select count(*) from orders
-      where restaurant_id = $1 and coupon_id = $2 and customer_phone = $3 and status <> 'cancelled'`,
-    [restaurantId, couponId, phone],
-  );
-  return row ? Number.parseInt(row.count, 10) : 0;
 }
 
 export interface CouponInput {

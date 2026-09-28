@@ -1,4 +1,5 @@
 import type {
+  Coupon,
   DeliveryZone,
   MenuCategory,
   MenuItem,
@@ -26,6 +27,16 @@ export function readMenuCategories(snapshot: StorefrontSnapshot, options: { with
 
 export function readMenuItem(snapshot: StorefrontSnapshot, slug: string): MenuItem | null {
   return snapshot.index.itemsBySlug.get(slug)?.item ?? null;
+}
+
+export function readMenuEntryById(snapshot: StorefrontSnapshot, id: string): StorefrontMenuEntry | null {
+  return snapshot.index.itemsById.get(id) ?? null;
+}
+
+/** An active coupon by code (case-insensitive, like `code = upper(trim($1))`). */
+export function readCoupon(snapshot: StorefrontSnapshot, code: string): Coupon | null {
+  const wanted = code.trim().toUpperCase();
+  return snapshot.coupons.find((coupon) => coupon.code.toUpperCase() === wanted) ?? null;
 }
 
 export function readHomePage(snapshot: StorefrontSnapshot): WebsitePage | null {

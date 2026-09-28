@@ -34,6 +34,7 @@ export function buildStorefrontSnapshot(
 
   const menu: StorefrontMenuEntry[] = [];
   const itemsBySlug = new Map<string, StorefrontMenuEntry>();
+  const itemsById = new Map<string, StorefrontMenuEntry>();
   const seenIds = new Set<string>();
   const itemCounts = new Map<string, number>();
   for (const record of data.menu) {
@@ -50,6 +51,7 @@ export function buildStorefrontSnapshot(
     } else {
       itemsBySlug.set(entry.item.slug, entry);
     }
+    itemsById.set(entry.item.id, entry);
     menu.push(entry);
     itemCounts.set(record.summary.categoryId, (itemCounts.get(record.summary.categoryId) ?? 0) + 1);
   }
@@ -72,7 +74,8 @@ export function buildStorefrontSnapshot(
     categoriesWithCounts,
     menu,
     reviews: data.reviews,
-    index: { itemsBySlug, categoriesBySlug },
+    coupons: data.coupons ?? [],
+    index: { itemsBySlug, itemsById, categoriesBySlug },
   };
 
   // Maps stay mutable at runtime, but nothing outside this module can reach them

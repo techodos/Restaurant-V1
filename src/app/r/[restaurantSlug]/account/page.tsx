@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { CheckCircle2, CircleAlert } from "lucide-react";
 import { requireStorefront } from "@/web/storefront";
 import { getStorefrontCustomer } from "@/web/session";
-import { getCustomerUser as getUserById, isEmailVerified } from "@/server/services/customer-auth";
+import { getCustomerUser as getUserById } from "@/server/services/customer-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SignOutButton } from "@/components/storefront/sign-out-button";
@@ -23,8 +23,9 @@ export default async function AccountPage({ params }: Props) {
   const customer = await getStorefrontCustomer(restaurant.id);
   if (!customer) redirect(`/r/${restaurantSlug}/account/sign-in`);
 
+  // one read: the row carries the verification state too
   const user = await getUserById(customer.userId);
-  const verified = await isEmailVerified(customer.userId);
+  const verified = Boolean(user?.emailVerified);
 
   return (
     <div className="container-page flex justify-center py-12 md:py-16">

@@ -16,6 +16,7 @@ import type { CustomerAddress, DeliveryZone } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
+import { useLocalCart } from "@/components/storefront/local-cart";
 import { signInHref } from "@/shared/return-to";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -127,6 +128,7 @@ export function CheckoutForm({
   );
   const chosenAddress = savedAddresses.find((address) => address.id === addressChoice) ?? null;
   const router = useRouter();
+  const { clear: clearLocalCart } = useLocalCart();
 
   useEffect(() => {
     if (needsVerification) void ensureVerificationCodeAction(restaurantSlug);
@@ -219,6 +221,10 @@ export function CheckoutForm({
           toast.error(result.error.message, { description: "Nothing has been charged." });
           return;
         }
+        // The order is committed in the database either way from here — the browser-held tray (already
+        // written to the real cart at the start of checkout) has done its job.
+        clearLocalCart();
+
         // stays locked while we navigate away — either to the order page, or (an online payment)
         // on to the gateway's own hosted page first
         if (result.data.payment) {

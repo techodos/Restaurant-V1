@@ -1,23 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Profile + checkout share the customer's data: the account's saved mobile and email win over whatever the
- * browser sends, a missing mobile is taken from checkout and stored with the order, and the order is linked
- * to the account's own row. Repositories are mocked; no database.
+ * Profile + checkout share the customer's data. `placeOrder` makes exactly one repository call —
+ * `createOrder`, the single order transaction — and hands it the tray's lines and the signed-in account;
+ * the account row itself (saved mobile/email winning, first mobile stored, email verified) is read and
+ * locked inside that transaction (see tests/create-order-sql.test.ts). Repositories are mocked; no database.
  */
-const { createOrder, getCustomerById, findCart } = vi.hoisted(() => ({
+const { createOrder, getCustomerById } = vi.hoisted(() => ({
   createOrder: vi.fn(),
   getCustomerById: vi.fn(),
-  findCart: vi.fn(),
 }));
 vi.mock("@/server/repositories/orders", () => ({ createOrder }));
 vi.mock("@/server/repositories/customers", () => ({ getCustomerById }));
-vi.mock("@/server/services/cart", () => ({ findCart }));
 
 import { placeOrder } from "@/server/services/checkout";
 import { customerAddressSchema, updateProfileSchema } from "@/server/validation/customer-profile";
+import type { Tray } from "@/shared/tray";
 
-const restaurant = { id: "r1", slug: "zaytoun", features: {}, settings: {} } as never;
+const restaurant = {
+  id: "r1",
+  slug: "zaytoun",
+  features: { onlineOrdering: true, delivery: true, pickup: true, dineIn: true },
+  settings: {},
+} as never;
 const input = {
   orderType: "pickup",
   fullName: "Noor Ahmed",
@@ -25,36 +30,48 @@ const input = {
   email: "typed@example.com",
   paymentMethod: "cash",
 } as never;
-const account = (phone: string) => ({ id: "c1", restaurantId: "r1", phone, email: "noor@example.com", fullName: "Noor Ahmed" });
+const ITEM = "11111111-1111-4111-8111-111111111111";
+const tray: Tray = {
+  orderType: "pickup",
+  locationId: null,
+  couponCode: "SAVE10",
+  lines: [{ menuItemId: ITEM, variantId: null, quantity: 2, addons: [] }],
+};
+const account = { id: "c1", restaurantId: "r1", phone: "+923334445555", email: "noor@example.com", fullName: "Noor Ahmed" };
 
-describe("placeOrder uses the signed-in customer's account data", () => {
+describe("placeOrder is one transaction for the signed-in customer's tray", () => {
   beforeEach(() => {
-    createOrder.mockReset().mockResolvedValue({ order: { orderNumber: "ORD-1" }, requiresOnlinePayment: false });
+    createOrder
+      .mockReset()
+      .mockResolvedValue({ order: { orderNumber: "ORD-1", customerPhone: "+923334445555" }, requiresOnlinePayment: false, customer: account });
     getCustomerById.mockReset();
-    findCart.mockReset().mockResolvedValue({ id: "cart1", couponCode: null });
   });
 
-  it("uses the saved mobile and account email, never what the browser sent; nothing to save", async () => {
-    getCustomerById.mockResolvedValue(account("+923334445555"));
-    await placeOrder(restaurant, input, { restaurantId: "r1", customerId: "c1", cartToken: "t" });
+  it("passes the tray's lines and the account to createOrder, with no other database read", async () => {
+    await placeOrder(restaurant, tray, input, { restaurantId: "r1", customerId: "c1", userId: "c1" });
+    expect(createOrder).toHaveBeenCalledTimes(1);
+    expect(getCustomerById).not.toHaveBeenCalled();
     const [orderInput] = createOrder.mock.calls[0]!;
-    expect(orderInput.customer).toMatchObject({ phone: "+923334445555", email: "noor@example.com" });
-    expect(orderInput).toMatchObject({ accountCustomerId: "c1", saveAccountPhone: false });
-  });
-
-  it("takes the entered mobile when the account has none, and asks the order to store it", async () => {
-    getCustomerById.mockResolvedValue(account(""));
-    await placeOrder(restaurant, input, { restaurantId: "r1", customerId: "c1", cartToken: "t" });
-    const [orderInput] = createOrder.mock.calls[0]!;
-    expect(orderInput.customer.phone).toBe("+923001112222");
-    expect(orderInput).toMatchObject({ accountCustomerId: "c1", saveAccountPhone: true });
-  });
-
-  it("refuses when the session's customer no longer exists at this restaurant", async () => {
-    getCustomerById.mockResolvedValue({ ...account("+923334445555"), restaurantId: "other" });
-    await expect(placeOrder(restaurant, input, { restaurantId: "r1", customerId: "c1", cartToken: "t" })).rejects.toMatchObject({
-      code: "SIGN_IN_REQUIRED",
+    expect(orderInput.lines).toEqual(tray.lines);
+    expect(orderInput).toMatchObject({
+      accountCustomerId: "c1",
+      saveAccountPhone: true, // stored only if the account has no mobile yet — decided inside the transaction
+      requireVerifiedEmail: true,
+      customer: { phone: "+923001112222" },
     });
+  });
+
+  it("applies only the promo code the checkout page showed as applied, never a stale one from the tray", async () => {
+    await placeOrder(restaurant, tray, input, { restaurantId: "r1", customerId: "c1", userId: "c1" });
+    expect(createOrder.mock.calls[0]![0].couponCode).toBeNull();
+    await placeOrder(restaurant, tray, { ...(input as object), couponCode: "SAVE10" } as never, { restaurantId: "r1", customerId: "c1" });
+    expect(createOrder.mock.calls[1]![0].couponCode).toBe("SAVE10");
+  });
+
+  it("refuses an empty tray before touching the database", async () => {
+    await expect(
+      placeOrder(restaurant, { ...tray, lines: [] }, input, { restaurantId: "r1", customerId: "c1" }),
+    ).rejects.toMatchObject({ code: "CART_EMPTY" });
     expect(createOrder).not.toHaveBeenCalled();
   });
 });

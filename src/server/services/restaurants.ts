@@ -57,18 +57,6 @@ export async function getDeliveryZones(
   return listDeliveryZones(restaurantId, forRestaurant(restaurantId), options);
 }
 
-/**
- * Delivery zones as pricing and checkout must see them: always read from the
- * database, never the snapshot, because fees and minimum order amounts decide
- * what a customer is charged.
- */
-export function getLiveDeliveryZones(
-  restaurantId: string,
-  options: { locationId?: string; activeOnly?: boolean } = {},
-): Promise<DeliveryZone[]> {
-  return listDeliveryZones(restaurantId, forRestaurant(restaurantId), options);
-}
-
 /** Staff-facing location CRUD (admin). Locations are in the storefront snapshot — invalidate on every write. */
 export async function saveLocation(
   restaurantId: string,

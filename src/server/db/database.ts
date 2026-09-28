@@ -111,8 +111,7 @@ export class Database {
   ): Promise<T> {
     const client = await pool.connect();
     try {
-      await client.query("begin");
-      await applyContext(client, context, role);
+      await beginWithContext(client, context, role);
       const result = await handler(new TxClient(client));
       await client.query("commit");
       return result;
@@ -151,23 +150,29 @@ function buildConfig(connectionString: string, applicationName: string, poolMax:
   };
 }
 
-async function applyContext(client: PoolClient, context: RequestContext, role = "app_runtime"): Promise<void> {
-  await client.query(`set local role ${role}`);
+/**
+ * Opens the transaction, switches role and applies the request context in ONE round trip.
+ *
+ * Every transaction used to pay three sequential round trips before its first real statement
+ * (`begin`, `set local role`, then the `set_config` select) — on the hosted pooler (~350 ms each)
+ * that was ~1 s of pure overhead per transaction. They are now sent as a single simple-protocol
+ * message (multi-statement strings cannot carry bind parameters, so every value goes through the
+ * driver's own `escapeLiteral`). `set_config('role', …, true)` is exactly `SET LOCAL ROLE` (the same
+ * GUC; PostgREST switches roles this way), so RLS sees the same role as before.
+ */
+async function beginWithContext(client: PoolClient, context: RequestContext, role = "app_runtime"): Promise<void> {
+  if (role !== "app_runtime" && role !== "app_service") throw new Error(`unexpected database role ${role}`);
+  const literal = (value: string) => client.escapeLiteral(value);
+  const settings: [string, string][] = [
+    ["role", role],
+    ["app.current_user_id", context.userId ?? ""],
+    ["app.current_restaurant_id", context.restaurantId ?? ""],
+    ["app.current_customer_id", context.customerId ?? ""],
+    ["app.cart_token", context.cartToken ?? ""],
+    ["app.actor", context.actor ?? "system"],
+    ["request.jwt.claims", context.userId ? JSON.stringify({ sub: context.userId, role: "authenticated" }) : "{}"],
+  ];
   await client.query(
-    `select
-       set_config('app.current_user_id', $1, true),
-       set_config('app.current_restaurant_id', $2, true),
-       set_config('app.current_customer_id', $3, true),
-       set_config('app.cart_token', $4, true),
-       set_config('app.actor', $5, true),
-       set_config('request.jwt.claims', $6, true)`,
-    [
-      context.userId ?? "",
-      context.restaurantId ?? "",
-      context.customerId ?? "",
-      context.cartToken ?? "",
-      context.actor ?? "system",
-      context.userId ? JSON.stringify({ sub: context.userId, role: "authenticated" }) : "{}",
-    ],
+    `begin; select ${settings.map(([name, value]) => `set_config(${literal(name)}, ${literal(value)}, true)`).join(", ")}`,
   );
 }

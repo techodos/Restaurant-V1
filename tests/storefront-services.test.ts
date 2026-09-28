@@ -177,25 +177,27 @@ describe("storefront reads with the cache ready", () => {
 });
 
 describe("what deliberately stays on PostgreSQL", () => {
-  it("keeps slug resolution for writes, and delivery zones for pricing/checkout, on the database", async () => {
+  it("keeps slug resolution for admin writes on the database", async () => {
     repo.getRestaurantBySlug.mockResolvedValue(restaurant());
-    repo.listDeliveryZones.mockResolvedValue([]);
     const app = await boot(true);
     await app.cache.startStorefrontCache();
 
     await app.restaurants.requireRestaurant("bella-napoli");
     expect(repo.getRestaurantBySlug).toHaveBeenCalledTimes(1);
-
-    await app.restaurants.getLiveDeliveryZones(RID, { activeOnly: true });
-    expect(repo.listDeliveryZones).toHaveBeenCalledTimes(1);
   });
 
-  it("does not let the cart pricing path read zones from the snapshot", async () => {
+  it("prices the tray PREVIEW from the snapshot, but the ORDER from the database inside its transaction", async () => {
     const { readFileSync } = await import("node:fs");
+    // the preview (cart/checkout pages) reaches the snapshot only through the catalog/coupon services
     const cart = readFileSync("src/server/services/cart.ts", "utf8");
-    expect(cart).toMatch(/getLiveDeliveryZones/);
-    expect(cart).not.toMatch(/\bgetDeliveryZones\b/);
     expect(cart).not.toMatch(/@\/server\/cache/);
+    // the order: restaurant, zones, menu and coupon are all read on the order transaction itself
+    const orders = readFileSync("src/server/repositories/orders.ts", "utf8");
+    expect(orders).not.toMatch(/@\/server\/cache/);
+    // …all in the order transaction's single combined read
+    expect(orders).toMatch(/from restaurants where id = \$1/);
+    expect(orders).toMatch(/from delivery_zones z/);
+    expect(orders).toMatch(/orderableItemsSql\("\$1", "\$3"\)/);
   });
 });
 

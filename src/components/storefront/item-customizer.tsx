@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import Decimal from "decimal.js";
-import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
+import { Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Label, Textarea } from "@/components/ui/input";
-import { addToCartAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { useLocalCart } from "./local-cart";
 import { formatMoney } from "@/shared/money";
+import { ORDER_TYPES } from "@/shared/contract/enums";
 import type { MenuItem } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
 import { flyToTray } from "@/components/motion/fly-to-tray";
@@ -17,6 +17,9 @@ import { CLOSE_ROUTE_SHEET_EVENT } from "@/components/motion/route-sheet";
 interface ItemCustomizerProps {
   restaurantSlug: string;
   item: MenuItem;
+  /** the dish's photo, already resolved (file-exists check + category fallback) by the server
+   * component above — this component is client-only and cannot read the filesystem itself */
+  resolvedImageUrl: string | null;
   currencySymbol: string;
   locale: string;
   orderType?: string | undefined;
@@ -32,7 +35,15 @@ type GroupState = Record<string, string[]>;
  * shows a live, Decimal-based estimate that is replaced by the server's numbers
  * the moment the item lands in the cart.
  */
-export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, orderType, inSheet }: ItemCustomizerProps) {
+export function ItemCustomizer({
+  restaurantSlug,
+  item,
+  resolvedImageUrl,
+  currencySymbol,
+  locale,
+  orderType,
+  inSheet,
+}: ItemCustomizerProps) {
   const variationGroups = item.variants.length > 0 ? 1 : 0;
   const [variantId, setVariantId] = useState<string | null>(
     item.variants.find((variant) => variant.isDefault)?.id ?? item.variants[0]?.id ?? null,
@@ -48,8 +59,7 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pending, startTransition] = useTransition();
-  const router = useRouter();
+  const { cart, addLine, setOrderType } = useLocalCart();
 
   const variant = item.variants.find((candidate) => candidate.id === variantId) ?? null;
 
@@ -108,29 +118,47 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
       return;
     }
 
-    startTransition(async () => {
-      const result = await addToCartAction(restaurantSlug, {
-        menuItemId: item.id,
-        variantId,
-        quantity,
-        addons: item.addonGroups.flatMap((group) =>
-          (selection[group.id] ?? []).map((addonId) => ({ addonId, quantity: 1 })),
-        ),
-        ...(notes.trim() ? { specialInstructions: notes.trim() } : {}),
-        ...(orderType ? { orderType } : {}),
-      });
+    const chosenAddons = item.addonGroups.flatMap((group) =>
+      (selection[group.id] ?? []).flatMap((addonId) => {
+        const addon = group.addons.find((candidate) => candidate.id === addonId);
+        return addon ? [{ addonId, quantity: 1, name: addon.name }] : [];
+      }),
+    );
 
-      if (!result.success) {
-        toast.error(result.error.message);
-        return;
-      }
-      flyToTray(document.querySelector<HTMLImageElement>(`img[data-dish-image="${item.slug}"]`));
-      toast.success(`${quantity} × ${item.name} is in your tray`);
-      setNotes("");
-      setQuantity(1);
-      router.refresh();
-      if (inSheet) window.dispatchEvent(new CustomEvent(CLOSE_ROUTE_SHEET_EVENT));
+    // Instant: this only rewrites the tray cookie, no request. Every price here is the same Decimal math
+    // the server's resolveMenuSelection produces for this exact selection; it is still just a display
+    // estimate — the order is re-priced from the live database when it is placed.
+    const added = addLine({
+      menuItemId: item.id,
+      variantId,
+      quantity,
+      addons: chosenAddons.map(({ addonId, quantity: addonQuantity }) => ({ addonId, quantity: addonQuantity })),
+      ...(notes.trim() ? { specialInstructions: notes.trim() } : {}),
+      display: {
+        name: item.name,
+        slug: item.slug,
+        imageUrl: resolvedImageUrl,
+        variantName: variant?.name ?? null,
+        addonNames: chosenAddons.map((addon) => addon.name),
+        unitPrice: unitPrice.toFixed(2),
+        addonsTotal: addonsTotal.toFixed(2),
+        problem: null,
+      },
     });
+    if (!added) {
+      toast.error("Your tray is full", { description: "Check out or remove something before adding more." });
+      return;
+    }
+    // Browsing under a different order type (e.g. the menu's "Pickup" tab) carries the tray with it.
+    if (orderType && orderType !== cart.orderType && (ORDER_TYPES as readonly string[]).includes(orderType)) {
+      setOrderType(orderType as (typeof ORDER_TYPES)[number]);
+    }
+
+    flyToTray(document.querySelector<HTMLImageElement>(`img[data-dish-image="${item.slug}"]`));
+    toast.success(`${quantity} × ${item.name} is in your tray`);
+    setNotes("");
+    setQuantity(1);
+    if (inSheet) window.dispatchEvent(new CustomEvent(CLOSE_ROUTE_SHEET_EVENT));
   }
 
   // chosen options are solid; unchosen ones stay quiet dashed outlines until picked
@@ -284,20 +312,16 @@ export function ItemCustomizer({ restaurantSlug, item, currencySymbol, locale, o
             size="lg"
             data-testid="add-to-cart"
             onClick={addToCart}
-            disabled={pending || !item.isAvailable}
+            disabled={!item.isAvailable}
             className="h-12 min-w-0 flex-1 justify-between gap-2 rounded-full px-4 sm:px-5"
           >
             <span className="flex items-center gap-2">
-              {pending ? <Loader2 className="animate-spin" aria-hidden /> : <ShoppingBag aria-hidden />}
+              <ShoppingBag aria-hidden />
               {item.isAvailable ? (
-                pending ? (
-                  "Adding"
-                ) : (
-                  <>
-                    <span className="sm:hidden">Add</span>
-                    <span className="hidden sm:inline">Add to tray</span>
-                  </>
-                )
+                <>
+                  <span className="sm:hidden">Add</span>
+                  <span className="hidden sm:inline">Add to tray</span>
+                </>
               ) : (
                 "Unavailable"
               )}

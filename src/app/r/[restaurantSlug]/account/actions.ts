@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { safeReturnTo as safeReturnToPath } from "@/shared/return-to";
 import { randomUUID } from "node:crypto";
@@ -11,7 +12,6 @@ import {
   ensureVerificationCode,
   finishGoogleSignup,
   getCustomerUser as getUserById,
-  isEmailVerified,
   sendVerificationCode,
   signInCustomerAccount,
   signUpCustomer,
@@ -23,13 +23,14 @@ import {
   getCustomerSession,
   setCustomerSession,
   clearCustomerSession,
+  refreshCustomerSession,
   getStorefrontCustomer,
   setGoogleState,
   consumeGoogleState,
   setGoogleReturnTo,
   consumeGoogleReturnTo,
 } from "@/web/session";
-import { requireRestaurant } from "@/server/services/restaurants";
+import { requireStorefrontRestaurant } from "@/web/storefront";
 import { config } from "@/server/config";
 import { revalidatePath } from "next/cache";
 import {
@@ -54,29 +55,41 @@ export interface AuthResult {
   emailVerified: boolean;
 }
 
+/**
+ * Sign-up: one write transaction (the account row). The restaurant comes from the storefront snapshot,
+ * and the verification email (a code row + a call to the email provider) is sent after the response —
+ * the customer is signed in immediately and can resend the code if it never arrives.
+ */
 export async function signUpAction(slug: string, payload: unknown): Promise<ApiResult<AuthResult>> {
   return action(async () => {
     const input = signUpSchema.parse(payload);
     const identifier = await callerIdentifier();
-    const result = await signUpCustomer(slug, input, identifier);
+    const restaurant = await requireStorefrontRestaurant(slug);
+    const result = await signUpCustomer(restaurant, input, identifier);
     await setCustomerSession(result.token, result.maxAge);
-    const restaurant = await requireRestaurant(slug);
-    const customer = await getStorefrontCustomer(restaurant.id);
-    if (customer) await sendVerificationCode(customer.userId, input.email, identifier, slug).catch(() => {});
+    after(() => sendVerificationCode(result.customerId, input.email, identifier, restaurant).catch(() => {}));
     return { customerId: result.customerId, emailVerified: false };
   });
 }
 
+/**
+ * Sign-in: ONE database read (the account row, with its verification state) plus the password check.
+ * It used to be five transactions — the restaurant by slug (twice), the account, then the account again
+ * to rebuild the session and a third time for its verification state.
+ */
 export async function signInAction(slug: string, payload: unknown): Promise<ApiResult<AuthResult>> {
   return action(async () => {
     const input = signInSchema.parse(payload);
     const identifier = await callerIdentifier();
-    const result = await signInCustomerAccount(slug, input, identifier);
+    const restaurant = await requireStorefrontRestaurant(slug);
+    const result = await signInCustomerAccount(restaurant, input, identifier);
     await setCustomerSession(result.token, result.maxAge);
-    const restaurant = await requireRestaurant(slug);
-    const customer = await getStorefrontCustomer(restaurant.id);
-    const verified = customer ? await isEmailVerified(customer.userId) : false;
-    return { customerId: result.customerId, emailVerified: verified };
+    // an unverified account goes straight to the code step: send the code here, after the response,
+    // instead of the form calling `ensureVerificationCodeAction` (a second request + an account read)
+    if (!result.emailVerified) {
+      after(() => ensureVerificationCode(result.customerId, input.email, identifier, restaurant).catch(() => {}));
+    }
+    return { customerId: result.customerId, emailVerified: result.emailVerified };
   });
 }
 
@@ -90,13 +103,13 @@ export async function signOutAction(): Promise<ApiResult<null>> {
 /** Sends (or resends) the checkout email-verification code to the signed-in customer. */
 export async function sendVerificationCodeAction(slug: string): Promise<ApiResult<null>> {
   return action(async () => {
-    const restaurant = await requireRestaurant(slug);
+    const restaurant = await requireStorefrontRestaurant(slug);
     const customer = await getStorefrontCustomer(restaurant.id);
     if (!customer) throw errors.unauthorized("Please sign in first.");
     const user = await getUserById(customer.userId);
     if (!user?.email) throw errors.internal("Could not find this account.");
     const identifier = await callerIdentifier();
-    await sendVerificationCode(customer.userId, user.email, identifier, slug).catch(() => {
+    await sendVerificationCode(customer.userId, user.email, identifier, restaurant).catch(() => {
       throw errors.internal("Could not send the verification code. Please try again.");
     });
     return null;
@@ -106,33 +119,37 @@ export async function sendVerificationCodeAction(slug: string): Promise<ApiResul
 /** Called when the checkout email-verify gate first appears; a no-op if a code is already in flight. */
 export async function ensureVerificationCodeAction(slug: string): Promise<ApiResult<null>> {
   return action(async () => {
-    const restaurant = await requireRestaurant(slug);
+    const restaurant = await requireStorefrontRestaurant(slug);
     const customer = await getStorefrontCustomer(restaurant.id);
     if (!customer) throw errors.unauthorized("Please sign in first.");
     const user = await getUserById(customer.userId);
     if (!user?.email) throw errors.internal("Could not find this account.");
     const identifier = await callerIdentifier();
-    await ensureVerificationCode(customer.userId, user.email, identifier, slug);
+    await ensureVerificationCode(customer.userId, user.email, identifier, restaurant);
     return null;
   });
 }
 
 export async function verifyEmailCodeAction(slug: string, payload: unknown): Promise<ApiResult<null>> {
   return action(async () => {
-    const restaurant = await requireRestaurant(slug);
+    const restaurant = await requireStorefrontRestaurant(slug);
     const customer = await getStorefrontCustomer(restaurant.id);
     if (!customer) throw errors.unauthorized("Please sign in first.");
     const { code } = verifyCodeSchema.parse(payload);
     await verifyEmailCode(customer.userId, code);
+    // the session carries the verification state, so no page has to ask the database again
+    await refreshCustomerSession({ emailVerified: true });
     return null;
   });
 }
 
+/** From the session cookie; only a token signed before it carried the claim costs a database read. */
 export async function isSignedInWithVerifiedEmail(slug: string): Promise<{ signedIn: boolean; emailVerified: boolean }> {
-  const restaurant = await requireRestaurant(slug);
+  const restaurant = await requireStorefrontRestaurant(slug);
   const customer = await getStorefrontCustomer(restaurant.id);
   if (!customer) return { signedIn: false, emailVerified: false };
-  return { signedIn: true, emailVerified: await isEmailVerified(customer.userId) };
+  if (customer.emailVerified !== null) return { signedIn: true, emailVerified: customer.emailVerified };
+  return { signedIn: true, emailVerified: Boolean((await getUserById(customer.userId))?.emailVerified) };
 }
 
 // ── Google OAuth (redirect flow; route handlers below call these) ───────────
@@ -158,7 +175,8 @@ export async function handleGoogleCallback(
   const expected = await consumeGoogleState();
   const returnTo = await consumeGoogleReturnTo();
   if (!expected || expected !== state) throw errors.validation("This sign-in link has expired. Please try again.");
-  const result = await completeGoogleAuth(slug, code, googleRedirectUri(slug));
+  const restaurant = await requireStorefrontRestaurant(slug);
+  const result = await completeGoogleAuth(restaurant, code, googleRedirectUri(slug));
   if (result.status === "signed-in") {
     await setCustomerSession(result.token, result.maxAge);
     return { needsPhone: false, returnTo };
@@ -174,10 +192,11 @@ export async function finishGoogleSignupAction(payload: { pendingToken: string; 
   });
 }
 
+/** Header state on every page view — from the session cookie and the snapshot, no database. */
 export async function getCustomerSessionSummary(slug: string): Promise<{ signedIn: boolean; name: string | null }> {
   const session = await getCustomerSession();
   if (!session) return { signedIn: false, name: null };
-  const restaurant = await requireRestaurant(slug);
+  const restaurant = await requireStorefrontRestaurant(slug);
   const customer = await getStorefrontCustomer(restaurant.id);
   return { signedIn: Boolean(customer), name: customer?.name ?? null };
 }
@@ -189,7 +208,7 @@ export interface ProfilePayload {
 }
 
 async function profileScope(slug: string) {
-  const restaurant = await requireRestaurant(slug);
+  const restaurant = await requireStorefrontRestaurant(slug);
   const visitor = await getVisitorContext(restaurant.id);
   return { restaurant, visitor };
 }
@@ -206,6 +225,8 @@ export async function updateProfileAction(slug: string, payload: unknown): Promi
     const input = updateProfileSchema.parse(payload);
     const { restaurant, visitor } = await profileScope(slug);
     const profile = await updateCustomerProfile(restaurant, visitor, input);
+    // the header shows the name from the session token; keep it in step with the account
+    await refreshCustomerSession({ name: profile.fullName });
     revalidatePath(`/r/${slug}/checkout`);
     return profile;
   });

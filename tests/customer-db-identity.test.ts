@@ -24,7 +24,7 @@ describe("customer identity in the database session", () => {
   it("createOrder: customer_id set, no auth user id", async () => {
     sessions.length = 0;
     await createOrder(
-      { restaurantId: "r1", customerId: "cust-1", userId: "cust-1", customer: { fullName: "A" } } as never,
+      { restaurantId: "r1", customerId: "cust-1", userId: "cust-1", customer: { fullName: "A" }, lines: [{ menuItemId: "m1", variantId: null, quantity: 1, addons: [] }] } as never,
       { restaurantId: "r1", customerId: "cust-1", userId: "cust-1" },
     ).catch(() => undefined);
     expect(sessions[0]).toMatchObject({ restaurantId: "r1", customerId: "cust-1", userId: null });

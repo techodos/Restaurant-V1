@@ -45,12 +45,6 @@ export async function getCustomerById(customerId: string, ctx: RequestContext): 
   return row ? mapCustomer(row) : null;
 }
 
-export async function markCustomerEmailVerified(customerId: string, ctx: RequestContext = {}): Promise<void> {
-  await getDb(ctx).write(ctx, (tx) =>
-    tx.query(`update customers set is_email_verified = true where id = $1 and is_email_verified = false`, [customerId]),
-  );
-}
-
 /** First Google sign-in for an account that started as email/password: link the Google sub onto it. */
 export async function linkGoogleToCustomer(customerId: string, googleSub: string, ctx: RequestContext): Promise<void> {
   await getDb(ctx).write(ctx, (tx) =>
@@ -183,6 +177,22 @@ export async function upsertCustomer(
   const row = tx ? await run(tx) : await getDb({ restaurantId: input.restaurantId }).write(ctx, (db) => run(db));
   if (!row) throw new Error("Unable to save the customer");
   return mapCustomer(row);
+}
+
+/** The account row and its saved addresses in ONE transaction (profile drawer, checkout page). */
+export async function getCustomerWithAddresses(
+  customerId: string,
+  ctx: RequestContext,
+): Promise<{ customer: Customer; addresses: CustomerAddress[] } | null> {
+  return getDb(ctx).read(ctx, async (tx) => {
+    const row = await tx.queryOne<Row>(`select ${CUSTOMER_COLUMNS} from customers where id = $1`, [customerId]);
+    if (!row) return null;
+    const addresses = await tx.query<Row>(
+      `select * from customer_addresses where customer_id = $1 order by is_default desc, created_at`,
+      [customerId],
+    );
+    return { customer: mapCustomer(row), addresses: addresses.map(mapAddress) };
+  });
 }
 
 export async function listAddresses(customerId: string, ctx: RequestContext): Promise<CustomerAddress[]> {

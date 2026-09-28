@@ -3,12 +3,14 @@ import type {
   DeliveryZone,
   MenuCategory,
   RatingBreakdown,
+  Coupon,
   Restaurant,
   RestaurantLocation,
   Review,
   Website,
   WebsitePage,
 } from "@/shared/contract/models";
+import { listPreviewableCoupons } from "./coupons";
 import { listDeliveryZones } from "./deliveries";
 import { listCategories, listStorefrontMenu, type StorefrontMenuRecord } from "./menu";
 import { getRestaurantBySlug, listLocations } from "./restaurants";
@@ -23,8 +25,9 @@ import { getWebsite, listPublishedPages } from "./websites";
  * connection, because a single connection executes statements one at a time and
  * a hosted database pays a full round trip for each.
  *
- * Only public, read-mostly data. Carts, orders, payments, reservations and
- * customer data are deliberately not part of this read model.
+ * Only public, read-mostly data, plus active coupon definitions for the tray's promo preview (the
+ * order transaction re-reads coupons itself). Orders, payments, reservations and customer data are
+ * deliberately not part of this read model.
  */
 
 /** Public reviews shown on the storefront never exceed this (`listPublicReviews` caps at 50). */
@@ -44,6 +47,8 @@ export interface StorefrontData {
   /** active items in menu order */
   menu: StorefrontMenuRecord[];
   reviews: { summary: RatingBreakdown; recent: Review[] };
+  /** active coupon definitions, for the tray's promo-code preview only (never charged from) */
+  coupons: Coupon[];
 }
 
 /** `null` when no restaurant has that slug. */
@@ -52,7 +57,7 @@ export async function loadStorefrontData(slug: string): Promise<StorefrontData |
   if (!restaurant) return null;
 
   const ctx = forRestaurant(restaurant.id);
-  const [website, pages, locations, deliveryZones, categories, menu, recent, summary] = await Promise.all([
+  const [website, pages, locations, deliveryZones, categories, menu, recent, summary, coupons] = await Promise.all([
     getWebsite(restaurant.id, ctx),
     listPublishedPages(restaurant.id, ctx),
     listLocations(restaurant.id, ctx),
@@ -61,7 +66,8 @@ export async function loadStorefrontData(slug: string): Promise<StorefrontData |
     listStorefrontMenu(restaurant.id, ctx),
     listPublicReviews(restaurant.id, { limit: STOREFRONT_REVIEW_LIMIT }, ctx),
     getRatingBreakdown(restaurant.id, ctx),
+    listPreviewableCoupons(restaurant.id),
   ]);
 
-  return { restaurant, website, pages, locations, deliveryZones, categories, menu, reviews: { summary, recent } };
+  return { restaurant, website, pages, locations, deliveryZones, categories, menu, reviews: { summary, recent }, coupons };
 }

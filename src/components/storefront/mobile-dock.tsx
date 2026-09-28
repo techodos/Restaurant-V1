@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, MapPin, ShoppingBag, User, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/shared/utils";
+import { signInHref } from "@/shared/return-to";
 import { TrayCount } from "./tray-count";
+import { useLocalCart } from "./local-cart";
 
 interface MobileDockProps {
   restaurantSlug: string;
-  itemCount: number;
   activeOrders: number;
   showCart: boolean;
   reservationsEnabled: boolean;
-  accountHref: string;
+  signedIn: boolean;
 }
 
 /** Routes with their own sticky primary action: the dock steps aside there. */
@@ -31,10 +32,13 @@ function hiddenOn(pathname: string, home: string): boolean {
  * is live) or Account, and the Cart, which is the brand-coloured next action and the fly-to-cart target.
  * A floating night capsule, so it reads on paper and on dark sections alike.
  */
-export function MobileDock({ restaurantSlug, itemCount, activeOrders, showCart, reservationsEnabled, accountHref }: MobileDockProps) {
+export function MobileDock({ restaurantSlug, activeOrders, showCart, reservationsEnabled, signedIn }: MobileDockProps) {
+  const { itemCount } = useLocalCart();
   const pathname = usePathname();
   const home = `/r/${restaurantSlug}`;
   if (hiddenOn(pathname, home)) return null;
+  // signed out: sign in and come back to this page
+  const accountHref = signedIn ? `${home}/account` : signInHref(restaurantSlug, pathname);
 
   const item = (href: string, label: string, Icon: typeof User, extra?: React.ReactNode) => {
     const active = pathname === href || pathname.startsWith(`${href}/`);

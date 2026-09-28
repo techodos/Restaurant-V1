@@ -1,12 +1,12 @@
 import type {
-  Cart, CartItem, Coupon, Customer, CustomerAddress, Delivery, DeliveryZone, MediaAsset, MenuAddon,
+  Coupon, Customer, CustomerAddress, Delivery, DeliveryZone, MediaAsset, MenuAddon,
   MenuAddonGroup, MenuCategory, MenuItem, MenuItemVariant, Order, OrderItem, OrderItemAddon,
   OrderStatusEvent, Payment, Reservation, Restaurant, RestaurantLocation, Review, TeamMember,
   Website, WebsitePage, CustomerGender,
 } from "@/shared/contract/models";
 import { CUSTOMER_GENDERS } from "@/shared/contract/models";
 import { restaurantFeaturesSchema, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
-import type { MediaPurpose, OrderStatus, OrderType, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus, TeamRole, WebsiteStatus, CartStatus, DeliveryStatus, CouponDiscountType } from "@/shared/contract/enums";
+import type { MediaPurpose, OrderStatus, OrderType, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus, TeamRole, WebsiteStatus, DeliveryStatus, CouponDiscountType } from "@/shared/contract/enums";
 import { parseOpeningHours, parseAvailabilityWindow } from "@/shared/hours";
 
 /**
@@ -369,57 +369,6 @@ export function mapAddress(row: Row): CustomerAddress {
     latitude: numOrNull(row.latitude),
     longitude: numOrNull(row.longitude),
     isDefault: bool(row.is_default),
-  };
-}
-
-export function mapCart(row: Row, items: CartItem[] = []): Cart {
-  return {
-    id: str(row.id),
-    restaurantId: str(row.restaurant_id),
-    customerId: strOrNull(row.customer_id),
-    locationId: strOrNull(row.location_id),
-    sessionToken: str(row.session_token),
-    status: str(row.status) as CartStatus,
-    orderType: str(row.order_type) as OrderType,
-    couponId: strOrNull(row.coupon_id),
-    couponCode: strOrNull(row.coupon_code),
-    currency: str(row.currency) || "PKR",
-    notes: strOrNull(row.notes),
-    items,
-    itemCount: items.reduce((total, item) => total + item.quantity, 0),
-  };
-}
-
-export function mapCartItem(row: Row, addons: CartItem["addons"] = []): CartItem {
-  return {
-    id: str(row.id),
-    cartId: str(row.cart_id),
-    menuItemId: str(row.menu_item_id),
-    variantId: strOrNull(row.variant_id),
-    itemName: str(row.item_name),
-    variantName: strOrNull(row.variant_name),
-    imageUrl: strOrNull(row.image_url),
-    slug: strOrNull(row.slug),
-    quantity: num(row.quantity, 1),
-    unitPrice: money(row.unit_price),
-    addonsTotal: money(row.addons_total),
-    lineTotal: money(row.line_total),
-    specialInstructions: strOrNull(row.special_instructions),
-    isAvailable: bool(row.is_available, true),
-    addons,
-  };
-}
-
-export function mapCartAddon(row: Row): CartItem["addons"][number] {
-  return {
-    id: str(row.id),
-    cartItemId: str(row.cart_item_id),
-    menuAddonId: str(row.menu_addon_id),
-    addonGroupId: strOrNull(row.addon_group_id),
-    groupName: str(row.group_name),
-    addonName: str(row.addon_name),
-    unitPrice: money(row.unit_price),
-    quantity: num(row.quantity, 1),
   };
 }
 

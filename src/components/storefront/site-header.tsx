@@ -7,15 +7,16 @@ import { motion } from "motion/react";
 import { ArrowRight, ClipboardList, Phone, ShoppingBag, UserRound, type LucideIcon } from "lucide-react";
 import type { WebsiteConfig } from "@/shared/contract/settings";
 import { cn } from "@/shared/utils";
+import { signInHref } from "@/shared/return-to";
 import { Sheet } from "@/components/motion/sheet";
 import { TrayCount } from "./tray-count";
 import { ProfileDrawer } from "./profile-drawer";
+import { useLocalCart } from "./local-cart";
 import { isSupportedCountry } from "libphonenumber-js";
 
 interface SiteHeaderProps {
   restaurant: { name: string; slug: string; logoUrl: string | null; phone: string | null; country: string };
   config: WebsiteConfig;
-  itemCount: number;
   orderingOpen: boolean;
   /** null while no customer sign-in system was reachable (never blocks rendering). */
   customer: { signedIn: boolean; name: string | null } | null;
@@ -80,7 +81,8 @@ const HERO_SELECTOR = "main [data-hero-overlay]";
  * action on the right is the account pill: "Sign In / Sign Up", or the customer's initial and name once
  * signed in (the menu itself is in the navigation, so there is no separate order button).
  */
-export function SiteHeader({ restaurant, config, itemCount, orderingOpen, customer }: SiteHeaderProps) {
+export function SiteHeader({ restaurant, config, orderingOpen, customer }: SiteHeaderProps) {
+  const { itemCount } = useLocalCart();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const signedIn = Boolean(customer?.signedIn);
@@ -90,7 +92,8 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen, custom
   const navItems = config.navigation.items.filter((item) => item.enabled);
   const announcement = config.announcement;
   const home = `/r/${restaurant.slug}`;
-  const accountHref = customer?.signedIn ? `${home}/account` : `${home}/account/sign-in`;
+  // signed out: sign in and come back to this page (the account pill opens the profile drawer once signed in)
+  const accountHref = customer?.signedIn ? `${home}/account` : signInHref(restaurant.slug, pathname);
   const accountLabel = customer?.signedIn ? (customer.name ?? "Account") : "Sign In / Sign Up";
   const headerRef = useRef<HTMLElement>(null);
 
