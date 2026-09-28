@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import { ArrowRight, ClipboardList, Phone, ShoppingBag, UserRound, type LucideIcon } from "lucide-react";
 import type { WebsiteConfig } from "@/shared/contract/settings";
 import { cn } from "@/shared/utils";
+import { signInHref } from "@/shared/return-to";
 import { Sheet } from "@/components/motion/sheet";
 import { TrayCount } from "./tray-count";
 import { ProfileDrawer } from "./profile-drawer";
@@ -91,7 +92,8 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen, custom
   const navItems = config.navigation.items.filter((item) => item.enabled);
   const announcement = config.announcement;
   const home = `/r/${restaurant.slug}`;
-  const accountHref = customer?.signedIn ? `${home}/account` : `${home}/account/sign-in`;
+  // only rendered while signed out (signed in opens the profile drawer); brings them back to this page
+  const accountHref = signInHref(restaurant.slug, pathname);
   const accountLabel = customer?.signedIn ? (customer.name ?? "Account") : "Sign In / Sign Up";
   const headerRef = useRef<HTMLElement>(null);
 

@@ -27,5 +27,5 @@ export async function GET(request: Request, { params }: Params) {
   if (outcome.needsPhone && outcome.pendingToken) {
     redirect(`${base}/account/google-phone?token=${encodeURIComponent(outcome.pendingToken)}${returnTo}`);
   }
-  redirect(outcome.returnTo ?? `${base}/account`);
+  redirect(outcome.returnTo ?? base);
 }

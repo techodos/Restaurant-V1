@@ -32,7 +32,7 @@ export function GooglePhoneForm({
       setError(result.error.message);
       return;
     }
-    router.push(returnTo ?? `/r/${restaurantSlug}/account`);
+    router.push(returnTo ?? `/r/${restaurantSlug}`);
     router.refresh();
   }
 
