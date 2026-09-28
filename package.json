@@ -12,6 +12,9 @@
     "db:migrate": "node --env-file=.env.local scripts/db/migrate.mjs",
     "db:seed": "tsx scripts/db/seed.ts",
     "db:seed:zaytoun": "tsx scripts/db/zaytoun/seed/seed.ts",
+    "db:seed:blue-hour": "tsx scripts/db/blue-hour/seed/seed.ts",
+    "db:seed:villa": "tsx scripts/db/villa-grand-buffet/seed/seed.ts",
+    "db:seed:bun-intended": "tsx scripts/db/bun-intended/seed/seed.ts",
     "db:create-staff": "tsx scripts/db/create-staff.ts",
     "db:reset": "node --env-file=.env.local scripts/db/migrate.mjs --fresh && tsx scripts/db/seed.ts",
     "db:verify": "tsx scripts/db/verify.ts",
@@ -57,6 +60,7 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.0.0",
+    "@types/google.maps": "^3.66.4",
     "@types/node": "^22.10.1",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.1",

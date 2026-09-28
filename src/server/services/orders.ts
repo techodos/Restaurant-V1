@@ -2,8 +2,10 @@ import type { Order, OrderSummary, Restaurant } from "@/shared/contract/models";
 import type { OrderStatus } from "@/shared/contract/enums";
 import type { Paginated } from "@/shared/contract/api";
 import type { RequestContext } from "@/server/context";
+import { AppError, errors } from "@/server/errors";
 import { verifyOrderAccessToken } from "@/server/auth/tokens";
 import { ACTIVE_ORDER_STATUSES } from "@/shared/contract/enums";
+import { canCustomerCancelOrder } from "@/shared/order-cancellation";
 import {
   buildReorderLines,
   countOrdersByStatus,
@@ -104,6 +106,33 @@ export async function reorderLines(restaurant: Restaurant, order: Order, ctx: Re
     lines: view.lines.filter((line) => !line.problem),
     skippedItemNames: view.lines.filter((line) => line.problem).map((line) => nameFor(line.line.menuItemId, line.line.variantId)),
   };
+}
+
+/**
+ * Cancels an order at the customer's own request. Eligibility (the admin-configured
+ * `ordering.customerCancellation` rule: feature on, this payment method allowed, order not yet
+ * past the configured cutoff status) is the real gate, enforced here — the caller only has to
+ * prove ownership first (`findVisitorOrder`) and pass a fresh copy of `order`, so a status change
+ * that happened moments ago (e.g. staff just confirmed it) is caught rather than trusted from a
+ * stale render. The database trigger is a second backstop: it refuses to leave a terminal status
+ * regardless of this check, so a race that slips past this call still cannot cancel a completed order.
+ *
+ * `ctx.userId` is forced to null here, whatever the caller passes: a customer is identified to the
+ * database by `customer_id` only (`app.current_user_id` / `auth.uid()` is for staff). Passing a
+ * signed-in customer's id through would set that, and the DB trigger that records
+ * `order_status_history.changed_by` (a FK to `auth.users`, staff-only) would then reject the write
+ * with `23503` — the same bug `createOrder`/`createReservation` had before they did the same thing.
+ */
+export function cancelOrderByCustomer(
+  order: Order,
+  restaurant: Restaurant,
+  ctx: RequestContext,
+  reason?: string | null,
+): Promise<Order> {
+  if (!canCustomerCancelOrder(order, restaurant.settings)) {
+    throw errors.forbidden("This order can no longer be cancelled online — please call the restaurant.");
+  }
+  return updateOrderStatus(order.id, "cancelled", { ...ctx, userId: null }, { cancelReason: reason?.trim() || "Cancelled by customer" });
 }
 
 /** Staff-facing order list (admin). */

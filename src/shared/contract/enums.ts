@@ -36,6 +36,14 @@ export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = ORDER_STATUSES.filt
 );
 
 /**
+ * Non-terminal statuses in progression order — the admin-configurable choices for "customers can
+ * cancel their own order until it reaches...". A literal tuple (not derived from ACTIVE_ORDER_STATUSES)
+ * because zod's `z.enum` needs a literal string tuple, not a `readonly OrderStatus[]`; keep in sync
+ * with ACTIVE_ORDER_STATUSES/TERMINAL_ORDER_STATUSES above if a status is ever added or removed.
+ */
+export const CANCELLABLE_ORDER_STATUSES = ["pending", "confirmed", "preparing", "ready", "out_for_delivery"] as const;
+
+/**
  * Status progression ranks. Forward jumps are allowed (a small kitchen may go
  * pending → preparing directly); backwards moves and moves out of a terminal
  * state are rejected by both the UI and the `app.order_transition_allowed`
@@ -81,6 +89,21 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card_terminal: "Card at terminal",
   wallet: "Wallet",
   bank_transfer: "Bank transfer",
+};
+
+/**
+ * Which order types a payment method makes physical sense for — "cash on delivery" has nothing to
+ * do with a dine-in or pickup order (there is no delivery to pay on), and a terminal/cash-at-counter
+ * payment has nothing to do with delivery (no one is at a counter). Online methods work for any
+ * order type. Checked both client-side (`getCheckoutOptions`) and server-side (`createOrder`).
+ */
+export const PAYMENT_METHOD_ORDER_TYPES: Record<PaymentMethod, readonly OrderType[]> = {
+  cash_on_delivery: ["delivery"],
+  cash: ["pickup", "dine_in"],
+  card_terminal: ["pickup", "dine_in"],
+  card_online: ORDER_TYPES,
+  wallet: ORDER_TYPES,
+  bank_transfer: ORDER_TYPES,
 };
 
 export const PAYMENT_STATUSES = [

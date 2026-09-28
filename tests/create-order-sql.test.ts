@@ -15,6 +15,10 @@ const { db } = vi.hoisted(() => ({
   db: {
     transactions: 0,
     statements: [] as { sql: string; params: readonly unknown[] }[],
+    /** the tea is flagged as a per-head dine-in buffet package */
+    teaIsBuffet: false,
+    /** the SAVE10 coupon's customer restriction (empty = open to everyone) */
+    couponEligibleEmails: [] as string[],
     customer: {} as Record<string, unknown>,
     phoneTaken: false,
   },
@@ -43,6 +47,7 @@ const menuRow = (id: string) =>
     : {
         id: TEA, restaurant_id: RESTAURANT, category_id: "cat", name: "Chai", slug: "chai", base_price: "180.00",
         is_active: true, is_available: true, prep_time_minutes: 5, availability: {}, category_active: true, category_availability: {},
+        is_buffet_package: db.teaIsBuffet,
         variant_rows: [], group_rows: [],
       };
 
@@ -61,7 +66,7 @@ function answer(sql: string, params: readonly unknown[] = []): Record<string, un
       zones: params[3] ? [{ id: "zone-1", restaurant_id: RESTAURANT, name: "F-7", areas: ["F-7"], delivery_fee: 150, min_order_amount: 0, is_active: true }] : null,
       coupon:
         params[5] === "SAVE10"
-          ? { id: "coupon-1", restaurant_id: RESTAURANT, code: "SAVE10", discount_type: "percentage", discount_value: 10, min_order_amount: 0, applies_to: "order", order_types: [], is_active: true, used_count: 0, phone_usage: 0 }
+          ? { id: "coupon-1", restaurant_id: RESTAURANT, code: "SAVE10", discount_type: "percentage", discount_value: 10, min_order_amount: 0, applies_to: "order", order_types: [], is_active: true, used_count: 0, phone_usage: 0, eligible_emails: db.couponEligibleEmails, eligible_phones: [] }
           : null,
     }];
   }
@@ -127,6 +132,8 @@ describe("createOrder — the single order transaction", () => {
     db.transactions = 0;
     db.statements = [];
     db.phoneTaken = false;
+    db.teaIsBuffet = false;
+    db.couponEligibleEmails = [];
     db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
   });
 
@@ -144,7 +151,7 @@ describe("createOrder — the single order transaction", () => {
     await createOrder(input(12), {});
     expect(db.statements).toHaveLength(3);
     db.statements = [];
-    await createOrder(input(12, { orderType: "delivery", address: { line1: "House 1", area: "F-7", city: "Islamabad" }, couponCode: "SAVE10" }), {});
+    await createOrder(input(12, { orderType: "delivery", paymentMethod: "cash_on_delivery", address: { line1: "House 1", area: "F-7", city: "Islamabad" }, couponCode: "SAVE10" }), {});
     expect(db.statements).toHaveLength(3);
   });
 
@@ -215,7 +222,7 @@ describe("createOrder — the single order transaction", () => {
 
   it("reads zones and the coupon (usage counted against the account's own phone) in the same read", async () => {
     await createOrder(
-      input(2, { orderType: "delivery", address: { line1: "House 1", area: "F-7", city: "Islamabad" }, couponCode: "SAVE10" }),
+      input(2, { orderType: "delivery", paymentMethod: "cash_on_delivery", address: { line1: "House 1", area: "F-7", city: "Islamabad" }, couponCode: "SAVE10" }),
       {},
     );
     const [read] = statementsMatching(/row_to_json\(r\)/);
@@ -226,6 +233,21 @@ describe("createOrder — the single order transaction", () => {
     const [write] = statementsMatching(/^\s*with order_lines as/i);
     expect(write!.sql).toMatch(/insert into deliveries/);
     expect(write!.sql).toMatch(/update coupons set used_count = used_count \+ 1/);
+  });
+
+  it("refuses a dine-in buffet package outside dine-in before writing anything", async () => {
+    db.teaIsBuffet = true; // input(2) = a pizza and a tea
+    await expect(createOrder(input(2), {})).rejects.toMatchObject({ code: "BUFFET_REQUIRES_DINE_IN" });
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("checks a customer-restricted coupon against the account's own email", async () => {
+    const delivery = { orderType: "delivery" as const, paymentMethod: "cash_on_delivery" as const, address: { line1: "House 1", area: "F-7", city: "Islamabad" }, couponCode: "SAVE10" };
+    db.couponEligibleEmails = ["someone-else@example.com"];
+    await expect(createOrder(input(1, delivery), {})).rejects.toMatchObject({ code: "COUPON_INVALID" });
+    expect(writes()).toHaveLength(0);
+    db.couponEligibleEmails = ["noor@example.com"]; // db.customer's email
+    await expect(createOrder(input(1, delivery), {})).resolves.toBeTruthy();
   });
 
   it("refuses an empty tray without opening a transaction", async () => {

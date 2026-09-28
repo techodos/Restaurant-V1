@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
-import { signUpAction } from "@/app/r/[restaurantSlug]/account/actions";
+import { signUpAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 import { afterAuthPath, signInHref } from "@/shared/return-to";
 
 interface SignUpFormProps {

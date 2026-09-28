@@ -6,7 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
-import { signInAction } from "@/app/r/[restaurantSlug]/account/actions";
+import { signInAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { afterAuthPath, signInHref } from "@/shared/return-to";
 

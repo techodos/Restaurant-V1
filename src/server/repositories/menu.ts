@@ -54,6 +54,7 @@ export function mapMenuItemSummary(row: Row): MenuItemSummary {
     compareAtPrice: row.compare_at_price === null || row.compare_at_price === undefined ? null : num(row.compare_at_price).toFixed(2),
     isAvailable: Boolean(row.is_available) && Boolean(row.is_active),
     isFeatured: Boolean(row.is_featured),
+    isBuffetPackage: Boolean(row.is_buffet_package),
     hasVariants: Boolean(row.has_variants),
     hasAddons: Boolean(row.has_addons),
     requiresSelection: Boolean(row.requires_selection),
@@ -340,7 +341,7 @@ export async function listStorefrontMenu(restaurantId: string, ctx: RequestConte
  */
 export function orderableItemsSql(restaurantParam: string, idsParam: string): string {
   return `select mi.id, mi.restaurant_id, mi.category_id, mi.name, mi.slug, mi.image_url, mi.base_price::text as base_price,
-            mi.is_active, mi.is_available, mi.prep_time_minutes, mi.availability,
+            mi.is_active, mi.is_available, mi.prep_time_minutes, mi.availability, mi.is_buffet_package,
             mc.is_active as category_active, mc.availability as category_availability,
             coalesce((select json_agg(json_build_object(
                         'id', v.id, 'menu_item_id', v.menu_item_id, 'name', v.name, 'price', v.price::text,
@@ -420,6 +421,7 @@ export interface CreateMenuItemInput {
   isActive?: boolean;
   isAvailable?: boolean;
   isFeatured?: boolean;
+  isBuffetPackage?: boolean;
   dietaryTags?: string[];
   allergens?: string[];
   sortOrder?: number;
@@ -438,11 +440,11 @@ export async function createMenuItem(
       `insert into menu_items
          (restaurant_id, category_id, name, slug, description, short_description, image_url, base_price,
           compare_at_price, prep_time_minutes, spice_level, is_active, is_available, is_featured,
-          dietary_tags, allergens, sort_order, availability, calories)
+          dietary_tags, allergens, sort_order, availability, calories, is_buffet_package)
        values ($1,$2,$3,$4,$5,$6,$7,$8::numeric,$9::numeric,coalesce($10,15),coalesce($11,0),
                coalesce($12,true),coalesce($13,true),coalesce($14,false),coalesce($15::text[],'{}'),coalesce($16::text[],'{}'),
                coalesce($17, (select coalesce(max(sort_order),0)+1 from menu_items where category_id = $2)),
-               coalesce($18::jsonb,'{}'::jsonb), $19)
+               coalesce($18::jsonb,'{}'::jsonb), $19, coalesce($20,false))
        returning *`,
       [
         restaurantId, input.categoryId, input.name, input.slug, input.description ?? null,
@@ -451,6 +453,7 @@ export async function createMenuItem(
         input.isActive ?? null, input.isAvailable ?? null, input.isFeatured ?? null,
         input.dietaryTags ?? null, input.allergens ?? null, input.sortOrder ?? null,
         input.availability === undefined ? null : JSON.stringify(input.availability), input.calories ?? null,
+        input.isBuffetPackage ?? null,
       ],
     );
     if (!row) throw new Error("Menu item insert failed");
@@ -484,7 +487,8 @@ export async function updateMenuItem(
          allergens = coalesce($16, allergens),
          sort_order = coalesce($17, sort_order),
          availability = coalesce($18::jsonb, availability),
-         calories = coalesce($19, calories)
+         calories = coalesce($19, calories),
+         is_buffet_package = coalesce($20, is_buffet_package)
        where id = $1
        returning *`,
       [
@@ -494,6 +498,7 @@ export async function updateMenuItem(
         patch.isActive ?? null, patch.isAvailable ?? null, patch.isFeatured ?? null,
         patch.dietaryTags ?? null, patch.allergens ?? null, patch.sortOrder ?? null,
         patch.availability === undefined ? null : JSON.stringify(patch.availability), patch.calories ?? null,
+        patch.isBuffetPackage ?? null,
       ],
     );
     if (!row) throw new Error("Menu item not found");

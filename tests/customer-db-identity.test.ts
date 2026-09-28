@@ -19,6 +19,7 @@ vi.mock("@/server/db/registry", () => ({
 
 import { createOrder } from "@/server/repositories/orders";
 import { createReservation } from "@/server/repositories/reservations";
+import { cancelOrderByCustomer } from "@/server/services/orders";
 
 describe("customer identity in the database session", () => {
   it("createOrder: customer_id set, no auth user id", async () => {
@@ -36,6 +37,22 @@ describe("customer identity in the database session", () => {
       { restaurantId: "r1", customerId: "cust-1", userId: "cust-1" } as never,
       { restaurantId: "r1", customerId: "cust-1", userId: "cust-1" },
     ).catch(() => undefined);
+    expect(sessions[0]).toMatchObject({ restaurantId: "r1", customerId: "cust-1", userId: null });
+  });
+
+  it("cancelOrderByCustomer: no auth user id, even though the caller passed one", async () => {
+    sessions.length = 0;
+    const order = { id: "order-1", status: "pending", paymentMethod: "cash_on_delivery" } as never;
+    const restaurant = {
+      settings: {
+        ordering: {
+          customerCancellation: { enabled: true, allowedPaymentMethods: ["cash_on_delivery"], cutoffStatus: "pending" },
+        },
+      },
+    } as never;
+    await cancelOrderByCustomer(order, restaurant, { restaurantId: "r1", customerId: "cust-1", userId: "cust-1" }, null).catch(
+      () => undefined,
+    );
     expect(sessions[0]).toMatchObject({ restaurantId: "r1", customerId: "cust-1", userId: null });
   });
 });

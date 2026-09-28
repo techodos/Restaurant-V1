@@ -97,7 +97,7 @@ export const BELLA = {
   /** Restaurant-level configuration (settings JSONB). */
   settings: {
     tax: { enabled: true, rate: 5, included: false, applyOnDeliveryFee: false, label: "GST" },
-    serviceFee: { enabled: false, rate: 0, orderTypes: ["dine_in"] },
+    serviceFee: { delivery: { enabled: false, rate: 0 }, pickup: { enabled: false, rate: 0 }, dine_in: { enabled: false, rate: 0 } },
     ordering: {
       onlineOrderingEnabled: true,
       minimumOrderAmount: 500,

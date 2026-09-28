@@ -11,7 +11,7 @@ import { ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
 import { cn } from "@/shared/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { checkCouponAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { checkCouponAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 import { localCartItemCount, localLineTotal, useLocalCart } from "./local-cart";
 import { EmptyState } from "./empty-state";
 

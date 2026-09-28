@@ -10,6 +10,7 @@ import {
   updateCoupon,
   type CouponInput,
 } from "@/server/repositories/coupons";
+import { parseCouponEligibility, type CouponFormInput } from "@/server/validation/coupons";
 
 function normalize(value: string | undefined): string | null {
   return value && value.trim() ? value.trim() : null;
@@ -31,7 +32,8 @@ export function listCouponsForAdmin(restaurantId: string, ctx: RequestContext): 
   return listCoupons(restaurantId, ctx);
 }
 
-export async function saveCoupon(restaurantId: string, input: CouponInput & { id?: string }, ctx: RequestContext): Promise<Coupon> {
+export async function saveCoupon(restaurantId: string, input: CouponFormInput & { id?: string }, ctx: RequestContext): Promise<Coupon> {
+  const { emails, phones } = parseCouponEligibility(input.eligibleCustomers);
   const patch: CouponInput = {
     ...input,
     description: normalize(input.description ?? undefined),
@@ -39,6 +41,8 @@ export async function saveCoupon(restaurantId: string, input: CouponInput & { id
     maxDiscountAmount: normalize(input.maxDiscountAmount ?? undefined),
     startsAt: normalize(input.startsAt ?? undefined),
     endsAt: normalize(input.endsAt ?? undefined),
+    eligibleEmails: emails,
+    eligiblePhones: phones,
   };
   const saved = await (input.id ? updateCoupon(input.id, patch, ctx) : createCoupon(restaurantId, patch, ctx));
   getStorefrontCache().invalidate(); // the tray's promo preview reads coupons from the snapshot

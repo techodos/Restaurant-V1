@@ -12,6 +12,8 @@ export const placeOrderSchema = z.object({
   area: z.string().trim().max(120).optional().or(z.literal("")),
   city: z.string().trim().max(120).optional().or(z.literal("")),
   postalCode: z.string().trim().max(20).optional().or(z.literal("")),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
   deliveryZoneId: z.string().uuid().optional().or(z.literal("")),
   tableNumber: z.string().trim().max(20).optional().or(z.literal("")),
   guests: z.coerce.number().int().min(1).max(60).optional(),

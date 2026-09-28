@@ -688,6 +688,7 @@ for (const [index, template] of ORDERS.entries()) {
           orderTypes: couponRow.order_types as never, startsAt: couponRow.starts_at, endsAt: couponRow.ends_at,
           usageLimit: couponRow.usage_limit, usageLimitPerCustomer: couponRow.usage_limit_per_customer,
           usedCount: couponRow.used_count, isActive: couponRow.is_active,
+          eligibleEmails: [], eligiblePhones: [],
         }
       : null,
     now: new Date(createdAt),
@@ -894,8 +895,8 @@ console.log("\n✔ Seed complete");
 console.log(`  restaurants ${counts?.restaurants} · menu items ${counts?.items} · orders ${counts?.orders} · customers ${counts?.customers}`);
 console.log(`  reviews ${counts?.reviews} · reservations ${counts?.reservations} · coupons ${counts?.coupons} · delivery zones ${counts?.zones}`);
 console.log("\n  Storefront : /r/bella-napoli");
-console.log("  Admin      : /admin  →  owner@bellanapoli.pk / BellaNapoli#1");
-console.log("  Kitchen    : /admin/kitchen (chef@bellanapoli.pk / BellaNapoli#4)\n");
+console.log("  Admin      : /r/bella-napoli/admin  →  owner@bellanapoli.pk / BellaNapoli#1");
+console.log("  Kitchen    : /r/bella-napoli/admin/kitchen (chef@bellanapoli.pk / BellaNapoli#4)\n");
 void orderCount;
 
 await client.end();

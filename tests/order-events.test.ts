@@ -394,7 +394,7 @@ describe("no polling, no Supabase Realtime, providers stay separate", () => {
   const live = [
     "src/components/storefront/order-live-status.tsx",
     "src/components/storefront/use-order-events.ts",
-    "src/app/r/[restaurantSlug]/order/[orderNumber]/page.tsx",
+    "src/app/r/[restaurantSlug]/(site)/order/[orderNumber]/page.tsx",
   ];
 
   it("has no interval, timed refetch or Supabase client in the order page code", () => {
@@ -406,7 +406,7 @@ describe("no polling, no Supabase Realtime, providers stay separate", () => {
   });
 
   it("does not poll on the server either: the SSE route only sends a keep-alive comment", () => {
-    const route = read("src/app/r/[restaurantSlug]/order/[orderNumber]/events/route.ts");
+    const route = read("src/app/r/[restaurantSlug]/(site)/order/[orderNumber]/events/route.ts");
     expect(route.match(/setInterval\(/g)).toHaveLength(1);
     expect(route).toMatch(/`: ping\\n\\n`/);
     expect(read("src/server/services/order-events.ts")).not.toMatch(/setInterval|setTimeout/);

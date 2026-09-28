@@ -59,6 +59,11 @@ export async function viewTray(restaurant: Restaurant, tray: Tray, now = new Dat
     const entry = menu.get(line.menuItemId);
     try {
       const resolved = resolveMenuSelection(entry, line, restaurant.timezone, now);
+      // A buffet package (priced per head) is a dine-in booking. Flagged like any other unorderable
+      // line, so the tray, the checkout page and the order transaction (createOrder) all refuse it.
+      if (resolved.item.isBuffetPackage && tray.orderType !== "dine_in") {
+        throw new Error("It is a dine-in buffet and can only be ordered as Dine-in.");
+      }
       const lineTotal = dec(resolved.unitPrice).plus(dec(resolved.addonsTotal)).times(line.quantity);
       subtotal = subtotal.plus(lineTotal);
       return {
@@ -129,6 +134,8 @@ export async function priceTray(
     zones: DeliveryZone[];
     orderType?: OrderType;
     address?: { area?: string | null; city?: string | null; postalCode?: string | null } | null;
+    /** the signed-in customer's own email/mobile, for a coupon restricted to specific customers */
+    customer?: CouponCustomer | null;
   },
 ): Promise<TrayPricingResult> {
   const orderType = options.orderType ?? tray.orderType;
@@ -154,6 +161,8 @@ export async function priceTray(
       settings: restaurant.settings,
       zone,
       coupon: withCoupon ? toCouponPricing(withCoupon) : null,
+      customerEmail: options.customer?.email ?? null,
+      customerPhone: options.customer?.phone ?? null,
     });
 
   let couponNotice: string | null =
@@ -176,22 +185,39 @@ export interface CouponPreview {
   discount: string;
 }
 
+/** Who is applying a code, for a coupon restricted to specific customers (eligibleEmails/eligiblePhones). */
+export interface CouponCustomer {
+  email: string | null;
+  phone: string | null;
+}
+
 /**
  * Validates a promo code against the tray's subtotal for the cart page — from the snapshot, no
  * database round trip. Usage limits (per code, per customer) are enforced when the order is placed.
+ * `customer` is asked for ONLY when the code is restricted to specific customers (rare), so an ordinary
+ * code still costs no database read; left out (the layout re-previewing an already-applied code), the
+ * restriction is not checked here — the checkout page and the order transaction always check it.
  */
 export async function previewCoupon(
   restaurant: Restaurant,
   code: string,
   orderType: OrderType,
   subtotal: string,
+  customer?: () => Promise<CouponCustomer>,
 ): Promise<CouponPreview> {
   if (!code.trim()) return { code: "", discount: "0.00" };
   if (!restaurant.features.coupons) throw errors.custom("COUPON_INVALID", "Promo codes are not available right now.");
   const coupon = await findPreviewCoupon(restaurant.id, code);
   if (!coupon) throw errors.custom("COUPON_INVALID", "That promo code is not valid.");
 
-  const validated = validateCouponOrThrow(toCouponPricing(coupon), { subtotal, orderType });
+  const restricted = coupon.eligibleEmails.length > 0 || coupon.eligiblePhones.length > 0;
+  const who = restricted && customer ? await customer() : null;
+  const pricing = toCouponPricing(coupon);
+  const validated = validateCouponOrThrow(
+    // without a way to ask who is applying it, preview as unrestricted (see above)
+    restricted && !customer ? { ...pricing, eligibleEmails: [], eligiblePhones: [] } : pricing,
+    { subtotal, orderType, customerEmail: who?.email ?? null, customerPhone: who?.phone ?? null },
+  );
   // the delivery fee is not known on the cart page, so a delivery-fee coupon previews as "no discount yet"
   const discount = validated.appliesTo === "delivery_fee" ? ZERO : computeCouponDiscount(validated, dec(subtotal), ZERO);
   return { code: validated.code, discount: toMoney(discount) };

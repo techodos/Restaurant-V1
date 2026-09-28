@@ -27,6 +27,7 @@ function pizza(overrides: Partial<MenuItem> = {}): MenuItem {
     prepTimeMinutes: 20,
     isActive: true,
     isAvailable: true,
+    isBuffetPackage: false,
     isFeatured: false,
     dietaryTags: [],
     allergens: [],

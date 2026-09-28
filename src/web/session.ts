@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppError, errors } from "@/server/errors";
 import { effectivePermissions, type Permission } from "@/server/auth/permissions";
@@ -20,6 +20,7 @@ import {
 } from "@/server/auth/tokens";
 import type { RequestContext } from "@/server/context";
 import { reissueCustomerSession } from "@/server/services/customer-auth";
+import { adminPath } from "@/shared/utils";
 import {
   CUSTOMER_COOKIE,
   LEGACY_CART_COOKIE,
@@ -27,6 +28,7 @@ import {
   GOOGLE_RETURN_TO_COOKIE,
   GOOGLE_STATE_COOKIE,
   STAFF_COOKIE,
+  LEGACY_STAFF_COOKIE,
   cookieOptions,
 } from "./cookies";
 
@@ -63,12 +65,21 @@ export async function requirePermission(permission: Permission, restaurantSlug?:
   return actor;
 }
 
-/** Admin layout guard: redirects to /admin/login instead of throwing UNAUTHORIZED. */
-export async function requireStaffForAdmin(): Promise<StaffActor> {
+/** The caller's IP (first X-Forwarded-For hop), used to key sign-in rate limits per caller. */
+export async function callerIdentifier(): Promise<string> {
+  const store = await headers();
+  return store.get("x-forwarded-for")?.split(",")[0]?.trim() || store.get("x-real-ip") || "unknown";
+}
+
+/**
+ * Admin guard for /r/<slug>/admin: the session must belong to a member of THAT restaurant, otherwise the
+ * visitor is sent to that restaurant's own admin login (never another tenant's).
+ */
+export async function requireStaffForAdmin(restaurantSlug: string): Promise<StaffActor> {
   try {
-    return await requireStaff();
+    return await requireStaff(restaurantSlug);
   } catch (error) {
-    if (error instanceof AppError && error.code === "UNAUTHORIZED") redirect("/admin/login");
+    if (error instanceof AppError && error.code === "UNAUTHORIZED") redirect(adminPath(restaurantSlug, "/login"));
     throw error;
   }
 }
@@ -82,23 +93,28 @@ export async function signInStaffSession(
 ): Promise<StaffActor> {
   const { token, maxAge, member, restaurant } = await signInStaff(email, password, restaurantSlug, identifier);
   const store = await cookies();
-  store.set(STAFF_COOKIE, token, cookieOptions(maxAge));
+  // Scoped to /r/<slug>/admin: each restaurant's admin keeps its own session (signing in to one never
+  // replaces another's), and the cookie never travels with storefront requests.
+  store.set(STAFF_COOKIE, token, { ...cookieOptions(maxAge), path: adminPath(restaurant.slug) });
   return {
     // signInStaff already rejects a member with no linked login.
     userId: member.userId as string,
     email: member.email,
     name: member.fullName,
     restaurantId: restaurant.id,
+    restaurantSlug: restaurant.slug,
     role: member.role,
     member,
     permissions: effectivePermissions(member.role, member.permissions),
   };
 }
 
-/** Ends the staff session. Server Actions/Route Handlers only. */
-export async function signOutStaffSession(): Promise<void> {
+/** Ends one restaurant's admin session. Server Actions/Route Handlers only. */
+export async function signOutStaffSession(restaurantSlug: string): Promise<void> {
   const store = await cookies();
-  store.delete(STAFF_COOKIE);
+  store.delete({ name: STAFF_COOKIE, path: adminPath(restaurantSlug) });
+  // the pre-/r/<slug>/admin cookie, if this browser still has one
+  store.delete({ name: LEGACY_STAFF_COOKIE, path: "/" });
 }
 
 /**

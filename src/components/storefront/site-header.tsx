@@ -21,6 +21,7 @@ interface SiteHeaderProps {
   /** null while no customer sign-in system was reachable (never blocks rendering). */
   customer: { signedIn: boolean; name: string | null } | null;
   googleEnabled: boolean;
+  googleMapsApiKey: string | null;
 }
 
 /** A nav link is active on its own page and on its sub-pages (menu -> menu/<item>), home only on itself. */
@@ -81,7 +82,7 @@ const HERO_SELECTOR = "main [data-hero-overlay]";
  * action on the right is the account pill: "Sign In / Sign Up", or the customer's initial and name once
  * signed in (the menu itself is in the navigation, so there is no separate order button).
  */
-export function SiteHeader({ restaurant, config, orderingOpen, customer }: SiteHeaderProps) {
+export function SiteHeader({ restaurant, config, orderingOpen, customer, googleMapsApiKey }: SiteHeaderProps) {
   const { itemCount } = useLocalCart();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -92,8 +93,8 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer }: SiteH
   const navItems = config.navigation.items.filter((item) => item.enabled);
   const announcement = config.announcement;
   const home = `/r/${restaurant.slug}`;
-  // signed out: sign in and come back to this page (the account pill opens the profile drawer once signed in)
-  const accountHref = customer?.signedIn ? `${home}/account` : signInHref(restaurant.slug, pathname);
+  // only rendered while signed out (signed in opens the profile drawer); brings them back to this page
+  const accountHref = signInHref(restaurant.slug, pathname);
   const accountLabel = customer?.signedIn ? (customer.name ?? "Account") : "Sign In / Sign Up";
   const headerRef = useRef<HTMLElement>(null);
 
@@ -368,6 +369,7 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer }: SiteH
           open={profileOpen}
           onOpenChange={setProfileOpen}
           phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
+          googleMapsApiKey={googleMapsApiKey}
         />
       ) : null}
     </>

@@ -48,6 +48,8 @@ export const customerAddressSchema = z.object({
   city: z.string().trim().min(2, "Please enter the city.").max(120),
   postalCode: optionalText(20),
   deliveryNotes: optionalText(300),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
   isDefault: z.boolean().optional(),
 });
 export type CustomerAddressInput = z.infer<typeof customerAddressSchema>;

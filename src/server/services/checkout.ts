@@ -1,4 +1,4 @@
-import { ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { ORDER_TYPES, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Restaurant } from "@/shared/contract/models";
 import { enabledOrderTypes } from "@/shared/ordering";
 import { config, isPaymentProviderConfigured } from "@/server/config";
@@ -64,6 +64,8 @@ export async function placeOrder(
             area: input.area || null,
             city: input.city || null,
             postalCode: input.postalCode || null,
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
           },
       deliveryZoneId: input.deliveryZoneId || null,
       tableNumber: input.tableNumber || null,
@@ -154,20 +156,26 @@ export interface CheckoutOptions {
  * restaurant enabled it AND a provider is configured server-side — a fake
  * successful payment is never recorded.
  */
-export function getCheckoutOptions(restaurant: Restaurant): CheckoutOptions {
+export function getCheckoutOptions(restaurant: Restaurant, orderType?: OrderType): CheckoutOptions {
   const { features, settings } = restaurant;
   const enabled = settings.payments.enabledMethods.filter((method) => {
     // "wallet" (JazzCash) is gated exactly like "card_online" (Stripe) — both need the restaurant's
     // chosen online provider to actually be configured server-side, or the option would show at
     // checkout and then fail (or worse, silently record an unpaid order as if payment were possible).
     if (method === "card_online" || method === "wallet") {
-      return (
-        features.onlinePayments &&
-        settings.payments.onlineProvider !== "none" &&
-        isPaymentProviderConfigured(settings.payments.onlineProvider)
-      );
+      if (
+        !features.onlinePayments ||
+        settings.payments.onlineProvider === "none" ||
+        !isPaymentProviderConfigured(settings.payments.onlineProvider)
+      ) {
+        return false;
+      }
+    } else if (method === "bank_transfer" && !features.onlinePayments) {
+      return false;
     }
-    if (method === "bank_transfer") return features.onlinePayments;
+    // "Cash on delivery" only makes sense for a delivery order, a terminal/cash-at-counter payment
+    // only for pickup/dine-in, etc. — see PAYMENT_METHOD_ORDER_TYPES.
+    if (orderType && !PAYMENT_METHOD_ORDER_TYPES[method].includes(orderType)) return false;
     return true;
   }) as PaymentMethod[];
 

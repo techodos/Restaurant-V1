@@ -61,6 +61,9 @@ export interface CouponPricing {
   usageLimitPerCustomer: number | null;
   usedCount: number;
   isActive: boolean;
+  /** empty = open to everyone; non-empty = only a matching email/phone may redeem it */
+  eligibleEmails: string[];
+  eligiblePhones: string[];
 }
 
 export interface PricingInput {
@@ -72,6 +75,9 @@ export interface PricingInput {
   tipAmount?: string | number | Decimal | null;
   /** how many times this customer already used the coupon (per-customer limit) */
   couponUsageByCustomer?: number;
+  /** the customer this pricing run is for — checked against a coupon's eligibleEmails/eligiblePhones */
+  customerEmail?: string | null;
+  customerPhone?: string | null;
   /** injectable clock so promotions can be unit tested deterministically */
   now?: Date;
 }
@@ -139,6 +145,8 @@ export interface CouponValidationContext {
   subtotal: Decimal | string | number;
   orderType: OrderType;
   couponUsageByCustomer?: number;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
   now?: Date;
 }
 
@@ -152,6 +160,18 @@ export function validateCouponOrThrow(coupon: CouponPricing, context: CouponVali
 
   if (!coupon.isActive) {
     throw new PricingError("COUPON_INVALID", "This promo code is no longer active.", { code: coupon.code });
+  }
+  const isRestricted = coupon.eligibleEmails.length > 0 || coupon.eligiblePhones.length > 0;
+  if (isRestricted) {
+    const email = context.customerEmail?.trim().toLowerCase() || null;
+    const phone = context.customerPhone?.trim() || null;
+    const matches =
+      (email !== null && coupon.eligibleEmails.includes(email)) || (phone !== null && coupon.eligiblePhones.includes(phone));
+    // same generic message a wrong code gets — a targeted coupon's existence is never revealed to
+    // someone it wasn't given to
+    if (!matches) {
+      throw new PricingError("COUPON_INVALID", "That promo code is not valid.", { code: coupon.code });
+    }
   }
   if (coupon.startsAt && new Date(coupon.startsAt).getTime() > now.getTime()) {
     throw new PricingError("COUPON_INVALID", "This promo code is not active yet.", { code: coupon.code });
@@ -246,6 +266,8 @@ export function calculatePricing(input: PricingInput): PricingResult {
       subtotal,
       orderType,
       couponUsageByCustomer: input.couponUsageByCustomer,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
       now: input.now,
     });
     const couponDiscount = computeCouponDiscount(validatedCoupon, subtotal, deliveryFee);
@@ -259,10 +281,13 @@ export function calculatePricing(input: PricingInput): PricingResult {
 
   const netDeliveryFee = deliveryFee.minus(deliveryDiscount);
 
-  // ---- service fee -------------------------------------------------------
+  // ---- service fee ---------------------------------------------------------
+  // Independent per order type (settings.serviceFee.delivery/pickup/dine_in), not one shared rate
+  // across whichever types were checked — delivery and pickup can carry different fees at once.
   let serviceFee = ZERO;
-  const serviceFeePercent = dec(settings.serviceFee.rate);
-  if (settings.serviceFee.enabled && serviceFeePercent.greaterThan(0) && settings.serviceFee.orderTypes.includes(orderType)) {
+  const serviceFeeForType = settings.serviceFee[orderType];
+  const serviceFeePercent = dec(serviceFeeForType?.rate);
+  if (serviceFeeForType?.enabled && serviceFeePercent.greaterThan(0)) {
     serviceFee = percentageOf(subtotal.minus(orderDiscount), serviceFeePercent);
   }
 

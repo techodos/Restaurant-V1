@@ -9,6 +9,11 @@ export const updateOrderStatusSchema = z.object({
 });
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 
+export const cancelOrderSchema = z.object({
+  reason: z.string().trim().max(500).optional().or(z.literal("")),
+});
+export type CancelOrderInput = z.infer<typeof cancelOrderSchema>;
+
 export const orderListFiltersSchema = z.object({
   status: z.union([z.enum(ORDER_STATUSES), z.literal("active"), z.literal("all")]).optional(),
   orderType: z.enum(ORDER_TYPES).optional(),

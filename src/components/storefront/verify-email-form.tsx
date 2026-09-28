@@ -7,7 +7,7 @@ import { Input, FieldError, FieldHint } from '@/components/ui/input';
 import {
   sendVerificationCodeAction,
   verifyEmailCodeAction,
-} from '@/app/r/[restaurantSlug]/account/actions';
+} from '@/app/r/[restaurantSlug]/(site)/account/actions';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 

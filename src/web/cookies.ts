@@ -2,7 +2,14 @@ import { config } from "@/server/config";
 
 /** Cookie names and attributes. Nothing outside `web/` knows how sessions travel. */
 
-export const STAFF_COOKIE = "rp_staff_session";
+/**
+ * Staff session, path-scoped to one restaurant's admin (/r/<slug>/admin), so only that restaurant's session is ever
+ * sent. A new name (was rp_staff_session at "/"): with one shared name a leftover "/" cookie would shadow the scoped
+ * one, because Next's cookie parser keeps the last duplicate.
+ */
+export const STAFF_COOKIE = "rp_admin_session";
+/** Pre-2026-09-27 staff cookie (path "/"); only ever deleted. */
+export const LEGACY_STAFF_COOKIE = "rp_staff_session";
 export const CUSTOMER_COOKIE = "rp_customer_session";
 /**
  * Database-cart era cookies (a cart token and a badge-count hint). The tray now lives in its own

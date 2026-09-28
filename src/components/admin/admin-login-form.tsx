@@ -6,9 +6,10 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
-import { signInAction } from "@/app/admin/login/actions";
+import { signInAction } from "@/app/r/[restaurantSlug]/admin/login/actions";
+import { adminPath } from "@/shared/utils";
 
-export function AdminLoginForm() {
+export function AdminLoginForm({ restaurantSlug }: { restaurantSlug: string }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
@@ -25,7 +26,7 @@ export function AdminLoginForm() {
     setErrors({});
     submitting.current = true;
     startTransition(() => {
-      signInAction(payload).then((result) => {
+      signInAction(restaurantSlug, payload).then((result) => {
         submitting.current = false;
         if (!result.success) {
           if (result.error.details) {
@@ -35,7 +36,7 @@ export function AdminLoginForm() {
           return;
         }
         toast.success(`Welcome back, ${result.data.name}.`);
-        router.push("/admin");
+        router.push(adminPath(restaurantSlug));
         router.refresh();
       });
     });

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
-import { saveMenuItemAction } from "@/app/admin/(dashboard)/menu/items/actions";
+import { saveMenuItemAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 import type { MenuCategory, MenuItem } from "@/shared/contract/models";
+import { adminPath } from "@/shared/utils";
 
 function slugify(value: string): string {
   return value
@@ -32,11 +33,13 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
   const [isActive, setIsActive] = useState(item?.isActive ?? true);
   const [isAvailable, setIsAvailable] = useState(item?.isAvailable ?? true);
   const [isFeatured, setIsFeatured] = useState(item?.isFeatured ?? false);
+  const [isBuffetPackage, setIsBuffetPackage] = useState(item?.isBuffetPackage ?? false);
   const [dietaryTags, setDietaryTags] = useState((item?.dietaryTags ?? []).join(", "));
   const [allergens, setAllergens] = useState((item?.allergens ?? []).join(", "));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const { restaurantSlug } = useParams<{ restaurantSlug: string }>();
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -56,6 +59,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
       isActive,
       isAvailable,
       isFeatured,
+      isBuffetPackage,
       dietaryTags: dietaryTags.split(",").map((tag) => tag.trim()).filter(Boolean),
       allergens: allergens.split(",").map((tag) => tag.trim()).filter(Boolean),
     };
@@ -69,7 +73,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
           return;
         }
         toast.success(item ? "Item updated." : "Item created.");
-        if (!item) router.push(`/admin/menu/items/${result.data.id}`);
+        if (!item) router.push(adminPath(restaurantSlug, `/menu/items/${result.data.id}`));
         else router.refresh();
       });
     });
@@ -192,6 +196,9 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isFeatured} onChange={(event) => setIsFeatured(event.target.checked)} /> Featured
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={isBuffetPackage} onChange={(event) => setIsBuffetPackage(event.target.checked)} /> Buffet package (priced per head; shows &quot;Reserve a table&quot; too)
         </label>
       </div>
 

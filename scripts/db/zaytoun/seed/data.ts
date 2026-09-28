@@ -69,7 +69,7 @@ export const RESTAURANT = {
 
 export const SETTINGS = {
   tax: { enabled: true, rate: 16, included: false, applyOnDeliveryFee: false, label: "Sales tax" },
-  serviceFee: { enabled: true, rate: 5, orderTypes: ["dine_in"] },
+  serviceFee: { delivery: { enabled: false, rate: 0 }, pickup: { enabled: false, rate: 0 }, dine_in: { enabled: true, rate: 5 } },
   ordering: {
     onlineOrderingEnabled: true,
     minimumOrderAmount: 900,

@@ -1,21 +1,20 @@
 import Image from "next/image";
-import type { StorefrontContext } from "@/shared/contract/models";
+import type { Restaurant } from "@/shared/contract/models";
 import { resolveImage } from "@/web/media";
 
 interface AuthShellProps {
-  context: StorefrontContext;
+  restaurant: Pick<Restaurant, "name" | "coverUrl" | "shortDescription">;
   title: string;
   description?: string;
   children: React.ReactNode;
 }
 
 /**
- * Sign-in / sign-up / Google phone step. Desktop: the restaurant's own cover photograph fills the left
+ * Sign-in / sign-up / Google phone step, and the restaurant's admin login. Desktop: the restaurant's own cover photograph fills the left
  * half edge to edge with its name and line; the form sits alone on the right. Phones: the form alone.
  * Everything shown about the restaurant comes from the database.
  */
-export function AuthShell({ context, title, description, children }: AuthShellProps) {
-  const { restaurant } = context;
+export function AuthShell({ restaurant, title, description, children }: AuthShellProps) {
   const cover = resolveImage(restaurant.coverUrl);
 
   return (

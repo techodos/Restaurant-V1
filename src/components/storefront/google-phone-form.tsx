@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label, FieldError } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
-import { finishGoogleSignupAction } from "@/app/r/[restaurantSlug]/account/actions";
+import { finishGoogleSignupAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 import { afterAuthPath } from "@/shared/return-to";
 
 /** Last step of a first-time Google sign-in: `customers` requires a phone number Google never gives us. */

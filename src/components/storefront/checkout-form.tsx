@@ -8,15 +8,17 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
-import { placeOrderAction } from "@/app/r/[restaurantSlug]/checkout/actions";
-import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/account/actions";
-import { PAYMENT_METHOD_LABELS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { placeOrderAction } from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
+import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import type { CustomerAddress, DeliveryZone } from "@/shared/contract/models";
+import type { CustomerAddress, DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { useLocalCart } from "@/components/storefront/local-cart";
+import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
+import { sortByDistance } from "@/shared/geo";
 import { signInHref } from "@/shared/return-to";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -76,6 +78,12 @@ interface CheckoutFormProps {
   savedAddresses: CustomerAddress[];
   /** country preselected in the phone picker (the restaurant's country) */
   phoneCountry: CountryCode;
+  /** active branches; the delivery-location step recommends the nearest one within the customer's city */
+  locations: RestaurantLocation[];
+  /** the cart's current branch (null on a fresh cart, defaults to the primary location server-side) */
+  initialLocationId: string | null;
+  /** server-resolved Google Maps browser key; the map/search picker hides itself when this is null */
+  googleMapsApiKey: string | null;
 }
 
 /**
@@ -112,13 +120,29 @@ export function CheckoutForm({
   savedPhone,
   savedAddresses,
   phoneCountry,
+  locations,
+  initialLocationId,
+  googleMapsApiKey,
 }: CheckoutFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   // state updates are async; this closes the window in which a fast double-click could submit twice
   const submitting = useRef(false);
   const [orderTypeState, setOrderTypeState] = useState<OrderType>(orderType);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(paymentMethods[0] ?? "cash");
+  // The server already filters `paymentMethods` for the cart's order type at load ("cash on
+  // delivery" for pickup/dine-in makes no sense) — this re-filters client-side too, because
+  // switching order type on this page (below) doesn't re-render from the server.
+  const availablePaymentMethods = useMemo(
+    () => paymentMethods.filter((method) => PAYMENT_METHOD_ORDER_TYPES[method].includes(orderTypeState)),
+    [paymentMethods, orderTypeState],
+  );
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(availablePaymentMethods[0] ?? "cash");
+  useEffect(() => {
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(availablePaymentMethods[0] ?? "cash");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availablePaymentMethods]);
   const [tip, setTip] = useState("");
   const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified);
   const [phone, setPhone] = useState(savedPhone ?? "");
@@ -128,7 +152,59 @@ export function CheckoutForm({
   );
   const chosenAddress = savedAddresses.find((address) => address.id === addressChoice) ?? null;
   const router = useRouter();
-  const { clear: clearLocalCart } = useLocalCart();
+  const { clear: clearLocalCart, setLocationId } = useLocalCart();
+
+  // "new address" fields are controlled so the map/search picker can fill them in; still hand-editable.
+  const [newAddress, setNewAddress] = useState({ addressLine1: "", addressLine2: "", area: "", city: defaultCity, postalCode: "" });
+  const [pickedPoint, setPickedPoint] = useState<{ latitude: number; longitude: number } | null>(null);
+  const handlePickedLocation = (resolved: ResolvedLocation) => {
+    setNewAddress((current) => ({
+      ...current,
+      addressLine1: resolved.addressLine1 || current.addressLine1,
+      area: resolved.area || current.area,
+      city: resolved.city || current.city,
+      postalCode: resolved.postalCode || current.postalCode,
+    }));
+    setPickedPoint({ latitude: resolved.latitude, longitude: resolved.longitude });
+  };
+
+  const customerPoint = chosenAddress?.latitude && chosenAddress?.longitude
+    ? { latitude: chosenAddress.latitude, longitude: chosenAddress.longitude }
+    : pickedPoint;
+  const customerCity = (chosenAddress ? chosenAddress.city : newAddress.city) ?? "";
+
+  const activeLocations = locations.filter((location) => location.isActive);
+  const cityMatches = customerCity.trim()
+    ? activeLocations.filter((location) => (location.city ?? "").trim().toLowerCase() === customerCity.trim().toLowerCase())
+    : activeLocations;
+  const rankedBranches = customerPoint ? sortByDistance(cityMatches, customerPoint) : cityMatches.map((location) => ({ ...location, distanceKm: null as number | null }));
+  const recommendedId = customerPoint && rankedBranches.length ? rankedBranches[0]!.id : null;
+
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(initialLocationId);
+  const syncedLocationRef = useRef<string | null>(initialLocationId);
+  const [, startBranchSync] = useTransition();
+
+  // Recommend/auto-select the nearest branch in the detected city whenever the address (and so the
+  // ranking) changes; the customer can still tap another card in the same city to override it.
+  const rankedIds = rankedBranches.map((location) => location.id).join(",");
+  useEffect(() => {
+    if (!rankedBranches.length) return;
+    const stillValid = rankedBranches.some((location) => location.id === selectedLocationId);
+    if (!stillValid) setSelectedLocationId(recommendedId ?? rankedBranches[0]!.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rankedIds, recommendedId]);
+
+  // Persists the chosen branch on the tray cookie (so delivery-zone matching and the order use it; there
+  // is no database cart), then refreshes the page to re-price with that branch's delivery zones.
+  useEffect(() => {
+    if (!selectedLocationId || selectedLocationId === syncedLocationRef.current) return;
+    syncedLocationRef.current = selectedLocationId;
+    startBranchSync(() => {
+      setLocationId(selectedLocationId); // writes the cookie synchronously (local-cart.tsx#commit)
+      router.refresh();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLocationId]);
 
   useEffect(() => {
     if (needsVerification) void ensureVerificationCodeAction(restaurantSlug);
@@ -161,13 +237,17 @@ export function CheckoutForm({
             area: chosenAddress.area ?? "",
             city: chosenAddress.city ?? "",
             postalCode: chosenAddress.postalCode ?? "",
+            ...(chosenAddress.latitude && chosenAddress.longitude
+              ? { latitude: chosenAddress.latitude, longitude: chosenAddress.longitude }
+              : {}),
           }
         : {
-            addressLine1: value("addressLine1"),
-            addressLine2: value("addressLine2"),
-            area: value("area"),
-            city: value("city"),
-            postalCode: value("postalCode"),
+            addressLine1: newAddress.addressLine1,
+            addressLine2: newAddress.addressLine2,
+            area: newAddress.area,
+            city: newAddress.city,
+            postalCode: newAddress.postalCode,
+            ...(pickedPoint ? { latitude: pickedPoint.latitude, longitude: pickedPoint.longitude } : {}),
           }),
       deliveryZoneId: value("deliveryZoneId"),
       tableNumber: value("tableNumber"),
@@ -189,6 +269,11 @@ export function CheckoutForm({
         nextErrors.area = chosenAddress
           ? "This saved address has no area. Edit it in your profile or use a new address."
           : "Please add your area so we can match a delivery zone.";
+      }
+      if (activeLocations.length > 1 && payload.city && rankedBranches.length === 0) {
+        nextErrors.city = `We don't have a branch in ${payload.city} yet.`;
+      } else if (activeLocations.length > 1 && !selectedLocationId) {
+        nextErrors.city = "Please choose a branch for delivery.";
       }
     }
     if (orderTypeState === "dine_in" && !payload.tableNumber && !payload.guests) {
@@ -406,17 +491,34 @@ export function CheckoutForm({
           {chosenAddress && (errors.addressLine1 || errors.area) ? (
             <div className="mt-3"><FieldError>{errors.area ?? errors.addressLine1}</FieldError></div>
           ) : null}
+          {chosenAddress ? null : (
+            <div className="mt-5">
+              <LocationPicker apiKey={googleMapsApiKey} country={phoneCountry} onResolve={handlePickedLocation} />
+            </div>
+          )}
+
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             {chosenAddress ? null : (
             <>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="addressLine1">Street address</Label>
-              <Input id="addressLine1" name="addressLine1" autoComplete="address-line1" aria-invalid={Boolean(errors.addressLine1)} />
+              <Input
+                id="addressLine1"
+                autoComplete="address-line1"
+                aria-invalid={Boolean(errors.addressLine1)}
+                value={newAddress.addressLine1}
+                onChange={(event) => setNewAddress((current) => ({ ...current, addressLine1: event.target.value }))}
+              />
               <FieldError>{errors.addressLine1}</FieldError>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="addressLine2">Apartment, floor, landmark (optional)</Label>
-              <Input id="addressLine2" name="addressLine2" autoComplete="address-line2" />
+              <Input
+                id="addressLine2"
+                autoComplete="address-line2"
+                value={newAddress.addressLine2}
+                onChange={(event) => setNewAddress((current) => ({ ...current, addressLine2: event.target.value }))}
+              />
             </div>
             </>
             )}
@@ -437,20 +539,82 @@ export function CheckoutForm({
               <>
                 <div className="space-y-1.5">
                   <Label htmlFor="area">Area</Label>
-                  <Input id="area" name="area" autoComplete="address-level3" aria-invalid={Boolean(errors.area)} />
+                  <Input
+                    id="area"
+                    autoComplete="address-level3"
+                    aria-invalid={Boolean(errors.area)}
+                    value={newAddress.area}
+                    onChange={(event) => setNewAddress((current) => ({ ...current, area: event.target.value }))}
+                  />
                   <FieldError>{errors.area}</FieldError>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="city">City</Label>
-                  <Input id="city" name="city" defaultValue={defaultCity} autoComplete="address-level2" />
+                  <Input
+                    id="city"
+                    autoComplete="address-level2"
+                    value={newAddress.city}
+                    onChange={(event) => setNewAddress((current) => ({ ...current, city: event.target.value }))}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="postalCode">Postal code (optional)</Label>
-                  <Input id="postalCode" name="postalCode" autoComplete="postal-code" />
+                  <Input
+                    id="postalCode"
+                    autoComplete="postal-code"
+                    value={newAddress.postalCode}
+                    onChange={(event) => setNewAddress((current) => ({ ...current, postalCode: event.target.value }))}
+                  />
                 </div>
               </>
             )}
           </div>
+
+          {activeLocations.length > 1 && customerCity.trim() ? (
+            <div className="mt-5">
+              <Label>Branch</Label>
+              {rankedBranches.length === 0 ? (
+                <p className="mt-2 rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] p-3 text-sm text-[color-mix(in_srgb,var(--color-warning)_70%,var(--color-ink))]">
+                  We don&apos;t have a branch in {customerCity} yet.
+                </p>
+              ) : (
+                <div role="radiogroup" aria-label="Branch" className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {rankedBranches.map((branch) => {
+                    const on = selectedLocationId === branch.id;
+                    return (
+                      <button
+                        key={branch.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => setSelectedLocationId(branch.id)}
+                        className={cn(
+                          "press flex items-start justify-between gap-3 rounded-[var(--radius-card)] border px-4 py-3.5 text-left transition-[border-color,box-shadow,background-color] duration-200",
+                          on
+                            ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]"
+                            : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))]",
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <span className="text-sm font-semibold">{branch.name}</span>
+                          <span className="mt-0.5 block text-[13px] leading-snug text-[var(--color-muted-ink)]">
+                            {[branch.addressLine1, branch.area].filter(Boolean).join(", ")}
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          {branch.id === recommendedId ? <Badge variant="soft">Recommended for you</Badge> : null}
+                          {branch.distanceKm !== null ? (
+                            <span className="text-xs tabular text-[var(--color-muted-ink)]">{branch.distanceKm.toFixed(1)} km away</span>
+                          ) : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <FieldError>{errors.city}</FieldError>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -474,7 +638,7 @@ export function CheckoutForm({
       <section className="border-t border-[var(--rule)] pt-8">
         <StepTitle index={4}>Payment</StepTitle>
         <div className="mt-4 space-y-2">
-          {paymentMethods.map((method) => (
+          {availablePaymentMethods.map((method) => (
             <label
               key={method}
               className={

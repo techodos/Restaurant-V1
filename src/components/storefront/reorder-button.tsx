@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { reorderAction } from "@/app/r/[restaurantSlug]/order/actions";
+import { reorderAction } from "@/app/r/[restaurantSlug]/(site)/order/actions";
 import { useLocalCart } from "./local-cart";
 
 interface ReorderButtonProps {

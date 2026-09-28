@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bell, BellRing, Share, SquarePlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { registerPushTokenAction } from "@/app/r/[restaurantSlug]/order/actions";
+import { registerPushTokenAction } from "@/app/r/[restaurantSlug]/(site)/order/actions";
 
 /**
  * "Notify me about this order". Asks for browser permission only when the

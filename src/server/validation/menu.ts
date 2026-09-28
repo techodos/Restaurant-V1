@@ -49,6 +49,7 @@ export const menuItemSchema = z.object({
   isActive: z.coerce.boolean().optional(),
   isAvailable: z.coerce.boolean().optional(),
   isFeatured: z.coerce.boolean().optional(),
+  isBuffetPackage: z.coerce.boolean().optional(),
   dietaryTags: z.array(z.string().trim().max(40)).optional(),
   allergens: z.array(z.string().trim().max(40)).optional(),
   sortOrder: z.coerce.number().int().optional(),

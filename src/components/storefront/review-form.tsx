@@ -6,7 +6,7 @@ import { Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Input, Label, Textarea } from "@/components/ui/input";
-import { submitReviewAction } from "@/app/r/[restaurantSlug]/reviews/actions";
+import { submitReviewAction } from "@/app/r/[restaurantSlug]/(site)/reviews/actions";
 import { cn } from "@/shared/utils";
 
 interface ReviewFormProps {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, MapPin, ShoppingBag, User, UtensilsCrossed } from "lucide-react";
+import { CalendarDays, ClipboardList, MapPin, ShoppingBag, User, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/shared/utils";
 import { signInHref } from "@/shared/return-to";
 import { TrayCount } from "./tray-count";
@@ -37,8 +37,6 @@ export function MobileDock({ restaurantSlug, activeOrders, showCart, reservation
   const pathname = usePathname();
   const home = `/r/${restaurantSlug}`;
   if (hiddenOn(pathname, home)) return null;
-  // signed out: sign in and come back to this page
-  const accountHref = signedIn ? `${home}/account` : signInHref(restaurantSlug, pathname);
 
   const item = (href: string, label: string, Icon: typeof User, extra?: React.ReactNode) => {
     const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -75,7 +73,9 @@ export function MobileDock({ restaurantSlug, activeOrders, showCart, reservation
                 <span className="absolute inset-0 animate-ping rounded-full bg-[var(--color-brand)]" />
               </span>,
             )
-          : item(accountHref, "Account", User)}
+          : signedIn
+            ? item(`${home}/orders`, "Orders", ClipboardList)
+            : item(signInHref(restaurantSlug, pathname), "Sign in", User)}
         {showCart ? (
           <Link
             href={`${home}/cart`}

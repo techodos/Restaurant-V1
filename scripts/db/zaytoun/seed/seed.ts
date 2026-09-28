@@ -320,6 +320,7 @@ try {
             minOrderAmount: couponRow.min_order_amount, maxDiscountAmount: couponRow.max_discount_amount, appliesTo: couponRow.applies_to,
             orderTypes: couponRow.order_types as never, startsAt: couponRow.starts_at, endsAt: couponRow.ends_at,
             usageLimit: couponRow.usage_limit, usageLimitPerCustomer: couponRow.usage_limit_per_customer, usedCount: couponRow.used_count, isActive: couponRow.is_active,
+            eligibleEmails: [], eligiblePhones: [],
           }
         : null,
       now: new Date(createdAt),
@@ -436,8 +437,8 @@ try {
   console.log(`\n✔ Zaytoun seed complete`);
   console.log(`  categories ${counts?.categories} · items ${counts?.items} · orders ${counts?.orders} · customers ${counts?.customers}`);
   console.log(`  reviews ${counts?.reviews} · reservations ${counts?.reservations} · coupons ${counts?.coupons} · zones ${counts?.zones}`);
-  console.log(`\n  Storefront : /r/${SLUG}   (run the app with NEXT_PUBLIC_DEFAULT_RESTAURANT=${SLUG})`);
-  console.log(`  Admin      : /admin  →  ${TEAM[0]!.email} / ${TEAM[0]!.password}\n`);
+  console.log(`\n  Storefront : /r/${SLUG}   (storefront: run the app with NEXT_PUBLIC_DEFAULT_RESTAURANT=${SLUG})`);
+  console.log(`  Admin      : /r/${SLUG}/admin  →  ${TEAM[0]!.email} / ${TEAM[0]!.password}\n`);
 } catch (error) {
   await client.query("rollback").catch(() => undefined);
   throw error;

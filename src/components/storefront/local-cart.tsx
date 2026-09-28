@@ -228,10 +228,19 @@ export function LocalCartProvider({
   const cartRef = useRef(cart);
   cartRef.current = cart;
 
-  const commit = useCallback((next: LocalCart) => {
-    cartRef.current = next;
-    setCart(next);
-  }, []);
+  // The cookie is written here, synchronously, not only in the effect below: a caller that changes the
+  // tray and then asks the server for a page (checkout's branch picker: setLocationId + router.refresh)
+  // must send the NEW cookie. Written only from the effect, the refresh could go out first, render the
+  // old tray, and the "adopt the server's reading" effect would then undo the change.
+  const commit = useCallback(
+    (next: LocalCart) => {
+      cartRef.current = next;
+      const encoded = encodeCart(next);
+      if (encoded !== readCookie(cookieName)) writeCookie(cookieName, encoded);
+      setCart(next);
+    },
+    [cookieName],
+  );
 
   // The server re-rendered the layout (navigation refresh, a server action, another tab's change
   // picked up below) with a different cookie than this state holds: adopt the server's reading.
@@ -239,7 +248,8 @@ export function LocalCartProvider({
     if (initial.encoded !== encodeCart(cartRef.current)) commit(fromInitialTray(initial));
   }, [initial, commit]);
 
-  // Persist every change. Writing the cookie IS the whole "add to cart" — no request.
+  // Persist every change (already written by `commit`; this is the safety net). Writing the cookie IS
+  // the whole "add to cart" — no request.
   useEffect(() => {
     const encoded = encodeCart(cart);
     if (encoded !== readCookie(cookieName)) writeCookie(cookieName, encoded);

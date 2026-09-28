@@ -2,7 +2,7 @@ import { dec, sumMoney, toMoney } from "@/shared/money";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
-import { ACTIVE_ORDER_STATUSES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
@@ -189,6 +189,12 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     if (!settings.payments.enabledMethods.includes(input.paymentMethod)) {
       throw errors.custom("PAYMENT_UNAVAILABLE", "That payment method is not available.");
     }
+    // "Cash on delivery" for a dine-in order, a terminal payment for delivery, etc. make no sense —
+    // the checkout page already filters these (getCheckoutOptions), this is the boundary that
+    // cannot be bypassed by a stale form submission.
+    if (!PAYMENT_METHOD_ORDER_TYPES[input.paymentMethod].includes(input.orderType)) {
+      throw errors.custom("PAYMENT_UNAVAILABLE", "That payment method is not available for this order type.");
+    }
     const requiresOnlinePayment = input.paymentMethod === "card_online" || input.paymentMethod === "wallet";
 
     // customer: the signed-in account's own row (now locked). Its verification and saved mobile/email
@@ -238,8 +244,14 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
         quantity: Math.min(Math.max(1, Math.trunc(line.quantity) || 1), 99),
         specialInstructions: line.specialInstructions?.slice(0, 300) || null,
         addons: resolved.addons,
+        isBuffetPackage: resolved.item.isBuffetPackage,
       };
     });
+    // A buffet package (priced per head) is a dine-in booking. The tray already flags it outside dine-in
+    // (services/cart.ts#priceTray); this is where an order is written, so it cannot be bypassed here.
+    if (input.orderType !== "dine_in" && resolvedLines.some((line) => line.isBuffetPackage)) {
+      throw errors.custom("BUFFET_REQUIRES_DINE_IN", "A dine-in buffet in your tray can only be ordered as Dine-in.");
+    }
 
     // delivery zone -----------------------------------------------------------------------------
     let zone: ZonePricing | null = null;
@@ -287,6 +299,10 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
       coupon,
       tipAmount: input.tipAmount ?? "0",
       couponUsageByCustomer,
+      // a coupon restricted to specific customers (eligibleEmails/eligiblePhones) is checked against the
+      // account's own email/mobile, not what the form sent
+      customerEmail: orderEmail,
+      customerPhone: orderPhone,
     });
 
     // a signed-in customer's first mobile is stored on the account only now, once the order is valid
