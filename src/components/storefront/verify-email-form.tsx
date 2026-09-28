@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input, FieldError, FieldHint } from '@/components/ui/input';
@@ -14,8 +13,11 @@ const RESEND_COOLDOWN_SECONDS = 60;
 
 /**
  * Reused on the account/sign-up screen and inline at checkout — the same 6-digit code gate either
- * way. Always refreshes the current route on success (so a server component re-reads the verified
- * state); `onVerified` is for a caller that also needs to change what is on screen.
+ * way. No router.refresh() on success: `verifyEmailCodeAction` re-signs the session cookie, and Next
+ * answers a cookie-setting action with the current route freshly rendered (and clears the router
+ * cache), so server components already see the verified state. A refresh on top was a second full
+ * server render, and the sign-in / sign-up callers then navigated and refreshed again (three renders
+ * before the next screen). `onVerified` is for a caller that changes what is on screen or navigates.
  */
 export function VerifyEmailForm({
   restaurantSlug,
@@ -24,10 +26,10 @@ export function VerifyEmailForm({
   restaurantSlug: string;
   onVerified?: () => void;
 }) {
-  const router = useRouter();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [verified, setVerified] = useState(false);
   const [resending, setResending] = useState(false);
   // A code was just sent by the caller before this form ever renders, so the cooldown starts immediately.
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
@@ -46,13 +48,14 @@ export function VerifyEmailForm({
     setWorking(true);
     setError(null);
     const result = await verifyEmailCodeAction(restaurantSlug, { code });
-    setWorking(false);
     if (!result.success) {
+      setWorking(false);
       setError(result.error.message);
       return;
     }
+    // stay "working" while the caller moves on, so the button cannot be pressed again mid-navigation
+    setVerified(true);
     toast.success('Email verified');
-    router.refresh();
     onVerified?.();
   }
 
@@ -85,16 +88,16 @@ export function VerifyEmailForm({
           className='text-center text-lg tracking-[0.5em]'
         />
         <FieldHint>
-          Enter the 6-digit code we emailed you. It expires in 60 seconds.
+          Enter the 6-digit code we emailed you. It expires in 10 minutes.
         </FieldHint>
         <FieldError>{error}</FieldError>
       </div>
       <Button
         type='submit'
         className='w-full'
-        disabled={working || code.length !== 6}
+        disabled={working || verified || code.length !== 6}
       >
-        {working ? 'Verifying…' : 'Verify email'}
+        {verified ? 'Verified' : working ? 'Verifying…' : 'Verify email'}
       </Button>
       <button
         type='button'

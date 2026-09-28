@@ -25,6 +25,13 @@ export interface CustomerSessionPayload extends JWTPayload {
   customerId: string;
   restaurantId: string;
   name: string;
+  /**
+   * Whether the login email was verified when this token was signed. A UI hint only (header, checkout
+   * gate) so a page view never needs the database to know it; re-signed when the customer verifies.
+   * Placing an order re-checks the column inside the order transaction. Absent on tokens signed before
+   * the claim existed — callers then treat it as unknown.
+   */
+  emailVerified?: boolean;
 }
 
 function secret(): Uint8Array {

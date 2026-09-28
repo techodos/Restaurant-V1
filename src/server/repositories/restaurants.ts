@@ -27,12 +27,11 @@ export async function getRestaurantBySlug(
 export async function getRestaurantById(
   id: string,
   ctx: RequestContext = {},
+  /** an already-open transaction (the order transaction) — otherwise this opens its own */
+  tx?: DbClient,
 ): Promise<Restaurant | null> {
-  const row = await getDb({ restaurantId: id }).queryOne<Row>(
-    ctx,
-    `select ${RESTAURANT_COLUMNS} from restaurants where id = $1`,
-    [id],
-  );
+  const sql = `select ${RESTAURANT_COLUMNS} from restaurants where id = $1`;
+  const row = tx ? await tx.queryOne<Row>(sql, [id]) : await getDb({ restaurantId: id }).queryOne<Row>(ctx, sql, [id]);
   return row ? mapRestaurant(row) : null;
 }
 

@@ -1,4 +1,5 @@
 import type {
+  Coupon,
   DeliveryZone,
   MenuCategory,
   MenuItem,
@@ -20,7 +21,8 @@ import type {
  * snapshot keep a consistent view until they drop it.
  *
  * Only public, read-mostly data lives here. Carts, orders, payments,
- * reservations, customers, sessions and coupons stay in PostgreSQL.
+ * reservations, customers and sessions stay in PostgreSQL. Active coupon definitions are held for the
+ * tray's promo-code preview only; the order transaction re-reads the coupon and enforces its limits.
  */
 
 /** A menu item in both shapes the storefront renders. */
@@ -59,9 +61,14 @@ export interface StorefrontSnapshot {
     readonly recent: readonly Review[];
   };
 
+  /** active coupons (preview only; see above) */
+  readonly coupons: readonly Coupon[];
+
   /** lookups the storefront performs on every request */
   readonly index: {
     readonly itemsBySlug: ReadonlyMap<string, StorefrontMenuEntry>;
+    /** tray lines name items by id */
+    readonly itemsById: ReadonlyMap<string, StorefrontMenuEntry>;
     readonly categoriesBySlug: ReadonlyMap<string, MenuCategory>;
   };
 }

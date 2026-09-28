@@ -1,3 +1,4 @@
+import { type DbClient } from "@/server/db/database";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
 import { mapDelivery, mapDeliveryZone, str, type Row } from "@/server/db/mappers";
@@ -10,6 +11,8 @@ export async function listDeliveryZones(
   restaurantId: string,
   ctx: RequestContext = {},
   options: { locationId?: string; activeOnly?: boolean } = {},
+  /** an already-open transaction (the order transaction) — otherwise this opens its own */
+  tx?: DbClient,
 ): Promise<DeliveryZone[]> {
   const params: unknown[] = [restaurantId];
   let where = "restaurant_id = $1";
@@ -18,11 +21,8 @@ export async function listDeliveryZones(
     where += ` and location_id = $${params.length}`;
   }
   if (options.activeOnly) where += " and is_active";
-  const rows = await getDb({ restaurantId }).query<Row>(
-    ctx,
-    `select * from delivery_zones where ${where} order by sort_order, name`,
-    params,
-  );
+  const sql = `select * from delivery_zones where ${where} order by sort_order, name`;
+  const rows = tx ? await tx.query<Row>(sql, params) : await getDb({ restaurantId }).query<Row>(ctx, sql, params);
   return rows.map(mapDeliveryZone);
 }
 

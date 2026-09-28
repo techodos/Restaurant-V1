@@ -63,13 +63,50 @@ export async function getActiveVerificationCode(customerId: string, ctx: Request
   return row ? mapRecord(row) : null;
 }
 
-export async function recordVerificationAttempt(id: string, ctx: RequestContext = {}): Promise<VerificationCodeRecord | null> {
-  const row = await getDb(ctx).write(ctx, (tx) =>
-    tx.queryOne<Row>(`update email_verification_codes set attempts = attempts + 1 where id = $1 returning *`, [id]),
-  );
-  return row ? mapRecord(row) : null;
-}
+export type VerificationAttemptOutcome = "expired" | "locked" | "wrong" | "verified";
 
-export async function consumeVerificationCode(id: string, ctx: RequestContext = {}): Promise<void> {
-  await getDb(ctx).write(ctx, (tx) => tx.query(`update email_verification_codes set consumed_at = now() where id = $1`, [id]));
+/**
+ * The whole "check a code" step in ONE statement (one transaction): find the active code (row-locked,
+ * so two submits cannot both spend the last attempt), count the attempt, consume it when the hash
+ * matches and mark the customer verified. It used to be four transactions (read, count, consume,
+ * mark verified) — ~12 round trips, several seconds on the hosted pooler — and not atomic.
+ * Rules are unchanged: no active code → expired; attempts already at the row's limit → locked (not
+ * counted); otherwise counted, and it matches only when the hash is equal and this attempt is within
+ * `maxAttempts`.
+ */
+export async function attemptVerificationCode(
+  customerId: string,
+  codeHash: string,
+  maxAttempts: number,
+  ctx: RequestContext = {},
+): Promise<VerificationAttemptOutcome> {
+  const row = await getDb(ctx).write(ctx, (tx) =>
+    tx.queryOne<Row>(
+      `with active as (
+         select id, code_hash, attempts, max_attempts
+           from email_verification_codes
+          where customer_id = $1 and consumed_at is null and expires_at > now()
+          order by created_at desc limit 1
+          for update
+       ), attempt as (
+         update email_verification_codes c
+            set attempts = c.attempts + 1,
+                consumed_at = case when a.code_hash = $2 and a.attempts + 1 <= $3 then now() end
+           from active a
+          where c.id = a.id and a.attempts < a.max_attempts
+         returning c.consumed_at is not null as matched
+       ), verified as (
+         update customers set is_email_verified = true
+          where id = $1 and is_email_verified = false and exists (select 1 from attempt where matched)
+         returning id
+       )
+       select exists (select 1 from active) as found,
+              coalesce((select attempts >= max_attempts from active), false) as locked,
+              coalesce((select matched from attempt), false) as matched`,
+      [customerId, codeHash, maxAttempts],
+    ),
+  );
+  if (!row?.found) return "expired";
+  if (row.locked) return "locked";
+  return row.matched ? "verified" : "wrong";
 }

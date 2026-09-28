@@ -630,3 +630,80 @@ the two partial-unique indexes, Google linking-by-email-or-sub).
 ## 27. A second demo restaurant lives in its own `scripts/db/<slug>/` folder with its own seed entry point
 
 The Bella seed (`scripts/db/seed.ts`) is one hard-wired script that deletes and re-inserts Bella and Sakura. Rather than turn it into a multi-tenant loop (risk to the existing seed and its tests), Zaytoun got `scripts/db/zaytoun/seed/seed.ts` (`npm run db:seed:zaytoun`) that owns and replaces only its own tenant, with images and content beside it. Images are copied to `public/images/<slug>` at seed time because Next serves only `/public` and no `/api/media` route exists yet. While verifying it in the browser we found that brand colours were never applied per restaurant (CSS custom-property resolution at `:root`); fixed once in `themeCssVariables` rather than per component. See SKILL.md §18.
+
+## 28. The cart is a browser cookie; placing the order is the only database transaction
+
+**Problem.** Every "add to cart" click was a full database transaction against the hosted Supabase pooler
+(~0.3 s per round trip, 5–7 round trips each), and so were quantity changes, removals, promo codes and
+order-type switches. A first fix (2026-09-27) kept the tray in `localStorage` and wrote it to a database
+cart once, at "Checkout" (`materializeLocalCart`, one transaction, ~9 + 4 statements per line — ~8 s for
+three lines, and it doubled the order when Checkout was clicked twice until that was fixed). Placing the
+order then re-read that cart and ran ~6 more transactions (three of them nested inside the order
+transaction: restaurant, zones, coupon usage), ~60 statements for a three-line order.
+
+**Decision (2026-09-28, at the requester's direction: "the cart does not need to be maintained through
+the db, keep it in the cookie; the only db hit is placing the order").** There is no database cart.
+* The tray lives in a cookie (`rp_tray_<slug>`, compact cookie-safe encoding in `shared/tray.ts`) that the
+  browser writes itself — adding, changing and removing lines makes no request at all. A cookie rather
+  than `localStorage` because the server needs it too: the layout renders the header badge and drawer
+  correctly on the first paint, and `/checkout` and `placeOrderAction` read it directly — nothing has to be
+  "synced" before checkout.
+* Every server-side view of the tray (layout, `/cart`, `/checkout`) is priced from the in-memory
+  storefront snapshot (§19) through the SAME resolver (`domain/menu-selection.ts#resolveMenuSelection`,
+  a rule-for-rule port of `resolveItemSelection`) and the same pricing engine as the order, so preview
+  and charge cannot drift apart in logic. Active coupon definitions joined the snapshot for the promo
+  preview (coupon admin writes invalidate it); usage limits are only ever enforced by the order.
+* `createOrder` is ONE transaction of five round trips for any order: framing (see §29), ONE combined read
+  (restaurant, the customer's row locked, the whole tray's menu, zones, coupon + this phone's usage),
+  the order row, ONE combined write (all lines, add-ons, payment, delivery, coupon usage as
+  data-modifying CTEs), commit. Everything that decides money or permission — restaurant settings,
+  the customer's email verification and saved phone, availability, prices, zones, coupon limits — is
+  read inside it; the cookie contributes ids and quantities only.
+
+**Consequences.**
+* Measured on the hosted DB (rolled back): 5 round trips, < 5 ms of server time, 1.7–2.4 s wall on a
+  steady link (pooler jitter can double it). Before: ~8 s to sync the tray plus ~60 statements to place it.
+* A cookie caps the tray at ~60 plain lines (4 KB); an add that would overflow is refused with a message.
+* A tray is per browser, not per account: it does not follow a customer to another device. Accepted —
+  it never did in practice before either, and re-adding that means a database cart again.
+* The tray cookie is user-controlled and not signed: tampering can only name different menu ids and
+  quantities, which the order re-validates against the database like any other input.
+* Reorder no longer writes anything: it returns the past order's still-orderable lines and the browser
+  adds them to its cookie.
+* `carts`/`cart_items` tables remain (no migration); nothing writes them. `orders.cart_id` is `null`.
+* Response SIZE turned out to dominate on this pooler (4 KB ≈ 1.4 s, 14 KB ≈ 2–5 s vs 0.29 s for a
+  tiny row, with < 5 ms server time), so the order's read selects only the columns it uses
+  (`orderableItemsSql`, `ORDER_RESTAURANT_COLUMNS`) — `mi.*` and whole variant/add-on rows cost 0.7–2.9 s
+  for five items; the trimmed projection is one ordinary round trip. See SKILL.md §6, §20.
+
+## 29. The customer session is trusted for identity; transactions open in one round trip
+
+**Problem.** Sign-in felt slow and so did every signed-in page. `getStorefrontCustomer` →
+`resolveCustomer` ran `getCustomerById` (a full transaction) and was not request-cached, so one
+signed-in page view paid ~4 customer lookups plus a restaurant-by-slug lookup; `signInAction` ran five
+transactions (restaurant ×2, the account, then the account again twice to rebuild the session and read
+its verification). Separately, every transaction spent three sequential round trips (`begin`,
+`set local role`, `set_config`) before its first real statement.
+
+**Decision.**
+* The customer JWT — already HS256-signed by this server — is trusted for identity: it carries
+  `customerId`, `restaurantId`, `name` and now `emailVerified`, and `resolveCustomer` reads only those
+  claims (no database). Claims are re-signed when they change (`refreshCustomerSession` after verifying
+  the email or renaming). Anything that acts on the account reads the row, and placing an order locks
+  and re-checks it (existence at this restaurant, email verification) inside the order transaction.
+* Sign-in = the restaurant from the snapshot + one read + scrypt; sign-up's verification email is sent
+  in `after()`.
+* `Database.transaction` opens with ONE simple-protocol message: `begin; select set_config('role', …,
+  true), set_config('app.…', …)` — `set_config('role', …, true)` is the same GUC as `SET LOCAL ROLE`
+  (PostgREST switches roles this way); multi-statement messages cannot carry bind parameters, so values
+  go through the driver's `escapeLiteral`, and the role name is whitelisted.
+
+**Consequences.**
+* Page views need no database to know who is signed in; the only per-page read left is the
+  active-orders widget for a signed-in visitor (order status changes outside this browser's actions).
+* A stale claim is possible: a deleted account keeps a working header until the cookie expires or they
+  sign out (it can do nothing), and a token signed before the claim existed resolves `emailVerified`
+  as unknown (one read where it matters). Accepted: identity is proven by the signature; permissions
+  that matter are re-checked where they are used.
+* Every transaction in the app is two round trips shorter (framing 3 → 1). Verified on the hosted DB:
+  `current_user` switches to `app_runtime`/`app_service`, quotes and backslashes in the actor survive.

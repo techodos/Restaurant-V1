@@ -16,11 +16,11 @@ import type { CustomerAddress, DeliveryZone, RestaurantLocation } from "@/shared
 import { cn } from "@/shared/utils";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
+import { useLocalCart } from "@/components/storefront/local-cart";
 import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
 import { sortByDistance } from "@/shared/geo";
 import { signInHref } from "@/shared/return-to";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { setLocationAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 
 export interface CheckoutPricing {
   subtotal: string;
@@ -152,6 +152,7 @@ export function CheckoutForm({
   );
   const chosenAddress = savedAddresses.find((address) => address.id === addressChoice) ?? null;
   const router = useRouter();
+  const { clear: clearLocalCart, setLocationId } = useLocalCart();
 
   // "new address" fields are controlled so the map/search picker can fill them in; still hand-editable.
   const [newAddress, setNewAddress] = useState({ addressLine1: "", addressLine2: "", area: "", city: defaultCity, postalCode: "" });
@@ -193,13 +194,13 @@ export function CheckoutForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rankedIds, recommendedId]);
 
-  // Persists the chosen branch on the cart (so delivery-zone matching and the order snapshot use it),
-  // then refreshes the page to re-fetch that branch's delivery zones.
+  // Persists the chosen branch on the tray cookie (so delivery-zone matching and the order use it; there
+  // is no database cart), then refreshes the page to re-price with that branch's delivery zones.
   useEffect(() => {
     if (!selectedLocationId || selectedLocationId === syncedLocationRef.current) return;
     syncedLocationRef.current = selectedLocationId;
-    startBranchSync(async () => {
-      await setLocationAction(restaurantSlug, { locationId: selectedLocationId });
+    startBranchSync(() => {
+      setLocationId(selectedLocationId); // writes the cookie synchronously (local-cart.tsx#commit)
       router.refresh();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -305,6 +306,10 @@ export function CheckoutForm({
           toast.error(result.error.message, { description: "Nothing has been charged." });
           return;
         }
+        // The order is committed in the database either way from here — the browser-held tray (already
+        // written to the real cart at the start of checkout) has done its job.
+        clearLocalCart();
+
         // stays locked while we navigate away — either to the order page, or (an online payment)
         // on to the gateway's own hosted page first
         if (result.data.payment) {

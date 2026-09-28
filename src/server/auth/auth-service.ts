@@ -6,7 +6,6 @@ import type { RequestContext } from "@/server/context";
 import { getDb } from "@/server/db/registry";
 import { mapTeamMember, str, type Row } from "@/server/db/mappers";
 import { getRestaurantBySlug } from "@/server/repositories/restaurants";
-import { getCustomerById } from "@/server/repositories/customers";
 import { hashPassword, verifyPassword } from "./password";
 import {
   SESSION_TTL,
@@ -158,22 +157,26 @@ export interface CustomerSignInResult {
   token: string;
   maxAge: number;
   customerId: string;
+  emailVerified: boolean;
 }
 
+/**
+ * Customer email/password sign-in: ONE database read (the account row, including its verification
+ * state) plus the scrypt check. The restaurant comes from the caller (the storefront snapshot), not a
+ * second lookup, and the verification state travels in the session token so the pages that follow
+ * never have to ask the database who is signed in.
+ */
 export async function signInCustomer(
   email: string,
   password: string,
-  restaurantSlug: string,
+  restaurant: Pick<Restaurant, "id">,
   identifier = "unknown",
 ): Promise<CustomerSignInResult> {
   checkRateLimit({ key: "customer-signin", identifier, limit: 8, windowMs: 5 * 60_000 });
 
-  const restaurant = await getRestaurantBySlug(restaurantSlug);
-  if (!restaurant) throw errors.unauthorized("Invalid email or password.");
-
   const row = await getDb({ restaurantId: restaurant.id }).write({}, async (tx) =>
     tx.queryOne<Row>(
-      `select id, password_hash, full_name from customers
+      `select id, password_hash, full_name, is_email_verified from customers
         where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
       [restaurant.id, email.trim()],
     ),
@@ -182,25 +185,25 @@ export async function signInCustomer(
   const passwordOk = await verifyPassword(password, row?.password_hash ? str(row.password_hash) : null);
   if (!row || !passwordOk) throw errors.unauthorized("Invalid email or password.");
 
+  const emailVerified = Boolean(row.is_email_verified);
   const token = await signCustomerSession({
     sub: str(row.id),
     customerId: str(row.id),
     restaurantId: restaurant.id,
     name: str(row.full_name),
+    emailVerified,
   });
-  return { token, maxAge: SESSION_TTL.customer, customerId: str(row.id) };
+  return { token, maxAge: SESSION_TTL.customer, customerId: str(row.id), emailVerified };
 }
 
 /** Guest accounts can be upgraded to a real login without losing history. */
 export async function createCustomerAccount(
-  input: { restaurantSlug: string; fullName: string; email: string; phone: string; password: string },
+  input: { restaurant: Pick<Restaurant, "id">; fullName: string; email: string; phone: string; password: string },
   identifier = "unknown",
 ): Promise<CustomerSignInResult> {
   checkRateLimit({ key: "customer-signup", identifier, limit: 5, windowMs: 15 * 60_000 });
 
-  const restaurant = await getRestaurantBySlug(input.restaurantSlug);
-  if (!restaurant) throw errors.notFound("Restaurant");
-
+  const { restaurant } = input;
   const hashed = await hashPassword(input.password);
 
   const customerId = await getDb({ restaurantId: restaurant.id }).write({ restaurantId: restaurant.id }, async (tx) => {
@@ -227,38 +230,36 @@ export async function createCustomerAccount(
     customerId,
     restaurantId: restaurant.id,
     name: input.fullName,
+    emailVerified: false,
   });
-  return { token, maxAge: SESSION_TTL.customer, customerId };
+  return { token, maxAge: SESSION_TTL.customer, customerId, emailVerified: false };
 }
 
 export interface StorefrontCustomer {
   customerId: string;
   name: string;
   userId: string;
+  /** from the session token; `null` for a token signed before the claim existed (unknown) */
+  emailVerified: boolean | null;
 }
 
 /**
- * The signed-in customer for a restaurant, or null when the session belongs elsewhere.
- *
- * Looks up by `session.customerId` (already known from the JWT) — `customers`'
- * RLS policy (`customers_self`, 0006) is `id = app.current_customer_id()`, which
- * only `app.current_customer_id` (set from `ctx.customerId`) can satisfy. A bare
- * lookup with no `customerId` in context is RLS-blocked on every row regardless
- * of what it filters on — that bug silently signed every customer back out on
- * their next page load (confirmed 2026-09-23, Google sign-in landing back on
- * /account/sign-in). `StorefrontCustomer.userId` is `customer.id` — since 0021 a
- * customer's login is the `customers` row itself, no separate user id exists;
- * the field name is kept so `getVisitorContext`/checkout/orders callers that
- * read `visitor.userId` as "who's signed in" don't all need touching.
+ * The signed-in customer for a restaurant, or null when the session belongs elsewhere — straight from
+ * the verified session token, with NO database read. This ran `getCustomerById` (a full transaction,
+ * ~1.3 s on the hosted pooler) several times per signed-in page view; the token is HS256-signed by
+ * this server, so its claims are already proof of who signed in. Anything that acts on the account
+ * reads the row itself (RLS-scoped by `customerId`); placing an order locks and re-checks it
+ * (`createOrder`). A deleted account keeps a working header until the cookie expires or they sign out,
+ * but can do nothing with it. `userId` is `customer.id` (0021: the login is the `customers` row).
  */
-export async function resolveCustomer(
-  session: CustomerSessionPayload,
-  restaurantId: string,
-): Promise<StorefrontCustomer | null> {
+export function resolveCustomer(session: CustomerSessionPayload, restaurantId: string): StorefrontCustomer | null {
   if (session.restaurantId !== restaurantId) return null;
-  const customer = await getCustomerById(session.customerId, { customerId: session.customerId, restaurantId });
-  if (!customer || customer.restaurantId !== restaurantId) return null;
-  return { customerId: customer.id, name: customer.fullName, userId: customer.id };
+  return {
+    customerId: session.customerId,
+    name: session.name,
+    userId: session.customerId,
+    emailVerified: typeof session.emailVerified === "boolean" ? session.emailVerified : null,
+  };
 }
 
 export function requestContextFrom(actor: StaffActor | null, extra: Partial<RequestContext> = {}): RequestContext {

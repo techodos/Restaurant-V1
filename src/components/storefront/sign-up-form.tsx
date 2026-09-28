@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -8,16 +8,16 @@ import { Input, Label, FieldError } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { signUpAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
-import { signInHref } from "@/shared/return-to";
+import { afterAuthPath, signInHref } from "@/shared/return-to";
 
 interface SignUpFormProps {
   restaurantSlug: string;
   googleEnabled: boolean;
-  /** Provided when embedded in a modal: called instead of navigating to /account. */
+  /** Provided when embedded in a modal: called instead of navigating away. */
   onAuthenticated?: () => void;
   /** Embedded in a modal next to a "Sign in" tab switch instead of a page link. */
   onSwitchToSignIn?: () => void;
-  /** already-sanitized path to land on after verifying (e.g. checkout); defaults to the account page */
+  /** already-sanitized path to land on after verifying (e.g. checkout); defaults to the storefront home */
   returnTo?: string | null;
 }
 
@@ -31,6 +31,11 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [awaitingCode, setAwaitingCode] = useState(false);
+
+  // load the landing route's code while the customer fills the form and waits for the code
+  useEffect(() => {
+    if (!onAuthenticated) router.prefetch(afterAuthPath(restaurantSlug, returnTo));
+  }, [router, restaurantSlug, returnTo, onAuthenticated]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -54,13 +59,13 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
         <VerifyEmailForm
           restaurantSlug={restaurantSlug}
           onVerified={() => {
+            // no router.refresh(): the verify action re-signed the session cookie, so Next already sent
+            // back a fresh tree and cleared the router cache (see sign-in-form.tsx)
             if (onAuthenticated) {
               onAuthenticated();
-              router.refresh();
               return;
             }
-            router.push(returnTo ?? `/r/${restaurantSlug}`);
-            router.refresh();
+            router.replace(afterAuthPath(restaurantSlug, returnTo));
           }}
         />
       </div>

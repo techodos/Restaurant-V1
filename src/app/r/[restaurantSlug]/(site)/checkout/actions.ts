@@ -6,24 +6,31 @@ import type { ApiResult } from "@/shared/contract/api";
 import { action } from "@/server/errors";
 import { placeOrder, type PlaceOrderResult } from "@/server/services/checkout";
 import { dispatchDueNotifications } from "@/server/services/notifications";
-import { requireRestaurant } from "@/server/services/restaurants";
 import { assertCanPlaceOrder } from "@/server/services/customer-auth";
 import { placeOrderSchema } from "@/server/validation/checkout";
-import { getVisitorContext, setCartCountHint } from "@/web/session";
+import { getVisitorContext } from "@/web/session";
+import { clearTray, readTray, requireStorefront } from "@/web/storefront";
 
 export type { PlaceOrderResult };
 
-/** Checkout for signed-in, email-verified customers: parse input, check the customer, delegate to the checkout service. */
+/**
+ * Checkout for signed-in, email-verified customers — the ONE database transaction of the whole ordering
+ * flow. Restaurant (snapshot), customer (signed session cookie) and tray (its own cookie) cost nothing
+ * to read; `placeOrder` → `createOrder` then re-reads everything that decides money or permission
+ * (restaurant settings, the customer's verification, the menu, zones, coupon) inside that transaction.
+ */
 export async function placeOrderAction(slug: string, payload: unknown): Promise<ApiResult<PlaceOrderResult>> {
   return action(async () => {
     const input = placeOrderSchema.parse(payload);
-    const restaurant = await requireRestaurant(slug);
+    const context = await requireStorefront(slug);
+    const { restaurant } = context;
     const visitor = await getVisitorContext(restaurant.id);
-    // Only signed-in customers with a verified email may order (enforced here, server-side; hiding the
-    // checkout for guests is only UX). See server/services/customer-auth.ts#assertCanPlaceOrder.
-    await assertCanPlaceOrder(visitor);
-    const result = await placeOrder(restaurant, input, visitor);
-    await setCartCountHint(0); // the order consumed the cart
+    // Only signed-in customers may order (enforced here and again in the transaction; hiding the
+    // checkout for guests is only UX). Email verification is checked inside the order transaction.
+    assertCanPlaceOrder(visitor);
+    const tray = await readTray(context);
+    const result = await placeOrder(restaurant, tray, input, visitor);
+    await clearTray(slug); // the order consumed the tray
     revalidatePath(`/r/${slug}`, "layout");
 
     // The order is committed (and its "placed" event queued by the database). No email goes out

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label, FieldError } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { finishGoogleSignupAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { afterAuthPath } from "@/shared/return-to";
 
 /** Last step of a first-time Google sign-in: `customers` requires a phone number Google never gives us. */
 export function GooglePhoneForm({
@@ -27,13 +28,13 @@ export function GooglePhoneForm({
     setWorking(true);
     setError(null);
     const result = await finishGoogleSignupAction({ pendingToken, phone });
-    setWorking(false);
     if (!result.success) {
+      setWorking(false);
       setError(result.error.message);
       return;
     }
-    router.push(returnTo ?? `/r/${restaurantSlug}`);
-    router.refresh();
+    // the action set the session cookie, so Next already refreshed the tree: no router.refresh()
+    router.replace(afterAuthPath(restaurantSlug, returnTo));
   }
 
   return (

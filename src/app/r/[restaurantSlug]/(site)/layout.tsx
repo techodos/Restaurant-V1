@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
-import { getCartCountHint, getVisitorContext } from '@/web/session';
-import { getStorefrontContext, requireStorefront } from '@/web/storefront';
+import { getVisitorContext } from '@/web/session';
+import { getInitialTray, getStorefrontContext, requireStorefront } from '@/web/storefront';
 import { themeCssVariables, fontStack } from '@/web/theme';
 import { SiteHeader } from '@/components/storefront/site-header';
 import { CurrentOrdersWidget } from '@/components/storefront/current-orders-widget';
 import { MobileDock } from '@/components/storefront/mobile-dock';
+import { LocalCartProvider } from '@/components/storefront/local-cart';
 import { resolveImage } from '@/web/media';
 import { SiteFooter } from '@/components/storefront/site-footer';
 import { getCustomerSessionSummary } from './account/actions';
@@ -82,15 +83,16 @@ export default async function StorefrontLayout({
   const context = await requireStorefront(restaurantSlug);
 
   const { restaurant, theme, config, locations, primaryLocation } = context;
-  // Cookie hint kept current by the cart actions: no database read on ordinary page views.
-  const itemCount = await getCartCountHint();
-  // One extra read per page view, unlike the cart badge above: an active order's status changes
-  // from outside any action this browser takes (staff/SQL update the row directly), so there is no
-  // action to keep a cookie hint current with, and the widget must reflect that promptly.
-  const [customer, visitor] = await Promise.all([
+  // Both from cookies, no database: the signed session token and the tray cookie (priced from the
+  // in-memory menu so the header badge and drawer render correctly on the very first paint).
+  const [customer, visitor, initialTray] = await Promise.all([
     getCustomerSessionSummary(restaurantSlug).catch(() => ({ signedIn: false, name: null })),
     getVisitorContext(restaurant.id),
+    getInitialTray(context),
   ]);
+  // The one database read a storefront page view makes, and only for a signed-in visitor: an active
+  // order's status changes from outside anything this browser does (staff update it), so there is no
+  // cookie to keep current and the widget must reflect it promptly.
   const { current: activeOrders } = await getMyOrders(restaurant.id, visitor).catch(() => ({
     signedIn: false,
     current: [],
@@ -116,46 +118,46 @@ export default async function StorefrontLayout({
         Skip to content
       </a>
 
-      <SiteHeader
-        restaurant={{
-          name: restaurant.name,
-          slug: restaurant.slug,
-          logoUrl: resolveImage(restaurant.logoUrl),
-          phone: restaurant.phone,
-          country: restaurant.country,
-        }}
-        config={config}
-        itemCount={itemCount}
-        orderingOpen={
-          restaurant.status === 'active' && restaurant.features.onlineOrdering
-        }
-        customer={customer}
-        googleEnabled={googleAuthAvailable()}
-        googleMapsApiKey={serverConfig.maps?.apiKey ?? null}
-      />
+      <LocalCartProvider restaurantSlug={restaurant.slug} initial={initialTray}>
+        <SiteHeader
+          restaurant={{
+            name: restaurant.name,
+            slug: restaurant.slug,
+            logoUrl: resolveImage(restaurant.logoUrl),
+            phone: restaurant.phone,
+            country: restaurant.country,
+          }}
+          config={config}
+          orderingOpen={
+            restaurant.status === 'active' && restaurant.features.onlineOrdering
+          }
+          customer={customer}
+          googleEnabled={googleAuthAvailable()}
+          googleMapsApiKey={serverConfig.maps?.apiKey ?? null}
+        />
 
-      <main id='main' className='flex-1'>
-        {children}
-      </main>
+        <main id='main' className='flex-1'>
+          {children}
+        </main>
 
-      {modal}
+        {modal}
 
-      <SiteFooter
-        restaurant={restaurant}
-        config={config}
-        locations={locations}
-        primaryLocation={primaryLocation}
-      />
+        <SiteFooter
+          restaurant={restaurant}
+          config={config}
+          locations={locations}
+          primaryLocation={primaryLocation}
+        />
 
-      <CurrentOrdersWidget restaurantSlug={restaurant.slug} count={activeOrders.length} />
-      <MobileDock
-        restaurantSlug={restaurant.slug}
-        itemCount={itemCount}
-        activeOrders={activeOrders.length}
-        showCart={config.navigation.showCart}
-        reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
-        signedIn={Boolean(customer?.signedIn)}
-      />
+        <CurrentOrdersWidget restaurantSlug={restaurant.slug} count={activeOrders.length} />
+        <MobileDock
+          restaurantSlug={restaurant.slug}
+          activeOrders={activeOrders.length}
+          showCart={config.navigation.showCart}
+          reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
+          signedIn={Boolean(customer?.signedIn)}
+        />
+      </LocalCartProvider>
     </div>
   );
 }

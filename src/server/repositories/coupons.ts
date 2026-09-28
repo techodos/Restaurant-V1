@@ -15,6 +15,21 @@ export async function listCoupons(restaurantId: string, ctx: RequestContext = {}
 }
 
 /**
+ * Active, not-yet-expired coupons for the storefront snapshot (cart-page previews only; the order
+ * transaction re-reads the row and enforces usage limits). Privileged read, like every coupon read:
+ * coupons are never readable from the storefront role.
+ */
+export async function listPreviewableCoupons(restaurantId: string): Promise<Coupon[]> {
+  const rows = await getDb({ restaurantId }).write({ restaurantId }, (tx) =>
+    tx.query<Row>(
+      `select * from coupons where restaurant_id = $1 and is_active and (ends_at is null or ends_at > now())`,
+      [restaurantId],
+    ),
+  );
+  return rows.map(mapCoupon);
+}
+
+/**
  * Coupon lookup by code, for a guest or customer applying a promo at the cart/checkout. Coupons are
  * commercial data with no `app_runtime` select policy (RLS only lets staff with `coupons.view` read
  * this table, see `coupons_team_select` in migration 0006) — a plain RLS-scoped read here always

@@ -111,6 +111,7 @@ export function DishDetail({ context, item, orderType, variant }: DishDetailProp
         <ItemCustomizer
           restaurantSlug={restaurant.slug}
           item={item}
+          resolvedImageUrl={image}
           currencySymbol={restaurant.currencySymbol}
           locale={restaurant.locale}
           orderType={orderType}

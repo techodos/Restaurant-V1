@@ -6,10 +6,10 @@ import { CalendarDays, ClipboardList, MapPin, ShoppingBag, User, UtensilsCrossed
 import { cn } from "@/shared/utils";
 import { signInHref } from "@/shared/return-to";
 import { TrayCount } from "./tray-count";
+import { useLocalCart } from "./local-cart";
 
 interface MobileDockProps {
   restaurantSlug: string;
-  itemCount: number;
   activeOrders: number;
   showCart: boolean;
   reservationsEnabled: boolean;
@@ -32,7 +32,8 @@ function hiddenOn(pathname: string, home: string): boolean {
  * is live) or Account, and the Cart, which is the brand-coloured next action and the fly-to-cart target.
  * A floating night capsule, so it reads on paper and on dark sections alike.
  */
-export function MobileDock({ restaurantSlug, itemCount, activeOrders, showCart, reservationsEnabled, signedIn }: MobileDockProps) {
+export function MobileDock({ restaurantSlug, activeOrders, showCart, reservationsEnabled, signedIn }: MobileDockProps) {
+  const { itemCount } = useLocalCart();
   const pathname = usePathname();
   const home = `/r/${restaurantSlug}`;
   if (hiddenOn(pathname, home)) return null;

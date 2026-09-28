@@ -1,23 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
-import { signInAction, ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { signInAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
-import { signInHref } from "@/shared/return-to";
+import { afterAuthPath, signInHref } from "@/shared/return-to";
 
 interface SignInFormProps {
   restaurantSlug: string;
   googleEnabled: boolean;
-  /** Provided when embedded in a modal: called instead of navigating to /account. */
+  /** Provided when embedded in a modal: called instead of navigating away. */
   onAuthenticated?: () => void;
   /** Embedded in a modal next to a "Create account" tab switch instead of a page link. */
   onSwitchToSignUp?: () => void;
-  /** already-sanitized path to land on after signing in (e.g. checkout); defaults to the account page */
+  /** already-sanitized path to land on after signing in (e.g. checkout); defaults to the storefront home */
   returnTo?: string | null;
 }
 
@@ -30,15 +30,24 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
   const [working, setWorking] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
 
+  const destination = afterAuthPath(restaurantSlug, returnTo);
+
+  // load the landing route's code while the customer types, so the hop after signing in is only data
+  useEffect(() => {
+    if (!onAuthenticated) router.prefetch(destination);
+  }, [router, destination, onAuthenticated]);
+
+  // No router.refresh(): the sign-in / verify actions set the session cookie, and Next answers such an
+  // action with a freshly rendered tree (header now signed in) and clears the client router cache, so a
+  // refresh here was one more full server render before the customer could see anything.
   function finish() {
     toast.success("Signed in");
     if (onAuthenticated) {
       onAuthenticated();
-      router.refresh();
       return;
     }
-    router.push(returnTo ?? `/r/${restaurantSlug}`);
-    router.refresh();
+    // replace: Back must not return to a sign-in form for someone already signed in
+    router.replace(destination);
   }
 
   async function onSubmit(event: React.FormEvent) {
@@ -46,14 +55,15 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
     setWorking(true);
     setError(null);
     const result = await signInAction(restaurantSlug, { email, password });
-    setWorking(false);
     if (!result.success) {
+      setWorking(false);
       setError(result.error.message);
       return;
     }
     if (!result.data.emailVerified) {
+      // the action already sent the code (after its response)
+      setWorking(false);
       setNeedsVerification(true);
-      void ensureVerificationCodeAction(restaurantSlug);
       return;
     }
     finish();

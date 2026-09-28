@@ -3,6 +3,7 @@ import { errors } from "@/server/errors";
 import {
   deleteAddress,
   getCustomerById,
+  getCustomerWithAddresses,
   listAddresses,
   saveAddress,
   updateAddress,
@@ -25,6 +26,8 @@ export interface CustomerProfile {
   dateOfBirth: string | null;
   /** from the account itself (customers.auth_provider), never guessed from the email */
   authProvider: "google" | "password";
+  /** the login email is verified (checkout gate) — read with the profile, no second query */
+  emailVerified: boolean;
   addresses: CustomerAddress[];
 }
 
@@ -43,6 +46,7 @@ function toProfile(customer: Customer, addresses: CustomerAddress[]): CustomerPr
     gender: customer.gender ?? null,
     dateOfBirth: customer.dateOfBirth ?? null,
     authProvider: customer.authProvider === "google" ? "google" : "password",
+    emailVerified: customer.emailVerified,
     addresses,
   };
 }
@@ -55,9 +59,9 @@ async function loadCustomer(restaurant: Pick<Restaurant, "id">, customerId: stri
 
 export async function getCustomerProfile(restaurant: Pick<Restaurant, "id">, visitor: Visitor): Promise<CustomerProfile> {
   const customerId = requireCustomerId(visitor);
-  const ctx = { restaurantId: restaurant.id, customerId };
-  const [customer, addresses] = await Promise.all([loadCustomer(restaurant, customerId), listAddresses(customerId, ctx)]);
-  return toProfile(customer, addresses);
+  const found = await getCustomerWithAddresses(customerId, { restaurantId: restaurant.id, customerId });
+  if (!found || found.customer.restaurantId !== restaurant.id) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again.");
+  return toProfile(found.customer, found.addresses);
 }
 
 export async function updateCustomerProfile(

@@ -21,19 +21,17 @@ import { buildGoogleAuthUrl, resolveGoogleIdentity } from "@/server/integrations
 import { getEmailProvider } from "@/server/services/notifications";
 import { renderVerificationCodeEmail } from "@/server/notifications/templates/email-verification";
 import {
-  consumeVerificationCode,
+  attemptVerificationCode,
   createVerificationCode,
   getActiveVerificationCode,
-  recordVerificationAttempt,
 } from "@/server/repositories/email-verification";
 import {
   getCustomerById,
   getCustomerByGoogleSubOrEmail,
-  markCustomerEmailVerified,
   linkGoogleToCustomer,
   createGoogleCustomer,
 } from "@/server/repositories/customers";
-import { getRestaurantBySlug } from "@/server/repositories/restaurants";
+import type { Restaurant } from "@/shared/contract/models";
 import type { SignInInput, SignUpInput } from "@/server/validation/customer-auth";
 
 /**
@@ -45,15 +43,15 @@ import type { SignInInput, SignUpInput } from "@/server/validation/customer-auth
 const CODE_TTL_MINUTES = 10;
 const MAX_CODE_ATTEMPTS = 5;
 
-export async function signUpCustomer(restaurantSlug: string, input: SignUpInput, identifier: string): Promise<CustomerSignInResult> {
+export async function signUpCustomer(restaurant: Pick<Restaurant, "id">, input: SignUpInput, identifier: string): Promise<CustomerSignInResult> {
   return createCustomerAccount(
-    { restaurantSlug, fullName: input.fullName, email: input.email, phone: input.phone, password: input.password },
+    { restaurant, fullName: input.fullName, email: input.email, phone: input.phone, password: input.password },
     identifier,
   );
 }
 
-export async function signInCustomerAccount(restaurantSlug: string, input: SignInInput, identifier: string): Promise<CustomerSignInResult> {
-  return signInCustomer(input.email, input.password, restaurantSlug, identifier);
+export async function signInCustomerAccount(restaurant: Pick<Restaurant, "id">, input: SignInInput, identifier: string): Promise<CustomerSignInResult> {
+  return signInCustomer(input.email, input.password, restaurant, identifier);
 }
 
 // ── Email verification (checkout gate) ──────────────────────────────────────
@@ -64,22 +62,13 @@ function hashCode(code: string): string {
 
 /**
  * Who may place an order: a signed-in customer (a customer session for this restaurant) whose login
- * email is verified. Guests are refused with SIGN_IN_REQUIRED, unverified customers with
- * EMAIL_NOT_VERIFIED (the checkout form turns that code into the inline verify-code step). This is the
- * authoritative check; hiding the checkout button for guests is only UX.
+ * email is verified. Guests are refused here with SIGN_IN_REQUIRED (no database needed). The email
+ * check is authoritative inside the order transaction itself (`createOrder`, `requireVerifiedEmail`),
+ * which refuses with EMAIL_NOT_VERIFIED — the checkout form turns that code into the inline
+ * verify-code step. Hiding the checkout button for guests is only UX.
  */
-export async function assertCanPlaceOrder(visitor: Pick<RequestContext, "userId" | "customerId">): Promise<void> {
-  const customerId = visitor.userId ?? null;
-  if (!customerId) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in to place an order.");
-  if (!(await isEmailVerified(customerId))) {
-    throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
-  }
-}
-
-/** True once the signed-in customer's login email is verified. */
-export async function isEmailVerified(customerId: string): Promise<boolean> {
-  const customer = await getCustomerById(customerId, { customerId });
-  return customer?.emailVerified ?? false;
+export function assertCanPlaceOrder(visitor: Pick<RequestContext, "userId" | "customerId">): void {
+  if (!visitor.customerId) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in to place an order.");
 }
 
 export async function getCustomerUser(customerId: string) {
@@ -87,11 +76,15 @@ export async function getCustomerUser(customerId: string) {
 }
 
 /** Sends a fresh 6-digit code, replacing any still-active one for this customer (rate-limited). */
-export async function sendVerificationCode(customerId: string, email: string, identifier: string, restaurantSlug: string): Promise<void> {
+export async function sendVerificationCode(
+  customerId: string,
+  email: string,
+  identifier: string,
+  restaurant: Pick<Restaurant, "name" | "logoUrl" | "primaryColor" | "email" | "phone"> | null,
+): Promise<void> {
   checkRateLimit({ key: "email-verify-send", identifier: customerId, limit: 3, windowMs: 5 * 60_000 });
   checkRateLimit({ key: "email-verify-send-ip", identifier, limit: 8, windowMs: 15 * 60_000 });
 
-  const restaurant = await getRestaurantBySlug(restaurantSlug).catch(() => null);
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await createVerificationCode({
     customerId,
@@ -125,23 +118,23 @@ export async function sendVerificationCode(customerId: string, email: string, id
 }
 
 /** Sends a code only when there is no still-active one, so opening the checkout gate never spams a fresh code on every render. */
-export async function ensureVerificationCode(customerId: string, email: string, identifier: string, restaurantSlug: string): Promise<void> {
+export async function ensureVerificationCode(
+  customerId: string,
+  email: string,
+  identifier: string,
+  restaurant: Parameters<typeof sendVerificationCode>[3],
+): Promise<void> {
   const active = await getActiveVerificationCode(customerId);
   if (active) return;
-  await sendVerificationCode(customerId, email, identifier, restaurantSlug);
+  await sendVerificationCode(customerId, email, identifier, restaurant);
 }
 
+/** One transaction: check, count, consume and mark verified together (`attemptVerificationCode`). */
 export async function verifyEmailCode(customerId: string, code: string): Promise<void> {
-  const active = await getActiveVerificationCode(customerId);
-  if (!active) throw errors.validation("That code has expired. Request a new one.");
-  if (active.attempts >= active.maxAttempts) throw errors.validation("Too many attempts. Request a new code.");
-
-  await recordVerificationAttempt(active.id);
-  if (active.attempts + 1 > MAX_CODE_ATTEMPTS || hashCode(code) !== active.codeHash) {
-    throw errors.validation("That code is not correct.");
-  }
-  await consumeVerificationCode(active.id);
-  await markCustomerEmailVerified(customerId);
+  const outcome = await attemptVerificationCode(customerId, hashCode(code), MAX_CODE_ATTEMPTS);
+  if (outcome === "expired") throw errors.validation("That code has expired. Request a new one.");
+  if (outcome === "locked") throw errors.validation("Too many attempts. Request a new code.");
+  if (outcome === "wrong") throw errors.validation("That code is not correct.");
 }
 
 // ── Google sign-in ───────────────────────────────────────────────────────────
@@ -166,22 +159,26 @@ export type GoogleAuthResult =
  * throughout (0021: a customer's login lives on `customers` directly, one row per
  * restaurant, so there's no separate cross-restaurant identity to resolve first).
  */
-export async function completeGoogleAuth(restaurantSlug: string, code: string, redirectUri: string): Promise<GoogleAuthResult> {
+export async function completeGoogleAuth(restaurant: Pick<Restaurant, "id">, code: string, redirectUri: string): Promise<GoogleAuthResult> {
   const google = config.googleAuth;
   if (!google) throw errors.validation("Google sign-in is not configured.");
 
   const identity = await resolveGoogleIdentity({ ...google, code, redirectUri });
   if (!identity.emailVerified) throw errors.validation("Your Google account's email is not verified.");
 
-  const restaurant = await getRestaurantBySlug(restaurantSlug);
-  if (!restaurant) throw errors.notFound("Restaurant");
-
   const existing = await getCustomerByGoogleSubOrEmail(restaurant.id, identity.sub, identity.email, { restaurantId: restaurant.id });
   if (existing) {
     if (!existing.authProvider.includes("google")) {
       await linkGoogleToCustomer(existing.id, identity.sub, { restaurantId: restaurant.id, customerId: existing.id });
     }
-    const token = await signCustomerSession({ sub: existing.id, customerId: existing.id, restaurantId: restaurant.id, name: identity.name });
+    // Google verified this email (checked above) and linking stores it as verified (linkGoogleToCustomer)
+    const token = await signCustomerSession({
+      sub: existing.id,
+      customerId: existing.id,
+      restaurantId: restaurant.id,
+      name: identity.name,
+      emailVerified: true,
+    });
     return { status: "signed-in", token, maxAge: SESSION_TTL.customer, customerId: existing.id };
   }
 
@@ -210,14 +207,28 @@ export async function finishGoogleSignup(pendingToken: string, phone: string): P
     customerId,
     restaurantId: grant.restaurantId,
     name: grant.name,
+    emailVerified: true, // createGoogleCustomer stores the Google-verified email as verified
   });
-  return { token, maxAge: SESSION_TTL.customer, customerId };
+  return { token, maxAge: SESSION_TTL.customer, customerId, emailVerified: true };
 }
 
-export async function currentCustomerUserId(session: CustomerSessionPayload | null, restaurantId: string): Promise<string | null> {
+export function currentCustomerUserId(session: CustomerSessionPayload | null, restaurantId: string): string | null {
   if (!session) return null;
-  const customer = await resolveCustomer(session, restaurantId);
-  return customer?.userId ?? null;
+  return resolveCustomer(session, restaurantId)?.userId ?? null;
+}
+
+/** A fresh session token for an already signed-in customer, with updated claims (email verified, new name). */
+export function reissueCustomerSession(
+  session: CustomerSessionPayload,
+  patch: Partial<Pick<CustomerSessionPayload, "name" | "emailVerified">>,
+): Promise<string> {
+  return signCustomerSession({
+    sub: session.sub,
+    customerId: session.customerId,
+    restaurantId: session.restaurantId,
+    name: patch.name ?? session.name,
+    ...(patch.emailVerified !== undefined ? { emailVerified: patch.emailVerified } : session.emailVerified !== undefined ? { emailVerified: session.emailVerified } : {}),
+  });
 }
 
 export { verifyCustomerSession };

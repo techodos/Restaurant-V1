@@ -1,7 +1,7 @@
 import { jsonError } from "@/server/errors";
 import { openOrderStream, orderEventsEnabled, type OrderStream } from "@/server/services/order-events";
-import { requireRestaurant } from "@/server/services/restaurants";
 import { getVisitorContext } from "@/web/session";
+import { requireStorefrontRestaurant } from "@/web/storefront";
 
 /**
  * Server-Sent Events for one order: `GET /r/<slug>/order/<number>/events[?t=<email link token>]`.
@@ -39,7 +39,7 @@ export async function GET(
     }
     const { restaurantSlug, orderNumber } = await params;
     const accessToken = new URL(request.url).searchParams.get("t");
-    const restaurant = await requireRestaurant(restaurantSlug);
+    const restaurant = await requireStorefrontRestaurant(restaurantSlug); // snapshot: no database read
     const visitor = await getVisitorContext(restaurant.id);
 
     const encoder = new TextEncoder();

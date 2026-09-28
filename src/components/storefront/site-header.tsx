@@ -11,12 +11,12 @@ import { signInHref } from "@/shared/return-to";
 import { Sheet } from "@/components/motion/sheet";
 import { TrayCount } from "./tray-count";
 import { ProfileDrawer } from "./profile-drawer";
+import { useLocalCart } from "./local-cart";
 import { isSupportedCountry } from "libphonenumber-js";
 
 interface SiteHeaderProps {
   restaurant: { name: string; slug: string; logoUrl: string | null; phone: string | null; country: string };
   config: WebsiteConfig;
-  itemCount: number;
   orderingOpen: boolean;
   /** null while no customer sign-in system was reachable (never blocks rendering). */
   customer: { signedIn: boolean; name: string | null } | null;
@@ -82,7 +82,8 @@ const HERO_SELECTOR = "main [data-hero-overlay]";
  * action on the right is the account pill: "Sign In / Sign Up", or the customer's initial and name once
  * signed in (the menu itself is in the navigation, so there is no separate order button).
  */
-export function SiteHeader({ restaurant, config, itemCount, orderingOpen, customer, googleMapsApiKey }: SiteHeaderProps) {
+export function SiteHeader({ restaurant, config, orderingOpen, customer, googleMapsApiKey }: SiteHeaderProps) {
+  const { itemCount } = useLocalCart();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const signedIn = Boolean(customer?.signedIn);

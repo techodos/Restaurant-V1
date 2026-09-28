@@ -5,12 +5,13 @@ import { errors } from "@/server/errors";
 import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
-import { getRestaurantById } from "./restaurants";
-import { listDeliveryZones, matchDeliveryZone } from "./deliveries";
-import { countCouponUsageByPhone, toCouponPricing } from "./coupons";
-import { attachAccountCustomer, upsertCustomer } from "./customers";
-import { resolveItemSelection } from "./carts";
-import { mapCustomer, mapDelivery, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, textArray, type Row } from "@/server/db/mappers";
+import { randomUUID } from "node:crypto";
+import { matchDeliveryZone } from "./deliveries";
+import { toCouponPricing } from "./coupons";
+import { upsertCustomer } from "./customers";
+import { mapOrderableItems, orderableItemsSql } from "./menu";
+import { resolveMenuSelection } from "@/server/domain/menu-selection";
+import { mapCoupon, mapCustomer, mapDelivery, mapDeliveryZone, mapRestaurant, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, type Row } from "@/server/db/mappers";
 import { type DbClient } from "@/server/db/database";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
@@ -21,9 +22,19 @@ import { type RequestContext } from "@/server/context";
  * database inside this transaction — nothing from the browser is trusted.
  */
 
+export interface CreateOrderLine {
+  menuItemId: string;
+  variantId: string | null;
+  quantity: number;
+  addons: { addonId: string; quantity: number }[];
+  specialInstructions?: string | null;
+}
+
 export interface CreateOrderInput {
   restaurantId: string;
-  cartId: string;
+  /** the tray's lines (browser cookie) — only ids and quantities; every price is re-resolved here */
+  lines: CreateOrderLine[];
+  locationId?: string | null;
   orderType: OrderType;
   customer: { fullName: string; phone: string; email?: string | null; marketingOptIn?: boolean };
   address?: {
@@ -48,11 +59,13 @@ export interface CreateOrderInput {
   customerId?: string | null;
   /**
    * The signed-in customer's own row: the order is linked to it directly (no phone lookup). When
-   * `saveAccountPhone` is set the account had no mobile yet and `customer.phone` is stored on it in the
+   * `saveAccountPhone` is set and the account has no mobile yet, `customer.phone` is stored on it in the
    * same transaction, so it is saved only if the order commits.
    */
   accountCustomerId?: string | null;
   saveAccountPhone?: boolean;
+  /** refuse the order (EMAIL_NOT_VERIFIED) unless the account's login email is verified — read in this transaction */
+  requireVerifiedEmail?: boolean;
   userId?: string | null;
   actor?: string | null;
 }
@@ -61,8 +74,58 @@ export interface CreateOrderResult {
   order: Order;
   paymentId: string;
   requiresOnlinePayment: boolean;
+  /** the customer row the order was linked to (its saved phone/email are the order's) */
+  customer: Customer;
 }
 
+/**
+ * Stores a first mobile on the signed-in customer's already-locked row, in one statement: refused with
+ * a CONFLICT (not a raw unique violation) when another customer of this restaurant already has it.
+ */
+async function saveFirstAccountPhone(tx: DbClient, restaurantId: string, customerId: string, phone: string): Promise<Customer> {
+  const updated = await tx.queryOne<Row>(
+    `update customers set phone = $2, updated_at = now()
+      where id = $1 and not exists (select 1 from customers where restaurant_id = $3 and phone = $2 and id <> $1)
+      returning *`,
+    [customerId, phone, restaurantId],
+  );
+  if (!updated) {
+    throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
+  }
+  return mapCustomer(updated);
+}
+
+/**
+ * Only what an order is decided from — on the hosted pooler a response's time grows with its size, and
+ * the full rows (SEO, social, theme and customer metadata JSON) are dead weight here.
+ */
+const ORDER_RESTAURANT_COLUMNS = "id, name, slug, status, currency, currency_symbol, locale, timezone, country, features, settings";
+const ORDER_CUSTOMER_COLUMNS = "id, restaurant_id, full_name, phone, email, is_email_verified, is_guest, auth_provider, created_at";
+
+/** `($1,$2,…),($n,…)` placeholders for a multi-row insert of `rows` × `width` parameters, starting after `offset`. */
+function valuesList(rows: number, width: number, casts: Record<number, string> = {}, offset = 0): string {
+  return Array.from(
+    { length: rows },
+    (_, row) => `(${Array.from({ length: width }, (_, col) => `$${offset + row * width + col + 1}${casts[col] ?? ""}`).join(",")})`,
+  ).join(",");
+}
+
+/**
+ * Places an order in ONE privileged transaction — the only database work in the whole ordering flow
+ * (the tray itself lives in a browser cookie, DECISIONS.md §28). Every price, availability flag,
+ * delivery zone, coupon rule and the customer's email verification is re-derived from the database
+ * inside this transaction; nothing from the browser is trusted but ids and quantities.
+ *
+ * Five round trips for any order, whatever its size, type or coupon (measured on the hosted pooler,
+ * where each is ~0.3 s and the server spends < 5 ms on all of them — see SKILL.md §20):
+ *   1. begin + role + request context (one message, `Database.transaction`)
+ *   2. ONE read: restaurant, the customer's row (locked), the whole tray's menu, [zones], [coupon + this
+ *      phone's usage]
+ *   3. insert the order (its triggers assign the number, history, outbox event, live-tracking notify)
+ *   4. ONE write: every line, every add-on, the payment, [the delivery], [coupon usage]
+ *   5. commit
+ * (+1 only on a customer's very first order without a saved mobile, to store it on the account.)
+ */
 export async function createOrder(input: CreateOrderInput, ctx: RequestContext): Promise<CreateOrderResult> {
   const db = getDb({ restaurantId: input.restaurantId });
   // A customer is identified by customer_id only. `userId` (the database session's app.current_user_id /
@@ -77,9 +140,41 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     actor: input.actor ?? input.customer.fullName,
   };
 
+  if (input.lines.length === 0) throw errors.custom("CART_EMPTY", "Your cart is empty.");
+
   return db.write(context, async (tx) => {
-    // 1 ─ restaurant + configuration ----------------------------------------
-    const restaurant = await getRestaurantById(input.restaurantId, context);
+    // 1 ─ everything the order is decided from, in one statement ------------------------------------
+    const read = await tx.queryOne<Row>(
+      `select
+         (select row_to_json(r) from (select ${ORDER_RESTAURANT_COLUMNS} from restaurants where id = $1) r) as restaurant,
+         (select row_to_json(c) from (select ${ORDER_CUSTOMER_COLUMNS} from customers
+                                        where id = $2 and restaurant_id = $1 for update) c) as customer,
+         (select coalesce(json_agg(m), '[]') from (${orderableItemsSql("$1", "$3")}) m) as menu,
+         case when $4::boolean then
+           (select coalesce(json_agg(z order by z.sort_order, z.name), '[]') from delivery_zones z
+             where z.restaurant_id = $1 and z.is_active and ($5::uuid is null or z.location_id = $5))
+         end as zones,
+         case when $6::text is not null then
+           (select row_to_json(x) from (
+              select c.*, (select count(*) from orders o
+                            where o.restaurant_id = c.restaurant_id and o.coupon_id = c.id and o.status <> 'cancelled'
+                              and o.customer_phone = coalesce(nullif(trim((select phone from customers where id = $2)), ''), $7)
+                          )::int as phone_usage
+                from coupons c where c.restaurant_id = $1 and c.code = upper(trim($6))) x)
+         end as coupon`,
+      [
+        input.restaurantId,
+        input.accountCustomerId ?? null,
+        [...new Set(input.lines.map((line) => line.menuItemId))],
+        input.orderType === "delivery",
+        input.locationId ?? null,
+        input.couponCode || null,
+        input.customer.phone,
+      ],
+    );
+
+    // restaurant + configuration (this transaction's own read, never a cached copy)
+    const restaurant = read?.restaurant ? mapRestaurant(read.restaurant as Row) : null;
     if (!restaurant) throw errors.notFound("Restaurant");
     if (restaurant.status !== "active") throw errors.custom("ORDERING_DISABLED", "This restaurant is not accepting orders right now.");
     if (!restaurant.features.onlineOrdering) {
@@ -102,98 +197,72 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     }
     const requiresOnlinePayment = input.paymentMethod === "card_online" || input.paymentMethod === "wallet";
 
-    // 2 ─ cart --------------------------------------------------------------
-    const cartRow = await tx.queryOne<Row>(
-      // `for update` serialises a double-submit: the second request waits, then finds the cart already converted
-      `select * from carts where id = $1 and restaurant_id = $2 and status = 'active' for update`,
-      [input.cartId, input.restaurantId],
-    );
-    if (!cartRow) throw errors.custom("CART_EXPIRED", "Your cart has expired. Please start again.");
-    const cartId = str(cartRow.id);
-
-    const cartItemRows = await tx.query<Row>(`select * from cart_items where cart_id = $1 order by created_at`, [cartId]);
-    if (cartItemRows.length === 0) throw errors.custom("CART_EMPTY", "Your cart is empty.");
-
-    // Final commit-time check: a buffet package (priced per head) is a dine-in booking. The cart
-    // already blocks adding one outside dine-in and blocks switching away from dine-in with one in
-    // the tray (services/cart.ts), but this is the actual point an order gets written, so it is the
-    // one place that can never be bypassed by a stale form submission.
-    if (input.orderType !== "dine_in") {
-      const buffetLine = await tx.queryOne<Row>(
-        `select 1 from cart_items ci join menu_items mi on mi.id = ci.menu_item_id
-          where ci.cart_id = $1 and mi.is_buffet_package limit 1`,
-        [cartId],
-      );
-      if (buffetLine) {
-        throw errors.custom("BUFFET_REQUIRES_DINE_IN", "A dine-in buffet in your tray can only be ordered as Dine-in.");
+    // customer: the signed-in account's own row (now locked). Its verification and saved mobile/email
+    // are read here, never trusted from the session; a guest (no account) is upserted by phone.
+    let customer: Customer;
+    if (input.accountCustomerId) {
+      if (!read?.customer) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
+      const accountRow = read.customer as Row;
+      if (input.requireVerifiedEmail && !accountRow.is_email_verified) {
+        throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
       }
-    }
-
-    // 3 ─ re-validate every line against the live menu ----------------------
-    const resolvedLines: {
-      cartItemId: string;
-      itemId: string;
-      variantId: string | null;
-      itemName: string;
-      variantName: string | null;
-      unitPrice: string;
-      addonsTotal: string;
-      quantity: number;
-      specialInstructions: string | null;
-      addons: { addonId: string; groupName: string; name: string; price: string; quantity: number }[];
-      prepTimeMinutes: number;
-    }[] = [];
-
-    let maxPrepTime = settings.ordering.preparationTimeMinutes;
-
-    for (const cartItem of cartItemRows) {
-      const addonRows = await tx.query<Row>(`select * from cart_item_addons where cart_item_id = $1`, [str(cartItem.id)]);
-      const resolved = await resolveItemSelection(
-        tx,
-        input.restaurantId,
-        restaurant.timezone,
+      customer = mapCustomer(accountRow);
+    } else {
+      customer = await upsertCustomer(
         {
-          menuItemId: str(cartItem.menu_item_id),
-          variantId: cartItem.variant_id ? str(cartItem.variant_id) : null,
-          quantity: num(cartItem.quantity, 1),
-          addons: addonRows.map((row) => ({ addonId: str(row.menu_addon_id), quantity: num(row.quantity, 1) })),
+          restaurantId: input.restaurantId,
+          fullName: input.customer.fullName,
+          phone: input.customer.phone,
+          email: input.customer.email ?? null,
+          marketingOptIn: input.customer.marketingOptIn ?? false,
+          isGuest: !input.userId,
         },
+        context,
+        tx,
       );
+    }
+    const hasSavedPhone = Boolean(customer.phone.trim());
+    // the account's own saved mobile/email win over what the form sent
+    const orderPhone = hasSavedPhone ? customer.phone : input.customer.phone;
+    const orderEmail = customer.email || input.customer.email || null;
+
+    // re-validate every line against the live menu -----------------------------------------------
+    const menu = mapOrderableItems((read?.menu as Row[] | undefined) ?? []);
+    const now = new Date();
+    let maxPrepTime = settings.ordering.preparationTimeMinutes;
+    const resolvedLines = input.lines.map((line) => {
+      const resolved = resolveMenuSelection(menu.get(line.menuItemId), line, restaurant.timezone, now);
       maxPrepTime = Math.max(maxPrepTime, resolved.item.prepTimeMinutes);
-      resolvedLines.push({
-        cartItemId: str(cartItem.id),
+      return {
+        id: randomUUID(), // generated here so add-on rows can reference their line within one batched insert
         itemId: resolved.item.id,
         variantId: resolved.variant?.id ?? null,
         itemName: resolved.item.name,
         variantName: resolved.variant?.name ?? null,
         unitPrice: resolved.unitPrice,
         addonsTotal: resolved.addonsTotal,
-        quantity: Math.max(1, num(cartItem.quantity, 1)),
-        specialInstructions: cartItem.special_instructions ? str(cartItem.special_instructions) : null,
-        addons: resolved.addons.map((addon) => ({
-          addonId: addon.addonId,
-          groupName: addon.groupName,
-          name: addon.name,
-          price: addon.price,
-          quantity: addon.quantity,
-        })),
-        prepTimeMinutes: resolved.item.prepTimeMinutes,
-      });
+        quantity: Math.min(Math.max(1, Math.trunc(line.quantity) || 1), 99),
+        specialInstructions: line.specialInstructions?.slice(0, 300) || null,
+        addons: resolved.addons,
+        isBuffetPackage: resolved.item.isBuffetPackage,
+      };
+    });
+    // A buffet package (priced per head) is a dine-in booking. The tray already flags it outside dine-in
+    // (services/cart.ts#priceTray); this is where an order is written, so it cannot be bypassed here.
+    if (input.orderType !== "dine_in" && resolvedLines.some((line) => line.isBuffetPackage)) {
+      throw errors.custom("BUFFET_REQUIRES_DINE_IN", "A dine-in buffet in your tray can only be ordered as Dine-in.");
     }
 
-    // 4 ─ delivery zone -----------------------------------------------------
+    // delivery zone -----------------------------------------------------------------------------
     let zone: ZonePricing | null = null;
     let zoneRecord: DeliveryZone | null = null;
     if (input.orderType === "delivery") {
       if (!input.address?.line1) {
         throw new PricingError("DELIVERY_ZONE_REQUIRED", "A delivery address is required.");
       }
-      const zones = await listDeliveryZones(input.restaurantId, context, {
-        locationId: cartRow.location_id ? str(cartRow.location_id) : undefined,
-        activeOnly: true,
-      });
+      const zones = ((read?.zones as Row[] | null) ?? []).map(mapDeliveryZone);
       zoneRecord = input.deliveryZoneId
-        ? zones.find((candidate) => candidate.id === input.deliveryZoneId) ?? null
+        ? (zones.find((candidate) => candidate.id === input.deliveryZoneId) ?? null)
         : matchDeliveryZone(zones, {
             area: input.address.area ?? null,
             city: input.address.city ?? null,
@@ -211,77 +280,37 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
       };
     }
 
-    // 5 ─ coupon ------------------------------------------------------------
-    const requestedCouponCode = input.couponCode ?? (cartRow.coupon_code ? str(cartRow.coupon_code) : null);
+    // coupon (with this phone's past usage, read in the same statement) ---------------------------
     let coupon = null;
-    if (requestedCouponCode) {
-      const row = await tx.queryOne<Row>(
-        `select * from coupons where restaurant_id = $1 and code = upper(trim($2))`,
-        [input.restaurantId, requestedCouponCode],
-      );
+    let couponUsageByCustomer = 0;
+    if (input.couponCode) {
+      const row = read?.coupon as Row | null | undefined;
       if (!row) throw new PricingError("COUPON_INVALID", "That promo code is not valid.");
-      const mapped = {
-        id: str(row.id),
-        restaurantId: str(row.restaurant_id),
-        code: str(row.code),
-        description: row.description ? str(row.description) : null,
-        discountType: str(row.discount_type) as "percentage" | "fixed",
-        discountValue: toMoney(str(row.discount_value)),
-        minOrderAmount: toMoney(str(row.min_order_amount)),
-        maxDiscountAmount: row.max_discount_amount ? toMoney(str(row.max_discount_amount)) : null,
-        appliesTo: str(row.applies_to) === "delivery_fee" ? ("delivery_fee" as const) : ("order" as const),
-        orderTypes: (Array.isArray(row.order_types) ? row.order_types : []).map((entry) => str(entry) as OrderType),
-        startsAt: row.starts_at ? new Date(String(row.starts_at)).toISOString() : null,
-        endsAt: row.ends_at ? new Date(String(row.ends_at)).toISOString() : null,
-        usageLimit: row.usage_limit === null || row.usage_limit === undefined ? null : num(row.usage_limit),
-        usageLimitPerCustomer:
-          row.usage_limit_per_customer === null || row.usage_limit_per_customer === undefined
-            ? null
-            : num(row.usage_limit_per_customer),
-        usedCount: num(row.used_count),
-        isActive: Boolean(row.is_active),
-        eligibleEmails: textArray(row.eligible_emails),
-        eligiblePhones: textArray(row.eligible_phones),
-      };
-      coupon = toCouponPricing(mapped);
+      coupon = toCouponPricing(mapCoupon(row));
+      couponUsageByCustomer = num(row.phone_usage);
     }
 
-    // 6 ─ pricing (authoritative) ------------------------------------------
+    // pricing (authoritative) ---------------------------------------------------------------------
     const pricing = calculatePricing({
-      lines: resolvedLines.map((line) => ({
-        unitPrice: line.unitPrice,
-        addonsTotal: line.addonsTotal,
-        quantity: line.quantity,
-      })),
+      lines: resolvedLines.map((line) => ({ unitPrice: line.unitPrice, addonsTotal: line.addonsTotal, quantity: line.quantity })),
       orderType: input.orderType,
       settings,
       zone,
       coupon,
       tipAmount: input.tipAmount ?? "0",
-      couponUsageByCustomer: coupon
-        ? await countCouponUsageByPhone(input.restaurantId, coupon.id, input.customer.phone, context)
-        : 0,
-      customerEmail: input.customer.email ?? null,
-      customerPhone: input.customer.phone,
+      couponUsageByCustomer,
+      // a coupon restricted to specific customers (eligibleEmails/eligiblePhones) is checked against the
+      // account's own email/mobile, not what the form sent
+      customerEmail: orderEmail,
+      customerPhone: orderPhone,
     });
 
-    // 7 ─ customer ----------------------------------------------------------
-    const customer = input.accountCustomerId
-      ? await attachAccountCustomer(input.restaurantId, input.accountCustomerId, input.saveAccountPhone ? input.customer.phone : null, context, tx)
-      : await upsertCustomer(
-          {
-            restaurantId: input.restaurantId,
-            fullName: input.customer.fullName,
-            phone: input.customer.phone,
-            email: input.customer.email ?? null,
-            marketingOptIn: input.customer.marketingOptIn ?? false,
-            isGuest: !input.userId,
-          },
-          context,
-          tx,
-        );
+    // a signed-in customer's first mobile is stored on the account only now, once the order is valid
+    if (input.accountCustomerId && input.saveAccountPhone && !hasSavedPhone) {
+      customer = await saveFirstAccountPhone(tx, input.restaurantId, customer.id, input.customer.phone);
+    }
 
-    // 8 ─ order -------------------------------------------------------------
+    // 2 ─ order -----------------------------------------------------------------------------------
     const estimatedReadyAt = estimateReadyAt(maxPrepTime, input.orderType);
     const orderRow = await tx.queryOne<Row>(
       `insert into orders
@@ -290,19 +319,18 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
           coupon_code, subtotal, discount_amount, delivery_fee, tax_amount, service_fee, tip_amount, total, currency,
           tax_rate, pricing_breakdown, payment_method, payment_status, notes, special_instructions, placed_by,
           estimated_ready_at)
-       values ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9::jsonb,$10,$11,$12,$13::timestamptz,$14,$15,
-               $16::numeric,$17::numeric,$18::numeric,$19::numeric,$20::numeric,$21::numeric,$22::numeric,$23,
-               $24::numeric,$25::jsonb,$26,'pending',$27,$28,'customer',$29::timestamptz)
+       values ($1,$2,$3,null,$4,'pending',$5,$6,$7,$8::jsonb,$9,$10,$11,$12::timestamptz,$13,$14,
+               $15::numeric,$16::numeric,$17::numeric,$18::numeric,$19::numeric,$20::numeric,$21::numeric,$22,
+               $23::numeric,$24::jsonb,$25,'pending',$26,$27,'customer',$28::timestamptz)
        returning *`,
       [
         input.restaurantId,
-        cartRow.location_id ? str(cartRow.location_id) : null,
+        input.locationId ?? null,
         customer.id,
-        cartId,
         input.orderType,
         input.customer.fullName,
-        input.customer.email ?? null,
-        input.customer.phone,
+        orderEmail,
+        orderPhone,
         input.address ? JSON.stringify(input.address) : null,
         zoneRecord?.id ?? null,
         input.tableNumber ?? null,
@@ -329,71 +357,88 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     if (!orderRow) throw errors.internal("Unable to create the order");
     const orderId = str(orderRow.id);
 
-    // 9 ─ order items + add-ons --------------------------------------------
-    for (const line of resolvedLines) {
-      const lineTotal = toMoney(dec(line.unitPrice).plus(dec(line.addonsTotal)).times(line.quantity));
-      const itemRow = await tx.queryOne<Row>(
-        `insert into order_items
-           (order_id, restaurant_id, menu_item_id, variant_id, item_name, variant_name, quantity, unit_price,
-            addons_total, line_total, special_instructions)
-         values ($1,$2,$3,$4,$5,$6,$7,$8::numeric,$9::numeric,$10::numeric,$11)
-         returning *`,
-        [
-          orderId, input.restaurantId, line.itemId, line.variantId, line.itemName, line.variantName,
-          line.quantity, line.unitPrice, line.addonsTotal, lineTotal, line.specialInstructions,
-        ],
-      );
-      if (!itemRow) throw errors.internal("Unable to save an order line");
-      for (const addon of line.addons) {
-        await tx.query(
-          `insert into order_item_addons (order_item_id, menu_addon_id, group_name, addon_name, unit_price, quantity)
-           values ($1,$2,$3,$4,$5::numeric,$6)`,
-          [str(itemRow.id), addon.addonId, addon.groupName, addon.name, addon.price, addon.quantity],
-        );
-      }
+    // 3 ─ everything that hangs off the order, in one statement --------------------------------------
+    // Data-modifying CTEs run as one statement: foreign keys between them (add-on → line) are checked
+    // at its end, and the payment trigger (payment_status → orders) sees the order written above.
+    const params: unknown[] = [];
+    const push = (...values: unknown[]) => {
+      const start = params.length;
+      params.push(...values);
+      return start;
+    };
+    const parts: string[] = [];
+
+    const lineStart = push(
+      ...resolvedLines.flatMap((line) => [
+        line.id,
+        orderId,
+        input.restaurantId,
+        line.itemId,
+        line.variantId,
+        line.itemName,
+        line.variantName,
+        line.quantity,
+        line.unitPrice,
+        line.addonsTotal,
+        toMoney(dec(line.unitPrice).plus(dec(line.addonsTotal)).times(line.quantity)),
+        line.specialInstructions,
+      ]),
+    );
+    parts.push(`order_lines as (
+      insert into order_items
+        (id, order_id, restaurant_id, menu_item_id, variant_id, item_name, variant_name, quantity, unit_price,
+         addons_total, line_total, special_instructions)
+      values ${valuesList(resolvedLines.length, 12, { 0: "::uuid", 1: "::uuid", 2: "::uuid", 3: "::uuid", 4: "::uuid", 7: "::int", 8: "::numeric", 9: "::numeric", 10: "::numeric" }, lineStart)})`);
+
+    const addonRows = resolvedLines.flatMap((line) =>
+      line.addons.map((addon) => [line.id, addon.addonId, addon.groupName, addon.name, addon.price, addon.quantity]),
+    );
+    if (addonRows.length > 0) {
+      const addonStart = push(...addonRows.flat());
+      parts.push(`order_addons as (
+        insert into order_item_addons (order_item_id, menu_addon_id, group_name, addon_name, unit_price, quantity)
+        values ${valuesList(addonRows.length, 6, { 0: "::uuid", 1: "::uuid", 4: "::numeric", 5: "::int" }, addonStart)})`);
     }
 
-    // 10 ─ payment record ---------------------------------------------------
-    const paymentRow = await tx.queryOne<Row>(
-      `insert into payments (restaurant_id, order_id, provider, method, status, amount, currency)
-       values ($1,$2,$3,$4,'pending',$5::numeric,$6)
-       returning *`,
-      [
-        input.restaurantId,
-        orderId,
-        requiresOnlinePayment ? (settings.payments.onlineProvider === "stripe" ? "stripe" : "manual") : "cash",
-        input.paymentMethod,
-        pricing.total,
-        currency,
-      ],
+    const paymentStart = push(
+      input.restaurantId,
+      orderId,
+      requiresOnlinePayment ? (settings.payments.onlineProvider === "stripe" ? "stripe" : "manual") : "cash",
+      input.paymentMethod,
+      pricing.total,
+      currency,
     );
+    parts.push(`payment as (
+      insert into payments (restaurant_id, order_id, provider, method, status, amount, currency)
+      values ($${paymentStart + 1}::uuid, $${paymentStart + 2}::uuid, $${paymentStart + 3}, $${paymentStart + 4}::payment_method,
+              'pending', $${paymentStart + 5}::numeric, $${paymentStart + 6})
+      returning id)`);
 
-    // 11 ─ delivery record --------------------------------------------------
     if (input.orderType === "delivery") {
       const etaMinutes = zoneRecord?.etaMaxMinutes ?? settings.delivery.defaultEtaMinutes;
-      await tx.query(
-        `insert into deliveries
-           (restaurant_id, order_id, location_id, delivery_zone_id, status, delivery_fee, estimated_arrival_at)
-         values ($1,$2,$3,$4,'unassigned',$5::numeric,$6::timestamptz)`,
-        [
-          input.restaurantId,
-          orderId,
-          cartRow.location_id ? str(cartRow.location_id) : null,
-          zoneRecord?.id ?? null,
-          pricing.deliveryFee,
-          new Date(Date.now() + etaMinutes * 60_000).toISOString(),
-        ],
+      const deliveryStart = push(
+        input.restaurantId,
+        orderId,
+        input.locationId ?? null,
+        zoneRecord?.id ?? null,
+        pricing.deliveryFee,
+        new Date(Date.now() + etaMinutes * 60_000).toISOString(),
       );
+      parts.push(`delivery as (
+        insert into deliveries (restaurant_id, order_id, location_id, delivery_zone_id, status, delivery_fee, estimated_arrival_at)
+        values ($${deliveryStart + 1}::uuid, $${deliveryStart + 2}::uuid, $${deliveryStart + 3}::uuid, $${deliveryStart + 4}::uuid,
+                'unassigned', $${deliveryStart + 5}::numeric, $${deliveryStart + 6}::timestamptz))`);
     }
 
-    // 12 ─ coupon usage + cart closure -------------------------------------
     if (coupon) {
-      await tx.query(`update coupons set used_count = used_count + 1 where id = $1`, [coupon.id]);
+      const couponStart = push(coupon.id);
+      parts.push(`coupon_use as (update coupons set used_count = used_count + 1 where id = $${couponStart + 1}::uuid)`);
     }
-    await tx.query(`update carts set status = 'converted', updated_at = now() where id = $1`, [cartId]);
+
+    const paymentRow = await tx.queryOne<Row>(`with ${parts.join(",\n")} select id from payment`, params);
 
     const order = mapOrder({ ...orderRow, delivery_zone_name: zoneRecord?.name ?? null });
-    return { order, paymentId: str(paymentRow?.id ?? ""), requiresOnlinePayment };
+    return { order, paymentId: str(paymentRow?.id ?? ""), requiresOnlinePayment, customer };
   });
 }
 

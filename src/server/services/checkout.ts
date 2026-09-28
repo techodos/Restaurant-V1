@@ -6,16 +6,16 @@ import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { getPaymentProvider, type PaymentIntentResult } from "@/server/integrations/payments";
 import { createOrder, getOrderForAccessGrant, setOrderPaymentStatus } from "@/server/repositories/orders";
-import { getCustomerById } from "@/server/repositories/customers";
 import type { PlaceOrderInput } from "@/server/validation/checkout";
-import { findCart } from "./cart";
+import type { Tray } from "@/shared/tray";
+import { assertTrayOrderable } from "./cart";
 
 /**
  * Checkout (signed-in, email-verified customers; placeOrderAction enforces that).
  *
- * The browser sends customer details and choices only: every price, discount,
- * fee, tax figure, availability flag and coupon is recomputed inside
- * `createOrder` from the live database before the order row is written.
+ * The browser sends customer details and choices, and its tray cookie names the items: every price,
+ * discount, fee, tax figure, availability flag and coupon is recomputed inside `createOrder` — the
+ * one database transaction of the whole ordering flow — before the order row is written.
  */
 
 export interface PlaceOrderResult {
@@ -29,46 +29,33 @@ export interface PlaceOrderResult {
 
 export async function placeOrder(
   restaurant: Restaurant,
+  tray: Tray,
   input: PlaceOrderInput,
   visitor: RequestContext,
 ): Promise<PlaceOrderResult> {
-  const cartToken = visitor.cartToken ?? "";
-  const cartExpired = () => errors.custom("CART_EMPTY", "Your cart has expired. Please add your items again.");
-  if (!cartToken) throw cartExpired();
-
-  const cart = await findCart(restaurant, cartToken, visitor.customerId ?? null);
-  if (!cart) throw cartExpired();
-
-  // A signed-in customer's account is the source of truth: the saved mobile (else the one entered here,
-  // stored on the account together with the order) and the account email. The order is linked to the
-  // account's own row, never to whatever row a phone lookup would find.
-  const account = visitor.customerId
-    ? await getCustomerById(visitor.customerId, { restaurantId: restaurant.id, customerId: visitor.customerId })
-    : null;
-  if (visitor.customerId && (!account || account.restaurantId !== restaurant.id)) {
-    throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
-  }
-  const savedPhone = account?.phone.trim() ? account.phone : null;
-  const phone = savedPhone ?? input.phone;
-  const email = account?.email || input.email || null;
-
+  assertTrayOrderable(restaurant, { ...tray, orderType: input.orderType });
   if (input.orderType === "delivery" && !input.addressLine1) {
     throw errors.validation("Please add a delivery address.", { field: "addressLine1" });
   }
 
+  // ONE transaction does everything: the signed-in customer's own row (locked; its saved mobile and
+  // email win over the form, a first mobile is stored on it, its email must be verified), every tray
+  // line re-priced from the live menu, zone, coupon limits, and the order rows themselves.
   const isDineIn = input.orderType === "dine_in";
-  const { order, requiresOnlinePayment } = await createOrder(
+  const { order, requiresOnlinePayment, customer } = await createOrder(
     {
       restaurantId: restaurant.id,
-      cartId: cart.id,
+      lines: tray.lines,
+      locationId: tray.locationId,
       orderType: input.orderType,
       customer: {
         fullName: input.fullName,
-        phone,
-        email,
+        phone: input.phone,
+        email: input.email || null,
       },
-      accountCustomerId: account?.id ?? null,
-      saveAccountPhone: Boolean(account && !savedPhone),
+      accountCustomerId: visitor.customerId ?? null,
+      saveAccountPhone: Boolean(visitor.customerId),
+      requireVerifiedEmail: Boolean(visitor.customerId),
       address: isDineIn
         ? null
         : {
@@ -84,15 +71,18 @@ export async function placeOrder(
       tableNumber: input.tableNumber || null,
       guests: input.guests ?? null,
       paymentMethod: input.paymentMethod,
-      couponCode: input.couponCode || cart.couponCode,
+      // only the code the checkout page showed as applied (it drops one that stopped applying)
+      couponCode: input.couponCode || null,
       tipAmount: input.tipAmount || null,
       notes: input.notes || null,
       customerId: visitor.customerId ?? null,
       userId: visitor.userId ?? null,
       actor: input.fullName,
     },
-    { cartToken, customerId: visitor.customerId ?? null },
+    { customerId: visitor.customerId ?? null },
   );
+  const phone = order.customerPhone || input.phone;
+  const email = customer.email || input.email || null;
 
   if (!requiresOnlinePayment) return { orderNumber: order.orderNumber, requiresOnlinePayment };
 

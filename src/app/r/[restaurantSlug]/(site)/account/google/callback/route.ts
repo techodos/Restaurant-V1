@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { afterAuthPath } from "@/shared/return-to";
 import { handleGoogleCallback } from "../../actions";
 
 interface Params {
@@ -27,5 +28,6 @@ export async function GET(request: Request, { params }: Params) {
   if (outcome.needsPhone && outcome.pendingToken) {
     redirect(`${base}/account/google-phone?token=${encodeURIComponent(outcome.pendingToken)}${returnTo}`);
   }
-  redirect(outcome.returnTo ?? base);
+  // back where they started, else the storefront home (never the /account screen)
+  redirect(afterAuthPath(restaurantSlug, outcome.returnTo));
 }

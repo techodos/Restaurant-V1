@@ -15,7 +15,6 @@ import { breadcrumbJsonLd } from "@/web/seo";
 import { getLocations } from "@/server/services/restaurants";
 import { getBookedSlotCounts } from "@/server/services/reservations";
 import { getCustomerProfile } from "@/server/services/customer-profile";
-import { isEmailVerified } from "@/server/services/customer-auth";
 
 interface ReservationPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -144,8 +143,9 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
   // Same profile the checkout page reads: account email, saved mobile — the reservation form locks
   // whichever of these are already on file, exactly like checkout's own email/phone fields. A guest
   // (no account yet) gets none of this; the form falls back to plain, editable fields for them.
+  // one read: the profile carries the verification state too
   const [profile, emailVerified] = customer
-    ? await Promise.all([getCustomerProfile(restaurant, await getVisitorContext(restaurant.id)), isEmailVerified(customer.userId)])
+    ? await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id)).then((p) => [p, p.emailVerified] as const)
     : [null, false];
   const defaultDate = dates[0]?.value ?? today.dateKey;
 

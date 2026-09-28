@@ -6,6 +6,7 @@ import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { reorderAction } from "@/app/r/[restaurantSlug]/(site)/order/actions";
+import { useLocalCart } from "./local-cart";
 
 interface ReorderButtonProps {
   restaurantSlug: string;
@@ -14,13 +15,14 @@ interface ReorderButtonProps {
 }
 
 /**
- * Rebuilds the cart from a finished order, repriced from the live menu — never a copy of the old
- * order's prices. An item that is no longer orderable is skipped (deleted, disabled, out of its
- * availability window); the visitor is told which by name and still lands on /cart with whatever
- * could be added, rather than the whole reorder failing over one item.
+ * Puts a finished order's lines back into the tray (the browser cookie), repriced from the current
+ * menu — never a copy of the old order's prices. An item that is no longer orderable is skipped
+ * (deleted, disabled, out of its availability window); the visitor is told which by name and still
+ * lands on /cart with whatever could be added, rather than the whole reorder failing over one item.
  */
 export function ReorderButton({ restaurantSlug, orderNumber, accessToken }: ReorderButtonProps) {
   const router = useRouter();
+  const { addLines } = useLocalCart();
   const [working, setWorking] = useState(false);
 
   async function reorder() {
@@ -31,8 +33,18 @@ export function ReorderButton({ restaurantSlug, orderNumber, accessToken }: Reor
         toast.error("Could not reorder", { description: result.error.message });
         return;
       }
-      if (result.data.addedCount === 0) {
-        toast.error("None of these items are available right now.");
+      const added = addLines(
+        result.data.lines.map(({ line, display }) => ({
+          menuItemId: line.menuItemId,
+          variantId: line.variantId,
+          quantity: line.quantity,
+          addons: line.addons,
+          ...(line.specialInstructions ? { specialInstructions: line.specialInstructions } : {}),
+          display,
+        })),
+      );
+      if (added === 0) {
+        toast.error(result.data.lines.length ? "Your tray is full." : "None of these items are available right now.");
         return;
       }
       if (result.data.skippedItemNames.length) {

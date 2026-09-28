@@ -3,6 +3,8 @@ import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
 import { mapAddonGroup, mapMenuCategory, mapMenuItem, mapVariant, mapAddon, num, str, type Row } from "@/server/db/mappers";
 import type { MenuAddonGroup, MenuCategory, MenuItem, MenuItemSummary } from "@/shared/contract/models";
+import { parseAvailabilityWindow } from "@/shared/hours";
+import type { OrderableMenuItem } from "@/server/domain/menu-selection";
 
 /**
  * Menu data access. The "summary" projection is what storefront cards and the
@@ -325,6 +327,74 @@ export async function listStorefrontMenu(restaurantId: string, ctx: RequestConte
       };
     });
   });
+}
+
+/**
+ * The projection `resolveMenuSelection` needs for a set of items — item, its category's flags, variants,
+ * add-on groups and add-ons — as ONE select (`restaurantParam`/`idsParam` are the placeholders to use).
+ * Shared by `loadOrderableItems` and the order transaction's single combined read (`createOrder`).
+ *
+ * Only the columns the resolver reads are selected, on purpose: on the hosted pooler a response's time
+ * grows with its size (measured 2026-09-28: `mi.*` + whole variant/add-on rows ≈ 14 KB took 0.7–2.9 s
+ * for five items; this projection is one ordinary round trip, ~0.36 s). Prices travel as text so they
+ * stay exact decimals, even inside JSON.
+ */
+export function orderableItemsSql(restaurantParam: string, idsParam: string): string {
+  return `select mi.id, mi.restaurant_id, mi.category_id, mi.name, mi.slug, mi.image_url, mi.base_price::text as base_price,
+            mi.is_active, mi.is_available, mi.prep_time_minutes, mi.availability, mi.is_buffet_package,
+            mc.is_active as category_active, mc.availability as category_availability,
+            coalesce((select json_agg(json_build_object(
+                        'id', v.id, 'menu_item_id', v.menu_item_id, 'name', v.name, 'price', v.price::text,
+                        'price_mode', v.price_mode, 'is_default', v.is_default, 'is_available', v.is_available,
+                        'sort_order', v.sort_order))
+                      from menu_item_variants v where v.menu_item_id = mi.id), '[]') as variant_rows,
+            coalesce((select json_agg(json_build_object(
+                        'id', g.id, 'menu_item_id', g.menu_item_id, 'name', g.name, 'min_select', g.min_select,
+                        'max_select', g.max_select, 'sort_order', g.sort_order, 'is_active', g.is_active,
+                        'addons', coalesce((select json_agg(json_build_object(
+                                    'id', a.id, 'addon_group_id', a.addon_group_id, 'name', a.name, 'price', a.price::text,
+                                    'is_default', a.is_default, 'is_available', a.is_available,
+                                    'max_quantity', a.max_quantity, 'sort_order', a.sort_order))
+                                  from menu_addons a where a.addon_group_id = g.id), '[]')))
+                      from menu_addon_groups g where g.menu_item_id = mi.id), '[]') as group_rows
+       from menu_items mi
+       join menu_categories mc on mc.id = mi.category_id
+      where mi.restaurant_id = ${restaurantParam} and mi.id = any(${idsParam}::uuid[])`;
+}
+
+/** Rows of `orderableItemsSql` (plain columns or the same row as JSON) → resolver input, keyed by item id. */
+export function mapOrderableItems(rows: readonly Row[]): Map<string, OrderableMenuItem> {
+  const found = new Map<string, OrderableMenuItem>();
+  for (const row of rows) {
+    const item = mapMenuItem(row);
+    item.variants = (row.variant_rows as Row[]).map(mapVariant);
+    item.addonGroups = (row.group_rows as (Row & { addons: Row[] })[]).map((group) => mapAddonGroup(group, group.addons.map(mapAddon)));
+    found.set(item.id, {
+      item,
+      category: { isActive: Boolean(row.category_active), availability: parseAvailabilityWindow(row.category_availability) },
+    });
+  }
+  return found;
+}
+
+/** `orderableItemsSql` on the caller's open transaction. */
+export async function loadOrderableItems(
+  tx: DbClient,
+  restaurantId: string,
+  itemIds: readonly string[],
+): Promise<Map<string, OrderableMenuItem>> {
+  if (itemIds.length === 0) return new Map();
+  return mapOrderableItems(await tx.query<Row>(orderableItemsSql("$1", "$2"), [restaurantId, [...new Set(itemIds)]]));
+}
+
+/** `loadOrderableItems` in its own read transaction (the storefront cache is off). */
+export async function listOrderableItems(
+  restaurantId: string,
+  itemIds: readonly string[],
+  ctx: RequestContext = {},
+): Promise<Map<string, OrderableMenuItem>> {
+  if (itemIds.length === 0) return new Map();
+  return getDb({ restaurantId }).read(ctx, (tx) => loadOrderableItems(tx, restaurantId, itemIds));
 }
 
 function groupBy(rows: Row[], key: (row: Row) => string): Map<string, Row[]> {

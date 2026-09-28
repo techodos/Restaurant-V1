@@ -14,16 +14,17 @@ import {
 import {
   verifyCustomerSession,
   verifyStaffSession,
+  SESSION_TTL,
   type CustomerSessionPayload,
   type StaffSessionPayload,
 } from "@/server/auth/tokens";
 import type { RequestContext } from "@/server/context";
+import { reissueCustomerSession } from "@/server/services/customer-auth";
 import { adminPath } from "@/shared/utils";
 import {
-  CART_COOKIE,
-  CART_COOKIE_MAX_AGE,
-  CART_COUNT_COOKIE,
   CUSTOMER_COOKIE,
+  LEGACY_CART_COOKIE,
+  LEGACY_CART_COUNT_COOKIE,
   GOOGLE_RETURN_TO_COOKIE,
   GOOGLE_STATE_COOKIE,
   STAFF_COOKIE,
@@ -116,22 +117,14 @@ export async function signOutStaffSession(restaurantSlug: string): Promise<void>
   store.delete({ name: LEGACY_STAFF_COOKIE, path: "/" });
 }
 
-export async function getStorefrontCustomer(restaurantId: string): Promise<StorefrontCustomer | null> {
+/**
+ * The signed-in customer, from the signed session cookie alone — no database read (see
+ * `resolveCustomer`). Cached per request so layout, page and actions share one JWT verification.
+ */
+export const getStorefrontCustomer = cache(async (restaurantId: string): Promise<StorefrontCustomer | null> => {
   const session = await getCustomerSession();
   return session ? resolveCustomer(session, restaurantId) : null;
-}
-
-/** The guest cart token, or null when the visitor has not started a cart. */
-export async function getCartToken(): Promise<string | null> {
-  const store = await cookies();
-  return store.get(CART_COOKIE)?.value || null;
-}
-
-/** Stores a freshly minted cart token. Only valid in Server Actions and Route Handlers. */
-export async function setCartToken(token: string): Promise<void> {
-  const store = await cookies();
-  store.set(CART_COOKIE, token, cookieOptions(CART_COOKIE_MAX_AGE));
-}
+});
 
 /** Signs the customer in for this browser. Only valid in Server Actions and Route Handlers. */
 export async function setCustomerSession(token: string, maxAge: number): Promise<void> {
@@ -139,13 +132,28 @@ export async function setCustomerSession(token: string, maxAge: number): Promise
   store.set(CUSTOMER_COOKIE, token, cookieOptions(maxAge));
 }
 
-/** Signs the customer out of this browser. Only valid in Server Actions and Route Handlers. */
+/**
+ * Re-signs the current customer's session with updated claims (email just verified, name changed), so
+ * pages keep reading them from the cookie instead of the database. Server Actions/Route Handlers only.
+ */
+export async function refreshCustomerSession(patch: { name?: string; emailVerified?: boolean }): Promise<void> {
+  const session = await getCustomerSession();
+  if (!session) return;
+  const token = await reissueCustomerSession(session, patch);
+  const store = await cookies();
+  store.set(CUSTOMER_COOKIE, token, cookieOptions(SESSION_TTL.customer));
+}
+
+/**
+ * Signs the customer out of this browser. The tray is the browser's, not the account's (it lives in its
+ * own cookie), so it stays. Only valid in Server Actions and Route Handlers.
+ */
 export async function clearCustomerSession(): Promise<void> {
   const store = await cookies();
   store.delete(CUSTOMER_COOKIE);
-  // the cart (and its badge) belonged to the account; a signed-out browser starts a fresh one
-  store.delete(CART_COOKIE);
-  store.delete(CART_COUNT_COOKIE);
+  // cookies from the database-cart era; nothing reads them any more
+  store.delete(LEGACY_CART_COOKIE);
+  store.delete(LEGACY_CART_COUNT_COOKIE);
 }
 
 /** Stores the CSRF state for a Google sign-in redirect just before leaving for Google. */
@@ -176,37 +184,15 @@ export async function consumeGoogleReturnTo(): Promise<string | null> {
   return value;
 }
 
-const CART_COUNT_MAX = 999;
-
 /**
- * Items in the visitor's cart as last recorded by a cart action, for the header
- * badge. Reading the cart from the database on every page view costs a full
- * transaction; this costs nothing. It is a display hint only — the cart and
- * checkout pages, and every cart mutation, use the real cart — so a tampered or
- * stale value can only show a wrong number in the badge until the next cart action.
- */
-export async function getCartCountHint(): Promise<number> {
-  const store = await cookies();
-  const count = Number.parseInt(store.get(CART_COUNT_COOKIE)?.value ?? "", 10);
-  return Number.isFinite(count) ? Math.min(Math.max(count, 0), CART_COUNT_MAX) : 0;
-}
-
-/** Records the cart size for the header badge. Only valid in Server Actions and Route Handlers. */
-export async function setCartCountHint(count: number): Promise<void> {
-  const store = await cookies();
-  const safe = Math.min(Math.max(Math.trunc(count) || 0, 0), CART_COUNT_MAX);
-  store.set(CART_COUNT_COOKIE, String(safe), cookieOptions(CART_COOKIE_MAX_AGE));
-}
-
-/**
- * Who is visiting this restaurant's storefront: the cart cookie and the
- * signed-in customer, in the shape services expect. Never sets cookies.
+ * Who is visiting this restaurant's storefront — the signed-in customer, in the shape services expect.
+ * From the session cookie only (no database). Never sets cookies.
  */
 export async function getVisitorContext(restaurantId: string): Promise<RequestContext> {
-  const [cartToken, customer] = await Promise.all([getCartToken(), getStorefrontCustomer(restaurantId)]);
+  const customer = await getStorefrontCustomer(restaurantId);
   return {
     restaurantId,
-    cartToken,
+    cartToken: null,
     customerId: customer?.customerId ?? null,
     userId: customer?.userId ?? null,
   };

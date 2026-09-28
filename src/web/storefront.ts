@@ -1,15 +1,16 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import type { Cart, Restaurant, StorefrontContext } from "@/shared/contract/models";
+import type { Restaurant, StorefrontContext } from "@/shared/contract/models";
+import { decodeTray, trayCookieName, type InitialTray, type Tray } from "@/shared/tray";
 import { AppError } from "@/server/errors";
-import { findCart, generateCartToken, openCart } from "@/server/services/cart";
-import { requireRestaurant } from "@/server/services/restaurants";
+import { previewCoupon, viewTray, type TrayView } from "@/server/services/cart";
 import { loadStorefrontContext } from "@/server/services/storefront";
-import { getCartToken, getStorefrontCustomer, setCartCountHint, setCartToken } from "./session";
+import { resolveImage } from "./media";
 
 /**
- * Next.js glue for the storefront: request-scoped caching, `notFound()`, and
- * the cart cookie. The logic itself lives in server/services.
+ * Next.js glue for the storefront: request-scoped caching, `notFound()`, and the tray cookie.
+ * The logic itself lives in server/services.
  */
 
 /** Cached per request so layout, page and sections share one lookup. */
@@ -29,33 +30,62 @@ export async function requireStorefront(slug: string): Promise<StorefrontContext
   }
 }
 
-/** Read-only: a request that only renders must never mint a cart cookie. */
-export async function readCart(restaurant: Restaurant): Promise<Cart | null> {
-  const token = await getCartToken();
-  if (!token) return null;
-  const customer = await getStorefrontCustomer(restaurant.id);
-  return findCart(restaurant, token, customer?.customerId ?? null);
+/**
+ * The storefront's restaurant for a Server Action or Route Handler — from the in-memory snapshot, not a
+ * database read. Enough to gate and route a request; anything that decides money or writes an order
+ * re-reads the restaurant inside its own transaction (`createOrder`). Throws the app's NOT_FOUND
+ * (not Next's `notFound()`, which only means something to a page render).
+ */
+export async function requireStorefrontRestaurant(slug: string): Promise<Restaurant> {
+  return (await getStorefrontContext(slug)).restaurant;
 }
 
-/**
- * Loads the visitor's cart, creating it (and the cookie) when needed.
- * Only valid in Server Actions and Route Handlers, where cookies are writable.
- */
-export async function openStorefrontCart(slug: string): Promise<{ restaurant: Restaurant; cart: Cart }> {
-  const restaurant = await requireRestaurant(slug);
-  const customer = await getStorefrontCustomer(restaurant.id);
+// ─── tray (cart) cookie ───────────────────────────────────────────────────────
 
-  let token = await getCartToken();
-  if (!token) {
-    token = generateCartToken();
-    await setCartToken(token);
-  }
-  const cart = await openCart(restaurant, token, { customerId: customer?.customerId ?? null });
-  if (cart.sessionToken !== token) {
-    token = cart.sessionToken; // the old token was held by a cart this visitor cannot use
-    await setCartToken(token);
-  }
-  // the real cart was just loaded: re-sync the header badge so it cannot stay wrong
-  await setCartCountHint(cart.itemCount);
-  return { restaurant, cart };
+async function rawTrayCookie(slug: string): Promise<string | null> {
+  const store = await cookies();
+  return store.get(trayCookieName(slug))?.value ?? null;
+}
+
+/** The visitor's tray, straight from its cookie (no database). */
+export const readTray = cache(async (context: StorefrontContext): Promise<Tray> => {
+  return decodeTray(await rawTrayCookie(context.restaurant.slug), context.config.ordering.defaultOrderType);
+});
+
+/** The tray priced against the current in-memory menu (no database). Cached per request. */
+export const readTrayView = cache(async (context: StorefrontContext): Promise<{ tray: Tray; view: TrayView }> => {
+  const tray = await readTray(context);
+  return { tray, view: await viewTray(context.restaurant, tray) };
+});
+
+/** What the layout hands the browser's tray provider on a full page load. */
+export async function getInitialTray(context: StorefrontContext): Promise<InitialTray> {
+  const encoded = (await rawTrayCookie(context.restaurant.slug)) ?? "";
+  const { tray, view } = await readTrayView(context);
+  const couponDiscount = tray.couponCode
+    ? await previewCoupon(context.restaurant, tray.couponCode, tray.orderType, view.subtotal)
+        .then((preview) => preview.discount)
+        .catch(() => null)
+    : null;
+  return {
+    encoded,
+    tray,
+    couponDiscount,
+    displays: view.lines.map((line) => ({
+      name: line.name,
+      slug: line.slug,
+      imageUrl: resolveImage(line.imageUrl),
+      variantName: line.variantName,
+      addonNames: line.addons.map((addon) => addon.name),
+      unitPrice: line.unitPrice,
+      addonsTotal: line.addonsTotal,
+      problem: line.problem,
+    })),
+  };
+}
+
+/** Empties the tray once an order consumed it. Only valid in Server Actions and Route Handlers. */
+export async function clearTray(slug: string): Promise<void> {
+  const store = await cookies();
+  store.delete(trayCookieName(slug));
 }

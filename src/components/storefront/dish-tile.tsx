@@ -43,7 +43,17 @@ export function DishTile({
   const add = (
     <QuickAddButton
       restaurantSlug={restaurantSlug}
-      item={{ id: item.id, name: item.name, slug: item.slug, requiresSelection: item.requiresSelection, isAvailable: item.isAvailable }}
+      item={{
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+        requiresSelection: item.requiresSelection,
+        isAvailable: item.isAvailable,
+        basePrice: item.basePrice,
+        // already resolved (file-exists check + category fallback) — QuickAddButton is a client
+        // component and cannot do that resolution itself (web/media.ts reads the filesystem)
+        imageUrl: image,
+      }}
       orderType={orderType}
       compact={layout === "row"}
     />
