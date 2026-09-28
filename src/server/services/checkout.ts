@@ -77,6 +77,8 @@ export async function placeOrder(
             area: input.area || null,
             city: input.city || null,
             postalCode: input.postalCode || null,
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
           },
       deliveryZoneId: input.deliveryZoneId || null,
       tableNumber: input.tableNumber || null,

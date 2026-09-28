@@ -1,0 +1,234 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { safeReturnTo as safeReturnToPath } from "@/shared/return-to";
+import { randomUUID } from "node:crypto";
+import type { ApiResult } from "@/shared/contract/api";
+import { action, errors } from "@/server/errors";
+import {
+  completeGoogleAuth,
+  ensureVerificationCode,
+  finishGoogleSignup,
+  getCustomerUser as getUserById,
+  isEmailVerified,
+  sendVerificationCode,
+  signInCustomerAccount,
+  signUpCustomer,
+  startGoogleAuth,
+  verifyEmailCode,
+} from "@/server/services/customer-auth";
+import { signInSchema, signUpSchema, verifyCodeSchema } from "@/server/validation/customer-auth";
+import {
+  getCustomerSession,
+  setCustomerSession,
+  clearCustomerSession,
+  getStorefrontCustomer,
+  setGoogleState,
+  consumeGoogleState,
+  setGoogleReturnTo,
+  consumeGoogleReturnTo,
+} from "@/web/session";
+import { requireRestaurant } from "@/server/services/restaurants";
+import { config } from "@/server/config";
+import { revalidatePath } from "next/cache";
+import {
+  deleteCustomerAddress,
+  requestAccountDeletion,
+  getCustomerProfile,
+  saveCustomerAddress,
+  updateCustomerProfile,
+  type CustomerProfile,
+} from "@/server/services/customer-profile";
+import { customerAddressSchema, updateProfileSchema } from "@/server/validation/customer-profile";
+import { callerIdentifier, getVisitorContext } from "@/web/session";
+import type { CustomerAddress } from "@/shared/contract/models";
+
+export interface AuthResult {
+  customerId: string;
+  emailVerified: boolean;
+}
+
+export async function signUpAction(slug: string, payload: unknown): Promise<ApiResult<AuthResult>> {
+  return action(async () => {
+    const input = signUpSchema.parse(payload);
+    const identifier = await callerIdentifier();
+    const result = await signUpCustomer(slug, input, identifier);
+    await setCustomerSession(result.token, result.maxAge);
+    const restaurant = await requireRestaurant(slug);
+    const customer = await getStorefrontCustomer(restaurant.id);
+    if (customer) await sendVerificationCode(customer.userId, input.email, identifier, slug).catch(() => {});
+    return { customerId: result.customerId, emailVerified: false };
+  });
+}
+
+export async function signInAction(slug: string, payload: unknown): Promise<ApiResult<AuthResult>> {
+  return action(async () => {
+    const input = signInSchema.parse(payload);
+    const identifier = await callerIdentifier();
+    const result = await signInCustomerAccount(slug, input, identifier);
+    await setCustomerSession(result.token, result.maxAge);
+    const restaurant = await requireRestaurant(slug);
+    const customer = await getStorefrontCustomer(restaurant.id);
+    const verified = customer ? await isEmailVerified(customer.userId) : false;
+    return { customerId: result.customerId, emailVerified: verified };
+  });
+}
+
+export async function signOutAction(): Promise<ApiResult<null>> {
+  return action(async () => {
+    await clearCustomerSession();
+    return null;
+  });
+}
+
+/** Sends (or resends) the checkout email-verification code to the signed-in customer. */
+export async function sendVerificationCodeAction(slug: string): Promise<ApiResult<null>> {
+  return action(async () => {
+    const restaurant = await requireRestaurant(slug);
+    const customer = await getStorefrontCustomer(restaurant.id);
+    if (!customer) throw errors.unauthorized("Please sign in first.");
+    const user = await getUserById(customer.userId);
+    if (!user?.email) throw errors.internal("Could not find this account.");
+    const identifier = await callerIdentifier();
+    await sendVerificationCode(customer.userId, user.email, identifier, slug).catch(() => {
+      throw errors.internal("Could not send the verification code. Please try again.");
+    });
+    return null;
+  });
+}
+
+/** Called when the checkout email-verify gate first appears; a no-op if a code is already in flight. */
+export async function ensureVerificationCodeAction(slug: string): Promise<ApiResult<null>> {
+  return action(async () => {
+    const restaurant = await requireRestaurant(slug);
+    const customer = await getStorefrontCustomer(restaurant.id);
+    if (!customer) throw errors.unauthorized("Please sign in first.");
+    const user = await getUserById(customer.userId);
+    if (!user?.email) throw errors.internal("Could not find this account.");
+    const identifier = await callerIdentifier();
+    await ensureVerificationCode(customer.userId, user.email, identifier, slug);
+    return null;
+  });
+}
+
+export async function verifyEmailCodeAction(slug: string, payload: unknown): Promise<ApiResult<null>> {
+  return action(async () => {
+    const restaurant = await requireRestaurant(slug);
+    const customer = await getStorefrontCustomer(restaurant.id);
+    if (!customer) throw errors.unauthorized("Please sign in first.");
+    const { code } = verifyCodeSchema.parse(payload);
+    await verifyEmailCode(customer.userId, code);
+    return null;
+  });
+}
+
+export async function isSignedInWithVerifiedEmail(slug: string): Promise<{ signedIn: boolean; emailVerified: boolean }> {
+  const restaurant = await requireRestaurant(slug);
+  const customer = await getStorefrontCustomer(restaurant.id);
+  if (!customer) return { signedIn: false, emailVerified: false };
+  return { signedIn: true, emailVerified: await isEmailVerified(customer.userId) };
+}
+
+// ── Google OAuth (redirect flow; route handlers below call these) ───────────
+
+function googleRedirectUri(slug: string): string {
+  return `${config.app.siteUrl}/r/${slug}/account/google/callback`;
+}
+
+export async function beginGoogleSignIn(slug: string, returnTo: string | null): Promise<never> {
+  const state = randomUUID();
+  await setGoogleState(state);
+  const safeReturnTo = safeReturnToPath(slug, returnTo);
+  if (safeReturnTo) await setGoogleReturnTo(safeReturnTo);
+  const url = startGoogleAuth(googleRedirectUri(slug), state);
+  redirect(url);
+}
+
+export async function handleGoogleCallback(
+  slug: string,
+  code: string,
+  state: string,
+): Promise<{ needsPhone: boolean; pendingToken?: string; returnTo: string | null }> {
+  const expected = await consumeGoogleState();
+  const returnTo = await consumeGoogleReturnTo();
+  if (!expected || expected !== state) throw errors.validation("This sign-in link has expired. Please try again.");
+  const result = await completeGoogleAuth(slug, code, googleRedirectUri(slug));
+  if (result.status === "signed-in") {
+    await setCustomerSession(result.token, result.maxAge);
+    return { needsPhone: false, returnTo };
+  }
+  return { needsPhone: true, pendingToken: result.pendingToken, returnTo };
+}
+
+export async function finishGoogleSignupAction(payload: { pendingToken: string; phone: string }): Promise<ApiResult<null>> {
+  return action(async () => {
+    const result = await finishGoogleSignup(payload.pendingToken, payload.phone);
+    await setCustomerSession(result.token, result.maxAge);
+    return null;
+  });
+}
+
+export async function getCustomerSessionSummary(slug: string): Promise<{ signedIn: boolean; name: string | null }> {
+  const session = await getCustomerSession();
+  if (!session) return { signedIn: false, name: null };
+  const restaurant = await requireRestaurant(slug);
+  const customer = await getStorefrontCustomer(restaurant.id);
+  return { signedIn: Boolean(customer), name: customer?.name ?? null };
+}
+
+// ── Profile + saved addresses (the header profile drawer; checkout reads the same service) ──────────
+
+export interface ProfilePayload {
+  profile: CustomerProfile;
+}
+
+async function profileScope(slug: string) {
+  const restaurant = await requireRestaurant(slug);
+  const visitor = await getVisitorContext(restaurant.id);
+  return { restaurant, visitor };
+}
+
+export async function getProfileAction(slug: string): Promise<ApiResult<ProfilePayload>> {
+  return action(async () => {
+    const { restaurant, visitor } = await profileScope(slug);
+    return { profile: await getCustomerProfile(restaurant, visitor) };
+  });
+}
+
+export async function updateProfileAction(slug: string, payload: unknown): Promise<ApiResult<CustomerProfile>> {
+  return action(async () => {
+    const input = updateProfileSchema.parse(payload);
+    const { restaurant, visitor } = await profileScope(slug);
+    const profile = await updateCustomerProfile(restaurant, visitor, input);
+    revalidatePath(`/r/${slug}/checkout`);
+    return profile;
+  });
+}
+
+export async function saveAddressAction(slug: string, payload: unknown): Promise<ApiResult<CustomerAddress[]>> {
+  return action(async () => {
+    const input = customerAddressSchema.parse(payload);
+    const { restaurant, visitor } = await profileScope(slug);
+    const addresses = await saveCustomerAddress(restaurant, visitor, input);
+    revalidatePath(`/r/${slug}/checkout`);
+    return addresses;
+  });
+}
+
+export async function deleteAddressAction(slug: string, addressId: string): Promise<ApiResult<CustomerAddress[]>> {
+  return action(async () => {
+    const { restaurant, visitor } = await profileScope(slug);
+    const addresses = await deleteCustomerAddress(restaurant, visitor, String(addressId));
+    revalidatePath(`/r/${slug}/checkout`);
+    return addresses;
+  });
+}
+
+/** Emails the restaurant a request to delete this customer's account (Google accounts; see the profile drawer). */
+export async function requestAccountDeletionAction(slug: string): Promise<ApiResult<null>> {
+  return action(async () => {
+    const { restaurant, visitor } = await profileScope(slug);
+    await requestAccountDeletion(restaurant, visitor);
+    return null;
+  });
+}

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { signOutAction } from "@/app/r/[restaurantSlug]/account/actions";
+import { signOutAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 
 export function SignOutButton({ restaurantSlug }: { restaurantSlug: string }) {
   const router = useRouter();

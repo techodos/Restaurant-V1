@@ -6,7 +6,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { deleteVariantAction, saveVariantAction } from "@/app/admin/(dashboard)/menu/items/actions";
+import { deleteVariantAction, saveVariantAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 import type { MenuItem } from "@/shared/contract/models";
 
 type Variant = MenuItem["variants"][number];

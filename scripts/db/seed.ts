@@ -895,8 +895,8 @@ console.log("\n✔ Seed complete");
 console.log(`  restaurants ${counts?.restaurants} · menu items ${counts?.items} · orders ${counts?.orders} · customers ${counts?.customers}`);
 console.log(`  reviews ${counts?.reviews} · reservations ${counts?.reservations} · coupons ${counts?.coupons} · delivery zones ${counts?.zones}`);
 console.log("\n  Storefront : /r/bella-napoli");
-console.log("  Admin      : /admin  →  owner@bellanapoli.pk / BellaNapoli#1");
-console.log("  Kitchen    : /admin/kitchen (chef@bellanapoli.pk / BellaNapoli#4)\n");
+console.log("  Admin      : /r/bella-napoli/admin  →  owner@bellanapoli.pk / BellaNapoli#1");
+console.log("  Kitchen    : /r/bella-napoli/admin/kitchen (chef@bellanapoli.pk / BellaNapoli#4)\n");
 void orderCount;
 
 await client.end();

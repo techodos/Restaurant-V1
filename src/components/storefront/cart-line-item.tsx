@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Loader2, Minus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
-import { updateCartItemAction, removeCartItemAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { updateCartItemAction, removeCartItemAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 import { formatMoney } from "@/shared/money";
 import type { CartItem } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";

@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
-import { updateOrderStatusAction } from "@/app/admin/(dashboard)/orders/actions";
+import { updateOrderStatusAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/orders/actions";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_RANK, TERMINAL_ORDER_STATUSES, type OrderStatus } from "@/shared/contract/enums";
 
 export function OrderStatusControl({ orderId, currentStatus }: { orderId: string; currentStatus: OrderStatus }) {

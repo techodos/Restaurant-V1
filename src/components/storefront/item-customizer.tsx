@@ -7,7 +7,7 @@ import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Label, Textarea } from "@/components/ui/input";
-import { addToCartAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { addToCartAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 import { formatMoney } from "@/shared/money";
 import type { MenuItem } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";

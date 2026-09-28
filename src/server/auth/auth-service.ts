@@ -39,6 +39,8 @@ export interface StaffActor {
   email: string;
   name: string;
   restaurantId: string;
+  /** The restaurant the session belongs to; its admin lives at /r/<restaurantSlug>/admin. */
+  restaurantSlug: string;
   role: TeamRole;
   member: TeamMember;
   permissions: Permission[];
@@ -57,8 +59,9 @@ export async function authenticateStaff(
     { userId: session.sub, restaurantId: session.restaurantId },
     async (tx) => {
       const memberRow = await tx.queryOne<Row>(
-        `select * from team_members where user_id = $1 and is_active order by created_at limit 1`,
-        [session.sub],
+        // the membership the session was issued for (one login may belong to several restaurants)
+        `select * from team_members where user_id = $1 and restaurant_id = $2 and is_active order by created_at limit 1`,
+        [session.sub, session.restaurantId],
       );
       if (!memberRow) return { member: null, restaurant: null };
       const restaurantRow = restaurantSlug
@@ -82,6 +85,7 @@ export async function authenticateStaff(
     email: member.email,
     name: member.fullName,
     restaurantId: member.restaurantId,
+    restaurantSlug: restaurant.slug,
     role: member.role,
     member,
     permissions: effectivePermissions(member.role, member.permissions),

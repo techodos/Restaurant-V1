@@ -6,7 +6,7 @@ import Link from "next/link";
 import { CalendarCheck, CheckCircle2, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { BookingResult } from "@/app/r/[restaurantSlug]/reservation/actions";
+import type { BookingResult } from "@/app/r/[restaurantSlug]/(site)/reservation/actions";
 
 interface ReservationSuccessProps {
   restaurantSlug: string;

@@ -20,6 +20,7 @@ interface SiteHeaderProps {
   /** null while no customer sign-in system was reachable (never blocks rendering). */
   customer: { signedIn: boolean; name: string | null } | null;
   googleEnabled: boolean;
+  googleMapsApiKey: string | null;
 }
 
 /** A nav link is active on its own page and on its sub-pages (menu -> menu/<item>), home only on itself. */
@@ -80,7 +81,7 @@ const HERO_SELECTOR = "main [data-hero-overlay]";
  * action on the right is the account pill: "Sign In / Sign Up", or the customer's initial and name once
  * signed in (the menu itself is in the navigation, so there is no separate order button).
  */
-export function SiteHeader({ restaurant, config, itemCount, orderingOpen, customer }: SiteHeaderProps) {
+export function SiteHeader({ restaurant, config, itemCount, orderingOpen, customer, googleMapsApiKey }: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const signedIn = Boolean(customer?.signedIn);
@@ -365,6 +366,7 @@ export function SiteHeader({ restaurant, config, itemCount, orderingOpen, custom
           open={profileOpen}
           onOpenChange={setProfileOpen}
           phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
+          googleMapsApiKey={googleMapsApiKey}
         />
       ) : null}
     </>

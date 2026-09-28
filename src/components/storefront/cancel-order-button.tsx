@@ -6,7 +6,7 @@ import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
-import { cancelOrderAction } from "@/app/r/[restaurantSlug]/order/actions";
+import { cancelOrderAction } from "@/app/r/[restaurantSlug]/(site)/order/actions";
 
 interface CancelOrderButtonProps {
   restaurantSlug: string;

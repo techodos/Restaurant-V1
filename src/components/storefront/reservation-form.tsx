@@ -1,13 +1,17 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { ArrowLeft, ArrowRight, CalendarCheck, Loader2, MapPin, Minus, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowRight, CalendarCheck, Loader2, Lock, MapPin, Minus, Plus } from "lucide-react";
+import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils";
 import { ReservationSuccess } from "./reservation-success";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
-import { bookTableAction, type BookingResult } from "@/app/r/[restaurantSlug]/reservation/actions";
+import { PhoneInput } from "@/components/storefront/phone-input";
+import { signInHref } from "@/shared/return-to";
+import { bookTableAction, type BookingResult } from "@/app/r/[restaurantSlug]/(site)/reservation/actions";
 
 export interface ReservationSlotOption {
   time: string;
@@ -23,7 +27,15 @@ interface ReservationFormProps {
   maxGuests: number;
   slotMinutes: number;
   defaultDate: string;
+  /** false = a guest; they can browse and fill this form freely, but submitting sends them to sign in first */
+  isSignedIn: boolean;
   customerDefaults: { fullName: string; phone: string; email: string } | null;
+  /** the signed-in account's verified email: shown read-only and always the one used for the booking */
+  accountEmail: string | null;
+  /** the account's saved mobile (E.164): shown read-only; null = ask once, saved to the account with this booking */
+  savedPhone: string | null;
+  /** country preselected in the phone picker (the restaurant's country) */
+  phoneCountry: CountryCode;
 }
 
 /** "2026-09-26" -> weekday / day / month parts, read in UTC because the key is already the restaurant's local date. */
@@ -82,13 +94,19 @@ export function ReservationForm({
   maxGuests,
   slotMinutes,
   defaultDate,
+  isSignedIn,
   customerDefaults,
+  accountEmail,
+  savedPhone,
+  phoneCountry,
 }: ReservationFormProps) {
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState("");
   const [guests, setGuests] = useState(Math.min(Math.max(2, minGuests), maxGuests));
+  const [phone, setPhone] = useState(savedPhone ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const router = useRouter();
   const [booking, setBooking] = useState<BookingResult | null>(null);
   const [pending, startTransition] = useTransition();
   const dayStrip = useRef<HTMLDivElement>(null);
@@ -117,6 +135,16 @@ export function ReservationForm({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    // A guest may fill in the whole form; only the actual booking step requires an account. Sending
+    // them to sign in here (not on page load) means they never lose time spent picking a date/time —
+    // `returnTo` brings them straight back to this page to finish and submit again.
+    if (!isSignedIn) {
+      toast.error("Please sign in first to book a table.", { description: "You'll come right back here afterwards." });
+      router.push(signInHref(restaurantSlug, `/r/${restaurantSlug}/reservation`));
+      return;
+    }
+
     const form = new FormData(event.currentTarget);
     const value = (key: string) => String(form.get(key) ?? "").trim();
 
@@ -126,18 +154,21 @@ export function ReservationForm({
       time,
       guests,
       guestName: value("guestName"),
-      guestPhone: value("guestPhone"),
-      guestEmail: value("guestEmail"),
+      guestPhone: phone,
+      guestEmail: accountEmail ?? value("guestEmail"),
       occasion: value("occasion"),
       specialRequests: value("specialRequests"),
     };
 
     const nextErrors: Record<string, string> = {};
     if (!payload.guestName) nextErrors.guestName = "Please tell us who the booking is for.";
-    if (!/^[+0-9()\s-]{7,}$/.test(payload.guestPhone)) nextErrors.guestPhone = "We need a phone number to confirm.";
+    if (!payload.guestPhone) nextErrors.guestPhone = "Please enter your mobile number.";
+    else if (!isValidPhoneNumber(payload.guestPhone)) nextErrors.guestPhone = "That mobile number does not look right for the selected country.";
     if (!payload.time) nextErrors.time = "Please choose a time.";
-    if (!payload.guestEmail) nextErrors.guestEmail = "Please enter your email so we can confirm.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.guestEmail)) nextErrors.guestEmail = "That email looks incomplete.";
+    if (!accountEmail) {
+      if (!payload.guestEmail) nextErrors.guestEmail = "Please enter your email so we can confirm.";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.guestEmail)) nextErrors.guestEmail = "That email looks incomplete.";
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       toast.error("Please check the highlighted fields.");
@@ -147,6 +178,12 @@ export function ReservationForm({
     startTransition(async () => {
       const result = await bookTableAction(restaurantSlug, payload);
       if (!result.success) {
+        if (result.error.code === "SIGN_IN_REQUIRED") {
+          // the session ended mid-booking: sign in again and come straight back here
+          toast.error(result.error.message, { description: "Your booking details are not lost — sign in to continue." });
+          router.push(signInHref(restaurantSlug, `/r/${restaurantSlug}/reservation`));
+          return;
+        }
         toast.error(result.error.message);
         return;
       }
@@ -348,30 +385,57 @@ export function ReservationForm({
             <FieldError>{errors.guestName}</FieldError>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="guestPhone">Phone</Label>
-            <Input
+            <Label htmlFor="guestPhone">
+              Phone{" "}
+              {savedPhone ? (
+                <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span>
+              ) : (
+                <span aria-hidden className="text-[var(--color-danger)]">*</span>
+              )}
+            </Label>
+            <PhoneInput
               id="guestPhone"
-              name="guestPhone"
-              type="tel"
-              defaultValue={customerDefaults?.phone ?? ""}
-              autoComplete="tel"
-              required
+              value={phone}
+              onChange={setPhone}
+              defaultCountry={phoneCountry}
+              disabled={Boolean(savedPhone)}
+              required={!savedPhone}
               aria-invalid={Boolean(errors.guestPhone) || undefined}
+              aria-describedby="guestPhone-hint"
             />
+            <p id="guestPhone-hint" className="text-xs text-[var(--color-muted-ink)]">
+              {savedPhone
+                ? "Saved on your account. You can change it from your profile."
+                : "Required. We save it to your account with this booking, so next time it is filled in for you."}
+            </p>
             <FieldError>{errors.guestPhone}</FieldError>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="guestEmail">Email</Label>
-            <Input
-              id="guestEmail"
-              name="guestEmail"
-              type="email"
-              defaultValue={customerDefaults?.email ?? ""}
-              autoComplete="email"
-              required
-              aria-invalid={Boolean(errors.guestEmail) || undefined}
-            />
-            <FieldHint>We email you when the request is received and again when it is confirmed.</FieldHint>
+            <Label htmlFor="guestEmail">
+              Email{" "}
+              {accountEmail ? <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span> : null}
+            </Label>
+            {accountEmail ? (
+              <div className="relative">
+                <Input id="guestEmail" type="email" value={accountEmail} readOnly aria-readonly className="pr-10 text-[var(--color-muted-ink)]" />
+                <Lock className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
+              </div>
+            ) : (
+              <Input
+                id="guestEmail"
+                name="guestEmail"
+                type="email"
+                defaultValue={customerDefaults?.email ?? ""}
+                autoComplete="email"
+                required
+                aria-invalid={Boolean(errors.guestEmail) || undefined}
+              />
+            )}
+            <FieldHint>
+              {accountEmail
+                ? "Your booking confirmation and updates go to this address."
+                : "We email you when the request is received and again when it is confirmed."}
+            </FieldHint>
             <FieldError>{errors.guestEmail}</FieldError>
           </div>
           <div className="space-y-1.5">

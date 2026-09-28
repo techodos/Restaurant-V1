@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
-import { deleteCouponAction, saveCouponAction } from "@/app/admin/(dashboard)/coupons/actions";
+import { deleteCouponAction, saveCouponAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/coupons/actions";
 import { COUPON_DISCOUNT_TYPES, ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import type { Coupon } from "@/shared/contract/models";
 

@@ -7,7 +7,7 @@ import { paginate, type Paginated } from "@/shared/contract/api";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
 import { mapReservation, num, str, type Row } from "@/server/db/mappers";
-import { upsertCustomer } from "./customers";
+import { attachAccountCustomer, upsertCustomer } from "./customers";
 
 /**
  * Reservations. Validation covers opening hours, guest limits, lead time,
@@ -26,7 +26,10 @@ export interface ReservationInput {
   tableNumber?: string | null;
   specialRequests?: string | null;
   occasion?: string | null;
-  customerId?: string | null;
+  /** the signed-in visitor's own customer id, if any — resolved by id, never re-derived from the typed phone */
+  accountCustomerId?: string | null;
+  /** save the typed phone onto the account only when it has none yet (mirrors checkout's placeOrder) */
+  saveAccountPhone?: boolean;
   userId?: string | null;
   autoConfirm: boolean;
   settings: {
@@ -102,17 +105,24 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
       tableNumber = candidate.name;
     }
 
-    const customer = await upsertCustomer(
-      {
-        restaurantId: input.restaurantId,
-        fullName: input.guestName,
-        phone: input.guestPhone,
-        email: input.guestEmail ?? null,
-        isGuest: !input.userId,
-      },
-      context,
-      tx,
-    );
+    // A signed-in visitor already has their own customer row (keyed by their account email); resolve it
+    // by id, never by the phone typed into this form — `customers` has an independent unique key on
+    // (restaurant_id, lower(email)) as well as on phone, so upserting-by-phone for an already-known
+    // account risks inserting a second row that collides with the account's own email (see
+    // `attachAccountCustomer`'s doc comment for the incident this fixes).
+    const customer = input.accountCustomerId
+      ? await attachAccountCustomer(input.restaurantId, input.accountCustomerId, input.saveAccountPhone ? input.guestPhone : null, context, tx)
+      : await upsertCustomer(
+          {
+            restaurantId: input.restaurantId,
+            fullName: input.guestName,
+            phone: input.guestPhone,
+            email: input.guestEmail ?? null,
+            isGuest: !input.userId,
+          },
+          context,
+          tx,
+        );
 
     const row = await tx.queryOne<Row>(
       `insert into reservations

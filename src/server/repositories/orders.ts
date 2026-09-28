@@ -8,7 +8,7 @@ import { paginate, type Paginated } from "@/shared/contract/api";
 import { getRestaurantById } from "./restaurants";
 import { listDeliveryZones, matchDeliveryZone } from "./deliveries";
 import { countCouponUsageByPhone, toCouponPricing } from "./coupons";
-import { upsertCustomer } from "./customers";
+import { attachAccountCustomer, upsertCustomer } from "./customers";
 import { resolveItemSelection } from "./carts";
 import { mapCustomer, mapDelivery, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, textArray, type Row } from "@/server/db/mappers";
 import { type DbClient } from "@/server/db/database";
@@ -61,38 +61,6 @@ export interface CreateOrderResult {
   order: Order;
   paymentId: string;
   requiresOnlinePayment: boolean;
-}
-
-/**
- * The signed-in customer's row for an order (locked for the rest of the transaction). `newPhone` is stored
- * only when the account has no mobile yet; a number that already belongs to another customer of this
- * restaurant is refused with a CONFLICT instead of a raw unique violation.
- */
-async function attachAccountCustomer(
-  tx: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> },
-  restaurantId: string,
-  customerId: string,
-  newPhone: string | null,
-): Promise<Customer> {
-  const existing = await tx.queryOne<Row>(
-    `select * from customers where id = $1 and restaurant_id = $2 for update`,
-    [customerId, restaurantId],
-  );
-  if (!existing) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
-  if (!newPhone || str(existing.phone).trim()) return mapCustomer(existing);
-
-  const clash = await tx.queryOne<Row>(
-    `select 1 from customers where restaurant_id = $1 and phone = $2 and id <> $3 limit 1`,
-    [restaurantId, newPhone, customerId],
-  );
-  if (clash) {
-    throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
-  }
-  const updated = await tx.queryOne<Row>(
-    `update customers set phone = $2, updated_at = now() where id = $1 returning *`,
-    [customerId, newPhone],
-  );
-  return mapCustomer(updated ?? existing);
 }
 
 export async function createOrder(input: CreateOrderInput, ctx: RequestContext): Promise<CreateOrderResult> {
@@ -299,7 +267,7 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
 
     // 7 ─ customer ----------------------------------------------------------
     const customer = input.accountCustomerId
-      ? await attachAccountCustomer(tx, input.restaurantId, input.accountCustomerId, input.saveAccountPhone ? input.customer.phone : null)
+      ? await attachAccountCustomer(input.restaurantId, input.accountCustomerId, input.saveAccountPhone ? input.customer.phone : null, context, tx)
       : await upsertCustomer(
           {
             restaurantId: input.restaurantId,
