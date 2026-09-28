@@ -13,6 +13,7 @@ import { FieldError, FieldHint, Input, Label, Select } from "@/components/ui/inp
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { cn } from "@/shared/utils";
 import { CUSTOMER_GENDERS, type CustomerAddress, type CustomerGender } from "@/shared/contract/models";
+import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
 import {
   deleteAddressAction,
   getProfileAction,
@@ -21,7 +22,7 @@ import {
   signOutAction,
   updateProfileAction,
   type ProfilePayload,
-} from "@/app/r/[restaurantSlug]/account/actions";
+} from "@/app/r/[restaurantSlug]/(site)/account/actions";
 
 const GENDER_LABELS: Record<CustomerGender, string> = {
   female: "Female",
@@ -38,6 +39,8 @@ type AddressDraft = {
   area: string;
   city: string;
   postalCode: string;
+  latitude?: number;
+  longitude?: number;
   isDefault: boolean;
 };
 
@@ -83,11 +86,13 @@ export function ProfileDrawer({
   open,
   onOpenChange,
   phoneCountry = "PK",
+  googleMapsApiKey = null,
 }: {
   restaurantSlug: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   phoneCountry?: CountryCode;
+  googleMapsApiKey?: string | null;
 }) {
   const router = useRouter();
   const [data, setData] = useState<ProfilePayload | null>(null);
@@ -199,6 +204,8 @@ export function ProfileDrawer({
             <AddressBook
               restaurantSlug={restaurantSlug}
               addresses={profile.addresses}
+              googleMapsApiKey={googleMapsApiKey}
+              phoneCountry={phoneCountry}
               onChange={(addresses) => {
                 setData((current) => (current ? { ...current, profile: { ...current.profile, addresses } } : current));
                 router.refresh();
@@ -308,10 +315,14 @@ function ProfileDetailsForm({
 function AddressBook({
   restaurantSlug,
   addresses,
+  googleMapsApiKey = null,
+  phoneCountry = "PK",
   onChange,
 }: {
   restaurantSlug: string;
   addresses: CustomerAddress[];
+  googleMapsApiKey?: string | null;
+  phoneCountry?: CountryCode;
   onChange: (addresses: CustomerAddress[]) => void;
 }) {
   const [draft, setDraft] = useState<AddressDraft | null>(null);
@@ -341,7 +352,14 @@ function AddressBook({
         {addresses.map((address) =>
           draft?.id === address.id ? (
             <li key={address.id}>
-              <AddressForm restaurantSlug={restaurantSlug} draft={draft} onCancel={() => setDraft(null)} onSaved={(next) => { setDraft(null); onChange(next); }} />
+              <AddressForm
+                restaurantSlug={restaurantSlug}
+                draft={draft}
+                googleMapsApiKey={googleMapsApiKey}
+                phoneCountry={phoneCountry}
+                onCancel={() => setDraft(null)}
+                onSaved={(next) => { setDraft(null); onChange(next); }}
+              />
             </li>
           ) : (
             <li key={address.id} className="rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
@@ -384,6 +402,8 @@ function AddressBook({
                             area: address.area ?? "",
                             city: address.city ?? "",
                             postalCode: address.postalCode ?? "",
+                            latitude: address.latitude ?? undefined,
+                            longitude: address.longitude ?? undefined,
                             isDefault: address.isDefault,
                           })
                         }
@@ -408,7 +428,14 @@ function AddressBook({
         )}
       </ul>
       {draft && !draft.id ? (
-        <AddressForm restaurantSlug={restaurantSlug} draft={draft} onCancel={() => setDraft(null)} onSaved={(next) => { setDraft(null); onChange(next); }} />
+        <AddressForm
+          restaurantSlug={restaurantSlug}
+          draft={draft}
+          googleMapsApiKey={googleMapsApiKey}
+          phoneCountry={phoneCountry}
+          onCancel={() => setDraft(null)}
+          onSaved={(next) => { setDraft(null); onChange(next); }}
+        />
       ) : !draft ? (
         <Button variant="outline" className="w-full" onClick={() => setDraft(emptyDraft(addresses.length === 0))}>
           <Plus aria-hidden />
@@ -422,11 +449,15 @@ function AddressBook({
 function AddressForm({
   restaurantSlug,
   draft,
+  googleMapsApiKey = null,
+  phoneCountry = "PK",
   onCancel,
   onSaved,
 }: {
   restaurantSlug: string;
   draft: AddressDraft;
+  googleMapsApiKey?: string | null;
+  phoneCountry?: CountryCode;
   onCancel: () => void;
   onSaved: (addresses: CustomerAddress[]) => void;
 }) {
@@ -435,6 +466,18 @@ function AddressForm({
   const [pending, startTransition] = useTransition();
   const set = (key: keyof AddressDraft) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setValue((current) => ({ ...current, [key]: key === "isDefault" ? event.target.checked : event.target.value }));
+
+  function handlePickedLocation(resolved: ResolvedLocation) {
+    setValue((current) => ({
+      ...current,
+      addressLine1: resolved.addressLine1 || current.addressLine1,
+      area: resolved.area || current.area,
+      city: resolved.city || current.city,
+      postalCode: resolved.postalCode || current.postalCode,
+      latitude: resolved.latitude,
+      longitude: resolved.longitude,
+    }));
+  }
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -476,6 +519,12 @@ function AddressForm({
   return (
     <form onSubmit={submit} noValidate className="animate-sheet space-y-3 rounded-[var(--radius-card)] border border-[var(--color-brand)] bg-[var(--color-surface)] p-4">
       <p className="text-sm font-semibold">{value.id ? "Edit address" : "New address"}</p>
+      <LocationPicker
+        apiKey={googleMapsApiKey}
+        country={phoneCountry}
+        initialCenter={value.latitude && value.longitude ? { latitude: value.latitude, longitude: value.longitude } : undefined}
+        onResolve={handlePickedLocation}
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         {field("label", "Name", { placeholder: "Home, Office…", maxLength: 40, className: "sm:col-span-2" })}
         {field("addressLine1", "Street address", { autoComplete: "address-line1", className: "sm:col-span-2" })}

@@ -89,5 +89,5 @@ await client.query(
   [restaurant.id, userId, email, name, role],
 );
 
-console.log(`Staff account ready: ${email} / ${password} (${role}) on ${restaurantSlug}`);
+console.log(`Staff account ready: ${email} / ${password} (${role}) on ${restaurantSlug}, sign in at /r/${restaurantSlug}/admin/login`);
 await client.end();

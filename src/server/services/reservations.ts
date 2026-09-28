@@ -10,6 +10,7 @@ import {
   updateReservationStatus,
   type ReservationListFilters,
 } from "@/server/repositories/reservations";
+import { getCustomerById } from "@/server/repositories/customers";
 import type { BookTableInput } from "@/server/validation/reservation";
 import { getLocations } from "./restaurants";
 
@@ -19,31 +20,48 @@ export async function bookTable(restaurant: Restaurant, input: BookTableInput, v
   if (!restaurant.features.reservations) {
     throw errors.custom("RESERVATION_CLOSED", "This restaurant is not taking reservations online.");
   }
+  // Reservations are for signed-in customers only, same as checkout (placeOrderAction's own comment:
+  // hiding the form for guests is only UX — this is the real, server-side gate).
+  if (!visitor.customerId) {
+    throw errors.custom("SIGN_IN_REQUIRED", "Please sign in to reserve a table.");
+  }
 
   const locations = await getLocations(restaurant.id, { activeOnly: true });
   const location = locations.find((candidate) => candidate.id === input.locationId);
   if (!location) throw errors.validation("Please choose one of our locations.");
+
+  // The signed-in visitor's own account (matched by id, keyed by their account email) is the customer of
+  // record — never re-derived from the phone/email typed into this form (same reasoning as checkout's
+  // placeOrder: `customers` has independent unique keys on phone AND on email).
+  const account = await getCustomerById(visitor.customerId, { restaurantId: restaurant.id, customerId: visitor.customerId });
+  if (!account || account.restaurantId !== restaurant.id) {
+    throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to reserve a table.");
+  }
+  const savedPhone = account.phone.trim() ? account.phone : null;
+  const phone = savedPhone ?? input.guestPhone;
+  const email = account.email || input.guestEmail || null;
 
   const reservation = await createReservation(
     {
       restaurantId: restaurant.id,
       locationId: location.id,
       guestName: input.guestName,
-      guestPhone: input.guestPhone,
-      guestEmail: input.guestEmail || null,
+      guestPhone: phone,
+      guestEmail: email,
       date: input.date,
       time: input.time,
       guests: input.guests,
       occasion: input.occasion || null,
       specialRequests: input.specialRequests || null,
-      customerId: visitor.customerId ?? null,
+      accountCustomerId: account.id,
+      saveAccountPhone: !savedPhone,
       userId: visitor.userId ?? null,
       autoConfirm: restaurant.settings.reservations.autoConfirm,
       settings: restaurant.settings.reservations,
       timezone: restaurant.timezone,
       hours: location.hours,
     },
-    { restaurantId: restaurant.id, customerId: visitor.customerId ?? null },
+    { restaurantId: restaurant.id, customerId: visitor.customerId },
   );
   // The request and confirmation emails are queued by the database trigger in the same
   // transaction as the insert (migration 0017); the caller dispatches them after responding.

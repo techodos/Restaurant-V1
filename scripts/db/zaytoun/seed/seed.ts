@@ -437,8 +437,8 @@ try {
   console.log(`\n✔ Zaytoun seed complete`);
   console.log(`  categories ${counts?.categories} · items ${counts?.items} · orders ${counts?.orders} · customers ${counts?.customers}`);
   console.log(`  reviews ${counts?.reviews} · reservations ${counts?.reservations} · coupons ${counts?.coupons} · zones ${counts?.zones}`);
-  console.log(`\n  Storefront : /r/${SLUG}   (run the app with NEXT_PUBLIC_DEFAULT_RESTAURANT=${SLUG})`);
-  console.log(`  Admin      : /admin  →  ${TEAM[0]!.email} / ${TEAM[0]!.password}\n`);
+  console.log(`\n  Storefront : /r/${SLUG}   (storefront: run the app with NEXT_PUBLIC_DEFAULT_RESTAURANT=${SLUG})`);
+  console.log(`  Admin      : /r/${SLUG}/admin  →  ${TEAM[0]!.email} / ${TEAM[0]!.password}\n`);
 } catch (error) {
   await client.query("rollback").catch(() => undefined);
   throw error;

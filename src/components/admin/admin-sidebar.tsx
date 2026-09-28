@@ -20,9 +20,10 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
-import { cn } from "@/shared/utils";
+import { adminPath, cn } from "@/shared/utils";
 import { hasAnyPermission, type Permission } from "@/server/auth/permissions";
 
+/** `href` is relative to the restaurant's admin root (/r/<slug>/admin). */
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; permission?: Permission };
 
 /** Grouped by the job the screen serves; each link is still gated by the same permission as before. */
@@ -30,28 +31,28 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Service",
     items: [
-      { href: "/admin", label: "Service", icon: LayoutDashboard },
-      { href: "/admin/orders", label: "Orders", icon: ClipboardList, permission: "orders.view" },
-      { href: "/admin/kitchen", label: "Kitchen", icon: ChefHat, permission: "kitchen.view" },
-      { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck, permission: "reservations.view" },
+      { href: "", label: "Service", icon: LayoutDashboard },
+      { href: "/orders", label: "Orders", icon: ClipboardList, permission: "orders.view" },
+      { href: "/kitchen", label: "Kitchen", icon: ChefHat, permission: "kitchen.view" },
+      { href: "/reservations", label: "Reservations", icon: CalendarCheck, permission: "reservations.view" },
     ],
   },
   {
     title: "Catalogue",
     items: [
-      { href: "/admin/menu", label: "Menu", icon: UtensilsCrossed, permission: "menu.view" },
-      { href: "/admin/coupons", label: "Coupons", icon: Ticket, permission: "coupons.view" },
-      { href: "/admin/reviews", label: "Reviews", icon: Star, permission: "reviews.view" },
+      { href: "/menu", label: "Menu", icon: UtensilsCrossed, permission: "menu.view" },
+      { href: "/coupons", label: "Coupons", icon: Ticket, permission: "coupons.view" },
+      { href: "/reviews", label: "Reviews", icon: Star, permission: "reviews.view" },
     ],
   },
   {
     title: "Business",
     items: [
-      { href: "/admin/customers", label: "Customers", icon: Users, permission: "customers.view" },
-      { href: "/admin/delivery-zones", label: "Delivery zones", icon: MapPinned, permission: "delivery.view" },
-      { href: "/admin/locations", label: "Locations", icon: Building2, permission: "locations.view" },
-      { href: "/admin/payments", label: "Payments", icon: CreditCard, permission: "payments.view" },
-      { href: "/admin/settings", label: "Settings", icon: Settings, permission: "settings.view" },
+      { href: "/customers", label: "Customers", icon: Users, permission: "customers.view" },
+      { href: "/delivery-zones", label: "Delivery zones", icon: MapPinned, permission: "delivery.view" },
+      { href: "/locations", label: "Locations", icon: Building2, permission: "locations.view" },
+      { href: "/payments", label: "Payments", icon: CreditCard, permission: "payments.view" },
+      { href: "/settings", label: "Settings", icon: Settings, permission: "settings.view" },
     ],
   },
 ];
@@ -63,7 +64,7 @@ function visibleGroups(permissions: Permission[]) {
   })).filter((group) => group.items.length > 0);
 }
 
-function NavList({ permissions, onNavigate }: { permissions: Permission[]; onNavigate?: () => void }) {
+function NavList({ permissions, base, onNavigate }: { permissions: Permission[]; base: string; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Admin" className="space-y-6">
@@ -74,12 +75,13 @@ function NavList({ permissions, onNavigate }: { permissions: Permission[]; onNav
           </p>
           <ul className="mt-2 space-y-0.5">
             {group.items.map((item) => {
-              const active = item.href === "/admin" ? pathname === item.href : pathname.startsWith(item.href);
+              const href = `${base}${item.href}`;
+              const active = item.href === "" ? pathname === href : pathname.startsWith(href);
               const Icon = item.icon;
               return (
-                <li key={item.href}>
+                <li key={href}>
                   <Link
-                    href={item.href}
+                    href={href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
@@ -123,21 +125,28 @@ function Brand({ restaurantName }: { restaurantName: string }) {
 }
 
 /** Desktop sidebar (lg and up). Phones and tablets use AdminMobileNav in the header instead. */
-export function AdminSidebar({ permissions, restaurantName }: { permissions: Permission[]; restaurantName: string }) {
+interface AdminNavProps {
+  permissions: Permission[];
+  restaurantName: string;
+  restaurantSlug: string;
+}
+
+
+export function AdminSidebar({ permissions, restaurantName, restaurantSlug }: AdminNavProps) {
   return (
     <aside className="tone-night sticky top-0 hidden h-dvh w-64 shrink-0 flex-col lg:flex">
       <div className="flex h-[4.75rem] items-center border-b border-[var(--rule)] px-5">
         <Brand restaurantName={restaurantName} />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-5">
-        <NavList permissions={permissions} />
+        <NavList permissions={permissions} base={adminPath(restaurantSlug)} />
       </div>
     </aside>
   );
 }
 
 /** Menu button + slide-over drawer for screens below lg. */
-export function AdminMobileNav({ permissions, restaurantName }: { permissions: Permission[]; restaurantName: string }) {
+export function AdminMobileNav({ permissions, restaurantName, restaurantSlug }: AdminNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -187,7 +196,7 @@ export function AdminMobileNav({ permissions, restaurantName }: { permissions: P
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-3 py-5">
-              <NavList permissions={permissions} onNavigate={() => setOpen(false)} />
+              <NavList permissions={permissions} base={adminPath(restaurantSlug)} onNavigate={() => setOpen(false)} />
             </div>
           </div>
         </div>,

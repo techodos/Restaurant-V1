@@ -5,18 +5,21 @@ import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/server/auth/permissions";
-import { signOutAction } from "@/app/admin/(dashboard)/actions";
+import { signOutAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/actions";
 import type { TeamRole } from "@/shared/contract/enums";
+import { adminPath } from "@/shared/utils";
 
 export function AdminHeader({
   name,
   role,
   restaurantName,
+  restaurantSlug,
   mobileNav,
 }: {
   name: string;
   role: TeamRole;
   restaurantName: string;
+  restaurantSlug: string;
   /** menu button for screens without the sidebar */
   mobileNav?: React.ReactNode;
 }) {
@@ -25,8 +28,8 @@ export function AdminHeader({
 
   function handleSignOut() {
     startTransition(() => {
-      signOutAction().then(() => {
-        router.push("/admin/login");
+      signOutAction(restaurantSlug).then(() => {
+        router.push(adminPath(restaurantSlug, "/login"));
         router.refresh();
       });
     });

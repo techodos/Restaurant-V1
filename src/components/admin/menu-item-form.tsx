@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
-import { saveMenuItemAction } from "@/app/admin/(dashboard)/menu/items/actions";
+import { saveMenuItemAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 import type { MenuCategory, MenuItem } from "@/shared/contract/models";
+import { adminPath } from "@/shared/utils";
 
 function slugify(value: string): string {
   return value
@@ -38,6 +39,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const { restaurantSlug } = useParams<{ restaurantSlug: string }>();
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -71,7 +73,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
           return;
         }
         toast.success(item ? "Item updated." : "Item created.");
-        if (!item) router.push(`/admin/menu/items/${result.data.id}`);
+        if (!item) router.push(adminPath(restaurantSlug, `/menu/items/${result.data.id}`));
         else router.refresh();
       });
     });

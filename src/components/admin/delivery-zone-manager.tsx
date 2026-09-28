@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
-import { deleteDeliveryZoneAction, saveDeliveryZoneAction } from "@/app/admin/(dashboard)/delivery-zones/actions";
+import { deleteDeliveryZoneAction, saveDeliveryZoneAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/delivery-zones/actions";
 import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
 
 function splitList(value: string): string[] {

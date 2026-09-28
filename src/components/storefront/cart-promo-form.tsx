@@ -6,7 +6,7 @@ import { Loader2, Tag, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { applyCouponAction, clearCartAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { applyCouponAction, clearCartAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 
 interface CartPromoFormProps {
   restaurantSlug: string;

@@ -155,25 +155,20 @@ export async function upsertCustomer(
   ctx: RequestContext,
   tx?: { query: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T[]>; queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> },
 ): Promise<Customer> {
+  // A plain "select, then insert-if-missing" is not atomic: two near-simultaneous requests for the same
+  // (restaurant_id, phone) — a fast double-submit, two tabs, concurrent guest checkout + reservation —
+  // can both see "no existing row" and both attempt the insert; the loser then hits the unique
+  // constraint and surfaces as a raw, unhelpful "That record already exists." `insert ... on conflict
+  // ... do update` makes the whole read-or-write a single statement, so there is no window to race.
   const run = async (db: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> }) => {
-    const existing = await db.queryOne<Row>(
-      `select ${CUSTOMER_COLUMNS} from customers where restaurant_id = $1 and phone = $2 limit 1`,
-      [input.restaurantId, input.phone],
-    );
-    if (existing) {
-      return db.queryOne<Row>(
-        `update customers set
-           full_name = coalesce(nullif($2,''), full_name),
-           email = coalesce(nullif($3,''), email),
-           marketing_opt_in = coalesce($4, marketing_opt_in),
-           is_guest = case when $5 = false then false else is_guest end
-         where id = $1 returning ${CUSTOMER_COLUMNS}`,
-        [str(existing.id), input.fullName, input.email ?? "", input.marketingOptIn ?? null, input.isGuest ?? null],
-      );
-    }
     return db.queryOne<Row>(
       `insert into customers (restaurant_id, full_name, email, phone, marketing_opt_in, is_guest)
        values ($1,$2,$3,$4,coalesce($5,false),coalesce($6,true))
+       on conflict (restaurant_id, phone) do update set
+         full_name = coalesce(nullif($2,''), customers.full_name),
+         email = coalesce(nullif($3,''), customers.email),
+         marketing_opt_in = coalesce($5, customers.marketing_opt_in),
+         is_guest = case when $6 = false then false else customers.is_guest end
        returning ${CUSTOMER_COLUMNS}`,
       [input.restaurantId, input.fullName, input.email ?? null, input.phone,
        input.marketingOptIn ?? null, input.isGuest ?? null],
@@ -181,6 +176,42 @@ export async function upsertCustomer(
   };
 
   const row = tx ? await run(tx) : await getDb({ restaurantId: input.restaurantId }).write(ctx, (db) => run(db));
+  if (!row) throw new Error("Unable to save the customer");
+  return mapCustomer(row);
+}
+
+/**
+ * Attaches an already-signed-in customer's own account row to a new order/reservation, instead of
+ * `upsertCustomer`'s phone-based upsert. This matters because `customers` has TWO independent unique
+ * keys — `(restaurant_id, phone)` and `(restaurant_id, lower(email))` — and a signed-in customer's
+ * account row is keyed by their account email; if they type a *different* phone than the one already
+ * on file (or none is on file yet), a phone-based upsert sees "no row for this phone" and tries to
+ * INSERT a second row, which then collides with the account's own email and throws a raw, unhelpful
+ * "That record already exists." (found 2026-09-27 booking a reservation while signed in). Always look
+ * the account up by its own id for a signed-in visitor; never re-derive it from the phone they typed.
+ */
+export async function attachAccountCustomer(
+  restaurantId: string,
+  customerId: string,
+  newPhone: string | null,
+  ctx: RequestContext,
+  tx?: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> },
+): Promise<Customer> {
+  const run = async (db: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> }) => {
+    const existing = await db.queryOne<Row>(`select * from customers where id = $1 and restaurant_id = $2 for update`, [customerId, restaurantId]);
+    if (!existing) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again.");
+    if (!newPhone || str(existing.phone).trim()) return existing;
+
+    const clash = await db.queryOne<Row>(
+      `select 1 as one from customers where restaurant_id = $1 and phone = $2 and id <> $3 limit 1`,
+      [restaurantId, newPhone, customerId],
+    );
+    if (clash) throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
+
+    return db.queryOne<Row>(`update customers set phone = $2, updated_at = now() where id = $1 returning *`, [customerId, newPhone]);
+  };
+
+  const row = tx ? await run(tx) : await getDb({ restaurantId }).write(ctx, (db) => run(db));
   if (!row) throw new Error("Unable to save the customer");
   return mapCustomer(row);
 }
@@ -265,12 +296,14 @@ export async function updateAddress(
     const row = await tx.queryOne<Row>(
       `update customer_addresses set
          label = coalesce($3, label), address_line1 = $4, address_line2 = $5, area = $6, city = $7,
-         postal_code = $8, delivery_notes = $9, is_default = coalesce($10, is_default), updated_at = now()
+         postal_code = $8, delivery_notes = $9, latitude = $10, longitude = $11,
+         is_default = coalesce($12, is_default), updated_at = now()
        where id = $1 and customer_id = $2
        returning *`,
       [
         addressId, customerId, input.label ?? null, input.addressLine1, input.addressLine2 ?? null, input.area ?? null,
-        input.city ?? null, input.postalCode ?? null, input.deliveryNotes ?? null, input.isDefault ?? null,
+        input.city ?? null, input.postalCode ?? null, input.deliveryNotes ?? null, input.latitude ?? null,
+        input.longitude ?? null, input.isDefault ?? null,
       ],
     );
     return row ? mapAddress(row) : null;

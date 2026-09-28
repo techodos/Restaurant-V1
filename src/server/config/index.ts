@@ -111,6 +111,13 @@ const googleAuthSchema = z.object({
   GOOGLE_CLIENT_SECRET: optionalText,
 });
 
+const mapsSchema = z.object({
+  // public browser key (safe for the client; handed over by a server component, never read via
+  // process.env in client code). Restrict it in Google Cloud Console to HTTP referrers for this
+  // site and to the Maps JavaScript API, Places API and Geocoding API only.
+  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: optionalText,
+});
+
 function parse<T extends z.ZodTypeAny>(section: string, schema: T): z.infer<T> {
   const result = schema.safeParse(process.env);
   if (!result.success) {
@@ -252,6 +259,12 @@ const googleAuth = lazy(() => {
     : null;
 });
 
+const maps = lazy(() => {
+  const env = parse("maps", mapsSchema);
+  // null = the map/search/current-location picker is hidden; checkout falls back to plain text fields.
+  return env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? { apiKey: env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY } : null;
+});
+
 export const config = {
   get app() {
     return app();
@@ -285,6 +298,9 @@ export const config = {
   },
   get googleAuth() {
     return googleAuth();
+  },
+  get maps() {
+    return maps();
   },
 };
 

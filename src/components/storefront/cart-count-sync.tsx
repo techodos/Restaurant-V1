@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { resyncCartCountAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { resyncCartCountAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 
 /** Invisible: resyncs the header's cart-count cookie hint to the real count this page just loaded. */
 export function CartCountSync({ count }: { count: number }) {

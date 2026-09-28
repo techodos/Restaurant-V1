@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Check, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/shared/utils";
-import { addToCartAction } from "@/app/r/[restaurantSlug]/cart/actions";
+import { addToCartAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 import { flyToTray } from "@/components/motion/fly-to-tray";
 
 interface QuickAddButtonProps {

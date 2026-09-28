@@ -11,7 +11,7 @@ import {
   deleteAddonGroupAction,
   saveAddonAction,
   saveAddonGroupAction,
-} from "@/app/admin/(dashboard)/menu/items/actions";
+} from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 import type { MenuAddonGroup } from "@/shared/contract/models";
 
 type Addon = MenuAddonGroup["addons"][number];

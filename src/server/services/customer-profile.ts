@@ -91,6 +91,8 @@ export async function saveCustomerAddress(
     city: input.city,
     postalCode: input.postalCode,
     deliveryNotes: input.deliveryNotes,
+    ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
+    ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
     ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
   };
   if (input.id) {
