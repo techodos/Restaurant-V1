@@ -148,6 +148,42 @@ export async function signGooglePendingToken(grant: GooglePendingGrant): Promise
     .sign(secret());
 }
 
+/**
+ * "Forgot password": issued once the emailed code checks out, redeemed by "set a new password". Carries
+ * neither `sub` nor `customerId`, so it can never pass as a session. `ph` fingerprints the password hash
+ * it was issued against: once the password changes the fingerprint no longer matches, so the token is
+ * single-use without a table to remember it in.
+ */
+const PASSWORD_RESET_PURPOSE = "password-reset";
+const PASSWORD_RESET_TTL_SECONDS = 60 * 15;
+
+export interface PasswordResetGrant {
+  customerId: string;
+  restaurantId: string;
+  passwordFingerprint: string;
+}
+
+export async function signPasswordResetToken(grant: PasswordResetGrant): Promise<string> {
+  return new SignJWT({ purpose: PASSWORD_RESET_PURPOSE, cid: grant.customerId, rid: grant.restaurantId, ph: grant.passwordFingerprint })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuer(ISSUER)
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(Date.now() / 1000) + PASSWORD_RESET_TTL_SECONDS)
+    .sign(secret());
+}
+
+export async function verifyPasswordResetToken(token: string | undefined | null): Promise<PasswordResetGrant | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER });
+    if (payload.purpose !== PASSWORD_RESET_PURPOSE) return null;
+    if (typeof payload.cid !== "string" || typeof payload.rid !== "string" || typeof payload.ph !== "string") return null;
+    return { customerId: payload.cid, restaurantId: payload.rid, passwordFingerprint: payload.ph };
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyGooglePendingToken(token: string | undefined | null): Promise<GooglePendingGrant | null> {
   if (!token) return null;
   try {

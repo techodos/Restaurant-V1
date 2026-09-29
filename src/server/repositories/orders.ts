@@ -250,7 +250,7 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     // A buffet package (priced per head) is a dine-in booking. The tray already flags it outside dine-in
     // (services/cart.ts#priceTray); this is where an order is written, so it cannot be bypassed here.
     if (input.orderType !== "dine_in" && resolvedLines.some((line) => line.isBuffetPackage)) {
-      throw errors.custom("BUFFET_REQUIRES_DINE_IN", "A dine-in buffet in your tray can only be ordered as Dine-in.");
+      throw errors.custom("BUFFET_REQUIRES_DINE_IN", "A dine-in buffet in your cart can only be ordered as Dine-in.");
     }
 
     // delivery zone -----------------------------------------------------------------------------

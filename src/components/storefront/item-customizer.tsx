@@ -146,7 +146,7 @@ export function ItemCustomizer({
       },
     });
     if (!added) {
-      toast.error("Your tray is full", { description: "Check out or remove something before adding more." });
+      toast.error("Your cart is full", { description: "Check out or remove something before adding more." });
       return;
     }
     // Browsing under a different order type (e.g. the menu's "Pickup" tab) carries the tray with it.
@@ -155,7 +155,7 @@ export function ItemCustomizer({
     }
 
     flyToTray(document.querySelector<HTMLImageElement>(`img[data-dish-image="${item.slug}"]`));
-    toast.success(`${quantity} × ${item.name} is in your tray`);
+    toast.success(`${quantity} × ${item.name} is in your cart`);
     setNotes("");
     setQuantity(1);
     if (inSheet) window.dispatchEvent(new CustomEvent(CLOSE_ROUTE_SHEET_EVENT));
@@ -320,7 +320,7 @@ export function ItemCustomizer({
               {item.isAvailable ? (
                 <>
                   <span className="sm:hidden">Add</span>
-                  <span className="hidden sm:inline">Add to tray</span>
+                  <span className="hidden sm:inline">Add to cart</span>
                 </>
               ) : (
                 "Unavailable"

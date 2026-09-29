@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function TrayDrawerLoading() {
   return (
-    <div className="space-y-6 px-5 md:px-7" aria-busy="true" aria-label="Loading your tray">
+    <div className="space-y-6 px-5 md:px-7" aria-busy="true" aria-label="Loading your cart">
       <Skeleton className="h-11 w-full rounded-full" />
       {Array.from({ length: 3 }).map((_, index) => (
         <div key={index} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-4">

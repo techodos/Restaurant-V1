@@ -17,7 +17,7 @@ interface MyOrdersPageProps {
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "My orders", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "My Orders", robots: { index: false, follow: false } };
 
 /**
  * My Orders = order history only (completed / cancelled), signed-in customers only. Active orders
@@ -41,7 +41,7 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
   };
 
   const hero = (subtitle: string) => (
-    <PageHero overlay size="sm" image={resolveImage(restaurant.coverUrl)} eyebrow="Your account" title="My orders" subtitle={subtitle} />
+    <PageHero overlay size="sm" image={resolveImage(restaurant.coverUrl)} eyebrow="Your account" title="My Orders" subtitle={subtitle} />
   );
 
   if (!signedIn) {
@@ -75,7 +75,7 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
   return (
     <>
       {hero(`Your previous orders at ${restaurant.name}.`)}
-      <div className="container-page py-10 md:py-12">
+      <div className="container-page pb-12 pt-8 md:pb-16 md:pt-12">
         {previous.length ? (
           <ol className="border-b border-[var(--rule)]">
             {previous.map((order) => (

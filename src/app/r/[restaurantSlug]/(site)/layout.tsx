@@ -153,7 +153,6 @@ export default async function StorefrontLayout({
         <MobileDock
           restaurantSlug={restaurant.slug}
           activeOrders={activeOrders.length}
-          showCart={config.navigation.showCart}
           reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
           signedIn={Boolean(customer?.signedIn)}
         />

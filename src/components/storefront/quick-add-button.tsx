@@ -84,7 +84,7 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
           },
         });
         if (!added) {
-          toast.error("Your tray is full", { description: "Check out or remove something before adding more." });
+          toast.error("Your cart is full", { description: "Check out or remove something before adding more." });
           return;
         }
         flyToTray(plateImage);

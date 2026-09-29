@@ -88,7 +88,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           className="group mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
         >
           <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden />
-          Back to tray
+          Back to cart
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
@@ -99,7 +99,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
             </p>
           </div>
           <ol aria-label="Order progress" className="flex items-center gap-2 text-[13px] font-medium">
-            <li className="text-[var(--color-muted-ink)]">Tray</li>
+            <li className="text-[var(--color-muted-ink)]">Cart</li>
             <li aria-hidden className="h-px w-6 bg-[var(--rule-strong)]" />
             <li aria-current="step" className="text-[var(--color-ink)]">Checkout</li>
             <li aria-hidden className="h-px w-6 bg-[var(--rule-strong)]" />

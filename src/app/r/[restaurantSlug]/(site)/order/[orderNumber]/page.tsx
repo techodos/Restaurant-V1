@@ -275,7 +275,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
               <section className="border-t border-[var(--rule)] pt-5">
                 <h2 className="font-[family-name:var(--font-sans)] text-sm font-semibold">Order this again</h2>
                 <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
-                  Adds these dishes to your tray at today&apos;s prices and availability.
+                  Adds these dishes to your cart at today&apos;s prices and availability.
                 </p>
                 <ReorderButton restaurantSlug={restaurant.slug} orderNumber={order.orderNumber} accessToken={accessToken} />
               </section>
@@ -303,7 +303,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 {restaurant.phone ?? "the restaurant"}.
               </p>
               <Link href={`/r/${restaurant.slug}/orders`} className="mt-3 inline-block font-semibold text-[var(--color-ink)] underline-offset-4 hover:underline">
-                My orders
+                My Orders
               </Link>
             </section>
           </aside>

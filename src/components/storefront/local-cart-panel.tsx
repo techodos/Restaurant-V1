@@ -93,7 +93,7 @@ export function LocalCartPanel({
     const empty = (
       <EmptyState
         icon={ShoppingBag}
-        title="Your tray is empty"
+        title="Your cart is empty"
         titleAs={drawer ? "h2" : "h1"}
         className={drawer ? "px-6 py-14" : "py-0"}
         actions={
@@ -307,7 +307,7 @@ export function LocalCartPanel({
       {!isSignedIn ? (
         <p className="flex gap-2 rounded-[var(--radius-card)] bg-[var(--steel-2)] p-3.5 text-sm text-[var(--color-muted-ink)]">
           <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-          Orders are placed from an account with a verified email. Your tray is kept while you sign in.
+          Orders are placed from an account with a verified email. Your cart is kept while you sign in.
         </p>
       ) : null}
       {belowMinimum ? (
@@ -347,7 +347,7 @@ export function LocalCartPanel({
         <div className="sticky bottom-0 mt-6 border-t border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:px-7">
           {checkout}
           <Link href={`${home}/cart`} className="mt-2 block text-center text-xs font-medium text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]">
-            Open full tray
+            Open full cart
           </Link>
         </div>
       </div>
@@ -355,16 +355,16 @@ export function LocalCartPanel({
   }
 
   return (
-    <div className="container-page pb-12 pt-6 md:pb-16 md:pt-10">
-      <header className="border-b border-[var(--rule)] pb-6">
-        <p className="eyebrow mb-3">Your order</p>
-        <h1 className="display-1">Your tray</h1>
-        <p className="tabular mt-3 text-[15px] text-[var(--color-muted-ink)]">
+    <div className="container-page pb-12 pt-8 md:pb-16 md:pt-12">
+      <header className="border-b border-[var(--rule)] pb-6 md:pb-8">
+        <p className="eyebrow mb-2.5">Your order</p>
+        <h1 className="display-2 font-normal">My Cart</h1>
+        <p className="tabular mt-2.5 text-[14.5px] leading-relaxed text-[var(--color-muted-ink)] md:text-[15px]">
           {itemCount} item{itemCount === 1 ? "" : "s"} from {restaurantName}. Delivery and tax are added at checkout.
         </p>
       </header>
 
-      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
+      <div className="mt-7 grid grid-cols-[minmax(0,1fr)] gap-8 md:mt-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
         <div>
           {orderTypePicker}
           <div className="mt-4">{lines}</div>

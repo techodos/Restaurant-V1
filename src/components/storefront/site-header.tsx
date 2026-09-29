@@ -51,18 +51,24 @@ function HeaderIconLink({
     <Link
       href={href}
       className={cn(
-        "group/action press flex h-10 items-center rounded-[var(--radius-control)] border border-transparent px-2.5 text-[var(--color-ink)] transition-[background-color,border-color] duration-300 hover:border-[var(--rule-strong)] hover:bg-[var(--tint)] focus-visible:border-[var(--rule-strong)] focus-visible:bg-[var(--tint)]",
+        // square icon at rest that slides open into a pill on hover / focus, at every width. Opened, it has
+        // more room on the right than the left, where the icon already carries its own visual padding.
+        "group/action press flex h-10 items-center rounded-[var(--radius-control)] border border-transparent px-2.5 text-[var(--color-ink)] transition-[background-color,border-color,padding] duration-300 ease-[var(--ease-out)] hover:border-[var(--rule-strong)] hover:bg-[var(--tint)] hover:pl-3 hover:pr-4 focus-visible:border-[var(--rule-strong)] focus-visible:bg-[var(--tint)] focus-visible:pl-3 focus-visible:pr-4",
         className,
       )}
       {...rest}
     >
-      <span className="relative grid size-5 place-items-center">
+      <span className="relative grid size-5 shrink-0 place-items-center">
         <Icon className="size-[19px]" aria-hidden />
         {badge}
       </span>
       <span
         aria-hidden
-        className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] font-semibold opacity-0 transition-[max-width,opacity,margin] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover/action:ml-2.5 group-hover/action:max-w-24 group-hover/action:opacity-100 group-focus-visible/action:ml-2.5 group-focus-visible/action:max-w-24 group-focus-visible/action:opacity-100"
+        className={cn(
+          "max-w-0 overflow-hidden whitespace-nowrap text-[13px] font-semibold opacity-0 transition-[max-width,opacity,margin] duration-300 ease-[var(--ease-out)] group-hover/action:max-w-28 group-hover/action:opacity-100 group-focus-visible/action:max-w-28 group-focus-visible/action:opacity-100",
+          // a count badge overhangs the icon's right edge: give the label clear space past it
+          badge ? "group-hover/action:ml-3 group-focus-visible/action:ml-3" : "group-hover/action:ml-2 group-focus-visible/action:ml-2",
+        )}
       >
         {label}
       </span>
@@ -207,9 +213,9 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
             {customer?.signedIn ? (
               <HeaderIconLink
                 href={`${home}/orders`}
-                label="My orders"
+                label="My Orders"
                 icon={ClipboardList}
-                aria-label="My orders"
+                aria-label="My Orders"
                 aria-current={isActive(pathname, `${home}/orders`, home) ? "page" : undefined}
                 className="hidden sm:flex"
               />
@@ -218,14 +224,14 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
             {config.navigation.showCart ? (
               <HeaderIconLink
                 href={`${home}/cart`}
-                label="Cart"
+                label="My Cart"
                 icon={ShoppingBag}
                 data-tray-target
-                aria-label={`Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}`}
+                aria-label={`My Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}`}
                 badge={
                   <span
                     className={cn(
-                      "absolute -right-2 -top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[10px] font-bold transition-[opacity,transform] duration-200",
+                      "absolute -right-1.5 -top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[10px] font-bold transition-[opacity,transform] duration-200",
                       itemCount > 0
                         ? "bg-[var(--color-brand-accent)] text-[var(--color-brand-accent-foreground)]"
                         : "scale-75 opacity-0",
@@ -305,11 +311,22 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     onClick={() => setOpen(false)}
-                    className="group flex items-center justify-between border-b border-[var(--rule)] py-4 font-[family-name:var(--font-display)] text-[1.85rem] leading-tight"
+                    className="group flex items-center justify-between gap-3 border-b border-[var(--rule)] py-3 font-[family-name:var(--font-display)] text-[1.0625rem] leading-snug tracking-[0.005em]"
                   >
-                    <span className={active ? (light ? "text-[var(--color-brand)]" : "text-[var(--color-brand-accent)]") : undefined}>{item.label}</span>
+                    <span
+                      className={cn(
+                        "flex items-center gap-2.5",
+                        active ? (light ? "text-[var(--color-brand)]" : "text-[var(--color-brand-accent)]") : undefined,
+                      )}
+                    >
+                      {active ? <span aria-hidden className="size-1.5 rounded-full bg-current" /> : null}
+                      {item.label}
+                    </span>
                     <ArrowRight
-                      className="size-5 text-[var(--color-muted-ink)] transition-transform duration-200 group-hover:translate-x-1"
+                      className={cn(
+                        "size-4 text-[var(--color-muted-ink)] transition-[transform,opacity] duration-200 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:opacity-100",
+                        active ? "opacity-100" : "opacity-60",
+                      )}
                       aria-hidden
                     />
                   </Link>
@@ -317,15 +334,15 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
               );
             })}
           </ul>
-          <div className="mt-8 grid gap-3">
+          <div className="mt-6 grid gap-2.5">
             {customer?.signedIn ? (
               <Link
                 href={`${home}/orders`}
                 onClick={() => setOpen(false)}
-                className="press flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--rule-strong)] text-sm font-semibold"
+                className="press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--rule-strong)] text-[13.5px] font-semibold"
               >
                 <ClipboardList className="size-4" aria-hidden />
-                My orders
+                My Orders
               </Link>
             ) : null}
             {signedIn ? (
@@ -335,7 +352,7 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
                   setOpen(false);
                   setProfileOpen(true);
                 }}
-                className="press flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)]"
+                className="press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-[13.5px] font-semibold text-[var(--color-brand-foreground)]"
               >
                 <UserRound className="size-4" aria-hidden />
                 <span className="max-w-60 truncate">{accountLabel}</span>
@@ -344,7 +361,7 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
               <Link
                 href={accountHref}
                 onClick={() => setOpen(false)}
-                className="press flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)]"
+                className="press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-[13.5px] font-semibold text-[var(--color-brand-foreground)]"
               >
                 <UserRound className="size-4" aria-hidden />
                 <span className="max-w-60 truncate">{accountLabel}</span>
@@ -353,7 +370,7 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
             {restaurant.phone ? (
               <a
                 href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
-                className="press flex h-12 items-center justify-center gap-2 text-sm font-medium text-[var(--color-muted-ink)]"
+                className="press flex h-10 items-center justify-center gap-2 text-[13px] font-medium text-[var(--color-muted-ink)]"
               >
                 <Phone className="size-4" aria-hidden />
                 {restaurant.phone}

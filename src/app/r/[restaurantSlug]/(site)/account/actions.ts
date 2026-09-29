@@ -8,16 +8,26 @@ import type { ApiResult } from "@/shared/contract/api";
 import { action, errors } from "@/server/errors";
 import {
   completeGoogleAuth,
+  completePasswordReset,
   ensureVerificationCode,
   finishGoogleSignup,
   getCustomerUser as getUserById,
+  requestPasswordReset,
   sendVerificationCode,
   signInCustomerAccount,
   signUpCustomer,
   startGoogleAuth,
   verifyEmailCode,
+  verifyPasswordResetCode,
 } from "@/server/services/customer-auth";
-import { signInSchema, signUpSchema, verifyCodeSchema } from "@/server/validation/customer-auth";
+import {
+  passwordResetRequestSchema,
+  passwordResetSchema,
+  passwordResetVerifySchema,
+  signInSchema,
+  signUpSchema,
+  verifyCodeSchema,
+} from "@/server/validation/customer-auth";
 import {
   getCustomerSession,
   setCustomerSession,
@@ -82,6 +92,39 @@ export async function signInAction(slug: string, payload: unknown): Promise<ApiR
     if (!result.emailVerified) {
       after(() => ensureVerificationCode(result.customerId, input.email, identifier, restaurant).catch(() => {}));
     }
+    return { customerId: result.customerId, emailVerified: result.emailVerified };
+  });
+}
+
+// ── Forgot password: request a code → verify it → set a new password (signed in at the end) ──
+
+/** Always answers the same, whether or not an account has that email. */
+export async function requestPasswordResetAction(slug: string, payload: unknown): Promise<ApiResult<null>> {
+  return action(async () => {
+    const { email } = passwordResetRequestSchema.parse(payload);
+    const identifier = await callerIdentifier();
+    const restaurant = await requireStorefrontRestaurant(slug);
+    await requestPasswordReset(restaurant, email, identifier);
+    return null;
+  });
+}
+
+/** Returns the short-lived reset token the last step needs (it is not a session). */
+export async function verifyPasswordResetCodeAction(slug: string, payload: unknown): Promise<ApiResult<{ resetToken: string }>> {
+  return action(async () => {
+    const { email, code } = passwordResetVerifySchema.parse(payload);
+    const identifier = await callerIdentifier();
+    const restaurant = await requireStorefrontRestaurant(slug);
+    return { resetToken: await verifyPasswordResetCode(restaurant, email, code, identifier) };
+  });
+}
+
+export async function resetPasswordAction(slug: string, payload: unknown): Promise<ApiResult<AuthResult>> {
+  return action(async () => {
+    const { resetToken, password } = passwordResetSchema.parse(payload);
+    const restaurant = await requireStorefrontRestaurant(slug);
+    const result = await completePasswordReset(restaurant, resetToken, password);
+    await setCustomerSession(result.token, result.maxAge);
     return { customerId: result.customerId, emailVerified: result.emailVerified };
   });
 }

@@ -5,6 +5,8 @@ import { errors } from "@/server/errors";
 import { checkRateLimit } from "@/server/rate-limit";
 import {
   createCustomerAccount,
+  findPasswordResetAccount,
+  resetCustomerPassword,
   resolveCustomer,
   signInCustomer,
   type CustomerSignInResult,
@@ -12,14 +14,16 @@ import {
 import {
   signCustomerSession,
   signGooglePendingToken,
+  signPasswordResetToken,
   verifyCustomerSession,
   verifyGooglePendingToken,
+  verifyPasswordResetToken,
   SESSION_TTL,
   type CustomerSessionPayload,
 } from "@/server/auth/tokens";
 import { buildGoogleAuthUrl, resolveGoogleIdentity } from "@/server/integrations/google";
 import { getEmailProvider } from "@/server/services/notifications";
-import { renderVerificationCodeEmail } from "@/server/notifications/templates/email-verification";
+import { renderVerificationCodeEmail, type CodeEmailPurpose } from "@/server/notifications/templates/email-verification";
 import {
   attemptVerificationCode,
   createVerificationCode,
@@ -81,6 +85,7 @@ export async function sendVerificationCode(
   email: string,
   identifier: string,
   restaurant: Pick<Restaurant, "name" | "logoUrl" | "primaryColor" | "email" | "phone"> | null,
+  purpose: CodeEmailPurpose = "verify",
 ): Promise<void> {
   checkRateLimit({ key: "email-verify-send", identifier: customerId, limit: 3, windowMs: 5 * 60_000 });
   checkRateLimit({ key: "email-verify-send-ip", identifier, limit: 8, windowMs: 15 * 60_000 });
@@ -105,6 +110,7 @@ export async function sendVerificationCode(
       phone: restaurant?.phone ?? null,
     },
     code,
+    purpose,
   });
   await provider.send({
     to: email,
@@ -135,6 +141,59 @@ export async function verifyEmailCode(customerId: string, code: string): Promise
   if (outcome === "expired") throw errors.validation("That code has expired. Request a new one.");
   if (outcome === "locked") throw errors.validation("Too many attempts. Request a new code.");
   if (outcome === "wrong") throw errors.validation("That code is not correct.");
+}
+
+// ── Forgot password ──────────────────────────────────────────────────────────
+// Same code table, generator, TTL, attempt limit and email provider as email verification: a code is
+// proof of owning the inbox either way, so a reset code and a verify code are interchangeable proofs.
+// ponytail: no `purpose` column on email_verification_codes; add one (new migration) only if the two
+// ever need different lifetimes or limits.
+
+/**
+ * Step 1: email a reset code. Answers the same way whether or not an account has that email (no
+ * account enumeration). Rate limited per caller before the lookup, so unknown emails count too.
+ */
+export async function requestPasswordReset(
+  restaurant: Pick<Restaurant, "id" | "name" | "logoUrl" | "primaryColor" | "email" | "phone">,
+  email: string,
+  identifier: string,
+): Promise<void> {
+  checkRateLimit({ key: "password-reset-request-ip", identifier, limit: 5, windowMs: 15 * 60_000 });
+  const account = await findPasswordResetAccount(restaurant, email);
+  if (!account) return;
+  await sendVerificationCode(account.customerId, account.email, identifier, restaurant, "reset");
+}
+
+/** Step 2: check the code (the same one-transaction check as email verification) and hand back a short-lived reset token. */
+export async function verifyPasswordResetCode(
+  restaurant: Pick<Restaurant, "id">,
+  email: string,
+  code: string,
+  identifier: string,
+): Promise<string> {
+  checkRateLimit({ key: "password-reset-verify-ip", identifier, limit: 20, windowMs: 15 * 60_000 });
+  const account = await findPasswordResetAccount(restaurant, email);
+  // unknown email: the same answer as a wrong code, so this step can't be used to probe for accounts
+  if (!account) throw errors.validation("That code is not correct.");
+  await verifyEmailCode(account.customerId, code);
+  return signPasswordResetToken({
+    customerId: account.customerId,
+    restaurantId: restaurant.id,
+    passwordFingerprint: account.passwordFingerprint,
+  });
+}
+
+/** Step 3: set the new password (single-use token) and return a signed-in session. */
+export async function completePasswordReset(
+  restaurant: Pick<Restaurant, "id">,
+  resetToken: string,
+  newPassword: string,
+): Promise<CustomerSignInResult> {
+  const grant = await verifyPasswordResetToken(resetToken);
+  if (!grant || grant.restaurantId !== restaurant.id) {
+    throw errors.validation("This reset link has expired. Please start again.");
+  }
+  return resetCustomerPassword(grant, newPassword);
 }
 
 // ── Google sign-in ───────────────────────────────────────────────────────────

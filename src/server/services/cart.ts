@@ -140,7 +140,7 @@ export async function priceTray(
 ): Promise<TrayPricingResult> {
   const orderType = options.orderType ?? tray.orderType;
   const problems = view.lines.filter((line) => line.problem);
-  const blockers = problems.map((line) => `${line.name}: ${line.problem} Remove it from your tray to continue.`);
+  const blockers = problems.map((line) => `${line.name}: ${line.problem} Remove it from your cart to continue.`);
 
   const matched =
     orderType === "delivery"
@@ -152,7 +152,7 @@ export async function priceTray(
   const coupon = tray.couponCode ? await findPreviewCoupon(restaurant.id, tray.couponCode) : null;
 
   const orderable = view.lines.filter((line) => !line.problem);
-  if (orderable.length === 0 && blockers.length === 0) blockers.push("Your tray is empty.");
+  if (orderable.length === 0 && blockers.length === 0) blockers.push("Your cart is empty.");
 
   const price = (withCoupon: Coupon | null) =>
     tryCalculatePricing({
@@ -229,7 +229,7 @@ export function assertTrayOrderable(restaurant: Restaurant, tray: Tray): void {
   if (!isOrderTypeEnabled(restaurant.features, tray.orderType)) {
     throw errors.custom("ORDERING_DISABLED", "That ordering option is currently unavailable.");
   }
-  if (tray.lines.length === 0) throw errors.custom("CART_EMPTY", "Your tray is empty.");
+  if (tray.lines.length === 0) throw errors.custom("CART_EMPTY", "Your cart is empty.");
 }
 
 // ─── availability ────────────────────────────────────────────────────────────
