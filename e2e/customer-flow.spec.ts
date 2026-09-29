@@ -27,7 +27,7 @@ test.describe("customer storefront", () => {
     await expect(page.getByText(/added$/i)).toBeVisible();
 
     await page.goto(`/r/${SLUG}/cart`);
-    await expect(page.getByRole("heading", { name: "Your cart" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "My Cart" })).toBeVisible();
     await expect(page.getByText("Margherita Pizza")).toBeVisible();
     await expect(page.getByText("Medium 12")).toBeVisible();
     await expect(page.getByText("+ Extra mozzarella")).toBeVisible();

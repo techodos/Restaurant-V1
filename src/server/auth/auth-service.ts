@@ -1,20 +1,21 @@
-import { errors } from "@/server/errors";
-import { checkRateLimit } from "@/server/rate-limit";
-import { can, effectivePermissions, type Permission } from "./permissions";
-import type { TeamRole } from "@/shared/contract/enums";
-import type { RequestContext } from "@/server/context";
-import { getDb } from "@/server/db/registry";
-import { mapTeamMember, str, type Row } from "@/server/db/mappers";
-import { getRestaurantBySlug } from "@/server/repositories/restaurants";
-import { hashPassword, verifyPassword } from "./password";
+import { createHash } from 'node:crypto';
+import { errors } from '@/server/errors';
+import { checkRateLimit } from '@/server/rate-limit';
+import { can, effectivePermissions, type Permission } from './permissions';
+import type { TeamRole } from '@/shared/contract/enums';
+import type { RequestContext } from '@/server/context';
+import { getDb } from '@/server/db/registry';
+import { mapTeamMember, str, type Row } from '@/server/db/mappers';
+import { getRestaurantBySlug } from '@/server/repositories/restaurants';
+import { hashPassword, verifyPassword } from './password';
 import {
   SESSION_TTL,
   signCustomerSession,
   signStaffSession,
   type CustomerSessionPayload,
   type StaffSessionPayload,
-} from "./tokens";
-import type { Restaurant, TeamMember } from "@/shared/contract/models";
+} from './tokens';
+import type { Restaurant, TeamMember } from '@/shared/contract/models';
 
 /**
  * Authentication and authorisation service.
@@ -54,7 +55,9 @@ export async function authenticateStaff(
   session: StaffSessionPayload,
   restaurantSlug?: string,
 ): Promise<StaffActor | null> {
-  const { member, restaurant } = await getDb({ restaurantId: session.restaurantId }).read(
+  const { member, restaurant } = await getDb({
+    restaurantId: session.restaurantId,
+  }).read(
     { userId: session.sub, restaurantId: session.restaurantId },
     async (tx) => {
       const memberRow = await tx.queryOne<Row>(
@@ -64,11 +67,19 @@ export async function authenticateStaff(
       );
       if (!memberRow) return { member: null, restaurant: null };
       const restaurantRow = restaurantSlug
-        ? await tx.queryOne<Row>(`select id, slug from restaurants where slug = $1`, [restaurantSlug])
-        : await tx.queryOne<Row>(`select id, slug from restaurants where id = $1`, [str(memberRow.restaurant_id)]);
+        ? await tx.queryOne<Row>(
+            `select id, slug from restaurants where slug = $1`,
+            [restaurantSlug],
+          )
+        : await tx.queryOne<Row>(
+            `select id, slug from restaurants where id = $1`,
+            [str(memberRow.restaurant_id)],
+          );
       return {
         member: mapTeamMember(memberRow),
-        restaurant: restaurantRow ? { id: str(restaurantRow.id), slug: str(restaurantRow.slug) } : null,
+        restaurant: restaurantRow
+          ? { id: str(restaurantRow.id), slug: str(restaurantRow.slug) }
+          : null,
       };
     },
   );
@@ -92,9 +103,19 @@ export async function authenticateStaff(
 }
 
 /** Server-side authorisation: hiding UI is never enough. */
-export function assertPermission(actor: StaffActor, permission: Permission): void {
-  if (!can({ role: actor.role, permissions: actor.member.permissions }, permission)) {
-    throw errors.forbidden(`Your role (${actor.role}) cannot perform this action.`);
+export function assertPermission(
+  actor: StaffActor,
+  permission: Permission,
+): void {
+  if (
+    !can(
+      { role: actor.role, permissions: actor.member.permissions },
+      permission,
+    )
+  ) {
+    throw errors.forbidden(
+      `Your role (${actor.role}) cannot perform this action.`,
+    );
   }
 }
 
@@ -109,12 +130,17 @@ export async function signInStaff(
   email: string,
   password: string,
   restaurantSlug: string,
-  identifier = "unknown",
+  identifier = 'unknown',
 ): Promise<SignInResult> {
-  checkRateLimit({ key: "staff-signin", identifier, limit: 8, windowMs: 5 * 60_000 });
+  checkRateLimit({
+    key: 'staff-signin',
+    identifier,
+    limit: 8,
+    windowMs: 5 * 60_000,
+  });
 
   const restaurant = await getRestaurantBySlug(restaurantSlug);
-  if (!restaurant) throw errors.unauthorized("Invalid email or password.");
+  if (!restaurant) throw errors.unauthorized('Invalid email or password.');
 
   const db = getDb({ restaurantId: restaurant.id });
   const row = await db.write({}, async (tx) =>
@@ -127,20 +153,32 @@ export async function signInStaff(
     ),
   );
 
-  const passwordOk = await verifyPassword(password, row?.encrypted_password ? str(row.encrypted_password) : null);
+  const passwordOk = await verifyPassword(
+    password,
+    row?.encrypted_password ? str(row.encrypted_password) : null,
+  );
   if (!row || !passwordOk) {
-    throw errors.unauthorized("Invalid email or password.");
+    throw errors.unauthorized('Invalid email or password.');
   }
 
   const member = mapTeamMember(row);
-  if (!member.userId) throw errors.unauthorized("This staff account is not linked to a login yet.");
+  if (!member.userId)
+    throw errors.unauthorized(
+      'This staff account is not linked to a login yet.',
+    );
 
   // auth.users is Supabase's own protected schema on a hosted project (DECISIONS.md §2:
   // "NEVER attempt to modify the Supabase auth schema") — app_service cannot write to it there,
   // so last-login bookkeeping lives on team_members only.
-  await db.write({ userId: member.userId, restaurantId: restaurant.id }, async (tx) => {
-    await tx.query(`update team_members set last_login_at = now() where id = $1`, [member.id]);
-  });
+  await db.write(
+    { userId: member.userId, restaurantId: restaurant.id },
+    async (tx) => {
+      await tx.query(
+        `update team_members set last_login_at = now() where id = $1`,
+        [member.id],
+      );
+    },
+  );
 
   const token = await signStaffSession({
     sub: member.userId,
@@ -169,21 +207,32 @@ export interface CustomerSignInResult {
 export async function signInCustomer(
   email: string,
   password: string,
-  restaurant: Pick<Restaurant, "id">,
-  identifier = "unknown",
+  restaurant: Pick<Restaurant, 'id'>,
+  identifier = 'unknown',
 ): Promise<CustomerSignInResult> {
-  checkRateLimit({ key: "customer-signin", identifier, limit: 8, windowMs: 5 * 60_000 });
+  checkRateLimit({
+    key: 'customer-signin',
+    identifier,
+    limit: 8,
+    windowMs: 5 * 60_000,
+  });
 
-  const row = await getDb({ restaurantId: restaurant.id }).write({}, async (tx) =>
-    tx.queryOne<Row>(
-      `select id, password_hash, full_name, is_email_verified from customers
+  const row = await getDb({ restaurantId: restaurant.id }).write(
+    {},
+    async (tx) =>
+      tx.queryOne<Row>(
+        `select id, password_hash, full_name, is_email_verified from customers
         where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
-      [restaurant.id, email.trim()],
-    ),
+        [restaurant.id, email.trim()],
+      ),
   );
 
-  const passwordOk = await verifyPassword(password, row?.password_hash ? str(row.password_hash) : null);
-  if (!row || !passwordOk) throw errors.unauthorized("Invalid email or password.");
+  const passwordOk = await verifyPassword(
+    password,
+    row?.password_hash ? str(row.password_hash) : null,
+  );
+  if (!row || !passwordOk)
+    throw errors.unauthorized('Invalid email or password.');
 
   const emailVerified = Boolean(row.is_email_verified);
   const token = await signCustomerSession({
@@ -193,37 +242,159 @@ export async function signInCustomer(
     name: str(row.full_name),
     emailVerified,
   });
-  return { token, maxAge: SESSION_TTL.customer, customerId: str(row.id), emailVerified };
+  return {
+    token,
+    maxAge: SESSION_TTL.customer,
+    customerId: str(row.id),
+    emailVerified,
+  };
+}
+
+// ── Forgot password ──────────────────────────────────────────────────────────
+
+/** Short, non-reversible stand-in for the current password hash, carried by the reset token (see tokens.ts). */
+export function passwordFingerprint(passwordHash: string | null): string {
+  return createHash('sha256')
+    .update(passwordHash ?? '')
+    .digest('hex')
+    .slice(0, 32);
+}
+
+/** The account a reset code would be sent for: ONE read by email, same privileged lookup as sign-in. */
+export async function findPasswordResetAccount(
+  restaurant: Pick<Restaurant, 'id'>,
+  email: string,
+): Promise<{
+  customerId: string;
+  email: string;
+  passwordFingerprint: string;
+} | null> {
+  const row = await getDb({ restaurantId: restaurant.id }).write(
+    {},
+    async (tx) =>
+      tx.queryOne<Row>(
+        `select id, email, password_hash from customers
+        where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
+        [restaurant.id, email.trim()],
+      ),
+  );
+  if (!row) return null;
+  return {
+    customerId: str(row.id),
+    email: str(row.email),
+    passwordFingerprint: passwordFingerprint(
+      row.password_hash ? str(row.password_hash) : null,
+    ),
+  };
+}
+
+/**
+ * Sets the new password and signs the customer in, in one transaction. The row is locked and its current
+ * hash must still match the fingerprint the reset token was issued for, so a token works exactly once
+ * (and not at all after any other password change). The code they entered proved they own the inbox,
+ * so the email is marked verified too.
+ */
+export async function resetCustomerPassword(
+  grant: {
+    customerId: string;
+    restaurantId: string;
+    passwordFingerprint: string;
+  },
+  newPassword: string,
+): Promise<CustomerSignInResult> {
+  const hashed = await hashPassword(newPassword);
+  const row = await getDb({ restaurantId: grant.restaurantId }).write(
+    {},
+    async (tx) => {
+      const current = await tx.queryOne<Row>(
+        `select password_hash from customers where id = $1 and restaurant_id = $2 and not is_guest for update`,
+        [grant.customerId, grant.restaurantId],
+      );
+      if (
+        !current ||
+        passwordFingerprint(
+          current.password_hash ? str(current.password_hash) : null,
+        ) !== grant.passwordFingerprint
+      ) {
+        return null;
+      }
+      return tx.queryOne<Row>(
+        `update customers set password_hash = $3, is_email_verified = true, updated_at = now()
+        where id = $1 and restaurant_id = $2
+        returning id, full_name`,
+        [grant.customerId, grant.restaurantId, hashed],
+      );
+    },
+  );
+  if (!row)
+    throw errors.validation(
+      'This reset link has already been used or has expired. Please start again.',
+    );
+
+  const token = await signCustomerSession({
+    sub: str(row.id),
+    customerId: str(row.id),
+    restaurantId: grant.restaurantId,
+    name: str(row.full_name),
+    emailVerified: true,
+  });
+  return {
+    token,
+    maxAge: SESSION_TTL.customer,
+    customerId: str(row.id),
+    emailVerified: true,
+  };
 }
 
 /** Guest accounts can be upgraded to a real login without losing history. */
 export async function createCustomerAccount(
-  input: { restaurant: Pick<Restaurant, "id">; fullName: string; email: string; phone: string; password: string },
-  identifier = "unknown",
+  input: {
+    restaurant: Pick<Restaurant, 'id'>;
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+  },
+  identifier = 'unknown',
 ): Promise<CustomerSignInResult> {
-  checkRateLimit({ key: "customer-signup", identifier, limit: 5, windowMs: 15 * 60_000 });
+  checkRateLimit({
+    key: 'customer-signup',
+    identifier,
+    limit: 5,
+    windowMs: 15 * 60_000,
+  });
 
   const { restaurant } = input;
   const hashed = await hashPassword(input.password);
 
-  const customerId = await getDb({ restaurantId: restaurant.id }).write({ restaurantId: restaurant.id }, async (tx) => {
-    const existing = await tx.queryOne<Row>(
-      `select id from customers where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
-      [restaurant.id, input.email.trim()],
-    );
-    if (existing) throw errors.conflict("An account with that email already exists.");
+  const customerId = await getDb({ restaurantId: restaurant.id }).write(
+    { restaurantId: restaurant.id },
+    async (tx) => {
+      const existing = await tx.queryOne<Row>(
+        `select id from customers where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
+        [restaurant.id, input.email.trim()],
+      );
+      if (existing)
+        throw errors.conflict('An account with that email already exists.');
 
-    const row = await tx.queryOne<Row>(
-      `insert into customers (restaurant_id, full_name, email, phone, password_hash, is_guest)
+      const row = await tx.queryOne<Row>(
+        `insert into customers (restaurant_id, full_name, email, phone, password_hash, is_guest)
        values ($1,$2,$3,$4,$5,false)
        on conflict (restaurant_id, phone) do update set
          full_name = excluded.full_name, email = excluded.email, password_hash = excluded.password_hash, is_guest = false
        returning id`,
-      [restaurant.id, input.fullName, input.email.trim().toLowerCase(), input.phone.trim(), hashed],
-    );
-    if (!row) throw errors.internal("Unable to create the account");
-    return str(row.id);
-  });
+        [
+          restaurant.id,
+          input.fullName,
+          input.email.trim().toLowerCase(),
+          input.phone.trim(),
+          hashed,
+        ],
+      );
+      if (!row) throw errors.internal('Unable to create the account');
+      return str(row.id);
+    },
+  );
 
   const token = await signCustomerSession({
     sub: customerId,
@@ -232,7 +403,12 @@ export async function createCustomerAccount(
     name: input.fullName,
     emailVerified: false,
   });
-  return { token, maxAge: SESSION_TTL.customer, customerId, emailVerified: false };
+  return {
+    token,
+    maxAge: SESSION_TTL.customer,
+    customerId,
+    emailVerified: false,
+  };
 }
 
 export interface StorefrontCustomer {
@@ -252,17 +428,24 @@ export interface StorefrontCustomer {
  * (`createOrder`). A deleted account keeps a working header until the cookie expires or they sign out,
  * but can do nothing with it. `userId` is `customer.id` (0021: the login is the `customers` row).
  */
-export function resolveCustomer(session: CustomerSessionPayload, restaurantId: string): StorefrontCustomer | null {
+export function resolveCustomer(
+  session: CustomerSessionPayload,
+  restaurantId: string,
+): StorefrontCustomer | null {
   if (session.restaurantId !== restaurantId) return null;
   return {
     customerId: session.customerId,
     name: session.name,
     userId: session.customerId,
-    emailVerified: typeof session.emailVerified === "boolean" ? session.emailVerified : null,
+    emailVerified:
+      typeof session.emailVerified === 'boolean' ? session.emailVerified : null,
   };
 }
 
-export function requestContextFrom(actor: StaffActor | null, extra: Partial<RequestContext> = {}): RequestContext {
+export function requestContextFrom(
+  actor: StaffActor | null,
+  extra: Partial<RequestContext> = {},
+): RequestContext {
   return {
     userId: actor?.userId ?? null,
     restaurantId: actor?.restaurantId ?? null,

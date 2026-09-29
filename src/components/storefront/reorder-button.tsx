@@ -44,7 +44,7 @@ export function ReorderButton({ restaurantSlug, orderNumber, accessToken }: Reor
         })),
       );
       if (added === 0) {
-        toast.error(result.data.lines.length ? "Your tray is full." : "None of these items are available right now.");
+        toast.error(result.data.lines.length ? "Your cart is full." : "None of these items are available right now.");
         return;
       }
       if (result.data.skippedItemNames.length) {

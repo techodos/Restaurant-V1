@@ -56,7 +56,15 @@ export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md"
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl text-white">
               {eyebrow ? <p className="eyebrow animate-rise mb-3 text-white/80">{eyebrow}</p> : null}
-              <h1 className="display-hero animate-rise text-[clamp(2.6rem,1.6rem+3.6vw,4.9rem)] [animation-delay:80ms]">{title}</h1>
+              {/* the short hero heads a working page (orders, reviews, locations): one step quieter than the menu's */}
+              <h1
+                className={cn(
+                  "display-hero animate-rise [animation-delay:80ms]",
+                  size === "md" ? "text-[clamp(2.6rem,1.6rem+3.6vw,4.9rem)]" : "text-[clamp(1.9rem,1.45rem+1.8vw,3rem)] font-normal leading-[1.05]",
+                )}
+              >
+                {title}
+              </h1>
               {subtitle ? (
                 <p className="animate-rise mt-3 max-w-[40rem] text-[15.5px] leading-relaxed text-white/80 [animation-delay:160ms] md:text-[17px]">
                   {subtitle}

@@ -6,7 +6,7 @@ import { RouteSheet } from "@/components/motion/route-sheet";
  */
 export default function TrayDrawerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <RouteSheet title="Your tray" description="Dishes in your tray and the order summary">
+    <RouteSheet title="My Cart" description="Dishes in your cart and the order summary">
       {children}
     </RouteSheet>
   );

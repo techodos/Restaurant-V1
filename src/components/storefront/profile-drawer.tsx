@@ -170,7 +170,7 @@ export function ProfileDrawer({
                   className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--color-muted-ink)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
                 >
                   <ClipboardList className="size-3.5" aria-hidden />
-                  My orders
+                  My Orders
                 </Link>
               </div>
             </div>

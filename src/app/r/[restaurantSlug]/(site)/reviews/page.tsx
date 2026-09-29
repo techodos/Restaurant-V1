@@ -95,12 +95,15 @@ async function renderReviews(
         }
         aside={
           breakdown.count > 0 ? (
-            <div className="text-white lg:text-right">
-              <p className="tabular font-[family-name:var(--font-display)] text-[4.5rem] leading-none md:text-[5.5rem]">
+            // phones: figure and stars side by side on one line instead of a tall stack under the title
+            <div className="flex items-end gap-4 text-white lg:block lg:text-right">
+              <p className="tabular font-[family-name:var(--font-display)] text-[3rem] leading-[0.85] md:text-[4rem] lg:text-[4.5rem]">
                 {breakdown.average.toFixed(1)}
               </p>
-              <RatingStars rating={breakdown.average} size="md" className="mt-2 lg:justify-end" />
-              <p className="mt-2 text-[13px] text-white/70">out of 5 · {breakdown.count} verified review{breakdown.count === 1 ? "" : "s"}</p>
+              <div>
+                <RatingStars rating={breakdown.average} size="md" className="lg:mt-2 lg:justify-end" />
+                <p className="mt-1.5 text-[13px] text-white/70">out of 5 · {breakdown.count} verified review{breakdown.count === 1 ? "" : "s"}</p>
+              </div>
             </div>
           ) : null
         }
@@ -108,11 +111,11 @@ async function renderReviews(
 
       {spotlight ? (
         <section className="tone-night">
-          <figure className="container-page py-12 md:py-16">
-            <span aria-hidden className="block font-[family-name:var(--font-display)] text-[5rem] leading-[0.5] text-[var(--color-brand-accent)]">
+          <figure className="container-page py-10 md:py-14">
+            <span aria-hidden className="block font-[family-name:var(--font-display)] text-[3.5rem] leading-[0.5] text-[var(--color-brand-accent)] md:text-[4.5rem]">
               &ldquo;
             </span>
-            <blockquote className="display-2 mt-5 max-w-4xl md:display-1">{spotlight.comment}</blockquote>
+            <blockquote className="display-3 mt-4 max-w-3xl break-words font-normal md:display-2">{spotlight.comment}</blockquote>
             <figcaption className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-[var(--color-muted-ink)]">
               <span className="font-semibold text-[var(--color-ink)]">{spotlight.authorName}</span>
               <RatingStars rating={spotlight.rating} />
@@ -170,22 +173,22 @@ async function renderReviews(
             ) : (
               <ul className="border-b border-[var(--rule)]">
                 {rest.map((review) => (
-                  <li key={review.id} className="reveal border-t border-[var(--rule)] py-7">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <li key={review.id} className="reveal min-w-0 border-t border-[var(--rule)] py-6 md:py-7">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:gap-x-4">
                       <RatingStars rating={review.rating} />
                       {review.isFeatured ? <Badge variant="soft">Featured</Badge> : null}
                       <span className="text-[12.5px] text-[var(--color-muted-ink)]">{date(review.createdAt)}</span>
                     </div>
-                    {review.title ? <h3 className="display-3 mt-4">{review.title}</h3> : null}
+                    {review.title ? <h3 className="mt-3 break-words text-[1.05rem] font-semibold leading-snug md:text-[1.125rem]">{review.title}</h3> : null}
                     {review.comment ? (
-                      <p className="mt-3 max-w-[62ch] text-[15.5px] leading-relaxed text-[var(--color-muted-ink)]">{review.comment}</p>
+                      <p className="mt-2 max-w-[62ch] break-words text-[15px] leading-relaxed text-[var(--color-muted-ink)] md:text-[15.5px]">{review.comment}</p>
                     ) : null}
-                    <p className="mt-4 text-[13px]">
+                    <p className="mt-3.5 break-words text-[13px]">
                       <span className="font-semibold">{review.authorName}</span>
                       {review.itemName ? <span className="text-[var(--color-muted-ink)]"> · on {review.itemName}</span> : null}
                     </p>
                     {review.response ? (
-                      <p className="mt-5 border-l-2 border-[var(--color-brand-accent)] pl-4 text-sm leading-relaxed">
+                      <p className="mt-4 break-words border-l-2 border-[var(--color-brand-accent)] pl-4 text-sm leading-relaxed">
                         <span className="font-semibold">{restaurant.name} replied:</span>{" "}
                         <span className="text-[var(--color-muted-ink)]">{review.response}</span>
                       </p>

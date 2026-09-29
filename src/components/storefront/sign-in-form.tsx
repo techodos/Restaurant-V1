@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { signInAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
+import { ForgotPasswordForm } from "@/components/storefront/forgot-password-form";
 import { afterAuthPath, signInHref } from "@/shared/return-to";
 
 interface SignInFormProps {
@@ -29,6 +30,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState(false);
 
   const destination = afterAuthPath(restaurantSlug, returnTo);
 
@@ -80,6 +82,20 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
     );
   }
 
+  if (forgotPassword) {
+    return (
+      <ForgotPasswordForm
+        restaurantSlug={restaurantSlug}
+        initialEmail={email}
+        onDone={finish}
+        onBack={() => {
+          setForgotPassword(false);
+          setError(null);
+        }}
+      />
+    );
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-1.5">
@@ -87,10 +103,20 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
         <Input id="signin-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="signin-password">Password</Label>
+        <div className="flex items-baseline justify-between gap-3">
+          <Label htmlFor="signin-password">Password</Label>
+          <button
+            type="button"
+            onClick={() => setForgotPassword(true)}
+            className="text-sm text-[var(--color-muted-ink)] underline underline-offset-2 transition-colors hover:text-[var(--color-ink)]"
+          >
+            Forgot password?
+          </button>
+        </div>
         <Input
           id="signin-password"
           type="password"
+          autoComplete="current-password"
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}

@@ -24,11 +24,11 @@ export async function ReviewsSection({ section, context }: { section: ReviewsCon
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,2fr)] lg:gap-12">
         <div className="lg:pt-2">
           <p className="eyebrow mb-3">What our guests say</p>
-          <h2 className="display-1">{section.title}</h2>
+          <h2 className="display-2 font-normal">{section.title}</h2>
           {section.subtitle ? <p className="lede mt-3">{section.subtitle}</p> : null}
           {breakdown.count ? (
-            <div className="mt-7 flex items-end gap-5 border-t border-[var(--rule)] pt-6">
-              <p className="tabular font-[family-name:var(--font-display)] text-[4.25rem] leading-[0.8] text-[var(--color-brand-accent)]">
+            <div className="mt-6 flex items-end gap-4 border-t border-[var(--rule)] pt-5 md:mt-7 md:gap-5 md:pt-6">
+              <p className="tabular font-[family-name:var(--font-display)] text-[3.25rem] leading-[0.8] text-[var(--color-brand-accent)] md:text-[4.25rem]">
                 {breakdown.average.toFixed(1)}
               </p>
               <div className="pb-0.5">
@@ -51,7 +51,7 @@ export async function ReviewsSection({ section, context }: { section: ReviewsCon
           {reviews.map((review) => (
             <figure
               key={review.id}
-              className="flex h-full flex-col rounded-[var(--radius-card)] border border-[var(--rule)] bg-[var(--color-surface)] p-6 md:p-7"
+              className="flex h-full min-w-0 flex-col rounded-[var(--radius-card)] border border-[var(--rule)] bg-[var(--color-surface)] p-5 md:p-7"
             >
               <div className="flex items-center gap-3">
                 <span
@@ -67,16 +67,17 @@ export async function ReviewsSection({ section, context }: { section: ReviewsCon
                   ) : null}
                 </div>
               </div>
-              {review.title ? <p className="mt-5 font-semibold">{review.title}</p> : null}
-              <blockquote className="mt-2 line-clamp-6 text-[14.5px] leading-relaxed text-[color-mix(in_srgb,var(--color-ink)_88%,transparent)]">
+              {review.title ? <p className="mt-4 break-words font-semibold md:mt-5">{review.title}</p> : null}
+              <blockquote className="mt-2 line-clamp-5 break-words text-[14.5px] leading-relaxed text-[color-mix(in_srgb,var(--color-ink)_88%,transparent)] md:line-clamp-6">
                 &ldquo;{review.comment ?? review.title}&rdquo;
               </blockquote>
               {review.response ? (
-                <p className="mt-4 border-t border-[var(--rule)] pt-4 text-[12.5px] leading-relaxed text-[var(--color-muted-ink)]">
+                // capped so one long reply doesn't stretch every card in the rail (they share a height)
+                <p className="mt-4 line-clamp-3 break-words border-t border-[var(--rule)] pt-4 text-[12.5px] leading-relaxed text-[var(--color-muted-ink)]">
                   <span className="font-semibold text-[var(--color-ink)]">{context.restaurant.name}:</span> {review.response}
                 </p>
               ) : null}
-              <figcaption className="mt-auto pt-5 text-[13px] font-semibold">{review.authorName}</figcaption>
+              <figcaption className="mt-auto truncate pt-4 text-[13px] font-semibold md:pt-5">{review.authorName}</figcaption>
             </figure>
           ))}
         </Rail>

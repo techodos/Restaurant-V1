@@ -299,7 +299,7 @@ export function CheckoutForm({
           }
           if (result.error.code === "SIGN_IN_REQUIRED") {
             // the session ended mid-checkout: sign in again and come straight back here
-            toast.error(result.error.message, { description: "Your tray is kept." });
+            toast.error(result.error.message, { description: "Your cart is kept." });
             router.push(signInHref(restaurantSlug, `/r/${restaurantSlug}/checkout`));
             return;
           }

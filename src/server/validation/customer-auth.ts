@@ -19,3 +19,24 @@ export const verifyCodeSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code."),
 });
 export type VerifyCodeInput = z.infer<typeof verifyCodeSchema>;
+
+// ── Forgot password ──
+export const passwordResetRequestSchema = z.object({
+  email: signInSchema.shape.email,
+});
+
+export const passwordResetVerifySchema = z.object({
+  email: signInSchema.shape.email,
+  code: verifyCodeSchema.shape.code,
+});
+
+export const passwordResetSchema = z
+  .object({
+    resetToken: z.string().min(1, "This reset link has expired. Please start again."),
+    password: signUpSchema.shape.password,
+    confirmPassword: z.string(),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "The passwords do not match.",
+  });
