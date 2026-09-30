@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label } from "@/components/ui/input";
 import { deleteLocationAction, saveLocationAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/locations/actions";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import type { RestaurantLocation } from "@/shared/contract/models";
 
 function LocationEditForm({ location, onCancel }: { location?: RestaurantLocation; onCancel: () => void }) {
@@ -110,9 +111,10 @@ export function LocationManager({ locations, canManage }: { locations: Restauran
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
-  function handleDelete(location: RestaurantLocation) {
-    if (!confirm(`Delete "${location.name}"?`)) return;
+  async function handleDelete(location: RestaurantLocation) {
+    if (!(await confirm({ title: `Delete "${location.name}"?`, variant: "danger", confirmLabel: "Delete" }))) return;
     setDeletingId(location.id);
     startTransition(() => {
       deleteLocationAction(location.id).then((result) => {
@@ -129,6 +131,7 @@ export function LocationManager({ locations, canManage }: { locations: Restauran
 
   return (
     <div className="space-y-2">
+      {dialog}
       {locations.map((location) =>
         canManage && editingId === location.id ? (
           <LocationEditForm key={location.id} location={location} onCancel={() => setEditingId(null)} />

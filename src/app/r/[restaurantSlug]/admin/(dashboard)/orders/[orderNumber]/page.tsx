@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MapPin, Phone, Receipt, Store } from "lucide-react";
+import { MapPin, Phone, Receipt, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getOrderForStaff } from "@/server/services/orders";
@@ -12,6 +11,7 @@ import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -41,21 +41,13 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href={adminPath(restaurantSlug, "/orders")}
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]"
-        >
-          <ArrowLeft className="size-4" aria-hidden /> Back to orders
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Order {order.orderNumber}</h1>
-          <Badge variant={orderStatusBadgeVariant(order.status)}>{ORDER_STATUS_LABELS[order.status]}</Badge>
-        </div>
-        <p className="mt-1 text-[var(--color-muted-ink)]">
-          {ORDER_TYPE_LABELS[order.orderType]} · placed {formatDateTime(order.createdAt)}
-        </p>
-      </div>
+      <AdminPageHeader
+        backHref={adminPath(restaurantSlug, "/orders")}
+        backLabel="Back to orders"
+        title={`Order ${order.orderNumber}`}
+        badge={<Badge variant={orderStatusBadgeVariant(order.status)}>{ORDER_STATUS_LABELS[order.status]}</Badge>}
+        description={`${ORDER_TYPE_LABELS[order.orderType]} · placed ${formatDateTime(order.createdAt)}`}
+      />
 
       <Card>
         <CardHeader>

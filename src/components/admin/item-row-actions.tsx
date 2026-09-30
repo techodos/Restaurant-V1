@@ -6,11 +6,13 @@ import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { deleteMenuItemAction, toggleItemAvailabilityAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/actions";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 
 export function ItemRowActions({ itemId, isAvailable }: { itemId: string; isAvailable: boolean }) {
   const [pending, startTransition] = useTransition();
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   function toggleAvailable() {
     startTransition(() => {
@@ -24,8 +26,8 @@ export function ItemRowActions({ itemId, isAvailable }: { itemId: string; isAvai
     });
   }
 
-  function handleDelete() {
-    if (!confirm("Delete this item? This cannot be undone.")) return;
+  async function handleDelete() {
+    if (!(await confirm({ title: "Delete this item?", description: "This cannot be undone.", variant: "danger", confirmLabel: "Delete" }))) return;
     setDeleting(true);
     startTransition(() => {
       deleteMenuItemAction(itemId).then((result) => {
@@ -42,6 +44,7 @@ export function ItemRowActions({ itemId, isAvailable }: { itemId: string; isAvai
 
   return (
     <div className="flex items-center justify-end gap-3">
+      {dialog}
       <label className="flex items-center gap-1.5 text-xs text-[var(--color-muted-ink)]">
         <input type="checkbox" checked={isAvailable} onChange={toggleAvailable} disabled={pending} />
         Available

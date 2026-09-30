@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input } from "@/components/ui/input";
 import { deleteCategoryAction, saveCategoryAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/actions";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import type { MenuCategory } from "@/shared/contract/models";
 
 function slugify(value: string): string {
@@ -93,9 +94,11 @@ export function CategoryManager({ categories }: { categories: MenuCategory[] }) 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
-  function handleDelete(category: MenuCategory) {
-    if (!confirm(`Delete "${category.name}"? Items in it are not deleted.`)) return;
+  async function handleDelete(category: MenuCategory) {
+    if (!(await confirm({ title: `Delete "${category.name}"?`, description: "Items in it are not deleted.", variant: "danger", confirmLabel: "Delete" })))
+      return;
     setDeletingId(category.id);
     startTransition(() => {
       deleteCategoryAction(category.id).then((result) => {
@@ -112,6 +115,7 @@ export function CategoryManager({ categories }: { categories: MenuCategory[] }) 
 
   return (
     <div className="space-y-2">
+      {dialog}
       {categories.map((category) =>
         editingId === category.id ? (
           <CategoryEditForm key={category.id} category={category} onCancel={() => setEditingId(null)} />

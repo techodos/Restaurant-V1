@@ -3,6 +3,7 @@ import { getCouponUsageSummary, listCouponsForAdmin } from "@/server/services/co
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { CouponManager } from "@/components/admin/coupon-manager";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Coupons" };
@@ -20,10 +21,7 @@ export default async function AdminCouponsPage({ params }: { params: Promise<{ r
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Coupons</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{coupons.length} coupons</p>
-      </div>
+      <AdminPageHeader title="Coupons" description={`${coupons.length} coupons`} />
       <CouponManager coupons={coupons} usage={usage} />
     </div>
   );

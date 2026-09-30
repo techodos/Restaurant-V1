@@ -4,6 +4,7 @@ import { getLocations } from "@/server/services/restaurants";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { DeliveryZoneManager } from "@/components/admin/delivery-zone-manager";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Delivery zones" };
@@ -21,10 +22,7 @@ export default async function AdminDeliveryZonesPage({ params }: { params: Promi
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Delivery zones</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{zones.length} zones</p>
-      </div>
+      <AdminPageHeader title="Delivery zones" description={`${zones.length} zones`} />
       <DeliveryZoneManager zones={zones} locations={locations} />
     </div>
   );

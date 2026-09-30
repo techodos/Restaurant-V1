@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +10,9 @@ import { listCustomersForAdmin } from "@/server/services/customers";
 import { formatMoney } from "@/shared/money";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Customers" };
@@ -40,10 +44,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Customers</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{result.total} total</p>
-      </div>
+      <AdminPageHeader title="Customers" description={`${result.total} total`} />
 
       <div className="flex flex-wrap items-center gap-3">
         <form action={adminPath(restaurantSlug, "/customers")} className="flex max-w-md flex-1 gap-2">
@@ -72,7 +73,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
 
       <Card className="overflow-hidden">
         {result.rows.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No customers match this search.</p>
+          <AdminEmptyState icon={Users} title="No customers match this search." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
             <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
@@ -110,28 +111,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
         )}
       </Card>
 
-      {result.totalPages > 1 ? (
-        <div className="flex items-center justify-center gap-3">
-          <Button asChild variant="outline" size="sm" className={pageNum <= 1 ? "pointer-events-none opacity-40" : ""}>
-            <Link href={linkFor({ page: pageNum - 1 })} aria-disabled={pageNum <= 1}>
-              Previous
-            </Link>
-          </Button>
-          <span className="text-sm text-[var(--color-muted-ink)]">
-            Page {pageNum} of {result.totalPages}
-          </span>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className={pageNum >= result.totalPages ? "pointer-events-none opacity-40" : ""}
-          >
-            <Link href={linkFor({ page: pageNum + 1 })} aria-disabled={pageNum >= result.totalPages}>
-              Next
-            </Link>
-          </Button>
-        </div>
-      ) : null}
+      <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
     </div>
   );
 }

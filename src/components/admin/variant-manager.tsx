@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { deleteVariantAction, saveVariantAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 import type { MenuItem } from "@/shared/contract/models";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 
 type Variant = MenuItem["variants"][number];
 
@@ -57,9 +58,10 @@ export function VariantManager({ menuItemId, variants }: { menuItemId: string; v
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
-  function handleDelete(id: string) {
-    if (!confirm("Delete this variant?")) return;
+  async function handleDelete(id: string) {
+    if (!(await confirm({ title: "Delete this variant?", variant: "danger", confirmLabel: "Delete" }))) return;
     setDeletingId(id);
     startTransition(() => {
       deleteVariantAction(menuItemId, id).then((result) => {
@@ -76,6 +78,7 @@ export function VariantManager({ menuItemId, variants }: { menuItemId: string; v
 
   return (
     <div className="space-y-2">
+      {dialog}
       {variants.map((variant) => (
         <div
           key={variant.id}

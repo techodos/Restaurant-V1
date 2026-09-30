@@ -3,6 +3,7 @@ import { getLocations } from "@/server/services/restaurants";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { LocationManager } from "@/components/admin/location-manager";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Locations" };
@@ -16,10 +17,7 @@ export default async function AdminLocationsPage({ params }: { params: Promise<{
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Locations</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{locations.length} branches</p>
-      </div>
+      <AdminPageHeader title="Locations" description={`${locations.length} branches`} />
       <LocationManager locations={locations} canManage={actor.permissions.includes("locations.manage")} />
     </div>
   );

@@ -3,17 +3,19 @@ import { adminPath } from "@/shared/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { resolveMenuImage } from "@/web/media";
-import { Plus } from "lucide-react";
+import { Plus, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { listCategoriesForAdmin, listMenuItemsForAdmin } from "@/server/services/menu-admin";
 import { formatMoney } from "@/shared/money";
-import { cn } from "@/shared/utils";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { CategoryManager } from "@/components/admin/category-manager";
 import { ItemRowActions } from "@/components/admin/item-row-actions";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Menu" };
@@ -36,21 +38,19 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Menu</h1>
-          <p className="mt-1 text-[var(--color-muted-ink)]">
-            {categories.length} categories · {items.length} items
-          </p>
-        </div>
-        {canManage ? (
-          <Button asChild>
-            <Link href={adminPath(restaurantSlug, "/menu/items/new")}>
-              <Plus className="size-4" aria-hidden /> Add item
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+      <AdminPageHeader
+        title="Menu"
+        description={`${categories.length} categories · ${items.length} items`}
+        actions={
+          canManage ? (
+            <Button asChild>
+              <Link href={adminPath(restaurantSlug, "/menu/items/new")}>
+                <Plus className="size-4" aria-hidden /> Add item
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Categories</h2>
@@ -70,37 +70,18 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
       <section>
         <h2 className="mb-3 text-lg font-semibold">Items</h2>
 
-        <div className="-mx-1 mb-4 flex snap-x gap-2 overflow-x-auto pb-1">
-          <Link
-            href={adminPath(restaurantSlug, "/menu")}
-            className={cn(
-              "snap-start whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-              !category
-                ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-                : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[var(--color-brand)]",
-            )}
-          >
-            All
-          </Link>
-          {categories.map((entry) => (
-            <Link
-              key={entry.id}
-              href={`${adminPath(restaurantSlug)}/menu?category=${entry.id}`}
-              className={cn(
-                "snap-start whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                category === entry.id
-                  ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-                  : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[var(--color-brand)]",
-              )}
-            >
-              {entry.name}
-            </Link>
-          ))}
+        <div className="mb-4">
+          <AdminStatusTabs
+            label="Category"
+            active={category ?? ""}
+            options={[{ key: "", label: "All" }, ...categories.map((entry) => ({ key: entry.id, label: entry.name }))]}
+            linkFor={(key) => (key ? `${adminPath(restaurantSlug)}/menu?category=${key}` : adminPath(restaurantSlug, "/menu"))}
+          />
         </div>
 
         <Card className="overflow-hidden">
           {items.length === 0 ? (
-            <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No items in this category yet.</p>
+            <AdminEmptyState icon={UtensilsCrossed} title="No items in this category yet." />
           ) : (
             <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
               <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">

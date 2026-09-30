@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import {
   DeliverySettingsSection,
   FeaturesSection,
@@ -24,10 +25,7 @@ export default async function AdminSettingsPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Settings</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{restaurant.name}</p>
-      </div>
+      <AdminPageHeader title="Settings" description={restaurant.name} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <FeaturesSection features={restaurant.features} readOnly={readOnly} />

@@ -13,6 +13,7 @@ import {
   saveAddonGroupAction,
 } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 import type { MenuAddonGroup } from "@/shared/contract/models";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 
 type Addon = MenuAddonGroup["addons"][number];
 
@@ -72,9 +73,10 @@ function AddonGroupCard({ menuItemId, group, onChanged }: { menuItemId: string; 
   const [deletingAddonId, setDeletingAddonId] = useState<string | null>(null);
   const [deletingGroup, setDeletingGroup] = useState(false);
   const [, startTransition] = useTransition();
+  const { confirm, dialog } = useConfirm();
 
-  function handleDeleteAddon(addonId: string) {
-    if (!confirm("Delete this add-on?")) return;
+  async function handleDeleteAddon(addonId: string) {
+    if (!(await confirm({ title: "Delete this add-on?", variant: "danger", confirmLabel: "Delete" }))) return;
     setDeletingAddonId(addonId);
     startTransition(() => {
       deleteAddonAction(menuItemId, addonId).then((result) => {
@@ -88,8 +90,9 @@ function AddonGroupCard({ menuItemId, group, onChanged }: { menuItemId: string; 
     });
   }
 
-  function handleDeleteGroup() {
-    if (!confirm(`Delete "${group.name}" and all its add-ons?`)) return;
+  async function handleDeleteGroup() {
+    if (!(await confirm({ title: `Delete "${group.name}"?`, description: "All its add-ons are deleted too.", variant: "danger", confirmLabel: "Delete" })))
+      return;
     setDeletingGroup(true);
     startTransition(() => {
       deleteAddonGroupAction(menuItemId, group.id).then((result) => {
@@ -105,6 +108,7 @@ function AddonGroupCard({ menuItemId, group, onChanged }: { menuItemId: string; 
 
   return (
     <div className="surface-flat p-4">
+      {dialog}
       <div className="flex items-center justify-between">
         <div>
           <p className="font-medium">{group.name}</p>
