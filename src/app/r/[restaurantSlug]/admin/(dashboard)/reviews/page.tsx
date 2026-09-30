@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
-import Link from "next/link";
+import { Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { listReviewsForAdmin } from "@/server/services/reviews";
 import { REVIEW_STATUS_LABELS, type ReviewStatus } from "@/shared/contract/enums";
-import { cn } from "@/shared/utils";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { RatingStars } from "@/components/storefront/rating-stars";
 import { ReviewModerationControl } from "@/components/admin/review-moderation-control";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Reviews" };
@@ -55,31 +57,13 @@ export default async function AdminReviewsPage({ params, searchParams }: Reviews
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Reviews</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{result.total} total</p>
-      </div>
+      <AdminPageHeader title="Reviews" description={`${result.total} total`} />
 
-      <nav className="-mx-1 flex snap-x gap-2 overflow-x-auto pb-1">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.key}
-            href={linkFor({ status: tab.key })}
-            className={cn(
-              "snap-start whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-              activeStatus === tab.key
-                ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-                : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[var(--color-brand)]",
-            )}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+      <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
 
       {result.rows.length === 0 ? (
         <Card>
-          <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No reviews match this filter.</p>
+          <AdminEmptyState icon={Star} title="No reviews match this filter." />
         </Card>
       ) : (
         <div className="space-y-4">
@@ -125,28 +109,7 @@ export default async function AdminReviewsPage({ params, searchParams }: Reviews
         </div>
       )}
 
-      {result.totalPages > 1 ? (
-        <div className="flex items-center justify-center gap-3">
-          <Button asChild variant="outline" size="sm" className={pageNum <= 1 ? "pointer-events-none opacity-40" : ""}>
-            <Link href={linkFor({ page: pageNum - 1 })} aria-disabled={pageNum <= 1}>
-              Previous
-            </Link>
-          </Button>
-          <span className="text-sm text-[var(--color-muted-ink)]">
-            Page {pageNum} of {result.totalPages}
-          </span>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className={pageNum >= result.totalPages ? "pointer-events-none opacity-40" : ""}
-          >
-            <Link href={linkFor({ page: pageNum + 1 })} aria-disabled={pageNum >= result.totalPages}>
-              Next
-            </Link>
-          </Button>
-        </div>
-      ) : null}
+      <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
     </div>
   );
 }

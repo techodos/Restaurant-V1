@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
 import { deleteDeliveryZoneAction, saveDeliveryZoneAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/delivery-zones/actions";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
 
 function splitList(value: string): string[] {
@@ -157,9 +158,10 @@ export function DeliveryZoneManager({ zones, locations }: { zones: DeliveryZone[
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
-  function handleDelete(zone: DeliveryZone) {
-    if (!confirm(`Delete zone "${zone.name}"?`)) return;
+  async function handleDelete(zone: DeliveryZone) {
+    if (!(await confirm({ title: `Delete zone "${zone.name}"?`, variant: "danger", confirmLabel: "Delete" }))) return;
     setDeletingId(zone.id);
     startTransition(() => {
       deleteDeliveryZoneAction(zone.id).then((result) => {
@@ -178,6 +180,7 @@ export function DeliveryZoneManager({ zones, locations }: { zones: DeliveryZone[
 
   return (
     <div className="space-y-2">
+      {dialog}
       {zones.map((zone) =>
         editingId === zone.id ? (
           <ZoneEditForm key={zone.id} zone={zone} locations={locations} onCancel={() => setEditingId(null)} />

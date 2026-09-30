@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
-import Link from "next/link";
+import { CalendarCheck } from "lucide-react";
 import { formatDateKey } from "@/shared/hours";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { listReservationsForStaff } from "@/server/services/reservations";
 import { RESERVATION_STATUS_LABELS, type ReservationStatus } from "@/shared/contract/enums";
-import { cn } from "@/shared/utils";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { ReservationStatusControl } from "@/components/admin/reservation-status-control";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Reservations" };
@@ -71,31 +73,13 @@ export default async function AdminReservationsPage({ params, searchParams }: Re
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Reservations</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{result.total} total</p>
-      </div>
+      <AdminPageHeader title="Reservations" description={`${result.total} total`} />
 
-      <nav className="-mx-1 flex snap-x gap-2 overflow-x-auto pb-1">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.key}
-            href={linkFor({ status: tab.key })}
-            className={cn(
-              "snap-start whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-              activeStatus === tab.key
-                ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-                : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[var(--color-brand)]",
-            )}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+      <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
 
       <Card className="overflow-hidden">
         {result.rows.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No reservations match this filter.</p>
+          <AdminEmptyState icon={CalendarCheck} title="No reservations match this filter." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
             <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
@@ -140,28 +124,7 @@ export default async function AdminReservationsPage({ params, searchParams }: Re
         )}
       </Card>
 
-      {result.totalPages > 1 ? (
-        <div className="flex items-center justify-center gap-3">
-          <Button asChild variant="outline" size="sm" className={pageNum <= 1 ? "pointer-events-none opacity-40" : ""}>
-            <Link href={linkFor({ page: pageNum - 1 })} aria-disabled={pageNum <= 1}>
-              Previous
-            </Link>
-          </Button>
-          <span className="text-sm text-[var(--color-muted-ink)]">
-            Page {pageNum} of {result.totalPages}
-          </span>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className={pageNum >= result.totalPages ? "pointer-events-none opacity-40" : ""}
-          >
-            <Link href={linkFor({ page: pageNum + 1 })} aria-disabled={pageNum >= result.totalPages}>
-              Next
-            </Link>
-          </Button>
-        </div>
-      ) : null}
+      <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
     </div>
   );
 }

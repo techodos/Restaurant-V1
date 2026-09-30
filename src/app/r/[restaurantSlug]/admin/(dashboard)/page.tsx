@@ -15,6 +15,7 @@ import { requireStaffForAdmin } from "@/web/session";
 import { getAdminRestaurant } from "@/web/admin";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { RatingStars } from "@/components/storefront/rating-stars";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -71,7 +72,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   if (!canOrders && !canReservations && !canReviews) {
     return (
       <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Welcome, {actor.name}</h1>
+        <h1 className="text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">Welcome, {actor.name}</h1>
         <p className="mt-2 text-[var(--color-muted-ink)]">You do not have access to any dashboard widgets yet.</p>
       </div>
     );
@@ -100,7 +101,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[var(--color-muted-ink)]">{today}</p>
-            <h1 className="mt-2 font-[family-name:var(--font-heading)] text-[2.2rem] leading-none md:text-[2.8rem]">Service</h1>
+            <h1 className="mt-2 font-[family-name:var(--font-heading)] text-[1.8rem] leading-none md:text-[2.15rem]">Service</h1>
             {counts ? (
               <p className="tabular mt-3 text-[15px] text-[var(--color-muted-ink)]">
                 {inService} order{inService === 1 ? "" : "s"} on the pass at {restaurant.name}
@@ -162,9 +163,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
         {canOrders ? (
           <Panel title="Latest orders" href={adminPath(restaurantSlug, "/orders")} linkLabel="View all" icon={ClipboardList}>
             {recentOrders.length === 0 ? (
-              <p className="flex items-center gap-2 px-5 py-10 text-sm text-[var(--color-muted-ink)]">
-                <ClipboardList className="size-4" aria-hidden /> No orders yet. New orders appear here the moment they are placed.
-              </p>
+              <AdminEmptyState icon={ClipboardList} title="No orders yet. New orders appear here the moment they are placed." className="py-10" />
             ) : (
               <ul className="divide-y divide-[var(--color-hairline)]">
                 {recentOrders.map((order) => (

@@ -8,6 +8,8 @@ import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { KitchenAutoRefresh } from "@/components/admin/kitchen-auto-refresh";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Kitchen" };
@@ -27,17 +29,11 @@ export default async function AdminKitchenPage({ params }: { params: Promise<{ r
   return (
     <div className="space-y-6">
       <KitchenAutoRefresh />
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Kitchen</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{orders.length} active orders</p>
-      </div>
+      <AdminPageHeader title="Kitchen" description={`${orders.length} active orders`} />
 
       {orders.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-16 text-center text-[var(--color-muted-ink)]">
-            <ChefHat className="size-8" aria-hidden />
-            <p>No active orders right now.</p>
-          </CardContent>
+          <AdminEmptyState icon={ChefHat} title="No active orders right now." className="py-16" />
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

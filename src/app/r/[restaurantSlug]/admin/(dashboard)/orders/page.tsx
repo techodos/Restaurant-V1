@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,10 +9,13 @@ import { Input } from "@/components/ui/input";
 import { getOrderStatusCounts, listOrdersForStaff } from "@/server/services/orders";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, type OrderStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import { cn } from "@/shared/utils";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Orders" };
@@ -64,27 +68,13 @@ export default async function AdminOrdersPage({ params, searchParams }: OrdersPa
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Orders</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{result.total} total</p>
-      </div>
+      <AdminPageHeader title="Orders" description={`${result.total} total`} />
 
-      <nav className="-mx-1 flex snap-x gap-2 overflow-x-auto pb-1">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.key}
-            href={linkFor({ status: tab.key })}
-            className={cn(
-              "snap-start whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-              activeStatus === tab.key
-                ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-                : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[var(--color-brand)]",
-            )}
-          >
-            {tab.label} <span className="ml-1 text-xs opacity-75">{countFor(tab.key)}</span>
-          </Link>
-        ))}
-      </nav>
+      <AdminStatusTabs
+        options={TABS.map((tab) => ({ key: tab.key, label: tab.label, count: countFor(tab.key) }))}
+        active={activeStatus}
+        linkFor={(key) => linkFor({ status: key })}
+      />
 
       <form action={adminPath(restaurantSlug, "/orders")} className="flex max-w-md gap-2">
         <input type="hidden" name="status" value={activeStatus} />
@@ -96,7 +86,7 @@ export default async function AdminOrdersPage({ params, searchParams }: OrdersPa
 
       <Card className="overflow-hidden">
         {result.rows.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No orders match this filter.</p>
+          <AdminEmptyState icon={ClipboardList} title="No orders match this filter." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
             <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
@@ -141,28 +131,7 @@ export default async function AdminOrdersPage({ params, searchParams }: OrdersPa
         )}
       </Card>
 
-      {result.totalPages > 1 ? (
-        <div className="flex items-center justify-center gap-3">
-          <Button asChild variant="outline" size="sm" className={pageNum <= 1 ? "pointer-events-none opacity-40" : ""}>
-            <Link href={linkFor({ page: pageNum - 1 })} aria-disabled={pageNum <= 1}>
-              Previous
-            </Link>
-          </Button>
-          <span className="text-sm text-[var(--color-muted-ink)]">
-            Page {pageNum} of {result.totalPages}
-          </span>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className={pageNum >= result.totalPages ? "pointer-events-none opacity-40" : ""}
-          >
-            <Link href={linkFor({ page: pageNum + 1 })} aria-disabled={pageNum >= result.totalPages}>
-              Next
-            </Link>
-          </Button>
-        </div>
-      ) : null}
+      <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
     </div>
   );
 }

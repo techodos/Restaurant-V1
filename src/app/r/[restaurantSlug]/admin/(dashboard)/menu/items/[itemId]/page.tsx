@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getMenuItemForAdmin, listCategoriesForAdmin } from "@/server/services/menu-admin";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { AddonGroupManager } from "@/components/admin/addon-group-manager";
 import { MenuItemForm } from "@/components/admin/menu-item-form";
 import { VariantManager } from "@/components/admin/variant-manager";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 interface EditItemPageProps {
   params: Promise<{ restaurantSlug: string; itemId: string }>;
@@ -30,15 +29,7 @@ export default async function EditMenuItemPage({ params }: EditItemPageProps) {
 
   return (
     <div className="space-y-8">
-      <div>
-        <Link
-          href={adminPath(restaurantSlug, "/menu")}
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]"
-        >
-          <ArrowLeft className="size-4" aria-hidden /> Back to menu
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold">{item.name}</h1>
-      </div>
+      <AdminPageHeader backHref={adminPath(restaurantSlug, "/menu")} backLabel="Back to menu" title={item.name} />
 
       <MenuItemForm item={item} categories={categories} />
 

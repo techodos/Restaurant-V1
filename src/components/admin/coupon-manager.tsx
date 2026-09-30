@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { deleteCouponAction, saveCouponAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/coupons/actions";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import { COUPON_DISCOUNT_TYPES, ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import type { Coupon } from "@/shared/contract/models";
 
@@ -190,9 +191,10 @@ export function CouponManager({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
-  function handleDelete(coupon: Coupon) {
-    if (!confirm(`Delete coupon "${coupon.code}"?`)) return;
+  async function handleDelete(coupon: Coupon) {
+    if (!(await confirm({ title: `Delete coupon "${coupon.code}"?`, variant: "danger", confirmLabel: "Delete" }))) return;
     setDeletingId(coupon.id);
     startTransition(() => {
       deleteCouponAction(coupon.id).then((result) => {
@@ -209,6 +211,7 @@ export function CouponManager({
 
   return (
     <div className="space-y-2">
+      {dialog}
       {coupons.map((coupon) =>
         editingId === coupon.id ? (
           <CouponEditForm key={coupon.id} coupon={coupon} onCancel={() => setEditingId(null)} />

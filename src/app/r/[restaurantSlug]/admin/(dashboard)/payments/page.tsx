@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
+import { CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { listPaymentsForAdmin } from "@/server/services/payments";
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUSES, type PaymentStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import { cn } from "@/shared/utils";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Payments" };
@@ -51,31 +54,17 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">Payments</h1>
-        <p className="mt-1 text-[var(--color-muted-ink)]">{result.total} total</p>
-      </div>
+      <AdminPageHeader title="Payments" description={`${result.total} total`} />
 
-      <nav className="-mx-1 flex snap-x gap-2 overflow-x-auto pb-1">
-        {(["all", ...PAYMENT_STATUSES] as const).map((option) => (
-          <Link
-            key={option}
-            href={linkFor({ status: option })}
-            className={cn(
-              "snap-start whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-              activeStatus === option
-                ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-                : "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[var(--color-brand)]",
-            )}
-          >
-            {label(option)}
-          </Link>
-        ))}
-      </nav>
+      <AdminStatusTabs
+        options={(["all", ...PAYMENT_STATUSES] as const).map((option) => ({ key: option, label: label(option) }))}
+        active={activeStatus}
+        linkFor={(key) => linkFor({ status: key })}
+      />
 
       <Card className="overflow-hidden">
         {result.rows.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No payments match this filter.</p>
+          <AdminEmptyState icon={CreditCard} title="No payments match this filter." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
             <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
@@ -114,28 +103,7 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
         )}
       </Card>
 
-      {result.totalPages > 1 ? (
-        <div className="flex items-center justify-center gap-3">
-          <Button asChild variant="outline" size="sm" className={pageNum <= 1 ? "pointer-events-none opacity-40" : ""}>
-            <Link href={linkFor({ page: pageNum - 1 })} aria-disabled={pageNum <= 1}>
-              Previous
-            </Link>
-          </Button>
-          <span className="text-sm text-[var(--color-muted-ink)]">
-            Page {pageNum} of {result.totalPages}
-          </span>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className={pageNum >= result.totalPages ? "pointer-events-none opacity-40" : ""}
-          >
-            <Link href={linkFor({ page: pageNum + 1 })} aria-disabled={pageNum >= result.totalPages}>
-              Next
-            </Link>
-          </Button>
-        </div>
-      ) : null}
+      <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
     </div>
   );
 }

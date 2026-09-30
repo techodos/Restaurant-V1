@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCustomerForAdmin, getCustomerOrderHistory, getCustomerStatsForAdmin } from "@/server/services/customers";
@@ -11,6 +11,8 @@ import { formatMoney } from "@/shared/money";
 import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 
 interface CustomerDetailPageProps {
   params: Promise<{ restaurantSlug: string; customerId: string }>;
@@ -36,23 +38,18 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href={adminPath(restaurantSlug, "/customers")}
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]"
-        >
-          <ArrowLeft className="size-4" aria-hidden /> Back to customers
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em]">{customer.fullName}</h1>
-          {customer.isGuest ? <Badge variant="neutral">Guest</Badge> : null}
-          {customer.isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
-        </div>
-        <p className="mt-1 text-[var(--color-muted-ink)]">
-          {customer.phone}
-          {customer.email ? ` · ${customer.email}` : ""}
-        </p>
-      </div>
+      <AdminPageHeader
+        backHref={adminPath(restaurantSlug, "/customers")}
+        backLabel="Back to customers"
+        title={customer.fullName}
+        badge={
+          <>
+            {customer.isGuest ? <Badge variant="neutral">Guest</Badge> : null}
+            {customer.isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
+          </>
+        }
+        description={`${customer.phone}${customer.email ? ` · ${customer.email}` : ""}`}
+      />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card>
@@ -87,7 +84,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
 
       <Card className="overflow-hidden">
         {orders.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[var(--color-muted-ink)]">No orders yet.</p>
+          <AdminEmptyState icon={ClipboardList} title="No orders yet." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
             <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">

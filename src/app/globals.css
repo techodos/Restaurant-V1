@@ -461,6 +461,25 @@
   animation: sheet-in var(--dur-ui) var(--ease-out) both;
 }
 
+/* admin confirm dialog: never scale from 0 (nothing in the real world appears from nothing) */
+@keyframes dialog-pop {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@utility animate-dialog {
+  animation: dialog-pop 180ms var(--ease-out) both;
+}
+
+@keyframes overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@utility animate-overlay {
+  animation: overlay-fade 150ms ease-out both;
+}
+
 /* hero photograph settles into place once, on load */
 @keyframes hero-settle {
   from { transform: scale(1.08); }
