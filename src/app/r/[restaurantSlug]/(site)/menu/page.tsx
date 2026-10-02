@@ -106,6 +106,10 @@ async function renderMenu(
     return null;
   };
   const heroImage = resolveImage(restaurant.coverUrl) ?? (grouped[0] ? chapterPhoto(grouped[0]) : null);
+  // alaCarteEnabled off means every non-buffet category/item is already hidden from this menu (rule 12) —
+  // the whole page IS the buffet, so it earns a taller hero and its own "how this works" band.
+  const isBuffetOnly = !restaurant.features.alaCarteEnabled;
+  const reservations = restaurant.settings.reservations;
   const tile = (item: (typeof items)[number], layout: "card" | "row") => (
     <DishTile
       item={item}
@@ -131,8 +135,15 @@ async function renderMenu(
       <PageHero
         overlay={heading.leading}
         image={heroImage}
-        eyebrow={restaurant.cuisines.length ? `${restaurant.cuisines.slice(0, 2).join(" · ")} menu` : "Our menu"}
-        title={heading.title ?? "The Menu"}
+        size={isBuffetOnly ? "lg" : "md"}
+        eyebrow={
+          isBuffetOnly
+            ? "Buffet dining"
+            : restaurant.cuisines.length
+              ? `${restaurant.cuisines.slice(0, 2).join(" · ")} menu`
+              : "Our menu"
+        }
+        title={heading.title ?? (isBuffetOnly ? "The Buffet" : "The Menu")}
         subtitle={
           heading.subtitle ??
           `${grouped.length} categories, ${items.length} dishes today${
@@ -197,6 +208,44 @@ async function renderMenu(
           ) : null}
         </div>
       </PageHero>
+
+      {isBuffetOnly ? (
+        <section className="tone-paper section-y">
+          <div className="container-page grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:gap-16">
+            <div className={heroImage ? undefined : "lg:col-span-2 lg:max-w-2xl"}>
+              <p className="eyebrow mb-3">How it works</p>
+              <h2 className="display-1">Unlimited dining, one reservation</h2>
+              <p className="lede mt-4">
+                {restaurant.description ||
+                  restaurant.shortDescription ||
+                  `${restaurant.name} serves an all-you-can-eat buffet — reserve a table and the kitchen takes care of the rest.`}
+              </p>
+              <dl className="mt-6 grid grid-cols-2 gap-5 text-sm">
+                <div>
+                  <dt className="text-[var(--color-muted-ink)]">Seating length</dt>
+                  <dd className="tabular mt-1 text-lg font-semibold">{reservations.defaultDurationMinutes} min</dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--color-muted-ink)]">Party size</dt>
+                  <dd className="tabular mt-1 text-lg font-semibold">
+                    {reservations.minGuests}–{reservations.maxGuests} guests
+                  </dd>
+                </div>
+              </dl>
+              {restaurant.features.reservations ? (
+                <Button asChild className="mt-6">
+                  <Link href={`/r/${restaurant.slug}/reservation`}>Reserve a table</Link>
+                </Button>
+              ) : null}
+            </div>
+            {heroImage ? (
+              <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] bg-[var(--steel-2)]">
+                <Image src={heroImage} alt="" fill sizes="(min-width: 1024px) 45vw, 100vw" className="object-cover" />
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {items.length === 0 ? (
         <section className="tone-paper section-y">

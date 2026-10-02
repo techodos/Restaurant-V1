@@ -3,7 +3,7 @@ import { isOrderTypeEnabled } from "@/shared/ordering";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
 import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
-import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary } from "@/shared/contract/models";
+import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary, SalesAnalytics } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
 import { matchDeliveryZone } from "./deliveries";
@@ -498,7 +498,7 @@ export async function listOrders(
     const total = await tx.queryCount(`select count(*) from orders o where ${where}`, params);
     const rows = await tx.query<Row>(
       `select o.id, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
-              o.payment_status, o.payment_method, o.created_at,
+              o.payment_status, o.payment_method, o.created_at, o.subtotal, o.discount_amount, o.tax_amount,
               (select coalesce(sum(oi.quantity),0) from order_items oi where oi.order_id = o.id) as item_count,
               (select coalesce(json_agg(oi.item_name order by oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview
          from orders o
@@ -522,9 +522,99 @@ export async function listOrders(
       createdAt: new Date(String(row.created_at)).toISOString(),
       itemCount: num(row.item_count),
       itemPreview: Array.isArray(row.item_preview) ? (row.item_preview as string[]) : [],
+      subtotal: toMoney(str(row.subtotal)),
+      discountAmount: toMoney(str(row.discount_amount)),
+      taxAmount: toMoney(str(row.tax_amount)),
     }));
 
     return paginate(summaries, total, page, pageSize);
+  });
+}
+
+/**
+ * Sales Reports summary for one restaurant-local calendar-date range (inclusive both ends).
+ * Four queries share the same date-range predicate and params so the boundary logic cannot drift
+ * between the summary, the status/payment breakdowns and the daily trend. "Sales" always means
+ * completed orders only (cancelled/in-progress orders are never counted as revenue).
+ */
+export async function getSalesAnalytics(
+  restaurantId: string,
+  filters: { fromDateKey: string; toDateKey: string; timezone: string },
+  ctx: RequestContext,
+): Promise<SalesAnalytics> {
+  const db = getDb({ restaurantId });
+  return db.read({ ...ctx, restaurantId }, async (tx) => {
+    const params = [restaurantId, filters.fromDateKey, filters.toDateKey, filters.timezone];
+    // local midnight of fromDateKey .. local midnight of the day after toDateKey, both converted to UTC in SQL
+    const range = `created_at >= ($2::date)::timestamp at time zone $4
+                    and created_at < ($3::date + 1)::timestamp at time zone $4`;
+
+    const summaryRow = await tx.queryOne<Row>(
+      `select
+         count(*) as total_orders,
+         count(*) filter (where status = 'completed') as completed_orders,
+         count(*) filter (where status = 'cancelled') as cancelled_orders,
+         coalesce(sum(total) filter (where status = 'completed'), 0) as total_sales,
+         coalesce(sum(discount_amount) filter (where status = 'completed'), 0) as total_discounts,
+         coalesce(avg(total) filter (where status = 'completed'), 0) as avg_order_value
+       from orders
+      where restaurant_id = $1 and ${range}`,
+      params,
+    );
+
+    const statusRows = await tx.query<Row>(
+      `select status, count(*) as count from orders where restaurant_id = $1 and ${range} group by status`,
+      params,
+    );
+
+    const paymentRows = await tx.query<Row>(
+      `select payment_method, count(*) as orders, coalesce(sum(total), 0) as amount
+         from orders
+        where restaurant_id = $1 and ${range} and status = 'completed'
+        group by payment_method`,
+      params,
+    );
+
+    const trendRows = await tx.query<Row>(
+      `select to_char(date_trunc('day', created_at at time zone $4), 'YYYY-MM-DD') as day,
+              count(*) as orders,
+              coalesce(sum(total) filter (where status = 'completed'), 0) as sales
+         from orders
+        where restaurant_id = $1 and ${range}
+        group by 1
+        order by 1`,
+      params,
+    );
+
+    const statusBreakdown = {
+      pending: 0, confirmed: 0, preparing: 0, ready: 0, out_for_delivery: 0, completed: 0, cancelled: 0,
+    } as Record<OrderStatus, number>;
+    for (const row of statusRows) statusBreakdown[str(row.status) as OrderStatus] = num(row.count);
+
+    const totalOrders = num(summaryRow?.total_orders);
+    const completedOrders = num(summaryRow?.completed_orders);
+    const cancelledOrders = num(summaryRow?.cancelled_orders);
+
+    return {
+      totalSales: toMoney(str(summaryRow?.total_sales)),
+      totalOrders,
+      completedOrders,
+      cancelledOrders,
+      activeOrders: Math.max(0, totalOrders - completedOrders - cancelledOrders),
+      averageOrderValue: toMoney(str(summaryRow?.avg_order_value)),
+      totalDiscounts: toMoney(str(summaryRow?.total_discounts)),
+      paymentBreakdown: paymentRows.map((row) => ({
+        method: str(row.payment_method) as PaymentMethod,
+        orders: num(row.orders),
+        amount: toMoney(str(row.amount)),
+      })),
+      statusBreakdown,
+      dailyTrend: trendRows.map((row) => ({
+        date: str(row.day),
+        orders: num(row.orders),
+        sales: toMoney(str(row.sales)),
+      })),
+    };
   });
 }
 
@@ -830,6 +920,41 @@ export async function countOrdersByStatus(
 export async function listRecentOrders(restaurantId: string, ctx: RequestContext, limit = 8): Promise<OrderSummary[]> {
   const result = await listOrders(restaurantId, { page: 1, pageSize: limit }, ctx);
   return result.rows;
+}
+
+export interface OrderActivityEvent {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  /** created_at === updated_at (to the second): this row is a brand-new order, not a status change */
+  isNew: boolean;
+  updatedAt: string;
+}
+
+/**
+ * Rows touched since `sinceIso`, for the admin's order-sound polling (no SSE/LISTEN infra for a
+ * multi-order staff feed exists yet — see KitchenAutoRefresh's own comment; this is the same
+ * poll-don't-push tradeoff, just for "did anything change" instead of a full page refresh).
+ */
+export async function listOrderActivitySince(restaurantId: string, sinceIso: string, ctx: RequestContext): Promise<OrderActivityEvent[]> {
+  const db = getDb({ restaurantId });
+  const rows = await db.read({ ...ctx, restaurantId }, async (tx) =>
+    tx.query<Row>(
+      `select id, order_number, status, updated_at, (updated_at = created_at) as is_new
+         from orders
+        where restaurant_id = $1 and updated_at > $2::timestamptz
+        order by updated_at asc
+        limit 50`,
+      [restaurantId, sinceIso],
+    ),
+  );
+  return rows.map((row) => ({
+    id: str(row.id),
+    orderNumber: str(row.order_number),
+    status: str(row.status) as OrderStatus,
+    isNew: Boolean(row.is_new),
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+  }));
 }
 
 /**

@@ -18,6 +18,21 @@ function slugify(value: string): string {
     .replace(/(^-+|-+$)/g, "");
 }
 
+/** shown in an empty buffet description: the format shared/buffet-menu.ts turns into the buffet card */
+const BUFFET_DESCRIPTION_EXAMPLE = [
+  "Soup / Appetizer:",
+  "Hot & Sour Soup",
+  "Dahi Bhallay",
+  "",
+  "B.B.Q.: Chicken Seekh Kabab, Chicken Boti, Malai Boti",
+  "",
+  "Dessert Bar:",
+  "Kulfi Falooda",
+  "Gulab Jaman",
+  "",
+  "Note: Soft drinks and fresh juices on payment",
+].join("\n");
+
 export function MenuItemForm({ item, categories }: { item?: MenuItem; categories: MenuCategory[] }) {
   const [name, setName] = useState(item?.name ?? "");
   const [slug, setSlug] = useState(item?.slug ?? "");
@@ -132,7 +147,20 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
 
       <div className="space-y-1.5">
         <Label htmlFor="description">Description</Label>
-        <Textarea id="description" value={description} onChange={(event) => setDescription(event.target.value)} />
+        <Textarea
+          id="description"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          rows={isBuffetPackage ? 14 : undefined}
+          placeholder={isBuffetPackage ? BUFFET_DESCRIPTION_EXAMPLE : undefined}
+        />
+        {isBuffetPackage ? (
+          <p className="text-xs text-[var(--color-muted-ink)]">
+            Buffet card: write a section heading ending in a colon (e.g. <strong>B.B.Q.:</strong>), then one dish per line — or
+            put the dishes after the colon separated by commas. A line starting with <strong>Note:</strong> appears under the
+            card. Add <strong>Adult</strong> / <strong>Children (3–10 years)</strong> as variants for per-head prices.
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-1.5">

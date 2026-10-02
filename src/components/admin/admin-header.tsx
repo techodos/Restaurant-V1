@@ -8,6 +8,7 @@ import { ROLE_LABELS } from "@/server/auth/permissions";
 import { signOutAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/actions";
 import type { TeamRole } from "@/shared/contract/enums";
 import { adminPath } from "@/shared/utils";
+import { SoundToggleButton } from "@/components/admin/order-sound-notifications";
 
 export function AdminHeader({
   name,
@@ -15,6 +16,7 @@ export function AdminHeader({
   restaurantName,
   restaurantSlug,
   mobileNav,
+  showSoundToggle = false,
 }: {
   name: string;
   role: TeamRole;
@@ -22,6 +24,8 @@ export function AdminHeader({
   restaurantSlug: string;
   /** menu button for screens without the sidebar */
   mobileNav?: React.ReactNode;
+  /** only staff who can see orders get the "new order" sound toggle */
+  showSoundToggle?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -55,6 +59,7 @@ export function AdminHeader({
             <p className="text-xs text-[var(--color-muted-ink)]">{ROLE_LABELS[role]}</p>
           </div>
         </div>
+        {showSoundToggle ? <SoundToggleButton /> : null}
         <Button variant="outline" size="sm" onClick={handleSignOut} disabled={pending}>
           <LogOut className="size-4" aria-hidden />
           <span className="hidden sm:inline">Sign out</span>

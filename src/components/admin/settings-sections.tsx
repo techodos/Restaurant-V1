@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,7 +213,16 @@ export function ServiceFeeSection({ serviceFee, readOnly }: { serviceFee: Restau
   );
 }
 
-export function OrderingSection({ ordering, readOnly }: { ordering: RestaurantSettings["ordering"]; readOnly: boolean }) {
+export function OrderingSection({
+  ordering,
+  enabledPaymentMethods,
+  readOnly,
+}: {
+  ordering: RestaurantSettings["ordering"];
+  /** from the Payments card (`settings.payments.enabledMethods`) — only those are offered below, so this never looks like a second copy of that card's checklist */
+  enabledPaymentMethods: PaymentMethod[];
+  readOnly: boolean;
+}) {
   const [state, setState] = useState(ordering);
   return (
     <SectionForm title="Ordering" description="Online ordering rules." section="ordering" patch={() => state} readOnly={readOnly}>
@@ -251,10 +260,20 @@ export function OrderingSection({ ordering, readOnly }: { ordering: RestaurantSe
         onChange={(value) => setState((s) => ({ ...s, requirePhoneVerification: value }))}
       />
 
-      <div className="border-t border-[var(--color-hairline)] pt-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-muted-ink)]">
-          Customer self-cancellation
-        </p>
+      <div className="rounded-[var(--radius-brand)] bg-[var(--tint)] p-4">
+        <div className="flex items-start gap-2.5">
+          <Info className="mt-0.5 size-4 shrink-0 text-[var(--color-muted-ink)]" aria-hidden />
+          <div>
+            <p className="text-sm font-semibold">Customer self-cancellation</p>
+            <p className="mt-0.5 text-xs text-[var(--color-muted-ink)]">
+              Not a payment setting — this only controls whether a customer can cancel <em>their own</em> order
+              themselves from the order-tracking page, for orders paid with the method(s) checked below.
+              Cancelling here never issues a refund, so an online-paid order is usually best left unchecked
+              unless staff are ready to refund it manually. (Which methods customers can pay with at all is set
+              in the Payments card.)
+            </p>
+          </div>
+        </div>
         <Checkbox
           label="Customers can cancel their own order from the order page"
           checked={state.customerCancellation.enabled}
@@ -264,28 +283,31 @@ export function OrderingSection({ ordering, readOnly }: { ordering: RestaurantSe
         />
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
-            <Label>Eligible payment methods</Label>
-            <p className="mb-1.5 text-xs text-[var(--color-muted-ink)]">
-              Orders paid another way (e.g. online card) are not cancellable here — no refund is triggered automatically.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {PAYMENT_METHODS.map((method) => (
-                <Checkbox
-                  key={method}
-                  label={PAYMENT_METHOD_LABELS[method]}
-                  checked={state.customerCancellation.allowedPaymentMethods.includes(method)}
-                  onChange={() =>
-                    setState((s) => {
-                      const list = s.customerCancellation.allowedPaymentMethods;
-                      const allowedPaymentMethods: PaymentMethod[] = list.includes(method)
-                        ? list.filter((m) => m !== method)
-                        : [...list, method];
-                      return { ...s, customerCancellation: { ...s.customerCancellation, allowedPaymentMethods } };
-                    })
-                  }
-                />
-              ))}
-            </div>
+            <Label>Safe to self-cancel if paid by</Label>
+            {enabledPaymentMethods.length === 0 ? (
+              <p className="mb-1.5 text-xs text-[var(--color-muted-ink)]">
+                No payment methods are enabled in the Payments card yet — enable one there first.
+              </p>
+            ) : (
+              <div className="mt-1.5 grid grid-cols-2 gap-2">
+                {enabledPaymentMethods.map((method) => (
+                  <Checkbox
+                    key={method}
+                    label={PAYMENT_METHOD_LABELS[method]}
+                    checked={state.customerCancellation.allowedPaymentMethods.includes(method)}
+                    onChange={() =>
+                      setState((s) => {
+                        const list = s.customerCancellation.allowedPaymentMethods;
+                        const allowedPaymentMethods: PaymentMethod[] = list.includes(method)
+                          ? list.filter((m) => m !== method)
+                          : [...list, method];
+                        return { ...s, customerCancellation: { ...s.customerCancellation, allowedPaymentMethods } };
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <Label htmlFor="cancelCutoff">Cancellable until</Label>

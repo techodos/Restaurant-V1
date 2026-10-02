@@ -707,3 +707,38 @@ its verification). Separately, every transaction spent three sequential round tr
   that matter are re-checked where they are used.
 * Every transaction in the app is two round trips shorter (framing 3 → 1). Verified on the hosted DB:
   `current_user` switches to `app_runtime`/`app_service`, quotes and backslashes in the actor survive.
+
+## 30. Staff account creation moved to the Supabase Auth Admin API — the fix section 26 named but deferred
+
+Section 26 left one line unresolved for the staff side of `auth.users`: "needs a real decision (stop
+colliding with Supabase's schema name, or move user creation to Supabase's Auth Admin API) before those
+flows are exercised in production." Building the admin "Staff" page (SKILL.md §23) exercised exactly
+that flow for the first time, and hit the same `42501` permission-denied `createTeamMember` always would
+have on hosted Supabase: `app_service` has no real INSERT grant on `auth.users` there, confirmed again
+live.
+
+**Decision.** Use Supabase's own Auth Admin HTTP API (`POST {SUPABASE_URL}/auth/v1/admin/users`,
+service-role bearer token) to create the login, then attach the id it returns to a `team_members` row
+with an ordinary `app_service` write — never SQL against `auth.users` on hosted Supabase, and never the
+owner/migrator connection from a web request (§9's boundary stands: that connection is for an offline
+script a developer runs, not something a live request can reach).
+
+**Why this over the alternative section 26 named** ("stop colliding with Supabase's schema name"): that
+alternative meant re-litigating where a user identity lives (the same fight §22's `users`-table saga
+already went through once for customers, §26 itself). The Admin API sidesteps the schema/grant problem
+entirely without moving any data model — `auth.users` stays exactly where Supabase put it, this app just
+asks GoTrue to create the row instead of trying to do it directly.
+
+**Consequences.**
+* No new secret: `config.storage.supabase` (`NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`)
+  already existed for Storage uploads and is reused as-is (`server/integrations/supabase-auth.ts`).
+* `repositories/team.ts#createTeamMember` is unchanged and still tried first — it already works, no
+  Supabase needed, on local/plain Postgres (where this app's own `auth` schema shim grants real
+  privileges) and for `npm run db:seed`/tests. The Admin API is purely the hosted-Supabase fallback,
+  entered only on that specific `42501`.
+* `npm run db:create-staff` (DECISIONS.md §9) stops being the only way to create a staff login in
+  practice — it remains as the documented last resort for an environment where neither path works, and
+  as a scriptable/offline option.
+* The same approach is available to unblock customer-side `auth.users` writes if that is ever revisited
+  (`services/customer-auth.ts#createCustomerAccount` has the identical limitation, noted but not fixed in
+  §6) — not done here, out of scope for this change.

@@ -7,7 +7,7 @@ import { hasAnyPermission } from "@/server/auth/permissions";
 import { getOrderStatusCounts, getRecentOrdersForAdmin } from "@/server/services/orders";
 import { listReservationsForStaff } from "@/server/services/reservations";
 import { listReviewsForAdmin } from "@/server/services/reviews";
-import { ORDER_STATUS_LABELS, type OrderStatus } from "@/shared/contract/enums";
+import { ORDER_STATUS_LABELS, RESERVATION_STATUS_LABELS, type OrderStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import { formatDateKey } from "@/shared/hours";
 import { cn } from "@/shared/utils";
@@ -209,10 +209,17 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
                         </span>
                       </span>
                       <Badge
-                        className="capitalize"
-                        variant={reservation.status === "pending" ? "warning" : reservation.status === "confirmed" ? "info" : "soft"}
+                        variant={
+                          reservation.status === "pending"
+                            ? "warning"
+                            : reservation.status === "confirmed"
+                              ? "info"
+                              : reservation.status === "cancelled" || reservation.status === "no_show"
+                                ? "danger"
+                                : "soft"
+                        }
                       >
-                        {reservation.status}
+                        {RESERVATION_STATUS_LABELS[reservation.status]}
                       </Badge>
                     </li>
                   ))}

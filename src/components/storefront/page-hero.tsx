@@ -9,7 +9,7 @@ interface PageHeroProps {
   image: string | null;
   /** the hero opens the page: it runs under the header, which floats transparent over it */
   overlay: boolean;
-  size?: "md" | "sm";
+  size?: "lg" | "md" | "sm";
   /** controls set under the heading (search, filters, a summary line) */
   children?: React.ReactNode;
   /** content placed at the right on wide screens (e.g. a rating figure) */
@@ -22,16 +22,16 @@ interface PageHeroProps {
  * own photograph under a night scrim with the page's serif title. Shorter than the home hero; the page's
  * work starts right below it.
  */
+const HEIGHT = {
+  lg: "min-h-[min(62svh,560px)]",
+  md: "min-h-[min(52svh,480px)]",
+  sm: "min-h-[min(34svh,320px)]",
+} as const;
+
 export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md", children, aside, className }: PageHeroProps) {
   return (
     <div data-hero-overlay={overlay || undefined} className={cn(overlay && "-mt-[var(--header-h,4.25rem)]")}>
-      <section
-        className={cn(
-          "tone-night relative isolate overflow-hidden",
-          size === "md" ? "min-h-[min(52svh,480px)]" : "min-h-[min(34svh,320px)]",
-          className,
-        )}
-      >
+      <section className={cn("tone-night relative isolate overflow-hidden", HEIGHT[size], className)}>
         {image ? (
           <>
             <Image src={image} alt="" fill priority sizes="100vw" className="animate-hero -z-20 object-cover" />
@@ -49,7 +49,7 @@ export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md"
         <div
           className={cn(
             "container-page flex h-full flex-col justify-end pb-8 md:pb-10",
-            size === "md" ? "min-h-[min(52svh,480px)]" : "min-h-[min(34svh,320px)]",
+            HEIGHT[size],
             overlay ? "pt-[calc(var(--header-h,4.25rem)+2rem)]" : "pt-10",
           )}
         >
@@ -60,7 +60,9 @@ export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md"
               <h1
                 className={cn(
                   "display-hero animate-rise [animation-delay:80ms]",
-                  size === "md" ? "text-[clamp(2.6rem,1.6rem+3.6vw,4.9rem)]" : "text-[clamp(1.9rem,1.45rem+1.8vw,3rem)] font-normal leading-[1.05]",
+                  size === "sm"
+                    ? "text-[clamp(1.9rem,1.45rem+1.8vw,3rem)] font-normal leading-[1.05]"
+                    : "text-[clamp(2.6rem,1.6rem+3.6vw,4.9rem)]",
                 )}
               >
                 {title}

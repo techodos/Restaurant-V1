@@ -5,7 +5,9 @@ import type { OrderType } from "@/shared/contract/enums";
 import { resolveMenuImage } from "@/web/media";
 import { formatMoney } from "@/shared/money";
 import { cn } from "@/shared/utils";
+import { parseBuffetMenu } from "@/shared/buffet-menu";
 import { ItemCustomizer } from "./item-customizer";
+import { BuffetMenuCard } from "./buffet-menu-card";
 
 interface DishDetailProps {
   context: StorefrontContext;
@@ -127,6 +129,41 @@ export function DishDetail({ context, item, orderType, variant }: DishDetailProp
       ) : null}
     </div>
   );
+
+  // A buffet package whose description is a dish list reads as the printed buffet card: the card is
+  // the page, the photo shrinks to a banner and the customizer (party size, Reserve) sits under it.
+  const buffetMenu = item.isBuffetPackage ? parseBuffetMenu(item.description) : null;
+  if (buffetMenu) {
+    return (
+      <div className={cn(sheet ? "pb-2" : "mx-auto max-w-6xl")}>
+        {image ? (
+          <div className={cn("plate", sheet ? "aspect-[21/9] rounded-none md:mx-7 md:rounded-[var(--radius-card)]" : "mb-6 aspect-[21/7]")}>
+            <Image src={image} alt={item.name} fill priority data-dish-image={item.slug} sizes="(min-width: 1024px) 1100px, 100vw" className="object-cover" />
+          </div>
+        ) : null}
+        <div className={cn(sheet ? "px-5 pt-5 md:px-7" : "")}>
+          <BuffetMenuCard item={item} restaurant={restaurant} menu={buffetMenu} variant={variant} />
+          {!item.isAvailable ? (
+            <p className="mt-4 flex items-start gap-2 text-sm text-[var(--color-muted-ink)]">
+              <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+              This buffet is not being served today.
+            </p>
+          ) : null}
+          <div className={cn("mt-8", !sheet && "max-w-xl")}>
+            <ItemCustomizer
+              restaurantSlug={restaurant.slug}
+              item={item}
+              resolvedImageUrl={image}
+              currencySymbol={restaurant.currencySymbol}
+              locale={restaurant.locale}
+              orderType={orderType}
+              inSheet={sheet}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (sheet) {
     return (

@@ -31,7 +31,7 @@ export interface SheetProps {
   /** runs after the exit animation finishes (route sheets navigate back here) */
   onExitComplete?: () => void;
   /** desktop panel width */
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
   children: React.ReactNode;
   /** pinned under the scrolling body (primary actions) */
   footer?: React.ReactNode;
@@ -95,7 +95,7 @@ export function Sheet({
                   "fixed z-50 flex flex-col bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-[var(--shadow-raised)] outline-none",
                   "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[var(--radius-panel)]",
                   "md:inset-y-0 md:left-auto md:right-0 md:h-dvh md:max-h-none md:rounded-none md:rounded-l-[var(--radius-panel)]",
-                  size === "lg" ? "md:w-[min(40rem,94vw)]" : "md:w-[min(30rem,94vw)]",
+                  size === "xl" ? "md:w-[min(60rem,94vw)]" : size === "lg" ? "md:w-[min(40rem,94vw)]" : "md:w-[min(30rem,94vw)]",
                 )}
                 initial={hidden}
                 animate={shown}

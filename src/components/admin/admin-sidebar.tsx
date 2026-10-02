@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Building2,
   CalendarCheck,
   ChefHat,
@@ -16,6 +17,7 @@ import {
   Settings,
   Star,
   Ticket,
+  UserCog,
   Users,
   UtensilsCrossed,
   X,
@@ -52,6 +54,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/delivery-zones", label: "Delivery zones", icon: MapPinned, permission: "delivery.view" },
       { href: "/locations", label: "Locations", icon: Building2, permission: "locations.view" },
       { href: "/payments", label: "Payments", icon: CreditCard, permission: "payments.view" },
+      { href: "/reports", label: "Sales Reports", icon: BarChart3, permission: "analytics.view" },
+      { href: "/staff", label: "Staff", icon: UserCog, permission: "staff.view" },
       { href: "/settings", label: "Settings", icon: Settings, permission: "settings.view" },
     ],
   },

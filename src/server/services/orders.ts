@@ -1,4 +1,4 @@
-import type { Order, OrderSummary, Restaurant } from "@/shared/contract/models";
+import type { Order, OrderSummary, Restaurant, SalesAnalytics } from "@/shared/contract/models";
 import type { OrderStatus } from "@/shared/contract/enums";
 import type { Paginated } from "@/shared/contract/api";
 import type { RequestContext } from "@/server/context";
@@ -6,16 +6,20 @@ import { AppError, errors } from "@/server/errors";
 import { verifyOrderAccessToken } from "@/server/auth/tokens";
 import { ACTIVE_ORDER_STATUSES } from "@/shared/contract/enums";
 import { canCustomerCancelOrder } from "@/shared/order-cancellation";
+import type { ReportRange } from "@/shared/reports";
 import {
   buildReorderLines,
   countOrdersByStatus,
   getOrderByNumber,
   getOrderForAccessGrant,
+  getSalesAnalytics,
   listKitchenOrders,
+  listOrderActivitySince,
   listOrders,
   listRecentOrders,
   listVisitorOrders,
   updateOrderStatus,
+  type OrderActivityEvent,
   type OrderListFilters,
 } from "@/server/repositories/orders";
 import { viewTray, type TrayLineView } from "@/server/services/cart";
@@ -176,4 +180,19 @@ export function getRecentOrdersForAdmin(restaurantId: string, ctx: RequestContex
 /** Active orders for the kitchen display (admin). */
 export function getKitchenOrders(restaurantId: string, ctx: RequestContext): Promise<Order[]> {
   return listKitchenOrders(restaurantId, ctx);
+}
+
+/** Admin "Sales Reports" summary for one resolved date range. */
+export function getSalesReport(restaurantId: string, range: ReportRange, timezone: string, ctx: RequestContext): Promise<SalesAnalytics> {
+  return getSalesAnalytics(restaurantId, { fromDateKey: range.fromDateKey, toDateKey: range.toDateKey, timezone }, ctx);
+}
+
+/** Every order in the range, for the CSV export (no pagination cap below the admin UI's own page size). */
+export function getOrdersForExport(restaurantId: string, range: ReportRange, ctx: RequestContext): Promise<Paginated<OrderSummary>> {
+  return listOrders(restaurantId, { dateFrom: range.fromDateKey, dateTo: range.toDateKey, status: "all", page: 1, pageSize: 5000 }, ctx);
+}
+
+/** New/changed orders since a timestamp, polled by the admin's order-sound notifications (no SSE for a multi-order staff feed). */
+export function getOrderActivitySince(restaurantId: string, sinceIso: string, ctx: RequestContext): Promise<OrderActivityEvent[]> {
+  return listOrderActivitySince(restaurantId, sinceIso, ctx);
 }

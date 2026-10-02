@@ -119,6 +119,13 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           restaurantSlug={restaurant.slug}
           orderType={tray.orderType}
           orderTypeOptions={orderTypeOptions}
+          items={view.lines.map((line) => ({
+            name: line.name,
+            quantity: line.line.quantity,
+            variantName: line.variantName,
+            addonNames: line.addons.map((addon) => addon.name),
+            lineTotal: line.lineTotal,
+          }))}
           pricing={{
             subtotal: pricing.subtotal,
             discount: pricing.discount,

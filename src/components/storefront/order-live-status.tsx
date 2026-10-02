@@ -8,7 +8,7 @@ import { cn } from "@/shared/utils";
 import { OrderStatusBadge } from "./order-status-badge";
 import { OrderTimeline } from "./order-timeline";
 import { useOrderEvents, type LiveConnection } from "./use-order-events";
-import { TERMINAL_ORDER_STATUSES } from "@/shared/contract/enums";
+import { ORDER_STATUS_LABELS, TERMINAL_ORDER_STATUSES } from "@/shared/contract/enums";
 import type { OrderStatusEvent } from "@/shared/contract/models";
 import { nextLiveState, withLiveStatus, type LiveOrderState } from "@/shared/order-live";
 import { buildOrderTimeline } from "@/shared/order-timeline";
@@ -214,7 +214,11 @@ export function OrderPass() {
                 cancelled && "text-[var(--color-danger)]",
               )}
             >
-              {current ? (SHORT_LABELS[current.status] ?? current.label) : state.status}
+              {cancelled
+                ? ORDER_STATUS_LABELS.cancelled
+                : current
+                  ? (SHORT_LABELS[current.status] ?? current.label)
+                  : state.status}
             </p>
             <p className="mt-3 text-[15px] text-[var(--color-muted-ink)]">{STATUS_LINES[state.status] ?? ""}</p>
           </motion.div>

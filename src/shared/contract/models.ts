@@ -517,6 +517,26 @@ export interface OrderSummary {
   createdAt: string;
   itemCount: number;
   itemPreview: string[];
+  /** only populated by queries that need them (sales export); undefined elsewhere */
+  subtotal?: Money;
+  discountAmount?: Money;
+  taxAmount?: Money;
+}
+
+/** Admin "Sales Reports" summary for one date range (restaurant timezone). */
+export interface SalesAnalytics {
+  totalSales: Money;
+  totalOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  /** still in progress (not completed, not cancelled) */
+  activeOrders: number;
+  averageOrderValue: Money;
+  totalDiscounts: Money;
+  paymentBreakdown: { method: PaymentMethod; orders: number; amount: Money }[];
+  statusBreakdown: Record<OrderStatus, number>;
+  /** one point per calendar day in range, restaurant timezone, oldest first */
+  dailyTrend: { date: string; orders: number; sales: Money }[];
 }
 
 export interface Review {

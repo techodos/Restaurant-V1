@@ -27,7 +27,7 @@ export default async function DishSheet({ params, searchParams }: DishSheetProps
     : context.config.ordering.defaultOrderType;
 
   return (
-    <RouteSheet title={item.name} hideTitle description={item.description ?? item.name} size="lg">
+    <RouteSheet title={item.name} hideTitle description={item.description ?? item.name} size={item.isBuffetPackage ? "xl" : "lg"}>
       <DishDetail context={context} item={item} orderType={activeOrderType} variant="sheet" />
     </RouteSheet>
   );

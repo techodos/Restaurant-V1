@@ -33,6 +33,15 @@ export interface CheckoutPricing {
   total: string;
 }
 
+/** One readable row in the order-summary ticket — a trimmed-down `TrayLineView`, display only. */
+export interface CheckoutSummaryItem {
+  name: string;
+  quantity: number;
+  variantName: string | null;
+  addonNames: string[];
+  lineTotal: string;
+}
+
 /**
  * Navigates the browser to a gateway's hosted page via a real POST, the way JazzCash's Hosted
  * Checkout Page (and most redirect-based wallet/card gateways) require — a `fetch`/GET redirect
@@ -59,6 +68,7 @@ interface CheckoutFormProps {
   restaurantSlug: string;
   orderType: OrderType;
   orderTypeOptions: OrderType[];
+  items: CheckoutSummaryItem[];
   pricing: CheckoutPricing;
   couponCode: string | null;
   zones: Pick<DeliveryZone, "id" | "name" | "deliveryFee" | "minOrderAmount">[];
@@ -106,6 +116,7 @@ export function CheckoutForm({
   restaurantSlug,
   orderType,
   orderTypeOptions,
+  items,
   pricing,
   couponCode,
   zones,
@@ -710,6 +721,25 @@ export function CheckoutForm({
       <aside className="lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
       <section className="tone-night rounded-[var(--radius-panel)] p-6 shadow-[var(--shadow-raised)] md:p-8">
         <h2 className="display-3">Order summary</h2>
+        <span aria-hidden className="mt-5 block h-px bg-[var(--rule)]" />
+        <ul className="mt-5 space-y-3.5 text-sm">
+          {items.map((item, index) => (
+            <li key={index} className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-baseline gap-2">
+                  <span className="tabular shrink-0 text-[var(--color-muted-ink)]">{item.quantity}×</span>
+                  <span className="font-medium leading-snug">{item.name}</span>
+                </p>
+                {item.variantName || item.addonNames.length ? (
+                  <p className="mt-0.5 pl-[1.6em] text-[12.5px] leading-snug text-[var(--color-muted-ink)]">
+                    {[item.variantName, ...item.addonNames].filter(Boolean).join(" · ")}
+                  </p>
+                ) : null}
+              </div>
+              <p className="tabular shrink-0 whitespace-nowrap">{money(item.lineTotal)}</p>
+            </li>
+          ))}
+        </ul>
         <span aria-hidden className="mt-5 block h-px bg-[var(--rule)]" />
         <dl className="tabular mt-5 space-y-3 text-sm">
           <div className="flex justify-between">

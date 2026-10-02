@@ -31,8 +31,15 @@ export default async function AdminSettingsPage({ params }: { params: Promise<{ 
         <FeaturesSection features={restaurant.features} readOnly={readOnly} />
         <TaxSection tax={restaurant.settings.tax} readOnly={readOnly} />
         <ServiceFeeSection serviceFee={restaurant.settings.serviceFee} readOnly={readOnly} />
-        <OrderingSection ordering={restaurant.settings.ordering} readOnly={readOnly} />
+        {/* Payments and Ordering sit side by side on purpose: Ordering's "self-cancellation" callout
+            references the Payments card right next to it, instead of looking like a random duplicate
+            of it elsewhere on the page. */}
         <PaymentsSettingsSection payments={restaurant.settings.payments} readOnly={readOnly} />
+        <OrderingSection
+          ordering={restaurant.settings.ordering}
+          enabledPaymentMethods={restaurant.settings.payments.enabledMethods}
+          readOnly={readOnly}
+        />
         <ReservationsSettingsSection reservations={restaurant.settings.reservations} readOnly={readOnly} />
         <DeliverySettingsSection delivery={restaurant.settings.delivery} readOnly={readOnly} />
         <LoyaltySection loyalty={restaurant.settings.loyalty} readOnly={readOnly} />

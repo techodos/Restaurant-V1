@@ -50,6 +50,35 @@ export interface TeamMemberInput {
   password?: string;
 }
 
+async function upsertTeamMemberRow(
+  tx: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> },
+  restaurantId: string,
+  userId: string,
+  email: string,
+  input: TeamMemberInput,
+): Promise<TeamMember> {
+  const row = await tx.queryOne<Row>(
+    `insert into team_members
+       (restaurant_id, user_id, location_id, email, full_name, phone, role, permissions, is_active, accepted_at)
+     values ($1,$2,$3,$4,$5,$6,$7::team_role, coalesce($8::jsonb,'{}'::jsonb), coalesce($9,true), now())
+     on conflict (restaurant_id, email) do update set
+       user_id = excluded.user_id,
+       full_name = excluded.full_name,
+       phone = excluded.phone,
+       role = excluded.role,
+       permissions = excluded.permissions,
+       is_active = excluded.is_active,
+       accepted_at = now()
+     returning *`,
+    [
+      restaurantId, userId, input.locationId ?? null, email, input.fullName, input.phone ?? null,
+      input.role, input.permissions ? JSON.stringify(input.permissions) : null, input.isActive ?? null,
+    ],
+  );
+  if (!row) throw errors.internal("Unable to create the team member");
+  return mapTeamMember(row);
+}
+
 export async function createTeamMember(
   restaurantId: string,
   input: TeamMemberInput,
@@ -78,27 +107,25 @@ export async function createTeamMember(
     }
     if (!userId) throw errors.internal("Unable to create the staff account");
 
-    const row = await tx.queryOne<Row>(
-      `insert into team_members
-         (restaurant_id, user_id, location_id, email, full_name, phone, role, permissions, is_active, accepted_at)
-       values ($1,$2,$3,$4,$5,$6,$7::team_role, coalesce($8::jsonb,'{}'::jsonb), coalesce($9,true), now())
-       on conflict (restaurant_id, email) do update set
-         user_id = excluded.user_id,
-         full_name = excluded.full_name,
-         phone = excluded.phone,
-         role = excluded.role,
-         permissions = excluded.permissions,
-         is_active = excluded.is_active,
-         accepted_at = now()
-       returning *`,
-      [
-        restaurantId, userId, input.locationId ?? null, email, input.fullName, input.phone ?? null,
-        input.role, input.permissions ? JSON.stringify(input.permissions) : null, input.isActive ?? null,
-      ],
-    );
-    if (!row) throw errors.internal("Unable to create the team member");
-    return mapTeamMember(row);
+    return upsertTeamMemberRow(tx, restaurantId, userId, email, input);
   });
+}
+
+/**
+ * Same `team_members` upsert as `createTeamMember`, but for a `userId` that was already created
+ * elsewhere (the Supabase Auth Admin API, `server/integrations/supabase-auth.ts`) — never touches
+ * `auth.users` itself, so it works through the normal `app_service` write path on hosted Supabase
+ * where a direct `insert into auth.users` does not (see that file's header comment).
+ */
+export async function attachTeamMemberToUser(
+  restaurantId: string,
+  userId: string,
+  input: TeamMemberInput,
+  ctx: RequestContext,
+): Promise<TeamMember> {
+  const db = getDb({ restaurantId });
+  const email = input.email.trim().toLowerCase();
+  return db.write({ ...ctx, restaurantId }, (tx) => upsertTeamMemberRow(tx, restaurantId, userId, email, input));
 }
 
 export async function updateTeamMember(
