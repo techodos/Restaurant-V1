@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,6 @@ export function OrderStatusControl({ orderId, currentStatus }: { orderId: string
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelForm, setShowCancelForm] = useState(false);
-  const router = useRouter();
 
   if (TERMINAL_ORDER_STATUSES.includes(currentStatus)) {
     return (
@@ -39,7 +37,8 @@ export function OrderStatusControl({ orderId, currentStatus }: { orderId: string
         }
         toast.success(`Order marked ${ORDER_STATUS_LABELS[status].toLowerCase()}.`);
         setShowCancelForm(false);
-        router.refresh();
+        // no client refresh here: the action revalidates, so its response already carried this page
+        // re-rendered with the new status (refreshing again was a second full render, ~5 s, every click)
       });
     });
   }

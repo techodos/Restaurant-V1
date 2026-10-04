@@ -4,19 +4,24 @@ import type { Paginated } from "@/shared/contract/api";
 import { errors } from "@/server/errors";
 import { forRestaurant, type RequestContext } from "@/server/context";
 import {
-  createReservation,
+  bookReservation,
   listBookedSlotsInRange,
   listReservations,
   updateReservationStatus,
   type ReservationListFilters,
 } from "@/server/repositories/reservations";
-import { getCustomerById } from "@/server/repositories/customers";
 import type { BookTableInput } from "@/server/validation/reservation";
-import { getLocations } from "./restaurants";
 
 /** Guest table booking: availability, capacity and hours are all server-side. */
 
+/**
+ * `restaurant` only routes the request (it may come from the storefront snapshot): everything the booking
+ * is decided from — reservations switched on, the reservation settings, time zone, the location's hours,
+ * the customer's account and the slot's bookings — is read fresh inside the booking transaction
+ * (`bookReservation`, one read + one insert).
+ */
 export async function bookTable(restaurant: Restaurant, input: BookTableInput, visitor: RequestContext): Promise<Reservation> {
+  // cheap pre-checks, in the order the customer should hear about them (the transaction re-checks)
   if (!restaurant.features.reservations) {
     throw errors.custom("RESERVATION_CLOSED", "This restaurant is not taking reservations online.");
   }
@@ -26,46 +31,27 @@ export async function bookTable(restaurant: Restaurant, input: BookTableInput, v
     throw errors.custom("SIGN_IN_REQUIRED", "Please sign in to reserve a table.");
   }
 
-  const locations = await getLocations(restaurant.id, { activeOnly: true });
-  const location = locations.find((candidate) => candidate.id === input.locationId);
-  if (!location) throw errors.validation("Please choose one of our locations.");
-
   // The signed-in visitor's own account (matched by id, keyed by their account email) is the customer of
   // record — never re-derived from the phone/email typed into this form (same reasoning as checkout's
-  // placeOrder: `customers` has independent unique keys on phone AND on email).
-  const account = await getCustomerById(visitor.customerId, { restaurantId: restaurant.id, customerId: visitor.customerId });
-  if (!account || account.restaurantId !== restaurant.id) {
-    throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to reserve a table.");
-  }
-  const savedPhone = account.phone.trim() ? account.phone : null;
-  const phone = savedPhone ?? input.guestPhone;
-  const email = account.email || input.guestEmail || null;
-
-  const reservation = await createReservation(
+  // placeOrder: `customers` has independent unique keys on phone AND on email). Its saved mobile/email
+  // win over the form's. The request and confirmation emails are queued by the database trigger in the
+  // same transaction as the insert (migration 0017); the caller dispatches them after responding.
+  return bookReservation(
     {
       restaurantId: restaurant.id,
-      locationId: location.id,
+      locationId: input.locationId,
+      accountCustomerId: visitor.customerId,
       guestName: input.guestName,
-      guestPhone: phone,
-      guestEmail: email,
+      guestPhone: input.guestPhone,
+      guestEmail: input.guestEmail || null,
       date: input.date,
       time: input.time,
       guests: input.guests,
       occasion: input.occasion || null,
       specialRequests: input.specialRequests || null,
-      accountCustomerId: account.id,
-      saveAccountPhone: !savedPhone,
-      userId: visitor.userId ?? null,
-      autoConfirm: restaurant.settings.reservations.autoConfirm,
-      settings: restaurant.settings.reservations,
-      timezone: restaurant.timezone,
-      hours: location.hours,
     },
     { restaurantId: restaurant.id, customerId: visitor.customerId },
   );
-  // The request and confirmation emails are queued by the database trigger in the same
-  // transaction as the insert (migration 0017); the caller dispatches them after responding.
-  return { ...reservation, locationName: location.name };
 }
 
 /**

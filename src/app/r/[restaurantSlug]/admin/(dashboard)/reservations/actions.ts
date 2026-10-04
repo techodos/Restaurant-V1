@@ -15,6 +15,9 @@ import { requirePermission } from "@/web/session";
  * Changes a reservation's status, then drains the notification outbox after the response: the DB trigger
  * (0017) queues "Reservation confirmed" in the same transaction, and without this it would wait for the
  * scheduler. Dispatch never throws and never affects the status change.
+ *
+ * `revalidatePath` makes Next answer this action with the current page (reservations list or dashboard)
+ * freshly rendered, so the status control must not refresh the page again afterwards.
  */
 export async function updateReservationStatusAction(payload: unknown): Promise<ApiResult<Reservation>> {
   return action(async () => {

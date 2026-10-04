@@ -1,6 +1,5 @@
 import { jsonError } from "@/server/errors";
 import { getOrderActivitySince } from "@/server/services/orders";
-import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 
 /**
@@ -16,14 +15,16 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { restaurantSlug } = await params;
+    // the staff check proves this session is a member of THIS slug's restaurant, so its id is
+    // actor.restaurantId — this poll runs every 7 s per open admin tab and used to re-read the
+    // restaurant row each time just to learn that id
     const actor = await requirePermission("orders.view", restaurantSlug);
-    const restaurant = await getAdminRestaurant(restaurantSlug);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
     const since = new URL(request.url).searchParams.get("since");
     const sinceIso = since && !Number.isNaN(Date.parse(since)) ? since : new Date(Date.now() - 10_000).toISOString();
 
-    const events = await getOrderActivitySince(restaurant.id, sinceIso, ctx);
+    const events = await getOrderActivitySince(actor.restaurantId, sinceIso, ctx);
     return Response.json({ success: true, data: { now: new Date().toISOString(), events } });
   } catch (error) {
     const { body, status } = jsonError(error);

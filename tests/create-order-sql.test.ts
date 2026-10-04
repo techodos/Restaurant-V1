@@ -171,8 +171,12 @@ describe("createOrder — the single order transaction", () => {
     expect(write!.sql).toMatch(/insert into payments/);
     // pizza: unit 1250.00, add-ons 250.00, line (1250 + 250) × 2; chai: 180.00 × 3
     expect(write!.params.slice(8, 11)).toEqual(["1250.00", "250.00", "3000.00"]);
-    expect(write!.params.slice(20, 23)).toEqual(["180.00", "0.00", "540.00"]);
-    expect(write!.params[24]).toBe(write!.params[0]); // the add-on points at its own line's generated id
+    expect(write!.params.slice(21, 24)).toEqual(["180.00", "0.00", "540.00"]);
+    // each line carries its place in the tray (0028): lines share created_at, so this is the sort key
+    expect(write!.params[12]).toBe(0);
+    expect(write!.params[25]).toBe(1);
+    expect(write!.params[26]).toBe(write!.params[0]); // the add-on points at its own line's generated id
+    expect(write!.params[32]).toBe(0); // and has its place within that line
   });
 
   it("uses the account's saved mobile and email over what the form sent", async () => {

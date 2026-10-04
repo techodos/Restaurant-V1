@@ -289,7 +289,10 @@ describe("order status machine", () => {
     const completed = await updateOrderStatus(order.id, "completed", owner);
 
     expect(completed.status).toBe("completed");
-    expect(completed.statusHistory?.map((event) => event.toStatus)).toEqual([
+    expect(completed.orderNumber).toBe(order.orderNumber);
+    // the status change reports only id/number/status; the history is read like any page reads it
+    const reread = await getOrderById(order.id, owner);
+    expect(reread?.statusHistory?.map((event) => event.toStatus)).toEqual([
       "pending", "confirmed", "preparing", "ready", "completed",
     ]);
   });

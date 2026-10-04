@@ -28,7 +28,8 @@ export default async function CurrentOrdersPage({ params }: CurrentOrdersPagePro
   const { restaurantSlug } = await params;
   const { restaurant } = await requireStorefront(restaurantSlug);
   const visitor = await getVisitorContext(restaurant.id);
-  const { current } = await getMyOrders(restaurant.id, visitor);
+  // in-progress orders only: this page never shows the history, so do not read it
+  const { current } = await getMyOrders(restaurant.id, visitor, { history: false });
 
   const card = {
     slug: restaurant.slug,

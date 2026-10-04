@@ -26,13 +26,14 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
-  const customer = await getCustomerForAdmin(customerId, ctx);
-  if (!customer) notFound();
-
-  const [stats, orders] = await Promise.all([
+  // all three side by side (they were customer first, then the other two): nothing is shown unless
+  // the customer is found, and every read is scoped to this restaurant by RLS/ctx as before
+  const [customer, stats, orders] = await Promise.all([
+    getCustomerForAdmin(customerId, ctx),
     getCustomerStatsForAdmin(customerId, ctx),
     getCustomerOrderHistory(customerId, ctx, 30),
   ]);
+  if (!customer) notFound();
 
   const money = (value: string) => formatMoney(value, { currency: restaurant.currency });
 

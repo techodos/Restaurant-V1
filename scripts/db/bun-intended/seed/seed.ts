@@ -355,17 +355,17 @@ try {
     );
     if (!orderRow) throw new Error("order insert failed");
 
-    for (const line of lines) {
+    for (const [linePosition, line] of lines.entries()) {
       const lineTotal = toMoney(dec(line.unitPrice).plus(dec(line.addonsTotal)).times(line.quantity));
       const itemRow = await one<{ id: string }>(
-        `insert into order_items (order_id, restaurant_id, menu_item_id, item_name, variant_name, quantity, unit_price, addons_total, line_total, created_at)
-         values ($1,$2,$3,$4,$5,$6,$7::numeric,$8::numeric,$9::numeric,$10::timestamptz) returning id`,
-        [orderRow.id, RID, line.item.id, line.item.name, line.variantName, line.quantity, line.unitPrice, line.addonsTotal, lineTotal, createdAt],
+        `insert into order_items (order_id, restaurant_id, menu_item_id, item_name, variant_name, quantity, unit_price, addons_total, line_total, created_at, position)
+         values ($1,$2,$3,$4,$5,$6,$7::numeric,$8::numeric,$9::numeric,$10::timestamptz,$11::int) returning id`,
+        [orderRow.id, RID, line.item.id, line.item.name, line.variantName, line.quantity, line.unitPrice, line.addonsTotal, lineTotal, createdAt, linePosition],
       );
-      for (const addon of line.addons) {
+      for (const [addonPosition, addon] of line.addons.entries()) {
         await query(
-          `insert into order_item_addons (order_item_id, menu_addon_id, group_name, addon_name, unit_price, quantity) values ($1,$2,$3,$4,$5::numeric,1)`,
-          [itemRow!.id, addon.id, addon.groupName, addon.name, addon.price],
+          `insert into order_item_addons (order_item_id, menu_addon_id, group_name, addon_name, unit_price, quantity, position) values ($1,$2,$3,$4,$5::numeric,1,$6::int)`,
+          [itemRow!.id, addon.id, addon.groupName, addon.name, addon.price, addonPosition],
         );
       }
     }

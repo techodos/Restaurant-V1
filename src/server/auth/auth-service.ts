@@ -7,6 +7,7 @@ import type { RequestContext } from '@/server/context';
 import { getDb } from '@/server/db/registry';
 import { mapTeamMember, str, type Row } from '@/server/db/mappers';
 import { getRestaurantBySlug } from '@/server/repositories/restaurants';
+import { ttlCache } from '@/server/cache/ttl';
 import { hashPassword, verifyPassword } from './password';
 import {
   SESSION_TTL,
@@ -46,45 +47,54 @@ export interface StaffActor {
   permissions: Permission[];
 }
 
+/** Staff lookups cached per process for page views (see `authenticateStaff`). */
+const STAFF_CACHE_TTL_MS = 30_000;
+const staffActors = ttlCache<StaffActor | null>("staff-actors", STAFF_CACHE_TTL_MS);
+
+/** Drops every cached staff lookup — call after any team-member write (role, active flag, removal). */
+export function invalidateStaffActors(): void {
+  staffActors.clear();
+}
+
 /**
  * Resolves the staff member behind a session. `restaurantSlug` narrows the
  * session to a specific tenant so an admin can never operate outside their
  * restaurants.
+ *
+ * Every admin page, route and action calls this, so it is ONE statement (membership + the restaurant it
+ * is checked against; it used to be two in a transaction) and, unless `fresh`, cached per process for
+ * `STAFF_CACHE_TTL_MS`. Callers pass `fresh: true` for writes (server actions): a deactivated member or
+ * a changed role is then refused at once; page views may lag up to the TTL on another instance (team
+ * writes clear this instance's cache — `invalidateStaffActors`).
  */
 export async function authenticateStaff(
   session: StaffSessionPayload,
   restaurantSlug?: string,
+  options: { fresh?: boolean } = {},
 ): Promise<StaffActor | null> {
-  const { member, restaurant } = await getDb({
-    restaurantId: session.restaurantId,
-  }).read(
-    { userId: session.sub, restaurantId: session.restaurantId },
-    async (tx) => {
-      const memberRow = await tx.queryOne<Row>(
-        // the membership the session was issued for (one login may belong to several restaurants)
-        `select * from team_members where user_id = $1 and restaurant_id = $2 and is_active order by created_at limit 1`,
-        [session.sub, session.restaurantId],
-      );
-      if (!memberRow) return { member: null, restaurant: null };
-      const restaurantRow = restaurantSlug
-        ? await tx.queryOne<Row>(
-            `select id, slug from restaurants where slug = $1`,
-            [restaurantSlug],
-          )
-        : await tx.queryOne<Row>(
-            `select id, slug from restaurants where id = $1`,
-            [str(memberRow.restaurant_id)],
-          );
-      return {
-        member: mapTeamMember(memberRow),
-        restaurant: restaurantRow
-          ? { id: str(restaurantRow.id), slug: str(restaurantRow.slug) }
-          : null,
-      };
-    },
-  );
+  const key = `${session.sub}|${session.restaurantId}|${restaurantSlug ?? ""}`;
+  if (!options.fresh) return staffActors.get(key, () => loadStaffActor(session, restaurantSlug));
+  const actor = await loadStaffActor(session, restaurantSlug);
+  staffActors.set(key, actor);
+  return actor;
+}
 
-  if (!member || !restaurant) return null;
+async function loadStaffActor(session: StaffSessionPayload, restaurantSlug?: string): Promise<StaffActor | null> {
+  const row = await getDb({ restaurantId: session.restaurantId }).queryOne<Row>(
+    { userId: session.sub, restaurantId: session.restaurantId },
+    // the membership the session was issued for (one login may belong to several restaurants), and the
+    // restaurant it is checked against: the one named in the URL, else the member's own
+    `select tm.*, r.id as checked_restaurant_id, r.slug as checked_restaurant_slug
+       from team_members tm
+       left join restaurants r on (case when $3::text is null then r.id = tm.restaurant_id else r.slug = $3::text end)
+      where tm.user_id = $1 and tm.restaurant_id = $2 and tm.is_active
+      order by tm.created_at
+      limit 1`,
+    [session.sub, session.restaurantId, restaurantSlug ?? null],
+  );
+  if (!row || !row.checked_restaurant_id) return null;
+  const member = mapTeamMember(row);
+  const restaurant = { id: str(row.checked_restaurant_id), slug: str(row.checked_restaurant_slug) };
   if (restaurant.id !== member.restaurantId) {
     // A member may not act on a restaurant they do not belong to.
     return null;

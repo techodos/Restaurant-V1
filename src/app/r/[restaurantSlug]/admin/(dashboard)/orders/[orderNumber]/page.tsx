@@ -31,10 +31,14 @@ function formatDateTime(value: string): string {
 export default async function AdminOrderDetailPage({ params }: OrderDetailPageProps) {
   const { restaurantSlug, orderNumber } = await params;
   const actor = await requirePermission("orders.view", restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
-  const order = await getOrderForStaff(restaurant.id, decodeURIComponent(orderNumber), ctx);
+  // side by side: the staff check already proved this session belongs to this slug's restaurant
+  // (actor.restaurantId), so the order read need not wait for the restaurant lookup
+  const [restaurant, order] = await Promise.all([
+    getAdminRestaurant(restaurantSlug),
+    getOrderForStaff(actor.restaurantId, decodeURIComponent(orderNumber), ctx),
+  ]);
   if (!order) notFound();
 
   const money = (value: string) => formatMoney(value, { currency: restaurant.currency });

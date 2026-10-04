@@ -9,7 +9,7 @@ import { LocalCartProvider } from '@/components/storefront/local-cart';
 import { resolveImage } from '@/web/media';
 import { SiteFooter } from '@/components/storefront/site-footer';
 import { getCustomerSessionSummary } from './account/actions';
-import { getMyOrders } from '@/server/services/orders';
+import { getActiveOrderCount } from '@/server/services/orders';
 import { googleAuthAvailable } from '@/server/services/customer-auth';
 import { config as serverConfig } from '@/server/config';
 
@@ -93,11 +93,8 @@ export default async function StorefrontLayout({
   // The one database read a storefront page view makes, and only for a signed-in visitor: an active
   // order's status changes from outside anything this browser does (staff update it), so there is no
   // cookie to keep current and the widget must reflect it promptly.
-  const { current: activeOrders } = await getMyOrders(restaurant.id, visitor).catch(() => ({
-    signedIn: false,
-    current: [],
-    previous: [],
-  }));
+  // Only the count is shown, so only the count is read (one tiny statement).
+  const activeOrderCount = await getActiveOrderCount(restaurant.id, visitor).catch(() => 0);
 
   return (
     <div
@@ -149,10 +146,10 @@ export default async function StorefrontLayout({
           primaryLocation={primaryLocation}
         />
 
-        <CurrentOrdersWidget restaurantSlug={restaurant.slug} count={activeOrders.length} />
+        <CurrentOrdersWidget restaurantSlug={restaurant.slug} count={activeOrderCount} />
         <MobileDock
           restaurantSlug={restaurant.slug}
-          activeOrders={activeOrders.length}
+          activeOrders={activeOrderCount}
           reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
           signedIn={Boolean(customer?.signedIn)}
         />
