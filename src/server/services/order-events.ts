@@ -41,7 +41,9 @@ export async function openOrderStream(
   accessToken: string | null | undefined,
   sink: OrderStreamSink,
 ): Promise<OrderStream | null> {
-  const order = await findVisitorOrder(restaurantId, orderNumber, visitor, accessToken);
+  // the live state is four fields of the order row: never load items/history/payment/delivery here
+  // (this ran twice per opened tracking page, ~4.5 KB each, before any event)
+  const order = await findVisitorOrder(restaurantId, orderNumber, visitor, accessToken, { withDetails: false });
   if (!order) return null;
 
   let closed = false;
@@ -61,7 +63,7 @@ export async function openOrderStream(
   };
 
   const snapshot = async () => {
-    const current = await findVisitorOrder(restaurantId, orderNumber, visitor, accessToken);
+    const current = await findVisitorOrder(restaurantId, orderNumber, visitor, accessToken, { withDetails: false });
     if (current && !closed) push(toLiveState(current));
   };
 

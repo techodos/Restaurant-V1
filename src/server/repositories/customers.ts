@@ -1,4 +1,5 @@
 import { getDb } from "@/server/db/registry";
+import { type DbClient } from "@/server/db/database";
 import { type RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { mapAddress, mapCustomer, num, str, type Row } from "@/server/db/mappers";
@@ -6,7 +7,13 @@ import type { Customer, CustomerAddress } from "@/shared/contract/models";
 import type { Paginated } from "@/shared/contract/api";
 import { paginate } from "@/shared/contract/api";
 
-const CUSTOMER_COLUMNS = `*`;
+/**
+ * Exactly what `mapCustomer` reads. It used to be `*`, which sent every customer read (lists, profile,
+ * checkout, bookings) the password hash and Google subject too — ~210 of ~340 bytes a row, and secrets
+ * no caller needs; sign-in selects `password_hash` explicitly where it checks it (auth-service.ts).
+ */
+const CUSTOMER_COLUMNS = `id, restaurant_id, full_name, email, phone, notes, marketing_opt_in, is_blocked, is_guest,
+  is_email_verified, auth_provider, metadata, total_orders, total_spent, last_order_at, created_at`;
 
 export interface CustomerListFilters {
   search?: string;
@@ -30,12 +37,18 @@ export async function listCustomers(
       params.push(`%${filters.search.trim()}%`);
       where += ` and (full_name ilike $${params.length} or phone ilike $${params.length} or email ilike $${params.length})`;
     }
-    const total = await tx.queryCount(`select count(*) from customers where ${where}`, params);
+    // the page and the total in ONE statement; only a page past the end falls back to counting
     const order = filters.sort === "spend" ? "total_spent desc" : "coalesce(last_order_at, created_at) desc";
     const rows = await tx.query<Row>(
-      `select ${CUSTOMER_COLUMNS} from customers where ${where} order by ${order} limit ${pageSize} offset ${(page - 1) * pageSize}`,
+      `select ${CUSTOMER_COLUMNS}, count(*) over () as total_count from customers where ${where} order by ${order} limit ${pageSize} offset ${(page - 1) * pageSize}`,
       params,
     );
+    const total =
+      rows.length > 0
+        ? num(rows[0]!.total_count)
+        : page > 1
+          ? await tx.queryCount(`select count(*) from customers where ${where}`, params)
+          : 0;
     return paginate(rows.map(mapCustomer), total, page, pageSize);
   });
 }
@@ -174,6 +187,24 @@ export async function upsertCustomer(
   return mapCustomer(row);
 }
 
+/**
+ * Stores a first mobile on the signed-in customer's already-locked row, in one statement: refused with
+ * a CONFLICT (not a raw unique violation) when another customer of this restaurant already has it.
+ * Used inside the order and booking transactions (the caller locked the row in its own read).
+ */
+export async function saveFirstAccountPhone(tx: DbClient, restaurantId: string, customerId: string, phone: string): Promise<Customer> {
+  const updated = await tx.queryOne<Row>(
+    `update customers set phone = $2, updated_at = now()
+      where id = $1 and not exists (select 1 from customers where restaurant_id = $3 and phone = $2 and id <> $1)
+      returning ${CUSTOMER_COLUMNS}`,
+    [customerId, phone, restaurantId],
+  );
+  if (!updated) {
+    throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
+  }
+  return mapCustomer(updated);
+}
+
 /** The account row and its saved addresses in ONE transaction (profile drawer, checkout page). */
 export async function getCustomerWithAddresses(
   customerId: string,
@@ -208,7 +239,7 @@ export async function attachAccountCustomer(
   tx?: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> },
 ): Promise<Customer> {
   const run = async (db: { queryOne: <T extends Row>(text: string, params?: readonly unknown[]) => Promise<T | null> }) => {
-    const existing = await db.queryOne<Row>(`select * from customers where id = $1 and restaurant_id = $2 for update`, [customerId, restaurantId]);
+    const existing = await db.queryOne<Row>(`select ${CUSTOMER_COLUMNS} from customers where id = $1 and restaurant_id = $2 for update`, [customerId, restaurantId]);
     if (!existing) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again.");
     if (!newPhone || str(existing.phone).trim()) return existing;
 
@@ -218,7 +249,7 @@ export async function attachAccountCustomer(
     );
     if (clash) throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
 
-    return db.queryOne<Row>(`update customers set phone = $2, updated_at = now() where id = $1 returning *`, [customerId, newPhone]);
+    return db.queryOne<Row>(`update customers set phone = $2, updated_at = now() where id = $1 returning ${CUSTOMER_COLUMNS}`, [customerId, newPhone]);
   };
 
   const row = tx ? await run(tx) : await getDb({ restaurantId }).write(ctx, (db) => run(db));

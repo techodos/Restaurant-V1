@@ -32,18 +32,21 @@ export async function listPayments(
       conditions.push(`p.method = $${params.length}::payment_method`);
     }
     const where = conditions.join(" and ");
-    const total = await tx.queryCount(
-      `select count(*) from payments p join orders o on o.id = p.order_id where ${where}`,
-      params,
-    );
+    // the page and the total in ONE statement; only a page past the end falls back to counting
     const rows = await tx.query<Row>(
-      `select p.*, o.order_number, o.customer_name
+      `select p.*, o.order_number, o.customer_name, count(*) over () as total_count
          from payments p join orders o on o.id = p.order_id
         where ${where}
         order by p.created_at desc
         limit ${pageSize} offset ${(page - 1) * pageSize}`,
       params,
     );
+    const total =
+      rows.length > 0
+        ? num(rows[0]!.total_count)
+        : page > 1
+          ? await tx.queryCount(`select count(*) from payments p join orders o on o.id = p.order_id where ${where}`, params)
+          : 0;
     return paginate(
       rows.map((row) => ({
         ...mapPayment(row),

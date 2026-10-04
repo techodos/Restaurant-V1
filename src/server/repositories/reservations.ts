@@ -6,8 +6,9 @@ import type { ReservationStatus } from "@/shared/contract/enums";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
-import { mapReservation, num, str, type Row } from "@/server/db/mappers";
-import { attachAccountCustomer, upsertCustomer } from "./customers";
+import { mapLocation, mapReservation, mapRestaurant, num, str, type Row } from "@/server/db/mappers";
+import { type DbClient } from "@/server/db/database";
+import { attachAccountCustomer, saveFirstAccountPhone, upsertCustomer } from "./customers";
 
 /**
  * Reservations. Validation covers opening hours, guest limits, lead time,
@@ -52,33 +53,7 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
   const context: RequestContext = { ...ctx, restaurantId: input.restaurantId, userId: null };
 
   return db.write(context, async (tx) => {
-    if (!input.settings.enabled) {
-      throw errors.custom("RESERVATION_CLOSED", "Reservations are currently closed.");
-    }
-    if (input.guests < input.settings.minGuests || input.guests > input.settings.maxGuests) {
-      throw errors.custom("RESERVATION_CAPACITY", `Parties of ${input.guests} cannot be booked online.`);
-    }
-
-    const reservationDate = new Date(`${input.date}T${input.time}:00`);
-    if (Number.isNaN(reservationDate.getTime())) {
-      throw errors.validation("Please choose a valid date and time.");
-    }
-    if (reservationDate.getTime() < Date.now() - 60_000) {
-      throw errors.validation("Please choose a future date and time.");
-    }
-    const maxAdvance = Date.now() + input.settings.maxAdvanceDays * 86_400_000;
-    if (reservationDate.getTime() > maxAdvance) {
-      throw errors.validation(`Reservations can be made up to ${input.settings.maxAdvanceDays} days ahead.`);
-    }
-
-    if (!isOpenAt(input.hours, reservationDate, input.timezone)) {
-      throw errors.custom("RESERVATION_UNAVAILABLE", "We are closed at that time. Please pick another slot.");
-    }
-
-    // Tables configured for this restaurant are the source of truth for capacity.
-    if (input.settings.tables.length > 0 && input.guests > Math.max(...input.settings.tables.map((t) => t.seats))) {
-      throw errors.custom("RESERVATION_CAPACITY", "That party size is larger than any of our tables.");
-    }
+    assertBookable(input);
 
     // Physical table inventory across the slot. Bookings inside ±slotMinutes of
     // each other compete for the same tables, so capacity is real: the assigned
@@ -91,19 +66,7 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
       [input.locationId, input.date, input.time, input.settings.slotMinutes],
     );
     const takenTables = new Set(booked.map((row) => str(row.table_number)).filter(Boolean));
-
-    let tableNumber: string | null = input.tableNumber ?? null;
-    if (tableNumber) {
-      if (takenTables.has(tableNumber)) {
-        throw errors.custom("RESERVATION_UNAVAILABLE", "That table is already booked for this slot.");
-      }
-    } else if (input.settings.tables.length > 0) {
-      const candidate = input.settings.tables.find((table) => table.seats >= input.guests && !takenTables.has(table.name));
-      if (!candidate) {
-        throw errors.custom("RESERVATION_UNAVAILABLE", "That slot is fully booked. Please try another time.");
-      }
-      tableNumber = candidate.name;
-    }
+    const tableNumber = pickTable(input.settings, input.guests, takenTables, input.tableNumber ?? null);
 
     // A signed-in visitor already has their own customer row (keyed by their account email); resolve it
     // by id, never by the phone typed into this form — `customers` has an independent unique key on
@@ -124,21 +87,213 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
           tx,
         );
 
-    const row = await tx.queryOne<Row>(
-      `insert into reservations
-         (restaurant_id, location_id, customer_id, guest_name, guest_email, guest_phone, reservation_date,
-          reservation_time, duration_minutes, guests, table_number, special_requests, occasion, status)
-       values ($1,$2,$3,$4,$5,$6,$7::date,$8::time,$9,$10,$11,$12,$13,$14::reservation_status)
-       returning *`,
-      [
-        input.restaurantId, input.locationId, customer.id, input.guestName, input.guestEmail ?? null,
-        input.guestPhone, input.date, input.time, input.settings.defaultDurationMinutes, input.guests,
-        tableNumber, input.specialRequests ?? null, input.occasion ?? null,
-        input.autoConfirm ? "confirmed" : "pending",
-      ],
+    return insertReservation(tx, {
+      restaurantId: input.restaurantId,
+      locationId: input.locationId,
+      customerId: customer.id,
+      guestName: input.guestName,
+      guestEmail: input.guestEmail ?? null,
+      guestPhone: input.guestPhone,
+      date: input.date,
+      time: input.time,
+      durationMinutes: input.settings.defaultDurationMinutes,
+      guests: input.guests,
+      tableNumber,
+      specialRequests: input.specialRequests ?? null,
+      occasion: input.occasion ?? null,
+      status: input.autoConfirm ? "confirmed" : "pending",
+    });
+  });
+}
+
+type BookingRules = Pick<ReservationInput, "settings" | "guests" | "date" | "time" | "hours" | "timezone">;
+
+/**
+ * Every rule a booking request must pass before the table inventory is looked at, in the order the
+ * customer should hear about them: reservations enabled, party size, a valid future date inside the
+ * advance window, open at that time, and a table big enough for the party. Pure — shared by
+ * `createReservation` and `bookReservation` so both decide exactly alike.
+ */
+function assertBookable(input: BookingRules): void {
+  if (!input.settings.enabled) {
+    throw errors.custom("RESERVATION_CLOSED", "Reservations are currently closed.");
+  }
+  if (input.guests < input.settings.minGuests || input.guests > input.settings.maxGuests) {
+    throw errors.custom("RESERVATION_CAPACITY", `Parties of ${input.guests} cannot be booked online.`);
+  }
+
+  const reservationDate = new Date(`${input.date}T${input.time}:00`);
+  if (Number.isNaN(reservationDate.getTime())) {
+    throw errors.validation("Please choose a valid date and time.");
+  }
+  if (reservationDate.getTime() < Date.now() - 60_000) {
+    throw errors.validation("Please choose a future date and time.");
+  }
+  const maxAdvance = Date.now() + input.settings.maxAdvanceDays * 86_400_000;
+  if (reservationDate.getTime() > maxAdvance) {
+    throw errors.validation(`Reservations can be made up to ${input.settings.maxAdvanceDays} days ahead.`);
+  }
+
+  if (!isOpenAt(input.hours, reservationDate, input.timezone)) {
+    throw errors.custom("RESERVATION_UNAVAILABLE", "We are closed at that time. Please pick another slot.");
+  }
+
+  // Tables configured for this restaurant are the source of truth for capacity.
+  if (input.settings.tables.length > 0 && input.guests > Math.max(...input.settings.tables.map((t) => t.seats))) {
+    throw errors.custom("RESERVATION_CAPACITY", "That party size is larger than any of our tables.");
+  }
+}
+
+/** The table this party gets: the one asked for if free, else the first free table that seats them. */
+function pickTable(
+  settings: ReservationInput["settings"],
+  guests: number,
+  takenTables: ReadonlySet<string>,
+  requested: string | null,
+): string | null {
+  if (requested) {
+    if (takenTables.has(requested)) {
+      throw errors.custom("RESERVATION_UNAVAILABLE", "That table is already booked for this slot.");
+    }
+    return requested;
+  }
+  if (settings.tables.length === 0) return null;
+  const candidate = settings.tables.find((table) => table.seats >= guests && !takenTables.has(table.name));
+  if (!candidate) {
+    throw errors.custom("RESERVATION_UNAVAILABLE", "That slot is fully booked. Please try another time.");
+  }
+  return candidate.name;
+}
+
+async function insertReservation(
+  tx: DbClient,
+  values: {
+    restaurantId: string;
+    locationId: string;
+    customerId: string;
+    guestName: string;
+    guestEmail: string | null;
+    guestPhone: string;
+    date: string;
+    time: string;
+    durationMinutes: number;
+    guests: number;
+    tableNumber: string | null;
+    specialRequests: string | null;
+    occasion: string | null;
+    status: "confirmed" | "pending";
+  },
+): Promise<Reservation> {
+  const row = await tx.queryOne<Row>(
+    `insert into reservations
+       (restaurant_id, location_id, customer_id, guest_name, guest_email, guest_phone, reservation_date,
+        reservation_time, duration_minutes, guests, table_number, special_requests, occasion, status)
+     values ($1,$2,$3,$4,$5,$6,$7::date,$8::time,$9,$10,$11,$12,$13,$14::reservation_status)
+     returning *`,
+    [
+      values.restaurantId, values.locationId, values.customerId, values.guestName, values.guestEmail,
+      values.guestPhone, values.date, values.time, values.durationMinutes, values.guests,
+      values.tableNumber, values.specialRequests, values.occasion, values.status,
+    ],
+  );
+  if (!row) throw errors.internal("Unable to create the reservation");
+  return mapReservation(row);
+}
+
+export interface BookReservationInput {
+  restaurantId: string;
+  locationId: string;
+  /** the signed-in customer making the booking (required: bookings are for signed-in customers) */
+  accountCustomerId: string;
+  guestName: string;
+  /** what the form sent; the account's own saved mobile/email win when it has them */
+  guestPhone: string;
+  guestEmail?: string | null;
+  date: string;
+  time: string;
+  guests: number;
+  specialRequests?: string | null;
+  occasion?: string | null;
+}
+
+/**
+ * A signed-in customer's table booking in ONE transaction with ONE read: the restaurant's reservation
+ * settings and time zone, the location's hours, the customer's own row (locked) and the slot's bookings
+ * — all as they are NOW (never the storefront snapshot) — then the same rules as `createReservation`
+ * (`assertBookable`, `pickTable`) and one insert. The booking used to cost three transactions (the
+ * restaurant, then the account, then the booking itself with three more statements), ~11 round trips.
+ * The account's saved mobile/email win over the form's (same precedence as checkout); a first mobile is
+ * stored on the account in this transaction, so only when the booking commits.
+ */
+export async function bookReservation(input: BookReservationInput, ctx: RequestContext): Promise<Reservation> {
+  // A customer is identified by customer_id only; app.current_user_id (auth.users, staff) stays unset
+  // (same reason as createOrder: the status-history trigger's changed_by is a staff FK).
+  const context: RequestContext = { ...ctx, restaurantId: input.restaurantId, customerId: input.accountCustomerId, userId: null };
+  return getDb({ restaurantId: input.restaurantId }).write(context, async (tx) => {
+    const read = await tx.queryOne<Row>(
+      `select
+         (select row_to_json(r) from (select id, name, slug, status, timezone, features, settings
+                                        from restaurants where id = $1) r) as restaurant,
+         (select row_to_json(l) from (select id, restaurant_id, name, hours, is_active
+                                        from restaurant1s where id = $2 and restaurant_id = $1) l) as location,
+         (select row_to_json(c) from (select id, restaurant_id, phone, email
+                                        from customers where id = $3 and restaurant_id = $1 for update) c) as account,
+         (select coalesce(json_agg(json_build_object('table_number', table_number,
+                                                     'seconds', extract(epoch from reservation_time))), '[]'::json)
+            from reservations
+           where location_id = $2 and reservation_date = $4::date
+             and status in ('pending','confirmed','seated')) as booked`,
+      [input.restaurantId, input.locationId, input.accountCustomerId, input.date],
     );
-    if (!row) throw errors.internal("Unable to create the reservation");
-    return mapReservation(row);
+
+    const restaurant = read?.restaurant ? mapRestaurant(read.restaurant as Row) : null;
+    // this read is privileged, so it also sees restaurants the storefront role cannot (RLS
+    // `restaurants_read`: active, or a team member) — refuse those exactly as that read did
+    if (!restaurant || restaurant.status !== "active") throw errors.notFound("Restaurant");
+    if (!restaurant.features.reservations) {
+      throw errors.custom("RESERVATION_CLOSED", "This restaurant is not taking reservations online.");
+    }
+    const locationRow = read?.location as Row | null | undefined;
+    if (!locationRow || !locationRow.is_active) throw errors.validation("Please choose one of our locations.");
+    const location = mapLocation(locationRow);
+    const account = read?.account as Row | null | undefined;
+    if (!account) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to reserve a table.");
+
+    const settings = restaurant.settings.reservations;
+    assertBookable({ settings, guests: input.guests, date: input.date, time: input.time, hours: location.hours, timezone: restaurant.timezone });
+
+    // the slot's competing bookings: inside ±slotMinutes of the requested time (as createReservation's query)
+    const requested = timeToMinutes(input.time) * 60;
+    const takenTables = new Set(
+      ((read?.booked as Row[] | null) ?? [])
+        .filter((row) => Math.abs(num(row.seconds) - requested) < settings.slotMinutes * 60)
+        .map((row) => str(row.table_number))
+        .filter(Boolean),
+    );
+    const tableNumber = pickTable(settings, input.guests, takenTables, null);
+
+    const savedPhone = str(account.phone).trim() ? str(account.phone) : null;
+    const phone = savedPhone ?? input.guestPhone;
+    const email = str(account.email) || input.guestEmail || null;
+    if (!savedPhone) await saveFirstAccountPhone(tx, input.restaurantId, input.accountCustomerId, phone);
+
+    const reservation = await insertReservation(tx, {
+      restaurantId: input.restaurantId,
+      locationId: location.id,
+      customerId: input.accountCustomerId,
+      guestName: input.guestName,
+      guestEmail: email,
+      guestPhone: phone,
+      date: input.date,
+      time: input.time,
+      durationMinutes: settings.defaultDurationMinutes,
+      guests: input.guests,
+      tableNumber,
+      specialRequests: input.specialRequests ?? null,
+      occasion: input.occasion ?? null,
+      status: settings.autoConfirm ? "confirmed" : "pending",
+    });
+    return { ...reservation, locationName: location.name };
   });
 }
 
@@ -176,15 +331,22 @@ export async function listReservations(
       conditions.push(`r.reservation_date >= $${params.length}::date`);
     }
     const where = conditions.join(" and ");
-    const total = await tx.queryCount(`select count(*) from reservations r where ${where}`, params);
+    // the page and the total in ONE statement (`count(*) over ()` counts every match before LIMIT);
+    // only a page past the end (no rows to carry the total) needs the separate count
     const rows = await tx.query<Row>(
-      `select r.*, l.name as location_name
+      `select r.*, l.name as location_name, count(*) over () as total_count
          from reservations r left join restaurant1s l on l.id = r.location_id
         where ${where}
         order by r.reservation_date asc, r.reservation_time asc
         limit ${pageSize} offset ${(page - 1) * pageSize}`,
       params,
     );
+    const total =
+      rows.length > 0
+        ? num(rows[0]!.total_count)
+        : page > 1
+          ? await tx.queryCount(`select count(*) from reservations r where ${where}`, params)
+          : 0;
     return paginate(rows.map(mapReservation), total, page, pageSize);
   });
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,6 @@ export function ReservationStatusControl({
 }) {
   const [status, setStatus] = useState<ReservationStatus>(currentStatus);
   const [pending, startTransition] = useTransition();
-  const router = useRouter();
 
   function submit() {
     if (status === currentStatus) return;
@@ -30,7 +28,8 @@ export function ReservationStatusControl({
           return;
         }
         toast.success(`Marked ${RESERVATION_STATUS_LABELS[status].toLowerCase()}.`);
-        router.refresh();
+        // no client refresh here: the action revalidates, so its response already carried this page
+        // re-rendered with the new status (refreshing again was a second full render after every change)
       });
     });
   }

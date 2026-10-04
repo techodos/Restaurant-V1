@@ -10,7 +10,7 @@ import type {
   NotificationReservationContext,
   NotificationRestaurant,
 } from "@/server/notifications/types";
-import { getOrderItems } from "./orders";
+import { ORDER_ITEMS_JSON, itemsFromJson } from "./orders";
 
 /**
  * Notification persistence. Everything here runs on the privileged (service)
@@ -110,6 +110,7 @@ export async function loadNotificationOrderContext(
   return db.write({ ...SYSTEM, restaurantId: event.restaurantId }, async (tx) => {
     const row = await tx.queryOne<Row>(
       `select o.*, l.name as location_name, dz.name as delivery_zone_name,
+              ${ORDER_ITEMS_JSON},
               ${RESTAURANT_COLUMNS}
          from orders o
          join restaurants r on r.id = o.restaurant_id
@@ -121,7 +122,7 @@ export async function loadNotificationOrderContext(
     if (!row) return null;
 
     const order = mapOrder(row);
-    order.items = await getOrderItems(tx, order.id);
+    order.items = itemsFromJson(row.item_rows); // read with the order (it was two more queries per event)
     return { restaurant: mapNotificationRestaurant(row, event.restaurantId), order };
   });
 }

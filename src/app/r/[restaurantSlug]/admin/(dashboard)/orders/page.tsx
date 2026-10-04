@@ -40,16 +40,17 @@ interface OrdersPageProps {
 export default async function AdminOrdersPage({ params, searchParams }: OrdersPageProps) {
   const { restaurantSlug } = await params;
   const actor = await requirePermission("orders.view", restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
   const { status, q, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   const activeStatus = (status ?? "active") as "active" | "all" | OrderStatus;
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
 
-  const [counts, result] = await Promise.all([
-    getOrderStatusCounts(restaurant.id, ctx),
-    listOrdersForStaff(restaurant.id, { status: activeStatus, search: q, page: pageNum, pageSize: 20 }, ctx),
+  // all three side by side (the staff check already tied this session to this slug's restaurant)
+  const [restaurant, counts, result] = await Promise.all([
+    getAdminRestaurant(restaurantSlug),
+    getOrderStatusCounts(actor.restaurantId, ctx),
+    listOrdersForStaff(actor.restaurantId, { status: activeStatus, search: q, page: pageNum, pageSize: 20 }, ctx),
   ]);
 
   const countFor = (key: string): number => {

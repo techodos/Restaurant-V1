@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getKitchenOrders } from "@/server/services/orders";
 import { ORDER_TYPE_LABELS } from "@/shared/contract/enums";
-import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { KitchenAutoRefresh } from "@/components/admin/kitchen-auto-refresh";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
@@ -21,10 +20,10 @@ function elapsedMinutes(createdAt: string): number {
 export default async function AdminKitchenPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
   const { restaurantSlug } = await params;
   const actor = await requirePermission("kitchen.view", restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
-  const orders = await getKitchenOrders(restaurant.id, ctx);
+  // the staff check already tied this session to this slug's restaurant; no need to wait for its row
+  const orders = await getKitchenOrders(actor.restaurantId, ctx);
 
   return (
     <div className="space-y-6">

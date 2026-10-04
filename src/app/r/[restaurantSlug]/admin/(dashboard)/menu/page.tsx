@@ -32,8 +32,11 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
   const { category } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
-  const categories = await listCategoriesForAdmin(restaurant.id, ctx);
-  const items = await listMenuItemsForAdmin(restaurant.id, category ? { categoryId: category } : {}, ctx);
+  // side by side (they were one after the other)
+  const [categories, items] = await Promise.all([
+    listCategoriesForAdmin(restaurant.id, ctx),
+    listMenuItemsForAdmin(restaurant.id, category ? { categoryId: category } : {}, ctx),
+  ]);
   const canManage = actor.permissions.includes("menu.manage");
 
   return (

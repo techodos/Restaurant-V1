@@ -532,13 +532,28 @@ export async function setMenuItemAvailability(
   });
 }
 
+/**
+ * Positions for a reorder in ONE statement (it was one UPDATE per row, one after another: ~0.35 s per
+ * item on the hosted pooler). Position = index in the list, as before; an id listed twice keeps its LAST
+ * position, as the old loop did.
+ */
+function positions(ids: readonly string[]): { ids: string[]; positions: number[] } {
+  const last = new Map<string, number>();
+  ids.forEach((id, index) => last.set(id, index));
+  return { ids: [...last.keys()], positions: [...last.values()] };
+}
+
 export async function reorderMenuItems(itemIds: string[], ctx: RequestContext): Promise<void> {
-  const db = getDb(ctx);
-  await db.write(ctx, async (tx) => {
-    for (const [index, itemId] of itemIds.entries()) {
-      await tx.query(`update menu_items set sort_order = $2 where id = $1`, [itemId, index]);
-    }
-  });
+  if (itemIds.length === 0) return;
+  const order = positions(itemIds);
+  await getDb(ctx).write(ctx, (tx) =>
+    tx.query(
+      `update menu_items m set sort_order = x.position
+         from unnest($1::uuid[], $2::int[]) as x(id, position)
+        where m.id = x.id`,
+      [order.ids, order.positions],
+    ),
+  );
 }
 
 export interface CategoryInput {
@@ -614,13 +629,18 @@ export async function deleteCategory(categoryId: string, ctx: RequestContext): P
   });
 }
 
+/** Same single-statement reorder as `reorderMenuItems`. */
 export async function reorderCategories(categoryIds: string[], ctx: RequestContext): Promise<void> {
-  const db = getDb(ctx);
-  await db.write(ctx, async (tx) => {
-    for (const [index, categoryId] of categoryIds.entries()) {
-      await tx.query(`update menu_categories set sort_order = $2 where id = $1`, [categoryId, index]);
-    }
-  });
+  if (categoryIds.length === 0) return;
+  const order = positions(categoryIds);
+  await getDb(ctx).write(ctx, (tx) =>
+    tx.query(
+      `update menu_categories c set sort_order = x.position
+         from unnest($1::uuid[], $2::int[]) as x(id, position)
+        where c.id = x.id`,
+      [order.ids, order.positions],
+    ),
+  );
 }
 
 export interface VariantInput {

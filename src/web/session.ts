@@ -48,9 +48,20 @@ export async function getCustomerSession(): Promise<CustomerSessionPayload | nul
   return verifyCustomerSession(store.get(CUSTOMER_COOKIE)?.value);
 }
 
+/**
+ * True while handling a Server Action (the client sends its id in the `Next-Action` header). Every admin
+ * write is a Server Action — the admin route handlers are GET-only — so this is where staff membership
+ * must be re-read rather than served from the short per-process cache.
+ */
+export const isServerActionRequest = cache(async (): Promise<boolean> => {
+  return (await headers()).has("next-action");
+});
+
 export const getCurrentStaff = cache(async (restaurantSlug?: string): Promise<StaffActor | null> => {
   const session = await getStaffSession();
-  return session ? authenticateStaff(session, restaurantSlug) : null;
+  if (!session) return null;
+  // page views and GET routes: cached membership (≤30 s); writes: always the database
+  return authenticateStaff(session, restaurantSlug, { fresh: await isServerActionRequest() });
 });
 
 export async function requireStaff(restaurantSlug?: string): Promise<StaffActor> {

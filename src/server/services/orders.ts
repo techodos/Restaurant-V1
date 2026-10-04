@@ -9,6 +9,7 @@ import { canCustomerCancelOrder } from "@/shared/order-cancellation";
 import type { ReportRange } from "@/shared/reports";
 import {
   buildReorderLines,
+  countActiveVisitorOrders,
   countOrdersByStatus,
   getOrderByNumber,
   getOrderForAccessGrant,
@@ -21,7 +22,10 @@ import {
   updateOrderStatus,
   type OrderActivityEvent,
   type OrderListFilters,
+  type OrderStatusChange,
 } from "@/server/repositories/orders";
+
+export type { OrderStatusChange };
 import { viewTray, type TrayLineView } from "@/server/services/cart";
 
 /**
@@ -37,18 +41,25 @@ export async function findVisitorOrder(
   orderNumber: string,
   visitor: RequestContext,
   accessToken?: string | null,
+  /** `withDetails: false` = the order row only (no items/history/payment/delivery), e.g. live status */
+  options: { withDetails?: boolean } = {},
 ): Promise<Order | null> {
   const grant = await verifyOrderAccessToken(accessToken);
   if (grant && grant.restaurantId === restaurantId) {
-    const order = await getOrderForAccessGrant(restaurantId, orderNumber, grant.orderId);
+    const order = await getOrderForAccessGrant(restaurantId, orderNumber, grant.orderId, options);
     if (order) return order;
   }
-  return getOrderByNumber(restaurantId, orderNumber, {
+  return getOrderByNumber(
     restaurantId,
-    cartToken: visitor.cartToken ?? null,
-    customerId: visitor.customerId ?? null,
-    userId: null, // a customer is identified by customer_id only (app.current_user_id is staff / auth.users)
-  });
+    orderNumber,
+    {
+      restaurantId,
+      cartToken: visitor.cartToken ?? null,
+      customerId: visitor.customerId ?? null,
+      userId: null, // a customer is identified by customer_id only (app.current_user_id is staff / auth.users)
+    },
+    options,
+  );
 }
 
 /** Order tracking. */
@@ -74,9 +85,14 @@ export interface MyOrders {
  * "My Orders". Ownership comes from the request (session customer or guest cart token), never
  * from anything the browser sends, and the repository query is additionally covered by RLS.
  */
-export async function getMyOrders(restaurantId: string, visitor: RequestContext): Promise<MyOrders> {
+export async function getMyOrders(
+  restaurantId: string,
+  visitor: RequestContext,
+  /** `history: false` skips past orders (the current-orders page shows only those in progress) */
+  options: { history?: boolean } = {},
+): Promise<MyOrders> {
   const signedIn = Boolean(visitor.customerId);
-  const { orders } = await listVisitorOrders(restaurantId, visitor);
+  const { orders } = await listVisitorOrders(restaurantId, visitor, options.history === false ? { historyLimit: 0 } : {});
   const isActive = (order: Order) => ACTIVE_ORDER_STATUSES.includes(order.status);
   return {
     signedIn,
@@ -84,6 +100,14 @@ export async function getMyOrders(restaurantId: string, visitor: RequestContext)
     // defence in depth: a guest never receives finished orders, whatever the query returned
     previous: signedIn ? orders.filter((order) => !isActive(order)) : [],
   };
+}
+
+/**
+ * The number of orders this visitor has in progress — one `count(*)`, for the storefront layout's
+ * widget on every page view (it used to load full active + past orders with their items to count them).
+ */
+export function getActiveOrderCount(restaurantId: string, visitor: RequestContext): Promise<number> {
+  return countActiveVisitorOrders(restaurantId, visitor);
 }
 
 export interface ReorderResult {
@@ -132,7 +156,7 @@ export function cancelOrderByCustomer(
   restaurant: Restaurant,
   ctx: RequestContext,
   reason?: string | null,
-): Promise<Order> {
+): Promise<OrderStatusChange> {
   if (!canCustomerCancelOrder(order, restaurant.settings)) {
     throw errors.forbidden("This order can no longer be cancelled online — please call the restaurant.");
   }
@@ -163,7 +187,7 @@ export function changeOrderStatus(
   status: OrderStatus,
   ctx: RequestContext,
   options: { note?: string | null; cancelReason?: string | null } = {},
-): Promise<Order> {
+): Promise<OrderStatusChange> {
   return updateOrderStatus(orderId, status, ctx, options);
 }
 

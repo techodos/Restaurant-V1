@@ -51,6 +51,13 @@ describe("getMyOrders", () => {
     listVisitorOrders.mockResolvedValue({ orders: [], history: false });
     const visitor = { customerId: null, cartToken: "mine" };
     await getMyOrders("restaurant-1", visitor);
-    expect(listVisitorOrders).toHaveBeenCalledWith("restaurant-1", visitor);
+    expect(listVisitorOrders).toHaveBeenCalledWith("restaurant-1", visitor, {});
+  });
+
+  it("the current-orders page asks for no history (historyLimit 0)", async () => {
+    listVisitorOrders.mockResolvedValue({ orders: [], history: false });
+    const visitor = { customerId: "cust-1", cartToken: null };
+    await getMyOrders("restaurant-1", visitor, { history: false });
+    expect(listVisitorOrders).toHaveBeenCalledWith("restaurant-1", visitor, { historyLimit: 0 });
   });
 });

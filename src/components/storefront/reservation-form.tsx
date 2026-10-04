@@ -196,7 +196,18 @@ export function ReservationForm({
 
   // Only reached after bookTableAction succeeded (the reservation is saved); a failure keeps the form.
   if (booking) {
-    return <ReservationSuccess restaurantSlug={restaurantSlug} booking={booking} onBookAnother={() => setBooking(null)} />;
+    return (
+      <ReservationSuccess
+        restaurantSlug={restaurantSlug}
+        booking={booking}
+        onBookAnother={() => {
+          setBooking(null);
+          // the booking action does not re-render the page (it would slow every booking down), so pick
+          // up the slot that was just taken now, before the next booking
+          router.refresh();
+        }}
+      />
+    );
   }
 
   const summary = [selectedDate?.label, time || null, `${guests} guest${guests === 1 ? "" : "s"}`].filter(Boolean).join(" · ");

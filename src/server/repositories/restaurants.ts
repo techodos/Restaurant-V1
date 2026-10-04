@@ -1,7 +1,7 @@
 import { type DbClient } from '@/server/db/database';
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
-import { mapLocation, mapRestaurant, type Row } from '@/server/db/mappers';
+import { jsonObject, mapLocation, mapRestaurant, type Row } from '@/server/db/mappers';
 import type { Restaurant, RestaurantLocation } from '@/shared/contract/models';
 
 const RESTAURANT_COLUMNS = `
@@ -22,6 +22,28 @@ export async function getRestaurantBySlug(
     [slug],
   );
   return row ? mapRestaurant(row) : null;
+}
+
+/**
+ * The restaurant by slug AND its primary website's `theme` in ONE statement, for the admin shell (it
+ * needs both on every page; they used to be two transactions, one after the other). Same visibility as
+ * `getRestaurantBySlug` + `websites.ts#getWebsite`: same role and context, so the same RLS policies
+ * decide (an unpublished website reads as no theme, exactly as before).
+ */
+export async function getRestaurantWithThemeBySlug(
+  slug: string,
+  ctx: RequestContext = {},
+): Promise<{ restaurant: Restaurant; websiteTheme: Record<string, unknown> } | null> {
+  const row = await getDb().queryOne<Row>(
+    ctx,
+    `select ${RESTAURANT_COLUMNS},
+            (select w.theme from websites w where w.restaurant_id = restaurants.id
+              order by w.is_primary desc, w.created_at limit 1) as website_theme
+       from restaurants where slug = $1`,
+    [slug],
+  );
+  // jsonObject: the same normalisation mapWebsite applies to `theme` ({} when there is no website)
+  return row ? { restaurant: mapRestaurant(row), websiteTheme: jsonObject(row.website_theme) } : null;
 }
 
 export async function getRestaurantById(

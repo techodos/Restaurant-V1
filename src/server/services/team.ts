@@ -2,6 +2,7 @@ import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { logger } from "@/server/logger";
 import { createSupabaseAuthUser, supabaseAuthAdminAvailable } from "@/server/integrations/supabase-auth";
+import { invalidateStaffActors } from "@/server/auth/auth-service";
 import {
   attachTeamMemberToUser,
   createTeamMember,
@@ -48,13 +49,17 @@ export async function addTeamMember(restaurantId: string, input: CreateTeamMembe
     password: input.password,
   };
   try {
-    return await createTeamMember(restaurantId, repoInput, ctx);
+    const member = await createTeamMember(restaurantId, repoInput, ctx);
+    invalidateStaffActors(); // a login that was refused moments ago must not stay cached as "not a member"
+    return member;
   } catch (error) {
     if (!isPgPermissionDenied(error)) throw error;
 
     if (supabaseAuthAdminAvailable()) {
       const userId = await createSupabaseAuthUser({ email: input.email, password: input.password, name: input.fullName });
-      return attachTeamMemberToUser(restaurantId, userId, repoInput, ctx);
+      const member = await attachTeamMemberToUser(restaurantId, userId, repoInput, ctx);
+      invalidateStaffActors();
+      return member;
     }
 
     logger.warn("db", "staff creation blocked by hosted database grants (see SKILL.md section 17/23)", String(error));
@@ -65,14 +70,21 @@ export async function addTeamMember(restaurantId: string, input: CreateTeamMembe
   }
 }
 
-export function editTeamMember(memberId: string, input: UpdateTeamMemberInput, ctx: RequestContext): Promise<TeamMember> {
-  return updateTeamMember(memberId, { fullName: input.fullName, phone: input.phone || null, role: input.role }, ctx);
+// Every team write clears the cached staff lookups (auth-service#authenticateStaff), so a changed role,
+// a deactivation or a removal applies on this instance's very next page view, not after the cache TTL.
+
+export async function editTeamMember(memberId: string, input: UpdateTeamMemberInput, ctx: RequestContext): Promise<TeamMember> {
+  const member = await updateTeamMember(memberId, { fullName: input.fullName, phone: input.phone || null, role: input.role }, ctx);
+  invalidateStaffActors();
+  return member;
 }
 
-export function setStaffActive(memberId: string, isActive: boolean, ctx: RequestContext): Promise<void> {
-  return setTeamMemberActive(memberId, isActive, ctx);
+export async function setStaffActive(memberId: string, isActive: boolean, ctx: RequestContext): Promise<void> {
+  await setTeamMemberActive(memberId, isActive, ctx);
+  invalidateStaffActors();
 }
 
-export function removeTeamMember(memberId: string, ctx: RequestContext): Promise<void> {
-  return deleteTeamMember(memberId, ctx);
+export async function removeTeamMember(memberId: string, ctx: RequestContext): Promise<void> {
+  await deleteTeamMember(memberId, ctx);
+  invalidateStaffActors();
 }

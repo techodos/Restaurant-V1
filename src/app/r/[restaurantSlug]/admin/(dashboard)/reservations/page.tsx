@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { listReservationsForStaff } from "@/server/services/reservations";
 import { RESERVATION_STATUS_LABELS, type ReservationStatus } from "@/shared/contract/enums";
-import { getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 import { ReservationStatusControl } from "@/components/admin/reservation-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -54,7 +53,6 @@ interface ReservationsPageProps {
 export default async function AdminReservationsPage({ params, searchParams }: ReservationsPageProps) {
   const { restaurantSlug } = await params;
   const actor = await requirePermission("reservations.view", restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
   const { status, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
   const canManage = actor.permissions.includes("reservations.manage");
@@ -62,7 +60,8 @@ export default async function AdminReservationsPage({ params, searchParams }: Re
   const activeStatus = (status ?? "upcoming") as "upcoming" | "all" | ReservationStatus;
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
 
-  const result = await listReservationsForStaff(restaurant.id, { status: activeStatus, page: pageNum, pageSize: 20 }, ctx);
+  // the staff check already tied this session to this slug's restaurant (actor.restaurantId)
+  const result = await listReservationsForStaff(actor.restaurantId, { status: activeStatus, page: pageNum, pageSize: 20 }, ctx);
 
   const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();

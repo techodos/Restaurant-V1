@@ -8,7 +8,7 @@ import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
 import { matchDeliveryZone } from "./deliveries";
 import { toCouponPricing } from "./coupons";
-import { upsertCustomer } from "./customers";
+import { saveFirstAccountPhone, upsertCustomer } from "./customers";
 import { mapOrderableItems, orderableItemsSql } from "./menu";
 import { resolveMenuSelection } from "@/server/domain/menu-selection";
 import { mapCoupon, mapCustomer, mapDelivery, mapDeliveryZone, mapRestaurant, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, type Row } from "@/server/db/mappers";
@@ -76,23 +76,6 @@ export interface CreateOrderResult {
   requiresOnlinePayment: boolean;
   /** the customer row the order was linked to (its saved phone/email are the order's) */
   customer: Customer;
-}
-
-/**
- * Stores a first mobile on the signed-in customer's already-locked row, in one statement: refused with
- * a CONFLICT (not a raw unique violation) when another customer of this restaurant already has it.
- */
-async function saveFirstAccountPhone(tx: DbClient, restaurantId: string, customerId: string, phone: string): Promise<Customer> {
-  const updated = await tx.queryOne<Row>(
-    `update customers set phone = $2, updated_at = now()
-      where id = $1 and not exists (select 1 from customers where restaurant_id = $3 and phone = $2 and id <> $1)
-      returning *`,
-    [customerId, phone, restaurantId],
-  );
-  if (!updated) {
-    throw errors.conflict("That mobile number is already used by another account here. Please use a different number.");
-  }
-  return mapCustomer(updated);
 }
 
 /**
@@ -368,8 +351,10 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     };
     const parts: string[] = [];
 
+    // `position` = the line's place in the tray (and an add-on's place in its line): one statement
+    // writes them all with the same created_at, so it is the only stable sort key (0028)
     const lineStart = push(
-      ...resolvedLines.flatMap((line) => [
+      ...resolvedLines.flatMap((line, position) => [
         line.id,
         orderId,
         input.restaurantId,
@@ -382,22 +367,23 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
         line.addonsTotal,
         toMoney(dec(line.unitPrice).plus(dec(line.addonsTotal)).times(line.quantity)),
         line.specialInstructions,
+        position,
       ]),
     );
     parts.push(`order_lines as (
       insert into order_items
         (id, order_id, restaurant_id, menu_item_id, variant_id, item_name, variant_name, quantity, unit_price,
-         addons_total, line_total, special_instructions)
-      values ${valuesList(resolvedLines.length, 12, { 0: "::uuid", 1: "::uuid", 2: "::uuid", 3: "::uuid", 4: "::uuid", 7: "::int", 8: "::numeric", 9: "::numeric", 10: "::numeric" }, lineStart)})`);
+         addons_total, line_total, special_instructions, position)
+      values ${valuesList(resolvedLines.length, 13, { 0: "::uuid", 1: "::uuid", 2: "::uuid", 3: "::uuid", 4: "::uuid", 7: "::int", 8: "::numeric", 9: "::numeric", 10: "::numeric", 12: "::int" }, lineStart)})`);
 
     const addonRows = resolvedLines.flatMap((line) =>
-      line.addons.map((addon) => [line.id, addon.addonId, addon.groupName, addon.name, addon.price, addon.quantity]),
+      line.addons.map((addon, position) => [line.id, addon.addonId, addon.groupName, addon.name, addon.price, addon.quantity, position]),
     );
     if (addonRows.length > 0) {
       const addonStart = push(...addonRows.flat());
       parts.push(`order_addons as (
-        insert into order_item_addons (order_item_id, menu_addon_id, group_name, addon_name, unit_price, quantity)
-        values ${valuesList(addonRows.length, 6, { 0: "::uuid", 1: "::uuid", 4: "::numeric", 5: "::int" }, addonStart)})`);
+        insert into order_item_addons (order_item_id, menu_addon_id, group_name, addon_name, unit_price, quantity, position)
+        values ${valuesList(addonRows.length, 7, { 0: "::uuid", 1: "::uuid", 4: "::numeric", 5: "::int", 6: "::int" }, addonStart)})`);
     }
 
     const paymentStart = push(
@@ -495,18 +481,26 @@ export async function listOrders(
     }
 
     const where = conditions.join(" and ");
-    const total = await tx.queryCount(`select count(*) from orders o where ${where}`, params);
+    // the page and the total in ONE statement (`count(*) over ()` counts every match before LIMIT);
+    // only a page past the end (no rows to carry the total) needs the separate count
     const rows = await tx.query<Row>(
       `select o.id, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
               o.payment_status, o.payment_method, o.created_at, o.subtotal, o.discount_amount, o.tax_amount,
               (select coalesce(sum(oi.quantity),0) from order_items oi where oi.order_id = o.id) as item_count,
-              (select coalesce(json_agg(oi.item_name order by oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview
+              (select coalesce(json_agg(oi.item_name order by oi.position, oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview,
+              count(*) over () as total_count
          from orders o
         where ${where}
         order by o.created_at desc
         limit ${pageSize} offset ${(page - 1) * pageSize}`,
       params,
     );
+    const total =
+      rows.length > 0
+        ? num(rows[0]!.total_count)
+        : page > 1
+          ? await tx.queryCount(`select count(*) from orders o where ${where}`, params)
+          : 0;
 
     const summaries: OrderSummary[] = rows.map((row) => ({
       id: str(row.id),
@@ -549,42 +543,36 @@ export async function getSalesAnalytics(
     const range = `created_at >= ($2::date)::timestamp at time zone $4
                     and created_at < ($3::date + 1)::timestamp at time zone $4`;
 
-    const summaryRow = await tx.queryOne<Row>(
+    // ONE statement for the four breakdowns (they were four queries in a row on the same range):
+    // the same SQL as before, each as a sub-select, so totals and boundaries cannot differ
+    const report = await tx.queryOne<Row>(
       `select
-         count(*) as total_orders,
-         count(*) filter (where status = 'completed') as completed_orders,
-         count(*) filter (where status = 'cancelled') as cancelled_orders,
-         coalesce(sum(total) filter (where status = 'completed'), 0) as total_sales,
-         coalesce(sum(discount_amount) filter (where status = 'completed'), 0) as total_discounts,
-         coalesce(avg(total) filter (where status = 'completed'), 0) as avg_order_value
-       from orders
-      where restaurant_id = $1 and ${range}`,
+         (select row_to_json(s) from (
+            select count(*) as total_orders,
+                   count(*) filter (where status = 'completed') as completed_orders,
+                   count(*) filter (where status = 'cancelled') as cancelled_orders,
+                   coalesce(sum(total) filter (where status = 'completed'), 0)::text as total_sales,
+                   coalesce(sum(discount_amount) filter (where status = 'completed'), 0)::text as total_discounts,
+                   coalesce(avg(total) filter (where status = 'completed'), 0)::text as avg_order_value
+              from orders where restaurant_id = $1 and ${range}) s) as summary,
+         (select coalesce(json_agg(x), '[]'::json) from (
+            select status, count(*) as count from orders where restaurant_id = $1 and ${range} group by status) x) as statuses,
+         (select coalesce(json_agg(x), '[]'::json) from (
+            select payment_method, count(*) as orders, coalesce(sum(total), 0)::text as amount
+              from orders where restaurant_id = $1 and ${range} and status = 'completed'
+             group by payment_method) x) as payments,
+         (select coalesce(json_agg(x order by x.day), '[]'::json) from (
+            select to_char(date_trunc('day', created_at at time zone $4), 'YYYY-MM-DD') as day,
+                   count(*) as orders,
+                   coalesce(sum(total) filter (where status = 'completed'), 0)::text as sales
+              from orders where restaurant_id = $1 and ${range}
+             group by 1) x) as trend`,
       params,
     );
-
-    const statusRows = await tx.query<Row>(
-      `select status, count(*) as count from orders where restaurant_id = $1 and ${range} group by status`,
-      params,
-    );
-
-    const paymentRows = await tx.query<Row>(
-      `select payment_method, count(*) as orders, coalesce(sum(total), 0) as amount
-         from orders
-        where restaurant_id = $1 and ${range} and status = 'completed'
-        group by payment_method`,
-      params,
-    );
-
-    const trendRows = await tx.query<Row>(
-      `select to_char(date_trunc('day', created_at at time zone $4), 'YYYY-MM-DD') as day,
-              count(*) as orders,
-              coalesce(sum(total) filter (where status = 'completed'), 0) as sales
-         from orders
-        where restaurant_id = $1 and ${range}
-        group by 1
-        order by 1`,
-      params,
-    );
+    const summaryRow = (report?.summary as Row | null) ?? null;
+    const statusRows = (report?.statuses as Row[] | null) ?? [];
+    const paymentRows = (report?.payments as Row[] | null) ?? [];
+    const trendRows = (report?.trend as Row[] | null) ?? [];
 
     const statusBreakdown = {
       pending: 0, confirmed: 0, preparing: 0, ready: 0, out_for_delivery: 0, completed: 0, cancelled: 0,
@@ -629,12 +617,12 @@ async function getItemsForOrders(tx: DbClient, orderIds: readonly string[]): Pro
   const rows = await tx.query<Row>(
     `select oi.*, mi.image_url, mi.slug
        from order_items oi left join menu_items mi on mi.id = oi.menu_item_id
-      where oi.order_id = any($1::uuid[]) order by oi.created_at`,
+      where oi.order_id = any($1::uuid[]) order by oi.order_id, oi.position, oi.created_at`,
     [orderIds],
   );
   const addons = rows.length
     ? await tx.query<Row>(
-        `select * from order_item_addons where order_item_id = any($1::uuid[]) order by created_at`,
+        `select * from order_item_addons where order_item_id = any($1::uuid[]) order by order_item_id, position, created_at`,
         [rows.map((row) => str(row.id))],
       )
     : [];
@@ -658,6 +646,30 @@ async function getItemsForOrders(tx: DbClient, orderIds: readonly string[]): Pro
  *  - neither: nothing, without touching the database.
  * The browser sends no order id, so there is nothing to tamper with.
  */
+/**
+ * How many orders this visitor has in progress — all the storefront layout shows (the floating "track
+ * your order" widget and the dock), on EVERY page view of a signed-in customer. It used to load the
+ * active orders AND up to 20 past ones, full rows with every item, only to count the active ones (on the
+ * hosted pooler response time grows with size: several seconds per page view for a regular customer).
+ * Same ownership rule as `listVisitorOrders` (customer id, or a guest's cart token), same RLS context.
+ */
+export async function countActiveVisitorOrders(restaurantId: string, visitor: RequestContext): Promise<number> {
+  const customerId = visitor.customerId ?? null;
+  const cartToken = visitor.cartToken ?? null;
+  if (!customerId && !cartToken) return 0;
+  const ctx: RequestContext = { restaurantId, customerId, cartToken, userId: null };
+  const row = await getDb({ restaurantId }).queryOne<Row>(
+    ctx,
+    customerId
+      ? `select count(*) as count from orders o
+          where o.restaurant_id = $1 and o.customer_id = $2 and o.status = any($3::order_status[])`
+      : `select count(*) as count from orders o join carts c on c.id = o.cart_id
+          where o.restaurant_id = $1 and c.session_token = $2 and o.status = any($3::order_status[])`,
+    [restaurantId, customerId ?? cartToken, [...ACTIVE_ORDER_STATUSES]],
+  );
+  return num(row?.count);
+}
+
 export async function listVisitorOrders(
   restaurantId: string,
   visitor: RequestContext,
@@ -708,44 +720,65 @@ const ORDER_DETAIL_SELECT = `
   o.*, l.name as location_name, dz.name as delivery_zone_name
 `;
 
+/**
+ * The items of order `o` (each with its add-ons) as ONE JSON column, so a page reads an order and its
+ * lines in a single statement instead of one query for the lines and another for their add-ons — per
+ * order (the kitchen screen used to pay those two round trips for every active ticket). Same rows,
+ * same order and the same mappers as the separate queries (`itemsFromJson`).
+ */
+export const ORDER_ITEMS_JSON = `
+  coalesce((
+    select json_agg(x order by x.position, x.created_at)
+      from (select oi.*, mi.image_url, mi.slug,
+                   coalesce((select json_agg(a order by a.position, a.created_at) from order_item_addons a
+                              where a.order_item_id = oi.id), '[]'::json) as addon_rows
+              from order_items oi left join menu_items mi on mi.id = oi.menu_item_id
+             where oi.order_id = o.id) x), '[]'::json) as item_rows
+`;
+
+/** Everything an order page shows besides the order row: items, history, latest payment, delivery. */
+const ORDER_RELATIONS_JSON = `
+  ${ORDER_ITEMS_JSON},
+  coalesce((select json_agg(h order by h.created_at) from order_status_history h where h.order_id = o.id), '[]'::json) as history_rows,
+  (select row_to_json(p) from (select * from payments where order_id = o.id order by created_at desc limit 1) p) as payment_row,
+  (select row_to_json(d) from deliveries d where d.order_id = o.id) as delivery_row
+`;
+
+const jsonRows = (value: unknown): Row[] => (Array.isArray(value) ? (value as Row[]) : []);
+
+export function itemsFromJson(value: unknown): OrderItem[] {
+  return jsonRows(value).map((row) => mapOrderItem(row, jsonRows(row.addon_rows).map(mapOrderItemAddon)));
+}
+
+/** Puts `ORDER_RELATIONS_JSON`'s columns onto the mapped order. */
+function applyOrderRelations(order: Order, row: Row): Order {
+  order.items = itemsFromJson(row.item_rows);
+  order.statusHistory = jsonRows(row.history_rows).map(mapOrderStatusEvent);
+  order.payment = row.payment_row ? mapPayment(row.payment_row as Row) : null;
+  order.delivery = row.delivery_row ? mapDelivery(row.delivery_row as Row) : null;
+  return order;
+}
+
 export async function getOrderByNumber(
   restaurantId: string,
   orderNumber: string,
   ctx: RequestContext = {},
   options: { withDetails?: boolean } = { withDetails: true },
 ): Promise<Order | null> {
-  const db = getDb({ restaurantId });
-  return db.read({ ...ctx, restaurantId }, async (tx) => {
-    const row = await tx.queryOne<Row>(
-      `select ${ORDER_DETAIL_SELECT}
-         from orders o
-         left join restaurant1s l on l.id = o.location_id
-         left join delivery_zones dz on dz.id = o.delivery_zone_id
-        where o.restaurant_id = $1 and o.order_number = $2`,
-      [restaurantId, orderNumber],
-    );
-    if (!row) return null;
-    const order = mapOrder(row);
-    if (options.withDetails !== false) await hydrateOrder(tx, order);
-    return order;
-  });
-}
-
-/** Loads items, history, payment and delivery onto an order row already visible to `tx`. */
-async function hydrateOrder(tx: DbClient, order: Order): Promise<void> {
-  order.items = await getOrderItems(tx, order.id);
-  const historyRows = await tx.query<Row>(
-    `select * from order_status_history where order_id = $1 order by created_at`,
-    [order.id],
+  const withDetails = options.withDetails !== false;
+  // ONE statement for the order and (withDetails) its items, history, payment and delivery — it was
+  // six queries in a row (~2 s on the hosted pooler for every admin order page and tracking page)
+  const row = await getDb({ restaurantId }).queryOne<Row>(
+    { ...ctx, restaurantId },
+    `select ${ORDER_DETAIL_SELECT}${withDetails ? `, ${ORDER_RELATIONS_JSON}` : ""}
+       from orders o
+       left join restaurant1s l on l.id = o.location_id
+       left join delivery_zones dz on dz.id = o.delivery_zone_id
+      where o.restaurant_id = $1 and o.order_number = $2`,
+    [restaurantId, orderNumber],
   );
-  order.statusHistory = historyRows.map(mapOrderStatusEvent);
-  const paymentRow = await tx.queryOne<Row>(
-    `select * from payments where order_id = $1 order by created_at desc limit 1`,
-    [order.id],
-  );
-  order.payment = paymentRow ? mapPayment(paymentRow) : null;
-  const deliveryRow = await tx.queryOne<Row>(`select * from deliveries where order_id = $1`, [order.id]);
-  order.delivery = deliveryRow ? mapDelivery(deliveryRow) : null;
+  if (!row) return null;
+  return withDetails ? applyOrderRelations(mapOrder(row), row) : mapOrder(row);
 }
 
 /**
@@ -758,11 +791,13 @@ export async function getOrderForAccessGrant(
   restaurantId: string,
   orderNumber: string,
   orderId: string,
+  options: { withDetails?: boolean } = { withDetails: true },
 ): Promise<Order | null> {
+  const withDetails = options.withDetails !== false;
   const db = getDb({ restaurantId });
   return db.write({ restaurantId, actor: "order-access-link" }, async (tx) => {
     const row = await tx.queryOne<Row>(
-      `select ${ORDER_DETAIL_SELECT}
+      `select ${ORDER_DETAIL_SELECT}${withDetails ? `, ${ORDER_RELATIONS_JSON}` : ""}
          from orders o
          left join restaurant1s l on l.id = o.location_id
          left join delivery_zones dz on dz.id = o.delivery_zone_id
@@ -770,9 +805,7 @@ export async function getOrderForAccessGrant(
       [orderId, restaurantId, orderNumber],
     );
     if (!row) return null;
-    const order = mapOrder(row);
-    await hydrateOrder(tx, order);
-    return order;
+    return withDetails ? applyOrderRelations(mapOrder(row), row) : mapOrder(row);
   });
 }
 
@@ -781,50 +814,39 @@ export async function getOrderById(
   ctx: RequestContext,
   options: { withDetails?: boolean } = { withDetails: true },
 ): Promise<Order | null> {
-  const db = getDb(ctx);
-  return db.read(ctx, async (tx) => {
-    const row = await tx.queryOne<Row>(
-      `select ${ORDER_DETAIL_SELECT}
-         from orders o
-         left join restaurant1s l on l.id = o.location_id
-         left join delivery_zones dz on dz.id = o.delivery_zone_id
-        where o.id = $1`,
-      [orderId],
-    );
-    if (!row) return null;
-    const order = mapOrder(row);
-    if (options.withDetails !== false) {
-      order.items = await getOrderItems(tx, orderId);
-      const historyRows = await tx.query<Row>(`select * from order_status_history where order_id = $1 order by created_at`, [orderId]);
-      order.statusHistory = historyRows.map(mapOrderStatusEvent);
-      const paymentRow = await tx.queryOne<Row>(`select * from payments where order_id = $1 order by created_at desc limit 1`, [orderId]);
-      order.payment = paymentRow ? mapPayment(paymentRow) : null;
-      const deliveryRow = await tx.queryOne<Row>(`select * from deliveries where order_id = $1`, [orderId]);
-      order.delivery = deliveryRow ? mapDelivery(deliveryRow) : null;
-    }
-    return order;
-  });
+  const withDetails = options.withDetails !== false;
+  const row = await getDb(ctx).queryOne<Row>(
+    ctx,
+    `select ${ORDER_DETAIL_SELECT}${withDetails ? `, ${ORDER_RELATIONS_JSON}` : ""}
+       from orders o
+       left join restaurant1s l on l.id = o.location_id
+       left join delivery_zones dz on dz.id = o.delivery_zone_id
+      where o.id = $1`,
+    [orderId],
+  );
+  if (!row) return null;
+  return withDetails ? applyOrderRelations(mapOrder(row), row) : mapOrder(row);
 }
 
 /** Active orders for the kitchen display, oldest first (FIFO). */
 export async function listKitchenOrders(restaurantId: string, ctx: RequestContext): Promise<Order[]> {
-  const db = getDb({ restaurantId });
-  return db.read({ ...ctx, restaurantId }, async (tx) => {
-    const rows = await tx.query<Row>(
-      `select ${ORDER_DETAIL_SELECT}
-         from orders o
-         left join restaurant1s l on l.id = o.location_id
-         left join delivery_zones dz on dz.id = o.delivery_zone_id
-        where o.restaurant_id = $1 and o.status in ('pending','confirmed','preparing','ready')
-        order by o.created_at asc
-        limit 60`,
-      [restaurantId],
-    );
-    const orders = rows.map(mapOrder);
-    for (const order of orders) {
-      order.items = await getOrderItems(tx, order.id);
-    }
-    return orders;
+  // ONE statement whatever the number of tickets: it used to read each order's items with two more
+  // queries, one order after another (~0.7 s per active order on the hosted pooler, every 20 s refresh)
+  const rows = await getDb({ restaurantId }).query<Row>(
+    { ...ctx, restaurantId },
+    `select ${ORDER_DETAIL_SELECT}, ${ORDER_ITEMS_JSON}
+       from orders o
+       left join restaurant1s l on l.id = o.location_id
+       left join delivery_zones dz on dz.id = o.delivery_zone_id
+      where o.restaurant_id = $1 and o.status in ('pending','confirmed','preparing','ready')
+      order by o.created_at asc
+      limit 60`,
+    [restaurantId],
+  );
+  return rows.map((row) => {
+    const order = mapOrder(row);
+    order.items = itemsFromJson(row.item_rows);
+    return order;
   });
 }
 
@@ -839,7 +861,7 @@ export async function listCustomerOrders(
       `select o.id, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
               o.payment_status, o.payment_method, o.created_at,
               (select coalesce(sum(oi.quantity),0) from order_items oi where oi.order_id = o.id) as item_count,
-              (select coalesce(json_agg(oi.item_name order by oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview
+              (select coalesce(json_agg(oi.item_name order by oi.position, oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview
          from orders o
         where o.customer_id = $1
         order by o.created_at desc
@@ -869,12 +891,27 @@ export async function listCustomerOrders(
  * (app.order_transition_allowed) and is mirrored in ORDER_STATUS_RANK, so an
  * invalid jump fails in both layers and is recorded in order_status_history.
  */
+/** What a status change reports back: nobody needs the whole order (pages re-read it to render). */
+export interface OrderStatusChange {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+}
+
+/**
+ * Moves an order to `status` in ONE statement (plus one more only when a `note` is given). The database
+ * does the rest in the same transaction: `enforce_order_status_transition` refuses an invalid move,
+ * `record_order_status` writes the history row, `enqueue_order_notification` queues the customer's
+ * email/push, `notify_order_change` wakes live tracking, and the delivery/customer-stats triggers follow.
+ * It used to re-read the order's items and history afterwards (three more round trips, ~1 s) and return
+ * them; no caller used them.
+ */
 export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus,
   ctx: RequestContext,
   options: { note?: string | null; cancelReason?: string | null } = {},
-): Promise<Order> {
+): Promise<OrderStatusChange> {
   const db = getDb(ctx);
   return db.write(ctx, async (tx) => {
     const row = await tx.queryOne<Row>(
@@ -882,22 +919,19 @@ export async function updateOrderStatus(
          status = $2::order_status,
          cancel_reason = case when $2 = 'cancelled' then coalesce($3, cancel_reason) else cancel_reason end
        where id = $1
-       returning *`,
+       returning id, order_number, status`,
       [orderId, status, options.cancelReason ?? null],
     );
     if (!row) throw errors.notFound("Order");
     if (options.note) {
+      // the history row is inserted by the trigger above, so it is only visible to a later statement
       await tx.query(
-        `update order_status_history set note = $3
+        `update order_status_history set note = $2
           where id = (select id from order_status_history where order_id = $1 order by created_at desc limit 1)`,
-        [orderId, null, options.note],
+        [orderId, options.note],
       );
     }
-    const order = mapOrder(row);
-    order.items = await getOrderItems(tx, orderId);
-    const historyRows = await tx.query<Row>(`select * from order_status_history where order_id = $1 order by created_at`, [orderId]);
-    order.statusHistory = historyRows.map(mapOrderStatusEvent);
-    return order;
+    return { id: str(row.id), orderNumber: str(row.order_number), status: str(row.status) as OrderStatus };
   });
 }
 
@@ -989,9 +1023,9 @@ export async function setOrderPaymentStatus(
 export async function buildReorderLines(orderId: string, ctx: RequestContext): Promise<{ menuItemId: string; variantId: string | null; quantity: number; addons: { addonId: string; quantity: number }[] }[]> {
   const db = getDb(ctx);
   return db.read(ctx, async (tx) => {
-    const items = await tx.query<Row>(`select * from order_items where order_id = $1 order by created_at`, [orderId]);
+    const items = await tx.query<Row>(`select * from order_items where order_id = $1 order by position, created_at`, [orderId]);
     const addons = items.length
-      ? await tx.query<Row>(`select * from order_item_addons where order_item_id = any($1::uuid[])`, [items.map((row) => str(row.id))])
+      ? await tx.query<Row>(`select * from order_item_addons where order_item_id = any($1::uuid[]) order by position, created_at`, [items.map((row) => str(row.id))])
       : [];
     return items.map((item) => ({
       menuItemId: str(item.menu_item_id),

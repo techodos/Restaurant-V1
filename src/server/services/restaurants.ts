@@ -10,13 +10,14 @@ import {
   deleteLocation,
   getRestaurantById,
   getRestaurantBySlug,
+  getRestaurantWithThemeBySlug,
   listLocations,
   updateLocation,
   updateRestaurant,
   type LocationInput,
 } from "@/server/repositories/restaurants";
-import { getWebsite } from "@/server/repositories/websites";
 import { listDeliveryZones } from "@/server/repositories/deliveries";
+import { ttlCache } from "@/server/cache/ttl";
 
 /**
  * Resolves a public slug to a restaurant or throws NOT_FOUND. Always reads the
@@ -36,15 +37,40 @@ export async function getLocations(restaurantId: string, options: { activeOnly?:
   return listLocations(restaurantId, forRestaurant(restaurantId), options);
 }
 
+export interface AdminRestaurantContext {
+  restaurant: Restaurant;
+  theme: RestaurantTheme;
+}
+
+const ADMIN_RESTAURANT_TTL_MS = 30_000;
+const adminRestaurants = ttlCache<AdminRestaurantContext>("admin-restaurants", ADMIN_RESTAURANT_TTL_MS);
+
+/** Drops the cached admin restaurant/theme — every write to a restaurant row calls this. */
+export function invalidateAdminRestaurants(): void {
+  adminRestaurants.clear();
+}
+
 /**
- * The restaurant's brand theme for the admin UI — same resolution the storefront
- * uses (website.theme JSONB, falling back to restaurants.primary_color), but
- * without the "is this restaurant publicly visible" gate storefront reads apply,
- * since staff must be able to sign in and see their branding before going live.
+ * The restaurant and its brand theme for the admin shell, which needs both on every page, route and
+ * re-render. The theme is the storefront's own resolution (website.theme JSONB, falling back to
+ * restaurants.primary_color) minus the "is this restaurant publicly visible" gate, since staff must
+ * see their branding before going live: ONE statement (`getRestaurantWithThemeBySlug`), cached per process for
+ * `ADMIN_RESTAURANT_TTL_MS` unless `fresh`. Display only — anything that WRITES a restaurant reads the
+ * current row itself (`updateRestaurantFeatures`/`updateRestaurantSettingsSection` →
+ * `requireCurrentRestaurant`), and those writes clear this cache. The settings page passes `fresh`,
+ * since what it shows is what its forms save. Throws NOT_FOUND like `requireRestaurant`.
  */
-export async function getAdminTheme(restaurant: Restaurant): Promise<RestaurantTheme> {
-  const website = await getWebsite(restaurant.id, forRestaurant(restaurant.id));
-  return resolveTheme(website?.theme ?? {}, restaurant.primaryColor);
+export async function getAdminRestaurantContext(slug: string, options: { fresh?: boolean } = {}): Promise<AdminRestaurantContext> {
+  const load = async (): Promise<AdminRestaurantContext> => {
+    const found = await getRestaurantWithThemeBySlug(slug);
+    if (!found) throw errors.notFound("Restaurant");
+    const theme = resolveTheme(found.websiteTheme, found.restaurant.primaryColor);
+    return { restaurant: found.restaurant, theme };
+  };
+  if (!options.fresh) return adminRestaurants.get(slug, load);
+  const context = await load();
+  adminRestaurants.set(slug, context);
+  return context;
 }
 
 /** Delivery zones for display (coverage lists); served from the storefront snapshot. */
@@ -94,6 +120,7 @@ export async function updateRestaurantFeatures(
   const merged = restaurantFeaturesSchema.parse({ ...current.features, ...patch });
   const restaurant = await updateRestaurant(restaurantId, { features: merged }, ctx);
   getStorefrontCache().invalidate();
+  invalidateAdminRestaurants();
   return restaurant;
 }
 
@@ -109,5 +136,6 @@ export async function updateRestaurantSettingsSection<K extends keyof Restaurant
   const merged = restaurantSettingsSchema.parse(mergedSettings);
   const restaurant = await updateRestaurant(restaurantId, { settings: merged }, ctx);
   getStorefrontCache().invalidate();
+  invalidateAdminRestaurants();
   return restaurant;
 }

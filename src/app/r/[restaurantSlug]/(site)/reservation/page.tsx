@@ -96,13 +96,21 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
     day: zonedNow(new Date(Date.now() + offset * 86_400_000), restaurant.timezone),
   }));
 
-  // One query for the whole window and every location, not one per day and location.
-  const bookedCounts = await getBookedSlotCounts(
-    restaurant.id,
-    locations.map((location) => location.id),
-    today.dateKey,
-    (days.at(-1)?.day ?? today).dateKey,
-  );
+  // The page's only database reads, side by side (they used to run one after the other): the bookings
+  // in the window — one query for every day and location — and, when signed in, the same profile the
+  // checkout page reads (account email, saved mobile; the form locks whichever are on file, exactly like
+  // checkout's own fields; one read, it carries the verification state too). A guest (no account yet)
+  // gets no profile and the form falls back to plain, editable fields.
+  const [bookedCounts, profile] = await Promise.all([
+    getBookedSlotCounts(
+      restaurant.id,
+      locations.map((location) => location.id),
+      today.dateKey,
+      (days.at(-1)?.day ?? today).dateKey,
+    ),
+    customer ? getVisitorContext(restaurant.id).then((visitor) => getCustomerProfile(restaurant, visitor)) : Promise.resolve(null),
+  ]);
+  const emailVerified = profile?.emailVerified ?? false;
 
   for (const { offset, day } of days) {
     const label = new Date(`${day.dateKey}T12:00:00Z`).toLocaleDateString(undefined, {
@@ -140,13 +148,6 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
     }
   }
 
-  // Same profile the checkout page reads: account email, saved mobile — the reservation form locks
-  // whichever of these are already on file, exactly like checkout's own email/phone fields. A guest
-  // (no account yet) gets none of this; the form falls back to plain, editable fields for them.
-  // one read: the profile carries the verification state too
-  const [profile, emailVerified] = customer
-    ? await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id)).then((p) => [p, p.emailVerified] as const)
-    : [null, false];
   const defaultDate = dates[0]?.value ?? today.dateKey;
 
   const cover = resolveImage(restaurant.coverUrl);

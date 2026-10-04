@@ -58,15 +58,21 @@ export async function listReviews(
     }
     if (filters.featuredOnly) conditions.push("r.is_featured");
     const where = conditions.join(" and ");
-    const total = await tx.queryCount(`select count(*) from reviews r where ${where}`, params);
+    // the page and the total in ONE statement; only a page past the end falls back to counting
     const rows = await tx.query<Row>(
-      `select r.*, mi.name as item_name
+      `select r.*, mi.name as item_name, count(*) over () as total_count
          from reviews r left join menu_items mi on mi.id = r.menu_item_id
         where ${where}
         order by r.created_at desc
         limit ${pageSize} offset ${(page - 1) * pageSize}`,
       params,
     );
+    const total =
+      rows.length > 0
+        ? num(rows[0]!.total_count)
+        : page > 1
+          ? await tx.queryCount(`select count(*) from reviews r where ${where}`, params)
+          : 0;
     return paginate(rows.map(mapReview), total, page, pageSize);
   });
 }
