@@ -6,8 +6,9 @@ import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/comp
 import type { StorefrontContext } from "@/shared/contract/models";
 import { enabledOrderTypes } from "@/shared/ordering";
 import { ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
-import { getStorefrontContext } from "@/web/storefront";
+import { getBranching, getStorefrontContext, readTray } from "@/web/storefront";
 import { resolveImage, resolveMenuImage } from "@/web/media";
+import { MenuOrderTypeSync } from "@/components/storefront/branch-bar";
 import { DishTile } from "@/components/storefront/dish-tile";
 import { PageHero } from "@/components/storefront/page-hero";
 import { StationNav } from "@/components/storefront/station-nav";
@@ -66,9 +67,15 @@ async function renderMenu(
   { category, q, orderType, sort }: Awaited<MenuPageProps["searchParams"]>,
 ) {
   const { restaurant } = context;
-  const activeOrderType: OrderType = ORDER_TYPES.includes(orderType as OrderType)
+  // Multi-branch ordering (null with the feature off): the tray's branch decides which dishes are
+  // offered, and the tray's order type is the menu's unless a tab was picked explicitly.
+  const branching = await getBranching(context);
+  const tray = branching ? await readTray(context) : null;
+  const explicitOrderType = ORDER_TYPES.includes(orderType as OrderType);
+  const activeOrderType: OrderType = explicitOrderType
     ? (orderType as OrderType)
-    : context.config.ordering.defaultOrderType;
+    : (tray?.orderType ?? context.config.ordering.defaultOrderType);
+  const offHere = new Set(tray?.locationId ? (branching?.unavailable[tray.locationId] ?? []) : []);
   const search = (q ?? "").trim();
   const base = `/r/${restaurant.slug}/menu`;
   const filtered = Boolean(search || category);
@@ -119,6 +126,7 @@ async function renderMenu(
       locale={restaurant.locale}
       showPrepTime={context.config.ordering.showPrepTime}
       orderType={activeOrderType}
+      offAtBranch={offHere.has(item.id)}
     />
   );
   const dishes = (count: number) => `${count} dish${count === 1 ? "" : "es"}`;
@@ -198,7 +206,7 @@ async function renderMenu(
                   aria-current={activeOrderType === type ? "true" : undefined}
                   className={cn(
                     "flex-1 whitespace-nowrap rounded-[var(--radius-control)] px-4 py-2 text-center text-[13px] font-semibold transition-[background-color,color] duration-200 lg:flex-none",
-                    activeOrderType === type ? "bg-white text-[#111]" : "text-white/75 hover:text-white",
+                    activeOrderType === type ? "bg-[var(--brand-surface)] text-[var(--brand-foreground)]" : "text-white/75 hover:text-white",
                   )}
                 >
                   {ORDER_TYPE_LABELS[type]}
@@ -208,6 +216,8 @@ async function renderMenu(
           ) : null}
         </div>
       </PageHero>
+
+      <MenuOrderTypeSync orderType={activeOrderType} explicit={explicitOrderType} />
 
       {isBuffetOnly ? (
         <section className="tone-paper section-y">

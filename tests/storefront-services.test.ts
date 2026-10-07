@@ -197,7 +197,7 @@ describe("what deliberately stays on PostgreSQL", () => {
     // …all in the order transaction's single combined read
     expect(orders).toMatch(/from restaurants where id = \$1/);
     expect(orders).toMatch(/from delivery_zones z/);
-    expect(orders).toMatch(/orderableItemsSql\("\$1", "\$3"\)/);
+    expect(orders).toMatch(/orderableItemsSql\("\$1", "\$3", "\$5"\)/);
   });
 });
 

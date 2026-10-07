@@ -72,18 +72,62 @@ function newLineId(): string {
   return `line-${Date.now().toString(36)}-${lineSequence}`;
 }
 
-/** Mirrors the order: every add is its own line, never merged with an identical one. */
+/** Order-independent so `[{a,1},{b,2}]` and `[{b,2},{a,1}]` compare equal. */
+function addonsKey(addons: readonly LocalCartAddon[]): string {
+  return addons
+    .map((addon) => `${addon.addonId}:${addon.quantity}`)
+    .sort()
+    .join(",");
+}
+
+/** Same item, same variant, same add-ons, same note → the same cart row (matches how every real-world cart groups lines). */
+function sameLine(
+  a: Pick<LocalCartLine, "menuItemId" | "variantId" | "addons" | "specialInstructions">,
+  b: Pick<LocalCartLine, "menuItemId" | "variantId" | "addons" | "specialInstructions">,
+): boolean {
+  return (
+    a.menuItemId === b.menuItemId &&
+    a.variantId === b.variantId &&
+    (a.specialInstructions ?? "") === (b.specialInstructions ?? "") &&
+    addonsKey(a.addons) === addonsKey(b.addons)
+  );
+}
+
+/** Adding an item already in the cart (same variant/add-ons/note) increases its quantity instead of adding a new row. */
 export function addLocalLine(cart: LocalCart, input: AddLineInput): LocalCart {
+  const quantity = Math.max(Math.trunc(input.quantity) || 1, 1);
+  const existingIndex = cart.lines.findIndex((existing) => sameLine(existing, input));
+  if (existingIndex !== -1) {
+    const existing = cart.lines[existingIndex]!;
+    const lines = cart.lines.slice();
+    lines[existingIndex] = { ...existing, quantity: Math.min(existing.quantity + quantity, 99), display: input.display };
+    return { ...cart, lines };
+  }
   const line: LocalCartLine = {
     id: newLineId(),
     menuItemId: input.menuItemId,
     variantId: input.variantId,
-    quantity: Math.min(Math.max(Math.trunc(input.quantity) || 1, 1), 99),
+    quantity: Math.min(quantity, 99),
     addons: input.addons.map((addon) => ({ addonId: addon.addonId, quantity: addon.quantity })),
     ...(input.specialInstructions ? { specialInstructions: input.specialInstructions } : {}),
     display: input.display,
   };
   return { ...cart, lines: [...cart.lines, line] };
+}
+
+/** Collapses any duplicate rows (same item/variant/add-ons/note) already in the cart into one, summing quantity — a
+ * safety net for carts saved before lines were merged on add, so an old cookie self-heals the next time it loads. */
+function mergeDuplicateLines(lines: readonly LocalCartLine[]): LocalCartLine[] {
+  const merged: LocalCartLine[] = [];
+  for (const line of lines) {
+    const existing = merged.find((candidate) => sameLine(candidate, line));
+    if (existing) {
+      existing.quantity = Math.min(existing.quantity + line.quantity, 99);
+    } else {
+      merged.push({ ...line });
+    }
+  }
+  return merged;
 }
 
 /** quantity <= 0 removes the line. */
@@ -145,29 +189,30 @@ export function toTray(cart: LocalCart): Tray {
 
 /** The server's reading of the cookie → client state. Ids are positional so server and client HTML match. */
 export function fromInitialTray(initial: InitialTray): LocalCart {
+  const lines = initial.tray.lines.map((line, index) => ({
+    id: `initial-${index}`,
+    menuItemId: line.menuItemId,
+    variantId: line.variantId,
+    quantity: line.quantity,
+    addons: line.addons,
+    ...(line.specialInstructions ? { specialInstructions: line.specialInstructions } : {}),
+    display: initial.displays[index] ?? {
+      name: "Item",
+      slug: null,
+      imageUrl: null,
+      variantName: null,
+      addonNames: [],
+      unitPrice: "0.00",
+      addonsTotal: "0.00",
+      problem: null,
+    },
+  }));
   return {
     orderType: initial.tray.orderType,
     locationId: initial.tray.locationId,
     couponCode: initial.tray.couponCode,
     couponDiscount: initial.couponDiscount,
-    lines: initial.tray.lines.map((line, index) => ({
-      id: `initial-${index}`,
-      menuItemId: line.menuItemId,
-      variantId: line.variantId,
-      quantity: line.quantity,
-      addons: line.addons,
-      ...(line.specialInstructions ? { specialInstructions: line.specialInstructions } : {}),
-      display: initial.displays[index] ?? {
-        name: "Item",
-        slug: null,
-        imageUrl: null,
-        variantName: null,
-        addonNames: [],
-        unitPrice: "0.00",
-        addonsTotal: "0.00",
-        problem: null,
-      },
-    })),
+    lines: mergeDuplicateLines(lines),
   };
 }
 
@@ -244,14 +289,21 @@ export function LocalCartProvider({
 
   // The server re-rendered the layout (navigation refresh, a server action, another tab's change
   // picked up below) with a different cookie than this state holds: adopt the server's reading.
+  // Only for a NEW reading: the state already started from this one, and children's effects run before
+  // this one on mount — the branch provider's first-visit auto-pick commits a branch there, and adopting
+  // the mount-time reading again would silently undo it (the tray kept its old, possibly wrong-city branch).
+  const adoptedInitial = useRef(initial);
   useEffect(() => {
+    if (adoptedInitial.current === initial) return;
+    adoptedInitial.current = initial;
     if (initial.encoded !== encodeCart(cartRef.current)) commit(fromInitialTray(initial));
   }, [initial, commit]);
 
   // Persist every change (already written by `commit`; this is the safety net). Writing the cookie IS
-  // the whole "add to cart" — no request.
+  // the whole "add to cart" — no request. Reads the ref, not the render's `cart`: on mount a child may
+  // already have committed a newer tray, and writing this render's older value would revert it.
   useEffect(() => {
-    const encoded = encodeCart(cart);
+    const encoded = encodeCart(cartRef.current);
     if (encoded !== readCookie(cookieName)) writeCookie(cookieName, encoded);
   }, [cart, cookieName]);
 

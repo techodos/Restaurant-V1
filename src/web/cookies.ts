@@ -8,6 +8,8 @@ import { config } from "@/server/config";
  * one, because Next's cookie parser keeps the last duplicate.
  */
 export const STAFF_COOKIE = "rp_admin_session";
+/** Restaurant-wide staff's chosen branch in the admin (a location id or "all"); path /r/<slug>/admin. */
+export const ADMIN_BRANCH_COOKIE = "rp_admin_branch";
 /** Pre-2026-09-27 staff cookie (path "/"); only ever deleted. */
 export const LEGACY_STAFF_COOKIE = "rp_staff_session";
 export const CUSTOMER_COOKIE = "rp_customer_session";

@@ -92,6 +92,8 @@ export function zone(id: string, locationId: string, overrides: Partial<Delivery
     etaMaxMinutes: 45,
     isActive: true,
     sortOrder: 0,
+    radiusKm: null,
+    polygon: null,
     ...overrides,
   };
 }

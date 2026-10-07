@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppError, errors } from "@/server/errors";
 import { effectivePermissions, type Permission } from "@/server/auth/permissions";
+import { assertRestaurantWide } from "@/server/auth/branch-scope";
 import {
   assertPermission,
   authenticateStaff,
@@ -73,6 +74,34 @@ export async function requireStaff(restaurantSlug?: string): Promise<StaffActor>
 export async function requirePermission(permission: Permission, restaurantSlug?: string): Promise<StaffActor> {
   const actor = await requireStaff(restaurantSlug);
   assertPermission(actor, permission);
+  return actor;
+}
+
+/**
+ * `requirePermission` for data every branch shares (the menu catalogue, coupons): branch-scoped staff are
+ * refused even when their role holds the permission, because a change there reaches every branch.
+ */
+export async function requireRestaurantWidePermission(permission: Permission, restaurantSlug?: string): Promise<StaffActor> {
+  const actor = await requirePermission(permission, restaurantSlug);
+  assertRestaurantWide(actor);
+  return actor;
+}
+
+/**
+ * Page guard for /r/<slug>/admin pages (not actions or route handlers, which keep their FORBIDDEN error):
+ * a member who opens a screen their role or branch does not allow (a typed URL, an old bookmark) is sent
+ * to the dashboard with a "no access" notice. Rendering the error boundary instead showed "Something went
+ * wrong", since production builds hide server error messages. The page never renders either way.
+ */
+export async function requireAdminPage(
+  permission: Permission,
+  restaurantSlug: string,
+  options: { restaurantWide?: boolean } = {},
+): Promise<StaffActor> {
+  const actor = await requireStaffForAdmin(restaurantSlug);
+  const allowed =
+    actor.permissions.includes(permission) && (!options.restaurantWide || actor.member.locationId === null);
+  if (!allowed) redirect(`${adminPath(restaurantSlug)}?denied=1`);
   return actor;
 }
 

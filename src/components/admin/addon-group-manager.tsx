@@ -13,7 +13,7 @@ import {
   saveAddonGroupAction,
 } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 import type { MenuAddonGroup } from "@/shared/contract/models";
-import { useConfirm } from "@/components/admin/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type Addon = MenuAddonGroup["addons"][number];
 

@@ -39,6 +39,7 @@ export async function FeaturedItemsSection({
       item={item}
       size="lg"
       restaurantSlug={context.restaurant.slug}
+      browseOnly={context.restaurant.features.BranchingFeature}
       currencySymbol={context.restaurant.currencySymbol}
       locale={context.restaurant.locale}
     />

@@ -6,7 +6,7 @@ import type { ReservationStatus } from "@/shared/contract/enums";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
-import { mapLocation, mapReservation, mapRestaurant, num, str, type Row } from "@/server/db/mappers";
+import { branchFilter, mapLocation, mapReservation, mapRestaurant, num, str, type Row } from "@/server/db/mappers";
 import { type DbClient } from "@/server/db/database";
 import { attachAccountCustomer, saveFirstAccountPhone, upsertCustomer } from "./customers";
 
@@ -301,6 +301,7 @@ export interface ReservationListFilters {
   status?: ReservationStatus | "all" | "upcoming";
   date?: string;
   from?: string;
+  locationId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -329,6 +330,10 @@ export async function listReservations(
     if (filters.from) {
       params.push(filters.from);
       conditions.push(`r.reservation_date >= $${params.length}::date`);
+    }
+    if (filters.locationId) {
+      params.push(filters.locationId);
+      conditions.push(branchFilter("r", `$${params.length}`));
     }
     const where = conditions.join(" and ");
     // the page and the total in ONE statement (`count(*) over ()` counts every match before LIMIT);
@@ -393,7 +398,12 @@ export async function updateReservationStatus(
   const db = getDb(ctx);
   return db.write(ctx, async (tx) => {
     const row = await tx.queryOne<Row>(
-      `update reservations set status = $2::reservation_status, notes = coalesce($3, notes) where id = $1 returning *`,
+      // app_service (no RLS): restaurant + branch scope in the statement, as in orders#updateOrderStatus
+      `update reservations set status = $2::reservation_status, notes = coalesce($3, notes)
+        where id = $1
+          and restaurant_id = coalesce(app.current_restaurant_id(), restaurant_id)
+          and app.can_access_location(restaurant_id, location_id)
+        returning *`,
       [reservationId, status, notes ?? null],
     );
     if (!row) throw errors.notFound("Reservation");

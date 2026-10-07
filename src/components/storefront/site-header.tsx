@@ -12,6 +12,7 @@ import { Sheet } from "@/components/motion/sheet";
 import { TrayCount } from "./tray-count";
 import { ProfileDrawer } from "./profile-drawer";
 import { useLocalCart } from "./local-cart";
+import { HeaderBranchPill } from "./header-branch-pill";
 import { isSupportedCountry } from "libphonenumber-js";
 
 interface SiteHeaderProps {
@@ -169,7 +170,8 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
         ) : null}
 
         <div className="container-page grid h-[4.25rem] grid-cols-[1fr_auto] items-center gap-4 lg:h-20 lg:grid-cols-[1fr_auto_1fr]">
-          <Link href={home} className="flex min-w-0 items-center gap-3 justify-self-start" aria-label={`${restaurant.name} home`}>
+          <div className="flex min-w-0 items-center gap-4 justify-self-start lg:max-xl:gap-2.5 xl:gap-5">
+          <Link href={home} className={cn("flex min-w-0 items-center gap-3", restaurant.logoUrl && "shrink-0")} aria-label={`${restaurant.name} home`}>
             {restaurant.logoUrl ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element -- DB-provided logo, dimensions unknown */}
@@ -182,6 +184,10 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
               </span>
             )}
           </Link>
+          {/* desktop: the branch is the order's context, so it sits with the brand, clear of the centred nav */}
+          <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[var(--rule-strong)] xl:block" />
+          <HeaderBranchPill tone={tone} align="start" className="hidden lg:flex" />
+          </div>
 
           <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
             {navItems.map((item) => {
@@ -210,6 +216,8 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
           </nav>
 
           <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
+            {/* phones / tablets: the order's branch, with the cart (desktop shows it beside the logo) */}
+            <HeaderBranchPill tone={tone} className="lg:hidden" />
             {customer?.signedIn ? (
               <HeaderIconLink
                 href={`${home}/orders`}

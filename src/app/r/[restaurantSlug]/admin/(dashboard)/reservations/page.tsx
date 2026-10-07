@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { listReservationsForStaff } from "@/server/services/reservations";
 import { RESERVATION_STATUS_LABELS, type ReservationStatus } from "@/shared/contract/enums";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
+import { getAdminBranchScope } from "@/web/admin";
 import { ReservationStatusControl } from "@/components/admin/reservation-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
@@ -52,16 +53,22 @@ interface ReservationsPageProps {
 
 export default async function AdminReservationsPage({ params, searchParams }: ReservationsPageProps) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("reservations.view", restaurantSlug);
+  const actor = await requireAdminPage("reservations.view", restaurantSlug);
   const { status, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
   const canManage = actor.permissions.includes("reservations.manage");
 
   const activeStatus = (status ?? "upcoming") as "upcoming" | "all" | ReservationStatus;
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
+  // the branch comes from the header's selector (owner/admin) or the member's own branch — never the URL
+  const { locationId } = await getAdminBranchScope(restaurantSlug);
 
   // the staff check already tied this session to this slug's restaurant (actor.restaurantId)
-  const result = await listReservationsForStaff(actor.restaurantId, { status: activeStatus, page: pageNum, pageSize: 20 }, ctx);
+  const result = await listReservationsForStaff(
+    actor.restaurantId,
+    { status: activeStatus, locationId: locationId ?? undefined, page: pageNum, pageSize: 20 },
+    ctx,
+  );
 
   const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
@@ -74,7 +81,9 @@ export default async function AdminReservationsPage({ params, searchParams }: Re
     <div className="space-y-6">
       <AdminPageHeader title="Reservations" description={`${result.total} total`} />
 
-      <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
+      </div>
 
       <Card className="overflow-hidden">
         {result.rows.length === 0 ? (

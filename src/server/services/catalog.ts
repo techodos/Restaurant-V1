@@ -1,8 +1,8 @@
 import type { MenuCategory, MenuItem, MenuItemSummary } from "@/shared/contract/models";
-import { readMenuCategories, readMenuEntryById, readMenuItem, readMenuItems, snapshotForRestaurant, type MenuSearchFilters } from "@/server/cache";
+import { readBranchUnavailable, readMenuCategories, readMenuEntryById, readMenuItem, readMenuItems, snapshotForRestaurant, type MenuSearchFilters } from "@/server/cache";
 import { forRestaurant } from "@/server/context";
 import type { OrderableMenuItem } from "@/server/domain/menu-selection";
-import { getMenuItem, listCategories, listMenuItems, listOrderableItems } from "@/server/repositories/menu";
+import { getMenuItem, listBranchUnavailableItems, listCategories, listMenuItems, listOrderableItems } from "@/server/repositories/menu";
 
 /**
  * Public menu reads for a restaurant, served from the in-memory storefront
@@ -49,15 +49,29 @@ export async function findMenuItemBySlug(restaurantId: string, slug: string): Pr
  * result is not on the (active) menu any more. Served from the snapshot, which holds active items and
  * active categories only; `resolveMenuSelection` applies every remaining rule.
  */
-export async function getOrderableMenuItems(restaurantId: string, itemIds: readonly string[]): Promise<Map<string, OrderableMenuItem>> {
+export async function getOrderableMenuItems(
+  restaurantId: string,
+  itemIds: readonly string[],
+  /** the tray's branch: an item switched off there previews as unavailable, as the order would refuse it */
+  locationId: string | null = null,
+): Promise<Map<string, OrderableMenuItem>> {
   const snapshot = snapshotForRestaurant(restaurantId);
-  if (!snapshot) return listOrderableItems(restaurantId, itemIds, forRestaurant(restaurantId));
+  if (!snapshot) return listOrderableItems(restaurantId, itemIds, forRestaurant(restaurantId), locationId);
+  const offHere = new Set(locationId ? readBranchUnavailable(snapshot, locationId) : []);
   const found = new Map<string, OrderableMenuItem>();
   for (const id of itemIds) {
     const entry = readMenuEntryById(snapshot, id);
     if (!entry) continue;
     const category = snapshot.categories.find((candidate) => candidate.id === entry.item.categoryId);
-    found.set(id, { item: entry.item, category: category ? { isActive: category.isActive, availability: category.availability } : null });
+    const item = offHere.has(id) ? { ...entry.item, isAvailable: false } : entry.item;
+    found.set(id, { item, category: category ? { isActive: category.isActive, availability: category.availability } : null });
   }
   return found;
+}
+
+/** location id -> ids of the items switched off at that branch (snapshot; one read without it). */
+export async function getBranchUnavailableItems(restaurantId: string): Promise<Readonly<Record<string, readonly string[]>>> {
+  const snapshot = snapshotForRestaurant(restaurantId);
+  if (snapshot) return snapshot.branchUnavailable;
+  return listBranchUnavailableItems(restaurantId, forRestaurant(restaurantId));
 }

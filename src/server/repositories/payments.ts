@@ -1,6 +1,6 @@
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
-import { mapPayment, num, str, type Row } from "@/server/db/mappers";
+import { branchFilter, mapPayment, num, str, type Row } from "@/server/db/mappers";
 import type { Payment } from "@/shared/contract/models";
 import type { PaymentMethod, PaymentStatus } from "@/shared/contract/enums";
 import { paginate, type Paginated } from "@/shared/contract/api";
@@ -8,6 +8,7 @@ import { paginate, type Paginated } from "@/shared/contract/api";
 export interface PaymentListFilters {
   status?: PaymentStatus | "all";
   method?: PaymentMethod;
+  locationId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -16,7 +17,7 @@ export async function listPayments(
   restaurantId: string,
   filters: PaymentListFilters,
   ctx: RequestContext,
-): Promise<Paginated<Payment & { orderNumber: string; customerName: string }>> {
+): Promise<Paginated<Payment & { orderNumber: string; customerName: string; locationName: string | null }>> {
   const db = getDb({ restaurantId });
   return db.read({ ...ctx, restaurantId }, async (tx) => {
     const page = filters.page ?? 1;
@@ -31,11 +32,16 @@ export async function listPayments(
       params.push(filters.method);
       conditions.push(`p.method = $${params.length}::payment_method`);
     }
+    if (filters.locationId) {
+      params.push(filters.locationId);
+      conditions.push(branchFilter("o", `$${params.length}`));
+    }
     const where = conditions.join(" and ");
     // the page and the total in ONE statement; only a page past the end falls back to counting
     const rows = await tx.query<Row>(
-      `select p.*, o.order_number, o.customer_name, count(*) over () as total_count
+      `select p.*, o.order_number, o.customer_name, l.name as location_name, count(*) over () as total_count
          from payments p join orders o on o.id = p.order_id
+         left join restaurant1s l on l.id = o.location_id
         where ${where}
         order by p.created_at desc
         limit ${pageSize} offset ${(page - 1) * pageSize}`,
@@ -52,6 +58,7 @@ export async function listPayments(
         ...mapPayment(row),
         orderNumber: str(row.order_number),
         customerName: str(row.customer_name),
+        locationName: row.location_name ? str(row.location_name) : null,
       })),
       total,
       page,

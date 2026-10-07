@@ -43,6 +43,8 @@ export interface StorefrontSnapshot {
   /** every location, active or not, in display order */
   readonly locations: readonly RestaurantLocation[];
   readonly deliveryZones: readonly DeliveryZone[];
+  /** location id -> ids of items switched off at that branch (BranchingFeature) */
+  readonly branchUnavailable: Readonly<Record<string, readonly string[]>>;
 
   /** published pages, home page first */
   readonly pages: readonly WebsitePage[];

@@ -2,7 +2,7 @@ import { getDb } from "@/server/db/registry";
 import { type DbClient } from "@/server/db/database";
 import { type RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
-import { mapAddress, mapCustomer, num, str, type Row } from "@/server/db/mappers";
+import { branchFilter, mapAddress, mapCustomer, num, str, type Row } from "@/server/db/mappers";
 import type { Customer, CustomerAddress } from "@/shared/contract/models";
 import type { Paginated } from "@/shared/contract/api";
 import { paginate } from "@/shared/contract/api";
@@ -389,6 +389,8 @@ export async function updateCustomerProfile(
 export async function getCustomerStats(
   customerId: string,
   ctx: RequestContext,
+  /** the admin's branch scope: only that branch's orders count (null = every branch) */
+  locationId: string | null = null,
 ): Promise<{ orders: number; spent: string; averageOrderValue: string; lastOrderAt: string | null }> {
   const db = getDb(ctx);
   return db.read(ctx, async (tx) => {
@@ -397,8 +399,8 @@ export async function getCustomerStats(
               coalesce(sum(total) filter (where status = 'completed'), 0) as spent,
               coalesce(avg(total) filter (where status <> 'cancelled'), 0) as average_order_value,
               max(created_at) as last_order_at
-         from orders where customer_id = $1`,
-      [customerId],
+         from orders where customer_id = $1 and ${branchFilter("orders", "$2")}`,
+      [customerId, locationId],
     );
     const orders = row ? num(row.orders) : 0;
     const spent = row ? Number.parseFloat(str(row.spent) || "0") : 0;

@@ -79,6 +79,8 @@ function mapPgError(error: PgLikeError): ApiError {
       return { code: "CONFLICT", message: "The request conflicted with another update. Please retry." };
     case "check_violation":
       return { code: "INVALID_STATUS_TRANSITION", message: "That status change is not allowed." };
+    case "RB403": // db/migrations/0029 guard: another restaurant's or another branch's row
+      return { code: "FORBIDDEN", message: "That belongs to another branch. You can only change your own branch." };
     default:
       if (error.message?.includes("Invalid order status transition")) {
         return { code: "INVALID_STATUS_TRANSITION", message: "That status change is not allowed." };

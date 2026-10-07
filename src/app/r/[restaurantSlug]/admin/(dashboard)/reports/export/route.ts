@@ -2,7 +2,7 @@ import { jsonError } from "@/server/errors";
 import { getOrdersForExport, getSalesReport } from "@/server/services/orders";
 import { buildSalesXlsxBuffer, buildSalesPdfBuffer } from "@/server/services/report-exports";
 import { buildSalesCsv, resolveReportRange, type SalesCsvRow } from "@/shared/reports";
-import { getAdminRestaurant } from "@/web/admin";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
 
 /**
@@ -26,14 +26,15 @@ export async function GET(
   try {
     const { restaurantSlug } = await params;
     const actor = await requirePermission("analytics.view", restaurantSlug);
-    const restaurant = await getAdminRestaurant(restaurantSlug);
+    const [restaurant, { locationId, current }] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
     const url = new URL(request.url);
     const range = resolveReportRange(url.searchParams.get("preset"), url.searchParams.get("from"), url.searchParams.get("to"), restaurant.timezone);
     const format = parseFormat(url.searchParams.get("format"));
 
-    const { rows: orderRows } = await getOrdersForExport(restaurant.id, range, ctx);
+    // the same branch as the page (never a query param): a manager can only ever export their own branch
+    const { rows: orderRows } = await getOrdersForExport(restaurant.id, range, ctx, locationId);
     const rows: SalesCsvRow[] = orderRows.map((row) => ({
       orderNumber: row.orderNumber,
       createdAt: row.createdAt,
@@ -49,7 +50,8 @@ export async function GET(
       paymentMethod: row.paymentMethod,
     }));
 
-    const basename = `sales-${restaurant.slug}-${range.fromDateKey}_to_${range.toDateKey}`;
+    const branchPart = locationId && current ? `-${current.slug}` : "";
+    const basename = `sales-${restaurant.slug}${branchPart}-${range.fromDateKey}_to_${range.toDateKey}`;
 
     if (format === "xlsx") {
       const buffer = await buildSalesXlsxBuffer(rows, restaurant, range);
@@ -62,7 +64,7 @@ export async function GET(
     }
 
     if (format === "pdf") {
-      const summary = await getSalesReport(restaurant.id, range, restaurant.timezone, ctx);
+      const summary = await getSalesReport(restaurant.id, range, restaurant.timezone, ctx, locationId);
       const buffer = await buildSalesPdfBuffer(rows, restaurant, summary, range);
       return new Response(new Uint8Array(buffer), {
         headers: {

@@ -168,6 +168,13 @@ export const restaurantFeaturesSchema = z.object({
    */
   alaCarteEnabled: z.boolean().default(true),
   /**
+   * Multi-branch ordering. On: the menu asks for a delivery location first, picks the nearest branch
+   * that serves it (the customer may choose another serviceable one), shows that branch's availability
+   * and keeps the branch through cart, checkout and the order; the home page stops offering Add to cart.
+   * Off or missing: the single-location flow, exactly as before. See `shared/branching.ts`.
+   */
+  BranchingFeature: z.boolean().default(false),
+  /**
    * Customer notifications. `notifications` is the master switch; `emailNotify` / `pushNotify`
    * pick the channels. A channel is on only when BOTH the master switch and its own flag are true
    * (see shared/notification-channels.ts). Missing keys default to on, so existing restaurants keep

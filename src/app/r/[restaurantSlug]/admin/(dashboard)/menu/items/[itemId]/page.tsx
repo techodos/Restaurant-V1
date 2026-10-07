@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import { notFound } from "next/navigation";
-import { getMenuItemForAdmin, listCategoriesForAdmin } from "@/server/services/menu-admin";
+import { getItemLocationOverridesForAdmin, getMenuItemForAdmin, listCategoriesForAdmin } from "@/server/services/menu-admin";
+import { getLocations } from "@/server/services/restaurants";
 import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
 import { AddonGroupManager } from "@/components/admin/addon-group-manager";
+import { BranchAvailabilityManager } from "@/components/admin/branch-availability-manager";
 import { MenuItemForm } from "@/components/admin/menu-item-form";
 import { VariantManager } from "@/components/admin/variant-manager";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -17,15 +19,17 @@ export const metadata: Metadata = { title: "Edit item" };
 
 export default async function EditMenuItemPage({ params }: EditItemPageProps) {
   const { restaurantSlug, itemId } = await params;
-  const actor = await requirePermission("menu.manage", restaurantSlug);
+  const actor = await requireAdminPage("menu.manage", restaurantSlug, { restaurantWide: true }); // the shared menu: owner/admin
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
-  const [item, categories] = await Promise.all([
+  const [item, categories, locations] = await Promise.all([
     getMenuItemForAdmin(restaurant.id, itemId, ctx),
     listCategoriesForAdmin(restaurant.id, ctx),
+    getLocations(restaurant.id, { activeOnly: true }),
   ]);
   if (!item) notFound();
+  const overrides = locations.length > 1 ? await getItemLocationOverridesForAdmin(itemId, ctx) : new Map<string, boolean>();
 
   return (
     <div className="space-y-8">
@@ -38,6 +42,16 @@ export default async function EditMenuItemPage({ params }: EditItemPageProps) {
         <p className="mb-3 text-sm text-[var(--color-muted-ink)]">Optional. Leave empty if this item has one fixed price.</p>
         <VariantManager menuItemId={item.id} variants={item.variants} />
       </section>
+
+      {locations.length > 1 && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Branch availability</h2>
+          <p className="mb-3 text-sm text-[var(--color-muted-ink)]">
+            Off at a branch means it can&apos;t be ordered from that branch, even though it stays on the restaurant-wide menu above.
+          </p>
+          <BranchAvailabilityManager menuItemId={item.id} locations={locations} overrides={Object.fromEntries(overrides)} />
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Add-on groups</h2>

@@ -102,6 +102,7 @@ export function FeaturesSection({ features, readOnly }: { features: RestaurantFe
     { key: "onlinePayments", label: "Online payments" },
     { key: "notifications", label: "Notifications" },
     { key: "alaCarteEnabled", label: "A la carte menu (off = buffet packages only)" },
+    { key: "BranchingFeature", label: "Multi-branch ordering (location and branch before cart)" },
   ];
 
   return (

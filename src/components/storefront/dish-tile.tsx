@@ -4,7 +4,7 @@ import { formatMoney } from "@/shared/money";
 import { resolveMenuImage } from "@/web/media";
 import type { MenuItemSummary } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
-import { QuickAddButton } from "./quick-add-button";
+import { BranchReadyQuickAdd, QuickAddButton } from "./quick-add-button";
 import { SpiceLevel } from "./spice-level";
 
 interface DishTileProps {
@@ -21,6 +21,13 @@ interface DishTileProps {
   layout?: "card" | "row";
   /** larger type for signature placements */
   size?: "md" | "lg";
+  /**
+   * Multi-branch ordering, outside the menu (home page sections): the tile opens the Menu page at this
+   * dish's category, and the add control appears only once the customer's branch is chosen.
+   */
+  browseOnly?: boolean;
+  /** switched off at the customer's chosen branch (the item itself is still on the menu elsewhere) */
+  offAtBranch?: boolean;
 }
 
 /**
@@ -36,12 +43,20 @@ export function DishTile({
   orderType,
   layout = "card",
   size = "md",
+  browseOnly = false,
+  offAtBranch = false,
 }: DishTileProps) {
+  if (offAtBranch) item = { ...item, isAvailable: false };
   const image = resolveMenuImage(item.imageUrl, item.categorySlug);
-  const href = `/r/${restaurantSlug}/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
+  const href = browseOnly
+    ? `/r/${restaurantSlug}/menu${item.categorySlug ? `#${item.categorySlug}` : ""}`
+    : `/r/${restaurantSlug}/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
+  // the dish sheet opens over the page (no scroll); a jump to the menu chapter must scroll to its anchor
+  const linkProps = browseOnly ? {} : { scroll: false as const };
   const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: false });
+  const AddControl = browseOnly ? BranchReadyQuickAdd : QuickAddButton;
   const add = (
-    <QuickAddButton
+    <AddControl
       restaurantSlug={restaurantSlug}
       item={{
         id: item.id,
@@ -60,7 +75,7 @@ export function DishTile({
   );
   const badge = !item.isAvailable ? (
     <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/75 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white backdrop-blur">
-      Sold out today
+      {offAtBranch ? "Not at this branch" : "Sold out today"}
     </span>
   ) : item.compareAtPrice ? (
     <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-[var(--color-brand-accent)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-accent-foreground)]">
@@ -89,7 +104,7 @@ export function DishTile({
         <div className="min-w-0">
           <div className="flex items-baseline gap-3">
             <h3 className="min-w-0 font-[family-name:var(--font-display)] text-[1.2rem] leading-snug md:text-[1.3rem]">
-              <Link href={href} scroll={false} className="transition-colors duration-200 hover:text-[var(--color-brand-accent)]">
+              <Link href={href} {...linkProps} className="transition-colors duration-200 hover:text-[var(--color-brand-accent)]">
                 {item.name}
               </Link>
             </h3>
@@ -107,7 +122,7 @@ export function DishTile({
         <div className="relative size-24 shrink-0 sm:size-28">
           <Link
             href={href}
-            scroll={false}
+            {...linkProps}
             tabIndex={-1}
             aria-hidden
             className="plate block !aspect-square size-full"
@@ -138,7 +153,7 @@ export function DishTile({
       className="group flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] transition-[border-color,box-shadow,transform] duration-300 [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:shadow-[var(--shadow-card)]"
     >
       <div className="plate reveal-plate !rounded-none">
-        <Link href={href} scroll={false} tabIndex={-1} aria-hidden className="absolute inset-0">
+        <Link href={href} {...linkProps} tabIndex={-1} aria-hidden className="absolute inset-0">
           {image ? (
             <Image
               src={image}
@@ -159,7 +174,7 @@ export function DishTile({
 
       <div className="flex flex-1 flex-col p-4 md:p-5">
         <h3 className={cn("font-semibold leading-snug", size === "lg" ? "text-[1.05rem]" : "text-[15px]")} style={{ fontFamily: "var(--font-sans)" }}>
-          <Link href={href} scroll={false} className="transition-colors duration-200 hover:text-[var(--color-brand)]">
+          <Link href={href} {...linkProps} className="transition-colors duration-200 hover:text-[var(--color-brand)]">
             {item.name}
           </Link>
         </h3>

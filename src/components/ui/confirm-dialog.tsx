@@ -27,12 +27,17 @@ interface ConfirmOptions {
  *   return <>{dialog}...</>
  *
  * One instance per component; `confirm()` can be called again once the previous promise has settled.
+ * Used by the admin's delete actions and the storefront's branch switch.
  */
 export function useConfirm() {
   const [state, setState] = useState<(ConfirmOptions & { open: boolean }) | null>(null);
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
+  // Mounted inside `.theme-root` (like Sheet) so the restaurant's theme variables — fonts, radius,
+  // colours — apply; a portal on <body> sits outside them and falls back to browser defaults.
+  const [container, setContainer] = useState<HTMLElement | null>(null);
 
   const confirm = useCallback((options: ConfirmOptions) => {
+    setContainer(document.querySelector<HTMLElement>(".theme-root"));
     return new Promise<boolean>((resolve) => {
       resolveRef.current = resolve;
       setState({ ...options, open: true });
@@ -52,7 +57,7 @@ export function useConfirm() {
         if (!open) settle(false);
       }}
     >
-      <AlertDialog.Portal>
+      <AlertDialog.Portal container={container ?? undefined}>
         <AlertDialog.Overlay className="animate-overlay fixed inset-0 z-50 bg-[color-mix(in_srgb,var(--color-ink)_45%,transparent)] backdrop-blur-sm" />
         <AlertDialog.Content className="animate-dialog fixed left-1/2 top-1/2 z-50 w-[min(23rem,calc(100vw-2rem))] rounded-[var(--radius-panel)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-raised)] focus:outline-none sm:p-6">
           <div className="flex items-start gap-3.5">

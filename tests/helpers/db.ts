@@ -14,6 +14,7 @@ export const BELLA = {
   zoneGulberg: "55555555-5555-4555-8555-555555550001",
   categoryPizza: "44444444-4444-4444-8444-444444440002",
   userOwner: "22222222-2222-4222-8222-222222220001",
+  userManager: "22222222-2222-4222-8222-222222220003",
   userChef: "22222222-2222-4222-8222-222222220004",
   memberOwner: "33333333-3333-4333-8333-333333330001",
 } as const;
@@ -33,11 +34,18 @@ export const OWNER: RequestContext = {
   actor: "Imran Chaudhry",
 };
 
-/** Context for a kitchen staff member (limited permissions). */
+/** Context for a kitchen staff member, branch-scoped to DHA (limited permissions). */
 export const CHEF: RequestContext = {
   userId: BELLA.userChef,
   restaurantId: BELLA.restaurantId,
   actor: "Shahid Mehmood",
+};
+
+/** Context for the branch manager, scoped to Gulberg only. */
+export const MANAGER: RequestContext = {
+  userId: BELLA.userManager,
+  restaurantId: BELLA.restaurantId,
+  actor: "Kamran Yousuf",
 };
 
 /** Context for the competing restaurant's owner. */

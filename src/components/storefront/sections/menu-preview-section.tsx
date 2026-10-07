@@ -46,6 +46,7 @@ export async function MenuPreviewSection({
             <DishTile
               item={item}
               restaurantSlug={context.restaurant.slug}
+              browseOnly={context.restaurant.features.BranchingFeature}
               currencySymbol={context.restaurant.currencySymbol}
               locale={context.restaurant.locale}
             />

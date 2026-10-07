@@ -8,10 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label } from "@/components/ui/input";
 import { deleteLocationAction, saveLocationAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/locations/actions";
-import { useConfirm } from "@/components/admin/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { RestaurantLocation } from "@/shared/contract/models";
+import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
 
-function LocationEditForm({ location, onCancel }: { location?: RestaurantLocation; onCancel: () => void }) {
+/** Google Maps for the branch pin; null = no key configured (the pin is then simply not editable here). */
+export type AdminMaps = { apiKey: string; country: string } | null;
+
+function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantLocation; maps: AdminMaps; onCancel: () => void }) {
   const [name, setName] = useState(location?.name ?? "");
   const [addressLine1, setAddressLine1] = useState(location?.addressLine1 ?? "");
   const [area, setArea] = useState(location?.area ?? "");
@@ -20,6 +24,16 @@ function LocationEditForm({ location, onCancel }: { location?: RestaurantLocatio
   const [email, setEmail] = useState(location?.email ?? "");
   const [isActive, setIsActive] = useState(location?.isActive ?? true);
   const [isPrimary, setIsPrimary] = useState(location?.isPrimary ?? false);
+  const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(
+    location?.latitude != null && location.longitude != null ? { latitude: location.latitude, longitude: location.longitude } : null,
+  );
+  function handlePin(resolved: ResolvedLocation) {
+    setPin({ latitude: resolved.latitude, longitude: resolved.longitude });
+    // fill only what is still empty: never overwrite what staff typed
+    if (!addressLine1.trim() && resolved.addressLine1) setAddressLine1(resolved.addressLine1);
+    if (!area.trim() && resolved.area) setArea(resolved.area);
+    if (!city.trim() && resolved.city) setCity(resolved.city);
+  }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -27,7 +41,7 @@ function LocationEditForm({ location, onCancel }: { location?: RestaurantLocatio
   function submit(event: React.FormEvent) {
     event.preventDefault();
     setErrors({});
-    const payload = { id: location?.id, name, addressLine1, area, city, phone, email, isActive, isPrimary };
+    const payload = { id: location?.id, name, addressLine1, area, city, phone, email, isActive, isPrimary, ...(pin ?? {}) };
     startTransition(() => {
       saveLocationAction(payload).then((result) => {
         if (!result.success) {
@@ -67,9 +81,21 @@ function LocationEditForm({ location, onCancel }: { location?: RestaurantLocatio
         </div>
         <div>
           <Label htmlFor="locCity">City</Label>
-          <Input id="locCity" value={city} onChange={(event) => setCity(event.target.value)} />
+          <Input id="locCity" value={city} onChange={(event) => setCity(event.target.value)} required />
+          <FieldError>{errors.city}</FieldError>
         </div>
       </div>
+      {maps ? (
+        <div>
+          <Label>Location on the map</Label>
+          <p className="mb-2 text-xs text-[var(--color-muted-ink)]">
+            {pin
+              ? `Pinned at ${pin.latitude.toFixed(5)}, ${pin.longitude.toFixed(5)}. Customers see their distance from here; a delivery radius is measured from it.`
+              : "Not pinned yet: search the address or drag the pin. Needed for distances and for a delivery radius."}
+          </p>
+          <LocationPicker apiKey={maps.apiKey} country={maps.country} initialCenter={pin ?? undefined} onResolve={handlePin} />
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="locPhone">Phone</Label>
@@ -105,7 +131,7 @@ function LocationEditForm({ location, onCancel }: { location?: RestaurantLocatio
   );
 }
 
-export function LocationManager({ locations, canManage }: { locations: RestaurantLocation[]; canManage: boolean }) {
+export function LocationManager({ locations, canManage, maps = null }: { locations: RestaurantLocation[]; canManage: boolean; maps?: AdminMaps }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -134,7 +160,7 @@ export function LocationManager({ locations, canManage }: { locations: Restauran
       {dialog}
       {locations.map((location) =>
         canManage && editingId === location.id ? (
-          <LocationEditForm key={location.id} location={location} onCancel={() => setEditingId(null)} />
+          <LocationEditForm key={location.id} location={location} maps={maps} onCancel={() => setEditingId(null)} />
         ) : (
           <div
             key={location.id}
@@ -176,7 +202,7 @@ export function LocationManager({ locations, canManage }: { locations: Restauran
 
       {canManage ? (
         adding ? (
-          <LocationEditForm onCancel={() => setAdding(false)} />
+          <LocationEditForm maps={maps} onCancel={() => setAdding(false)} />
         ) : (
           <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
             <Plus className="size-4" aria-hidden /> Add location

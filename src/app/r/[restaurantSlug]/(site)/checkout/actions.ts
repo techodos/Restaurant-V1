@@ -7,6 +7,7 @@ import { action } from "@/server/errors";
 import { placeOrder, type PlaceOrderResult } from "@/server/services/checkout";
 import { dispatchDueNotifications } from "@/server/services/notifications";
 import { assertCanPlaceOrder } from "@/server/services/customer-auth";
+import { rememberCheckoutAddress } from "@/server/services/customer-profile";
 import { placeOrderSchema } from "@/server/validation/checkout";
 import { getVisitorContext } from "@/web/session";
 import { clearTray, readTray, requireStorefront } from "@/web/storefront";
@@ -37,6 +38,8 @@ export async function placeOrderAction(slug: string, payload: unknown): Promise<
     // for a placed order; the confirmation email is sent when staff confirm it. Draining the
     // outbox here just closes the "placed" event after the response; it never affects the result.
     after(() => dispatchDueNotifications({ restaurantId: restaurant.id }, { restaurantId: restaurant.id }));
+    // "Save this address for next time": after the response, outside the order transaction; never fails the order
+    if (input.saveAddressAs) after(() => rememberCheckoutAddress(restaurant, visitor, input));
     return result;
   });
 }

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Label, Textarea } from "@/components/ui/input";
 import { useLocalCart } from "./local-cart";
+import { useBranching } from "./branching";
 import { formatMoney } from "@/shared/money";
 import { ORDER_TYPES } from "@/shared/contract/enums";
 import type { MenuItem } from "@/shared/contract/models";
@@ -60,6 +61,11 @@ export function ItemCustomizer({
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { cart, addLine, setOrderType } = useLocalCart();
+  // Multi-branch ordering (feature off: gate is always "ok" and nothing is off anywhere)
+  const branching = useBranching();
+  const gate = branching.gate(orderType);
+  const offHere = branching.isOffHere(item.id);
+  const orderable = item.isAvailable && !offHere;
 
   const variant = item.variants.find((candidate) => candidate.id === variantId) ?? null;
 
@@ -109,8 +115,14 @@ export function ItemCustomizer({
   }
 
   function addToCart() {
-    if (!item.isAvailable) {
-      toast.error("That item is not available right now.");
+    if (!orderable) {
+      toast.error(offHere ? "That item is not available at this branch." : "That item is not available right now.");
+      return;
+    }
+    // a branch that serves the customer comes first: lead to the missing step instead of adding
+    if (gate !== "ok") {
+      if (gate === "no-service") toast.error("Delivery is not available at this location.", { description: "Change the location to order." });
+      else branching.resolveGate(orderType);
       return;
     }
     if (!validate()) {
@@ -312,18 +324,24 @@ export function ItemCustomizer({
             size="lg"
             data-testid="add-to-cart"
             onClick={addToCart}
-            disabled={!item.isAvailable}
+            disabled={!orderable || gate === "no-service"}
             className="h-12 min-w-0 flex-1 justify-between gap-2 rounded-full px-4 sm:px-5"
           >
             <span className="flex items-center gap-2">
               <ShoppingBag aria-hidden />
-              {item.isAvailable ? (
+              {!orderable ? (
+                offHere ? "Not at this branch" : "Unavailable"
+              ) : gate === "need-location" ? (
+                "Choose location"
+              ) : gate === "need-branch" ? (
+                "Choose branch"
+              ) : gate === "no-service" ? (
+                "No delivery here"
+              ) : (
                 <>
                   <span className="sm:hidden">Add</span>
                   <span className="hidden sm:inline">Add to cart</span>
                 </>
-              ) : (
-                "Unavailable"
               )}
             </span>
             <span className="tabular font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale })}</span>

@@ -8,6 +8,6 @@ export function listPaymentsForAdmin(
   restaurantId: string,
   filters: PaymentListFilters,
   ctx: RequestContext,
-): Promise<Paginated<Payment & { orderNumber: string; customerName: string }>> {
+): Promise<Paginated<Payment & { orderNumber: string; customerName: string; locationName: string | null }>> {
   return listPayments(restaurantId, filters, ctx);
 }

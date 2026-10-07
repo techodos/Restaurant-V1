@@ -1,16 +1,18 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
 import { isSupportedCountry } from "libphonenumber-js";
 import { getCustomerProfile } from "@/server/services/customer-profile";
-import { readTrayView, requireStorefront } from "@/web/storefront";
+import { getBranching, readTrayView, requireStorefront } from "@/web/storefront";
+import { branchesFor } from "@/shared/branching";
 import { priceTray, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
 import { getDeliveryZones } from "@/server/services/restaurants";
 import { config } from "@/server/config";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
+import { resolveMenuImage } from "@/web/media";
 import { Button } from "@/components/ui/button";
 import { signInHref } from "@/shared/return-to";
 
@@ -40,6 +42,12 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const { tray, view } = await readTrayView(context);
   if (view.lines.length === 0) redirect(`/r/${restaurant.slug}/menu`);
 
+  // Multi-branch ordering: checkout continues the branch chosen on the menu. Without a branch that can
+  // serve this order there is nothing to check out yet — the menu's bar says what is missing.
+  const branching = await getBranching(context);
+  const branch = branching ? (branchesFor(branching, tray.orderType).find((option) => option.id === tray.locationId) ?? null) : null;
+  if (branching && !branch) redirect(`/r/${restaurant.slug}/menu`);
+
   const availability = serviceAvailability(restaurant, primaryLocation, tray.orderType);
   const zones =
     tray.orderType === "delivery"
@@ -60,6 +68,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   if (!pricingResult.pricing || pricingResult.blockers.length > 0 || !availability.acceptsOrders) {
     const reason = pricingResult.blockers[0] ?? availability.message;
     return (
+      <div>
       <div className="container-page py-16">
         <div className="mx-auto max-w-lg text-center">
           <p className="eyebrow mb-4 justify-center">Checkout</p>
@@ -75,52 +84,76 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           </div>
         </div>
       </div>
+      </div>
     );
   }
 
   const pricing = pricingResult.pricing;
 
+  const steps = [
+    { label: "Cart", state: "done" },
+    { label: "Checkout", state: "current" },
+    { label: "Tracking", state: "upcoming" },
+  ] as const;
+
   return (
-    <div className="container-page pb-12 pt-6 md:pb-16 md:pt-10">
-      <header className="border-b border-[var(--rule)] pb-6">
-        <Link
-          href={`/r/${restaurant.slug}/cart`}
-          className="group mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
-        >
-          <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden />
-          Back to cart
-        </Link>
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <p className="eyebrow mb-3">Almost there</p>
-            <h1 className="display-1">Checkout</h1>
-            <p className="tabular mt-3 text-[15px] text-[var(--color-muted-ink)]">
-              {view.itemCount} item{view.itemCount === 1 ? "" : "s"} from {restaurant.name}
-            </p>
-          </div>
-          <ol aria-label="Order progress" className="flex items-center gap-2 text-[13px] font-medium">
-            <li className="text-[var(--color-muted-ink)]">Cart</li>
-            <li aria-hidden className="h-px w-6 bg-[var(--rule-strong)]" />
-            <li aria-current="step" className="text-[var(--color-ink)]">Checkout</li>
-            <li aria-hidden className="h-px w-6 bg-[var(--rule-strong)]" />
-            <li className="text-[var(--color-muted-ink)]">Tracking</li>
-          </ol>
+    <div>
+    <div className="container-page pb-12 pt-6 md:pb-20 md:pt-10">
+      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-6 border-b border-[var(--rule)] pb-6 md:pb-8">
+        <div>
+          <Link
+            href={`/r/${restaurant.slug}/cart`}
+            className="group mb-5 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-brand)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--color-brand)]"
+          >
+            <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+            Back to cart
+          </Link>
+          <h1 className="display-2 font-normal">
+            Checkout
+          </h1>
+          <p className="mt-3 text-[15px] text-[var(--color-muted-ink)]">Complete your order and enjoy a delightful meal!</p>
         </div>
+        <ol aria-label="Order progress" className="flex items-center gap-2.5 text-[13px] font-medium">
+          {steps.map((step, index) => (
+            <li key={step.label} className="flex items-center gap-2.5" aria-current={step.state === "current" ? "step" : undefined}>
+              {index > 0 ? (
+                <span aria-hidden className={`h-px w-6 sm:w-10 ${step.state === "upcoming" ? "bg-[var(--rule-strong)]" : "bg-[var(--color-brand-accent)]"}`} />
+              ) : null}
+              <span
+                aria-hidden
+                className={
+                  step.state === "done"
+                    ? "grid size-6 place-items-center rounded-full bg-[var(--color-brand-accent)] text-[var(--color-brand-accent-foreground)]"
+                    : step.state === "current"
+                      ? "grid size-6 place-items-center rounded-full bg-[var(--color-brand)] text-[11px] text-[var(--color-brand-foreground)] tabular"
+                      : "grid size-6 place-items-center rounded-full border border-[var(--rule-strong)] text-[11px] text-[var(--color-muted-ink)] tabular"
+                }
+              >
+                {step.state === "done" ? <Check className="size-3.5" strokeWidth={2.5} /> : index + 1}
+              </span>
+              <span className={step.state === "current" ? "text-[var(--color-ink)]" : "text-[var(--color-muted-ink)]"}>
+                {step.label}
+                {step.state === "done" ? <span className="sr-only"> (completed)</span> : null}
+              </span>
+            </li>
+          ))}
+        </ol>
       </header>
 
       {pricingResult.couponNotice ? (
-        <p role="status" className="mt-6 rounded-[var(--radius-card)] bg-[var(--steel-2)] p-3.5 text-sm text-[var(--color-muted-ink)]">
+        <p role="status" className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--brand-tint)] p-3.5 text-sm text-[var(--color-ink)]">
           {pricingResult.couponNotice}
         </p>
       ) : null}
 
-      <div className="mt-8">
+      <div className="mt-8 md:mt-10">
         <CheckoutForm
           restaurantSlug={restaurant.slug}
           orderType={tray.orderType}
           orderTypeOptions={orderTypeOptions}
           items={view.lines.map((line) => ({
             name: line.name,
+            imageUrl: resolveMenuImage(line.imageUrl, null),
             quantity: line.line.quantity,
             variantName: line.variantName,
             addonNames: line.addons.map((addon) => addon.name),
@@ -160,9 +193,11 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
           locations={locations}
           initialLocationId={tray.locationId}
+          branch={branch ? { name: branch.name, menuHref: `/r/${restaurant.slug}/menu`, destination: branching?.destination ?? null } : null}
           googleMapsApiKey={config.maps?.apiKey ?? null}
         />
       </div>
+    </div>
     </div>
   );
 }

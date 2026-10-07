@@ -9,7 +9,7 @@ export function SpiceLevel({ level, className }: { level: number; className?: st
     <span
       role="img"
       aria-label={`Spice level ${value} of 3`}
-      className={cn("inline-flex items-center gap-px text-[#c2410c]", className)}
+      className={cn("inline-flex items-center gap-px text-[var(--color-warning)]", className)}
     >
       {Array.from({ length: 3 }, (_, index) => (
         <Flame key={index} aria-hidden className={cn("size-3.5", index < value ? "fill-current" : "opacity-25")} />

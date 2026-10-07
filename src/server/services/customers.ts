@@ -17,13 +17,16 @@ export function getCustomerForAdmin(customerId: string, ctx: RequestContext): Pr
   return getCustomerById(customerId, ctx);
 }
 
+// Customers are restaurant-wide records; their orders are branch data, so stats and history take the
+// admin's branch scope (null = every branch).
 export function getCustomerStatsForAdmin(
   customerId: string,
   ctx: RequestContext,
+  locationId: string | null = null,
 ): Promise<{ orders: number; spent: string; averageOrderValue: string; lastOrderAt: string | null }> {
-  return getCustomerStats(customerId, ctx);
+  return getCustomerStats(customerId, ctx, locationId);
 }
 
-export function getCustomerOrderHistory(customerId: string, ctx: RequestContext, limit = 20): Promise<OrderSummary[]> {
-  return listCustomerOrders(customerId, ctx, limit);
+export function getCustomerOrderHistory(customerId: string, ctx: RequestContext, limit = 20, locationId: string | null = null): Promise<OrderSummary[]> {
+  return listCustomerOrders(customerId, ctx, limit, locationId);
 }

@@ -21,6 +21,8 @@ const { db } = vi.hoisted(() => ({
     couponEligibleEmails: [] as string[],
     customer: {} as Record<string, unknown>,
     phoneTaken: false,
+    /** restaurants.features.BranchingFeature */
+    branching: false,
   },
 }));
 
@@ -59,11 +61,12 @@ function answer(sql: string, params: readonly unknown[] = []): Record<string, un
     return [{
       restaurant: {
         id: RESTAURANT, name: "Bella", slug: "bella", status: "active", currency: "PKR", timezone: "Asia/Karachi",
-        features: { onlineOrdering: true, delivery: true, pickup: true, coupons: true }, settings: {},
+        features: { onlineOrdering: true, delivery: true, pickup: true, coupons: true, BranchingFeature: db.branching }, settings: {},
       },
+      branch: params[4] ? { id: params[4], city: "Islamabad", is_active: true } : null,
       customer: params[1] ? db.customer : null,
       menu: ids.filter((id) => id === PIZZA || id === TEA).map(menuRow),
-      zones: params[3] ? [{ id: "zone-1", restaurant_id: RESTAURANT, name: "F-7", areas: ["F-7"], delivery_fee: 150, min_order_amount: 0, is_active: true }] : null,
+      zones: params[3] ? [{ id: "zone-1", restaurant_id: RESTAURANT, location_id: "branch-1", branch_city: "Islamabad", name: "F-7", areas: ["F-7"], delivery_fee: 150, min_order_amount: 0, is_active: true }] : null,
       coupon:
         params[5] === "SAVE10"
           ? { id: "coupon-1", restaurant_id: RESTAURANT, code: "SAVE10", discount_type: "percentage", discount_value: 10, min_order_amount: 0, applies_to: "order", order_types: [], is_active: true, used_count: 0, phone_usage: 0, eligible_emails: db.couponEligibleEmails, eligible_phones: [] }
@@ -134,6 +137,7 @@ describe("createOrder — the single order transaction", () => {
     db.phoneTaken = false;
     db.teaIsBuffet = false;
     db.couponEligibleEmails = [];
+    db.branching = false;
     db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
   });
 
@@ -257,5 +261,39 @@ describe("createOrder — the single order transaction", () => {
   it("refuses an empty tray without opening a transaction", async () => {
     await expect(createOrder(input(0), {})).rejects.toMatchObject({ code: "CART_EMPTY" });
     expect(db.transactions).toBe(0);
+  });
+});
+
+describe("createOrder — the order always has the branch that cooks it", () => {
+  const delivery = { orderType: "delivery" as const, paymentMethod: "cash_on_delivery" as const, address: { line1: "House 1", area: "F-7", city: "Islamabad" } };
+  beforeEach(() => {
+    db.transactions = 0;
+    db.statements = [];
+    db.branching = false;
+    db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
+  });
+  const orderInsert = () => statementsMatching(/^\s*insert into orders/i)[0];
+
+  it("multi-branch ordering: refuses an order whose cart names no branch (stale / edited cookie), whatever the order type", async () => {
+    db.branching = true;
+    await expect(createOrder(input(1, { ...delivery, locationId: null }), { restaurantId: RESTAURANT })).rejects.toMatchObject({ code: "BRANCH_UNAVAILABLE" });
+    await expect(createOrder(input(1, { locationId: null }), { restaurantId: RESTAURANT })).rejects.toMatchObject({ code: "BRANCH_UNAVAILABLE" });
+    expect(orderInsert()).toBeUndefined();
+  });
+
+  it("multi-branch ordering: the named branch is the order's branch", async () => {
+    db.branching = true;
+    await createOrder(input(1, { ...delivery, locationId: "branch-1" }), { restaurantId: RESTAURANT });
+    expect(orderInsert()!.params[1]).toBe("branch-1");
+  });
+
+  it("no branch named (single-location restaurant): a delivery records the branch whose zone delivers it, never null", async () => {
+    await createOrder(input(1, { ...delivery, locationId: null }), { restaurantId: RESTAURANT });
+    expect(orderInsert()!.params[1]).toBe("branch-1");
+  });
+
+  it("no branch named and not delivery: unchanged (no branch to infer)", async () => {
+    await createOrder(input(1, { locationId: null }), { restaurantId: RESTAURANT });
+    expect(orderInsert()!.params[1]).toBeNull();
   });
 });

@@ -113,11 +113,13 @@ await query(
   ],
 );
 
+// owner/admin are HQ roles (location_id null → RLS lets them see every branch); manager/chef
+// are assigned to one branch each so branch-scoped RLS has something real to prove in tests.
 const staff = [
-  { id: IDS.userOwner, member: IDS.memberOwner, email: "owner@bellanapoli.pk", name: "Imran Chaudhry", role: "owner", password: "BellaNapoli#1", phone: "+92 300 1112223" },
-  { id: IDS.userAdmin, member: IDS.memberAdmin, email: "admin@bellanapoli.pk", name: "Nida Farooq", role: "admin", password: "BellaNapoli#2", phone: "+92 300 1112224" },
-  { id: IDS.userManager, member: IDS.memberManager, email: "manager@bellanapoli.pk", name: "Kamran Yousuf", role: "manager", password: "BellaNapoli#3", phone: "+92 300 1112225" },
-  { id: IDS.userChef, member: IDS.memberChef, email: "chef@bellanapoli.pk", name: "Shahid Mehmood", role: "staff", password: "BellaNapoli#4", phone: "+92 300 1112226" },
+  { id: IDS.userOwner, member: IDS.memberOwner, email: "owner@bellanapoli.pk", name: "Imran Chaudhry", role: "owner", password: "BellaNapoli#1", phone: "+92 300 1112223", locationId: null },
+  { id: IDS.userAdmin, member: IDS.memberAdmin, email: "admin@bellanapoli.pk", name: "Nida Farooq", role: "admin", password: "BellaNapoli#2", phone: "+92 300 1112224", locationId: null },
+  { id: IDS.userManager, member: IDS.memberManager, email: "manager@bellanapoli.pk", name: "Kamran Yousuf", role: "manager", password: "BellaNapoli#3", phone: "+92 300 1112225", locationId: IDS.locationGulberg },
+  { id: IDS.userChef, member: IDS.memberChef, email: "chef@bellanapoli.pk", name: "Shahid Mehmood", role: "staff", password: "BellaNapoli#4", phone: "+92 300 1112226", locationId: IDS.locationDha },
 ];
 for (const person of staff) {
   await query(
@@ -129,7 +131,7 @@ for (const person of staff) {
     `insert into team_members
        (id, restaurant_id, user_id, location_id, email, full_name, phone, role, permissions, is_active, accepted_at, last_login_at)
      values ($1,$2,$3,$4,$5,$6,$7,$8::team_role,'{}'::jsonb,true, now(), now() - interval '2 hours')`,
-    [person.member, IDS.restaurant, person.id, IDS.locationGulberg, person.email, person.name, person.phone, person.role],
+    [person.member, IDS.restaurant, person.id, person.locationId, person.email, person.name, person.phone, person.role],
   );
 }
 

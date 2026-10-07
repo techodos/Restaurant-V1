@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Plus } from "lucide-react";
+import { Check, MapPin, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/shared/utils";
 import { useLocalCart } from "./local-cart";
+import { useBranching } from "./branching";
 import { flyToTray } from "@/components/motion/fly-to-tray";
 
 interface QuickAddButtonProps {
@@ -33,12 +34,48 @@ const IDLE = "bg-[var(--brand-surface,#fff)] text-[var(--brand-foreground,#1a1a1
  * there instantly, no request at all; a dish with required choices opens its sheet instead, where a
  * chosen variant/add-ons need the same validation the sheet already mirrors.
  */
+/**
+ * Home-page tiles with multi-branch ordering: no add control until the customer's branch is known (the
+ * header's branch pill), then the normal one — never for a dish switched off at that branch.
+ */
+export function BranchReadyQuickAdd(props: QuickAddButtonProps) {
+  const branching = useBranching();
+  if (!branching.canOrder(props.orderType) || branching.isOffHere(props.item.id)) return null;
+  return <QuickAddButton {...props} />;
+}
+
 export function QuickAddButton({ restaurantSlug, item, orderType, compact = false }: QuickAddButtonProps) {
   const size = compact ? "size-9 [&_svg]:size-4" : "size-11 [&_svg]:size-5";
   const { addLine } = useLocalCart();
   const [added, setAdded] = useState(false);
+  const branching = useBranching();
 
   if (!item.isAvailable) return null;
+
+  // Multi-branch ordering: nothing can be added until a branch that serves the customer is known.
+  // The control stays in place and leads to the step that is missing; with no branch serving the
+  // address it is switched off (the menu's bar explains why and offers "Change location").
+  const gate = branching.gate(orderType);
+  if (gate !== "ok") {
+    const noService = gate === "no-service";
+    const hint = noService
+      ? "Delivery is not available at this location"
+      : gate === "need-branch"
+        ? `Choose a branch to order ${item.name}`
+        : `Choose your delivery location to order ${item.name}`;
+    return (
+      <button
+        type="button"
+        aria-label={hint}
+        title={hint}
+        aria-disabled={noService || undefined}
+        onClick={() => (noService ? undefined : branching.resolveGate(orderType))}
+        className={cn(ROUND, size, IDLE, noService ? "cursor-not-allowed opacity-45 hover:scale-100" : "opacity-80")}
+      >
+        {noService ? <Plus aria-hidden /> : <MapPin aria-hidden />}
+      </button>
+    );
+  }
 
   if (item.requiresSelection) {
     return (

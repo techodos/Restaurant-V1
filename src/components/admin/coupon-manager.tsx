@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { deleteCouponAction, saveCouponAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/coupons/actions";
-import { useConfirm } from "@/components/admin/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { COUPON_DISCOUNT_TYPES, ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import type { Coupon } from "@/shared/contract/models";
 
@@ -182,9 +182,12 @@ function CouponEditForm({ coupon, onCancel }: CouponEditFormProps) {
 export function CouponManager({
   coupons,
   usage,
+  canManage = true,
 }: {
   coupons: Coupon[];
   usage: Record<string, { orders: number; discount: string }>;
+  /** false = read-only list (coupons apply to every branch: owner/admin edit them) */
+  canManage?: boolean;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -245,6 +248,7 @@ export function CouponManager({
                 );
               })()}
             </div>
+            {canManage ? (
             <div className="flex items-center gap-1">
               <Button size="icon" variant="ghost" onClick={() => setEditingId(coupon.id)} aria-label="Edit coupon">
                 <Pencil className="size-4" aria-hidden />
@@ -259,11 +263,12 @@ export function CouponManager({
                 {deletingId === coupon.id ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
               </Button>
             </div>
+            ) : null}
           </div>
         ),
       )}
 
-      {adding ? (
+      {!canManage ? null : adding ? (
         <CouponEditForm onCancel={() => setAdding(false)} />
       ) : (
         <Button variant="outline" size="sm" onClick={() => setAdding(true)}>

@@ -6,7 +6,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { deleteMenuItemAction, toggleItemAvailabilityAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/actions";
-import { useConfirm } from "@/components/admin/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function ItemRowActions({ itemId, isAvailable }: { itemId: string; isAvailable: boolean }) {
   const [pending, startTransition] = useTransition();

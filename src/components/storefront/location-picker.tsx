@@ -33,7 +33,7 @@ interface LocationPickerProps {
 // still come from `google.maps.importLibrary()`.
 const MAPS_READY_CALLBACK = "__locationPickerMapsReady";
 let mapsLoader: Promise<typeof google> | null = null;
-function loadGoogleMaps(apiKey: string): Promise<typeof google> {
+export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
   if (!mapsLoader) {
     mapsLoader = new Promise<void>((resolve, reject) => {
       if (typeof window.google?.maps?.importLibrary === "function") return resolve();

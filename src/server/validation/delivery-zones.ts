@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { polygonProblem, type Polygon } from "@/shared/geo";
 
 const money = z
   .string()
@@ -19,5 +20,20 @@ export const deliveryZoneSchema = z.object({
   etaMaxMinutes: z.coerce.number().int().min(1).max(600).optional(),
   isActive: z.coerce.boolean().optional(),
   sortOrder: z.coerce.number().int().optional(),
+  /** how this zone decides coverage; "areas" = names only (the old behaviour) */
+  coverage: z.enum(["areas", "radius", "polygon"]).default("areas"),
+  radiusKm: z.coerce.number().min(0.2, "At least 0.2 km.").max(100, "At most 100 km.").optional(),
+  polygon: z.array(z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)])).max(200).optional(),
+}).superRefine((value, ctx) => {
+  if (value.coverage === "radius" && value.radiusKm === undefined) {
+    ctx.addIssue({ code: "custom", path: ["radiusKm"], message: "Enter the delivery radius in km." });
+  }
+  if (value.coverage === "polygon") {
+    const problem = polygonProblem((value.polygon ?? []) as Polygon);
+    if (problem) ctx.addIssue({ code: "custom", path: ["polygon"], message: problem });
+  }
+  if (value.coverage === "areas" && !(value.areas ?? []).some(Boolean) && !(value.postalCodes ?? []).some(Boolean)) {
+    ctx.addIssue({ code: "custom", path: ["areas"], message: "List at least one area or postal code, or switch to radius / map area." });
+  }
 });
 export type DeliveryZoneFormInput = z.infer<typeof deliveryZoneSchema>;

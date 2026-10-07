@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getAdminRestaurantFresh } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import {
   DeliverySettingsSection,
@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "Settings" };
 
 export default async function AdminSettingsPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("settings.view", restaurantSlug);
+  const actor = await requireAdminPage("settings.view", restaurantSlug);
   // fresh, not the 30 s admin cache: these forms save what they show
   const restaurant = await getAdminRestaurantFresh(restaurantSlug);
   const readOnly = !actor.permissions.includes("settings.manage");

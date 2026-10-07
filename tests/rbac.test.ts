@@ -34,7 +34,8 @@ describe("RBAC catalogue", () => {
     expect(can({ role: "staff" }, "menu.manage")).toBe(false);
     expect(can({ role: "staff" }, "staff.manage")).toBe(false);
     expect(can({ role: "manager" }, "menu.manage")).toBe(true);
-    expect(can({ role: "manager" }, "staff.manage")).toBe(false);
+    expect(can({ role: "manager" }, "staff.manage")).toBe(true); // own branch only (services/team.ts)
+    expect(can({ role: "manager" }, "settings.view")).toBe(false); // restaurant settings: owner/admin only
     expect(can({ role: "admin" }, "staff.manage")).toBe(true);
   });
 

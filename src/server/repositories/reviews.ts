@@ -1,14 +1,17 @@
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
-import { mapReview, num, type Row } from "@/server/db/mappers";
+import { branchFilter, mapReview, num, type Row } from "@/server/db/mappers";
 import type { RatingBreakdown, Review } from "@/shared/contract/models";
 import type { ReviewStatus } from "@/shared/contract/enums";
 import { paginate, type Paginated } from "@/shared/contract/api";
+import { errors } from "@/server/errors";
 
 export interface ReviewListFilters {
   status?: ReviewStatus | "all";
   menuItemId?: string;
   featuredOnly?: boolean;
+  /** admin branch scope: that branch's reviews + ones tied to no branch (null/undefined = every branch) */
+  locationId?: string | null;
   limit?: number;
   offset?: number;
   page?: number;
@@ -57,6 +60,10 @@ export async function listReviews(
       conditions.push(`r.menu_item_id = $${params.length}`);
     }
     if (filters.featuredOnly) conditions.push("r.is_featured");
+    if (filters.locationId) {
+      params.push(filters.locationId);
+      conditions.push(branchFilter("r", `$${params.length}`));
+    }
     const where = conditions.join(" and ");
     // the page and the total in ONE statement; only a page past the end falls back to counting
     const rows = await tx.query<Row>(
@@ -154,10 +161,14 @@ export async function moderateReview(
          is_featured = coalesce($3, is_featured),
          response = coalesce($4, response),
          responded_at = case when $4 is not null then now() else responded_at end
-       where id = $1 returning *`,
+       where id = $1
+         -- app_service (no RLS): restaurant + branch scope in the statement (see orders#updateOrderStatus)
+         and restaurant_id = coalesce(app.current_restaurant_id(), restaurant_id)
+         and app.can_access_location(restaurant_id, location_id)
+       returning *`,
       [reviewId, patch.status ?? null, patch.isFeatured ?? null, patch.response ?? null],
     );
-    if (!row) throw new Error("Review not found");
+    if (!row) throw errors.notFound("Review");
     return mapReview(row);
   });
 }

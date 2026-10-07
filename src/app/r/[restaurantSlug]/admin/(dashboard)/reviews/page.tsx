@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { listReviewsForAdmin } from "@/server/services/reviews";
 import { REVIEW_STATUS_LABELS, type ReviewStatus } from "@/shared/contract/enums";
 import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
+import { getAdminBranchScope } from "@/web/admin";
 import { RatingStars } from "@/components/storefront/rating-stars";
 import { ReviewModerationControl } from "@/components/admin/review-moderation-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -37,7 +38,7 @@ interface ReviewsPageProps {
 
 export default async function AdminReviewsPage({ params, searchParams }: ReviewsPageProps) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("reviews.view", restaurantSlug);
+  const actor = await requireAdminPage("reviews.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const { status, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
@@ -46,7 +47,8 @@ export default async function AdminReviewsPage({ params, searchParams }: Reviews
   const activeStatus = (status ?? "pending") as "pending" | "approved" | "rejected" | "all";
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
 
-  const result = await listReviewsForAdmin(restaurant.id, { status: activeStatus, page: pageNum, pageSize: 20 }, ctx);
+  const { locationId } = await getAdminBranchScope(restaurantSlug);
+  const result = await listReviewsForAdmin(restaurant.id, { status: activeStatus, locationId, page: pageNum, pageSize: 20 }, ctx);
 
   const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
