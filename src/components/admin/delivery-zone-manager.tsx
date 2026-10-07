@@ -10,6 +10,19 @@ import { FieldError, Input, Label, Select } from "@/components/ui/input";
 import { deleteDeliveryZoneAction, saveDeliveryZoneAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/delivery-zones/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
+import type { Polygon } from "@/shared/geo";
+import { cn } from "@/shared/utils";
+import { ZoneCoverageMap } from "@/components/admin/zone-coverage-map";
+
+type Coverage = "areas" | "radius" | "polygon";
+const COVERAGE_LABELS: Record<Coverage, string> = { areas: "Area names", radius: "Radius", polygon: "Draw on map" };
+
+/** How a zone decides coverage, from its stored geometry (one mode per zone). */
+function coverageOf(zone: DeliveryZone | undefined): Coverage {
+  if (zone?.polygon) return "polygon";
+  if (zone?.radiusKm != null) return "radius";
+  return "areas";
+}
 
 function splitList(value: string): string[] {
   return value
@@ -21,10 +34,13 @@ function splitList(value: string): string[] {
 function ZoneEditForm({
   zone,
   locations,
+  mapsKey,
   onCancel,
 }: {
   zone?: DeliveryZone;
   locations: RestaurantLocation[];
+  /** Google Maps key; without one only area names can be used */
+  mapsKey: string | null;
   onCancel: () => void;
 }) {
   const [locationId, setLocationId] = useState(zone?.locationId ?? locations[0]?.id ?? "");
@@ -37,6 +53,11 @@ function ZoneEditForm({
   const [etaMinMinutes, setEtaMinMinutes] = useState(String(zone?.etaMinMinutes ?? 30));
   const [etaMaxMinutes, setEtaMaxMinutes] = useState(String(zone?.etaMaxMinutes ?? 45));
   const [isActive, setIsActive] = useState(zone?.isActive ?? true);
+  const [coverage, setCoverage] = useState<Coverage>(coverageOf(zone));
+  const [radiusKm, setRadiusKm] = useState(zone?.radiusKm != null ? String(zone.radiusKm) : "3");
+  const [polygon, setPolygon] = useState<Polygon>(zone?.polygon ?? []);
+  const branch = locations.find((location) => location.id === locationId);
+  const branchPin = branch?.latitude != null && branch.longitude != null ? { latitude: branch.latitude, longitude: branch.longitude } : null;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -56,6 +77,9 @@ function ZoneEditForm({
       etaMinMinutes: Number(etaMinMinutes),
       etaMaxMinutes: Number(etaMaxMinutes),
       isActive,
+      coverage,
+      ...(coverage === "radius" ? { radiusKm: Number(radiusKm) } : {}),
+      ...(coverage === "polygon" ? { polygon } : {}),
     };
     startTransition(() => {
       saveDeliveryZoneAction(payload).then((result) => {
@@ -97,10 +121,61 @@ function ZoneEditForm({
         </div>
       </div>
 
+      <div>
+        <Label>Where this zone delivers</Label>
+        <div role="radiogroup" aria-label="Coverage" className="mt-1.5 inline-flex rounded-[var(--radius-control)] border border-[var(--rule)] p-0.5">
+          {(Object.keys(COVERAGE_LABELS) as Coverage[]).map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={coverage === option}
+              disabled={option !== "areas" && !mapsKey}
+              onClick={() => setCoverage(option)}
+              className={cn(
+                "rounded-[calc(var(--radius-control)-2px)] px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-40",
+                coverage === option ? "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]" : "text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]",
+              )}
+            >
+              {COVERAGE_LABELS[option]}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-[var(--color-muted-ink)]">
+          {coverage === "areas"
+            ? "Matches the area / postal code customers type. Simple, but names repeat across cities and areas have no exact edge."
+            : coverage === "radius"
+              ? "Delivers to every map pin within this distance of the branch (straight line), in the branch's city."
+              : "Delivers to every map pin inside the area you draw, in the branch's city. The most accurate option."}
+        </p>
+        {coverage === "radius" ? (
+          <div className="mt-3 max-w-[12rem]">
+            <Label htmlFor="radiusKm">Radius (km)</Label>
+            <Input id="radiusKm" type="number" min={0.2} max={100} step={0.1} value={radiusKm} onChange={(event) => setRadiusKm(event.target.value)} required />
+            <FieldError>{errors.radiusKm}</FieldError>
+          </div>
+        ) : null}
+        {coverage !== "areas" && mapsKey ? (
+          <div className="mt-3">
+            <ZoneCoverageMap
+              key={`${coverage}:${locationId}`}
+              apiKey={mapsKey}
+              mode={coverage}
+              branch={branchPin}
+              radiusKm={Number(radiusKm) || 0}
+              initialPolygon={coverage === "polygon" && polygon.length ? polygon : null}
+              onPolygonChange={setPolygon}
+            />
+            <FieldError>{errors.polygon}</FieldError>
+          </div>
+        ) : null}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label htmlFor="areas">Areas (comma separated)</Label>
+          <Label htmlFor="areas">{coverage === "areas" ? "Areas (comma separated)" : "Areas (only for a typed address without a map pin)"}</Label>
           <Input id="areas" value={areas} onChange={(event) => setAreas(event.target.value)} placeholder="Gulberg, DHA" />
+          <FieldError>{errors.areas}</FieldError>
         </div>
         <div>
           <Label htmlFor="postalCodes">Postal codes (comma separated)</Label>
@@ -152,7 +227,23 @@ function ZoneEditForm({
   );
 }
 
-export function DeliveryZoneManager({ zones, locations }: { zones: DeliveryZone[]; locations: RestaurantLocation[] }) {
+/**
+ * `locations` = the branches the signed-in member may put zones in (a manager: only their own), `allLocations`
+ * names every zone's branch in the list. `canManage` false = read-only.
+ */
+export function DeliveryZoneManager({
+  zones,
+  locations,
+  allLocations = locations,
+  canManage = true,
+  mapsKey = null,
+}: {
+  zones: DeliveryZone[];
+  locations: RestaurantLocation[];
+  allLocations?: RestaurantLocation[];
+  canManage?: boolean;
+  mapsKey?: string | null;
+}) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -176,14 +267,14 @@ export function DeliveryZoneManager({ zones, locations }: { zones: DeliveryZone[
     });
   }
 
-  const locationName = (id: string) => locations.find((location) => location.id === id)?.name ?? "—";
+  const locationName = (id: string) => allLocations.find((location) => location.id === id)?.name ?? "—";
 
   return (
     <div className="space-y-2">
       {dialog}
       {zones.map((zone) =>
         editingId === zone.id ? (
-          <ZoneEditForm key={zone.id} zone={zone} locations={locations} onCancel={() => setEditingId(null)} />
+          <ZoneEditForm key={zone.id} zone={zone} locations={locations} mapsKey={mapsKey} onCancel={() => setEditingId(null)} />
         ) : (
           <div
             key={zone.id}
@@ -196,10 +287,12 @@ export function DeliveryZoneManager({ zones, locations }: { zones: DeliveryZone[
                 {!zone.isActive ? <Badge variant="neutral">Inactive</Badge> : null}
               </div>
               <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
+                {zone.polygon ? "Drawn area · " : zone.radiusKm != null ? `Within ${zone.radiusKm} km · ` : ""}
                 Fee {zone.deliveryFee} · ETA {zone.etaMinMinutes}-{zone.etaMaxMinutes}m
                 {zone.areas.length ? ` · ${zone.areas.join(", ")}` : ""}
               </p>
             </div>
+            {canManage ? (
             <div className="flex items-center gap-1">
               <Button size="icon" variant="ghost" onClick={() => setEditingId(zone.id)} aria-label="Edit zone">
                 <Pencil className="size-4" aria-hidden />
@@ -214,14 +307,15 @@ export function DeliveryZoneManager({ zones, locations }: { zones: DeliveryZone[
                 {deletingId === zone.id ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
               </Button>
             </div>
+            ) : null}
           </div>
         ),
       )}
 
-      {locations.length === 0 ? (
+      {!canManage ? null : locations.length === 0 ? (
         <p className="text-sm text-[var(--color-muted-ink)]">Add a location first.</p>
       ) : adding ? (
-        <ZoneEditForm locations={locations} onCancel={() => setAdding(false)} />
+        <ZoneEditForm locations={locations} mapsKey={mapsKey} onCancel={() => setAdding(false)} />
       ) : (
         <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
           <Plus className="size-4" aria-hidden /> Add zone

@@ -8,7 +8,8 @@ import { getOrderForStaff } from "@/server/services/orders";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
+import { canAccessBranch } from "@/server/auth/branch-scope";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -30,7 +31,7 @@ function formatDateTime(value: string): string {
 
 export default async function AdminOrderDetailPage({ params }: OrderDetailPageProps) {
   const { restaurantSlug, orderNumber } = await params;
-  const actor = await requirePermission("orders.view", restaurantSlug);
+  const actor = await requireAdminPage("orders.view", restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   // side by side: the staff check already proved this session belongs to this slug's restaurant
@@ -39,7 +40,8 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
     getAdminRestaurant(restaurantSlug),
     getOrderForStaff(actor.restaurantId, decodeURIComponent(orderNumber), ctx),
   ]);
-  if (!order) notFound();
+  // a branch member never opens another branch's order by typing its number (RLS hides it too)
+  if (!order || !canAccessBranch(actor, order.locationId)) notFound();
 
   const money = (value: string) => formatMoney(value, { currency: restaurant.currency });
 

@@ -191,32 +191,46 @@ export function changeOrderStatus(
   return updateOrderStatus(orderId, status, ctx, options);
 }
 
+// Admin reads below take `locationId` = the admin's branch scope (web/admin.ts#getAdminBranchScope;
+// null = every branch). RLS (0027) already hides other branches from branch staff; the filter makes the
+// owner's branch choice work and keeps branch staff scoped even if RLS were ever off.
+
 /** Status counters for the admin dashboard and order tabs. */
-export function getOrderStatusCounts(restaurantId: string, ctx: RequestContext): Promise<Record<OrderStatus, number>> {
-  return countOrdersByStatus(restaurantId, ctx);
+export function getOrderStatusCounts(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<Record<OrderStatus, number>> {
+  return countOrdersByStatus(restaurantId, ctx, locationId);
 }
 
 /** Most recent orders for the admin dashboard. */
-export function getRecentOrdersForAdmin(restaurantId: string, ctx: RequestContext, limit = 8): Promise<OrderSummary[]> {
-  return listRecentOrders(restaurantId, ctx, limit);
+export function getRecentOrdersForAdmin(restaurantId: string, ctx: RequestContext, limit = 8, locationId: string | null = null): Promise<OrderSummary[]> {
+  return listRecentOrders(restaurantId, ctx, limit, locationId);
 }
 
 /** Active orders for the kitchen display (admin). */
-export function getKitchenOrders(restaurantId: string, ctx: RequestContext): Promise<Order[]> {
-  return listKitchenOrders(restaurantId, ctx);
+export function getKitchenOrders(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<Order[]> {
+  return listKitchenOrders(restaurantId, ctx, locationId);
 }
 
 /** Admin "Sales Reports" summary for one resolved date range. */
-export function getSalesReport(restaurantId: string, range: ReportRange, timezone: string, ctx: RequestContext): Promise<SalesAnalytics> {
-  return getSalesAnalytics(restaurantId, { fromDateKey: range.fromDateKey, toDateKey: range.toDateKey, timezone }, ctx);
+export function getSalesReport(
+  restaurantId: string,
+  range: ReportRange,
+  timezone: string,
+  ctx: RequestContext,
+  locationId: string | null = null,
+): Promise<SalesAnalytics> {
+  return getSalesAnalytics(restaurantId, { fromDateKey: range.fromDateKey, toDateKey: range.toDateKey, timezone, locationId }, ctx);
 }
 
 /** Every order in the range, for the CSV export (no pagination cap below the admin UI's own page size). */
-export function getOrdersForExport(restaurantId: string, range: ReportRange, ctx: RequestContext): Promise<Paginated<OrderSummary>> {
-  return listOrders(restaurantId, { dateFrom: range.fromDateKey, dateTo: range.toDateKey, status: "all", page: 1, pageSize: 5000 }, ctx);
+export function getOrdersForExport(restaurantId: string, range: ReportRange, ctx: RequestContext, locationId: string | null = null): Promise<Paginated<OrderSummary>> {
+  return listOrders(
+    restaurantId,
+    { dateFrom: range.fromDateKey, dateTo: range.toDateKey, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 5000 },
+    ctx,
+  );
 }
 
 /** New/changed orders since a timestamp, polled by the admin's order-sound notifications (no SSE for a multi-order staff feed). */
-export function getOrderActivitySince(restaurantId: string, sinceIso: string, ctx: RequestContext): Promise<OrderActivityEvent[]> {
-  return listOrderActivitySince(restaurantId, sinceIso, ctx);
+export function getOrderActivitySince(restaurantId: string, sinceIso: string, ctx: RequestContext, locationId: string | null = null): Promise<OrderActivityEvent[]> {
+  return listOrderActivitySince(restaurantId, sinceIso, ctx, locationId);
 }

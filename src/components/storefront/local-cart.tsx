@@ -289,14 +289,21 @@ export function LocalCartProvider({
 
   // The server re-rendered the layout (navigation refresh, a server action, another tab's change
   // picked up below) with a different cookie than this state holds: adopt the server's reading.
+  // Only for a NEW reading: the state already started from this one, and children's effects run before
+  // this one on mount — the branch provider's first-visit auto-pick commits a branch there, and adopting
+  // the mount-time reading again would silently undo it (the tray kept its old, possibly wrong-city branch).
+  const adoptedInitial = useRef(initial);
   useEffect(() => {
+    if (adoptedInitial.current === initial) return;
+    adoptedInitial.current = initial;
     if (initial.encoded !== encodeCart(cartRef.current)) commit(fromInitialTray(initial));
   }, [initial, commit]);
 
   // Persist every change (already written by `commit`; this is the safety net). Writing the cookie IS
-  // the whole "add to cart" — no request.
+  // the whole "add to cart" — no request. Reads the ref, not the render's `cart`: on mount a child may
+  // already have committed a newer tray, and writing this render's older value would revert it.
   useEffect(() => {
-    const encoded = encodeCart(cart);
+    const encoded = encodeCart(cartRef.current);
     if (encoded !== readCookie(cookieName)) writeCookie(cookieName, encoded);
   }, [cart, cookieName]);
 

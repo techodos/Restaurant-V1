@@ -1,5 +1,6 @@
 import { requireStaffForAdmin } from "@/web/session";
-import { getAdminRestaurant } from "@/web/admin";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { BranchLabel, BranchSwitcher } from "@/components/admin/branch-switcher";
 import { hasAnyPermission } from "@/server/auth/permissions";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { AdminMobileNav, AdminSidebar } from "@/components/admin/admin-sidebar";
@@ -14,7 +15,18 @@ interface AdminDashboardLayoutProps {
 export default async function AdminDashboardLayout({ children, params }: AdminDashboardLayoutProps) {
   const { restaurantSlug } = await params;
   const actor = await requireStaffForAdmin(restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
+  const [restaurant, scope] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
+  // owner/admin with 2+ branches choose here (the admin's one branch control); branch staff only see theirs
+  const branch =
+    scope.choices.length > 1 ? (
+      <BranchSwitcher
+        restaurantSlug={restaurant.slug}
+        branches={scope.choices.map(({ id, name, isPrimary }) => ({ id, name, isPrimary }))}
+        value={scope.locationId ?? "all"}
+      />
+    ) : scope.locked && scope.current ? (
+      <BranchLabel name={scope.current.name} />
+    ) : null;
   const nav = { permissions: actor.permissions, restaurantName: restaurant.name, restaurantSlug: restaurant.slug };
   const canOrders = hasAnyPermission(actor.permissions, ["orders.view"]);
 
@@ -29,6 +41,7 @@ export default async function AdminDashboardLayout({ children, params }: AdminDa
           restaurantName={restaurant.name}
           restaurantSlug={restaurant.slug}
           mobileNav={<AdminMobileNav key="mobile-nav" {...nav} />}
+          branch={branch}
           showSoundToggle={canOrders}
         />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>

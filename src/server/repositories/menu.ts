@@ -593,14 +593,20 @@ export async function setItemLocationAvailability(
   itemId: string,
   isAvailable: boolean,
   ctx: RequestContext,
-): Promise<void> {
-  await getDb(ctx).write(ctx, async (tx) => {
-    await tx.query(
+): Promise<boolean> {
+  // ONE statement: the branch and the item must both be this restaurant's (ids come from the browser) —
+  // nothing is written otherwise and the caller reports NOT_FOUND
+  return getDb(ctx).write(ctx, async (tx) => {
+    const rows = await tx.query(
       `insert into menu_item_location_overrides (restaurant_id, location_id, menu_item_id, is_available)
-       values ($1, $2, $3, $4)
-       on conflict (location_id, menu_item_id) do update set is_available = excluded.is_available, updated_at = now()`,
+       select $1, l.id, mi.id, $4
+         from restaurant1s l, menu_items mi
+        where l.id = $2 and l.restaurant_id = $1 and mi.id = $3 and mi.restaurant_id = $1
+       on conflict (location_id, menu_item_id) do update set is_available = excluded.is_available, updated_at = now()
+       returning id`,
       [restaurantId, locationId, itemId, isAvailable],
     );
+    return rows.length > 0;
   });
 }
 

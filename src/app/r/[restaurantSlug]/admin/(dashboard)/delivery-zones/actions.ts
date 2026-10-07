@@ -14,7 +14,7 @@ export async function saveDeliveryZoneAction(payload: unknown): Promise<ApiResul
     const actor = await requirePermission("delivery.manage");
     const input = deliveryZoneSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
-    const zone = await saveDeliveryZone(actor.restaurantId, input, ctx);
+    const zone = await saveDeliveryZone(actor.restaurantId, input, ctx, actor);
     revalidatePath(adminPath(actor.restaurantSlug, "/delivery-zones"));
     return zone;
   });
@@ -24,7 +24,7 @@ export async function deleteDeliveryZoneAction(zoneId: string): Promise<ApiResul
   return action(async () => {
     const actor = await requirePermission("delivery.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
-    await removeDeliveryZone(zoneId, ctx);
+    await removeDeliveryZone(actor.restaurantId, zoneId, ctx, actor);
     revalidatePath(adminPath(actor.restaurantSlug, "/delivery-zones"));
     return null;
   });

@@ -8,8 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getCustomerForAdmin, getCustomerOrderHistory, getCustomerStatsForAdmin } from "@/server/services/customers";
 import { ORDER_STATUS_LABELS } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { requireAdminPage } from "@/web/session";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
@@ -22,16 +22,17 @@ export const metadata: Metadata = { title: "Customer" };
 
 export default async function AdminCustomerDetailPage({ params }: CustomerDetailPageProps) {
   const { restaurantSlug, customerId } = await params;
-  const actor = await requirePermission("customers.view", restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
+  const actor = await requireAdminPage("customers.view", restaurantSlug);
+  const [restaurant, { locationId }] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   // all three side by side (they were customer first, then the other two): nothing is shown unless
   // the customer is found, and every read is scoped to this restaurant by RLS/ctx as before
   const [customer, stats, orders] = await Promise.all([
     getCustomerForAdmin(customerId, ctx),
-    getCustomerStatsForAdmin(customerId, ctx),
-    getCustomerOrderHistory(customerId, ctx, 30),
+    // stats and history of the branch in scope only (a manager never sees another branch's orders here)
+    getCustomerStatsForAdmin(customerId, ctx, locationId),
+    getCustomerOrderHistory(customerId, ctx, 30, locationId),
   ]);
   if (!customer) notFound();
 

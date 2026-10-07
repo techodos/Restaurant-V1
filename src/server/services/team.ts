@@ -3,20 +3,68 @@ import { errors } from "@/server/errors";
 import { logger } from "@/server/logger";
 import { createSupabaseAuthUser, supabaseAuthAdminAvailable } from "@/server/integrations/supabase-auth";
 import { invalidateStaffActors } from "@/server/auth/auth-service";
+import { assignableRoles, isBranchRole } from "@/server/auth/permissions";
+import { canManageMember, memberBranch, type ScopedActor } from "@/server/auth/branch-scope";
 import {
   attachTeamMemberToUser,
   createTeamMember,
   deleteTeamMember,
+  getTeamMember,
+  getTeamMemberByEmail,
   listTeamMembers,
   setTeamMemberActive,
   updateTeamMember,
 } from "@/server/repositories/team";
+import { listLocations } from "@/server/repositories/restaurants";
+import type { TeamRole } from "@/shared/contract/enums";
 import type { TeamMember } from "@/shared/contract/models";
 import type { CreateTeamMemberInput, UpdateTeamMemberInput } from "@/server/validation/team";
 
-/** Staff list for the admin "Staff" page. */
-export function getTeamMembers(restaurantId: string, ctx: RequestContext): Promise<TeamMember[]> {
-  return listTeamMembers(restaurantId, ctx);
+/** Who is acting on the Staff screen (a StaffActor fits). */
+type TeamActor = ScopedActor & { userId: string };
+
+/**
+ * Staff list for the admin "Staff" page. `locationId` = the admin's branch scope: a branch manager always
+ * gets only their branch's members; owner/admin get the chosen branch's members, or everyone (null).
+ */
+export function getTeamMembers(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<TeamMember[]> {
+  return listTeamMembers(restaurantId, ctx, locationId);
+}
+
+/**
+ * The branch a member with `role` gets. Owner/admin: none (restaurant-wide). Manager/staff: a branch
+ * manager's hires always get the manager's branch (whatever the request said); owner/admin pick one of
+ * this restaurant's branches, required when the restaurant has any.
+ */
+async function branchFor(
+  restaurantId: string,
+  role: TeamRole,
+  requested: string | null | undefined,
+  actor: TeamActor,
+  ctx: RequestContext,
+): Promise<string | null> {
+  if (!isBranchRole(role)) return null;
+  const own = memberBranch(actor);
+  if (own !== null) {
+    if (requested && requested !== own) throw errors.forbidden("You can only add staff to your own branch.");
+    return own;
+  }
+  const locations = await listLocations(restaurantId, ctx);
+  if (locations.length === 0) return null;
+  if (!requested) throw errors.validation("Choose the branch this person works at.", { locationId: "Choose a branch." });
+  if (!locations.some((location) => location.id === requested)) throw errors.notFound("Branch");
+  return requested;
+}
+
+function assertAssignable(actor: TeamActor, role: TeamRole): void {
+  if (!assignableRoles(actor.role).includes(role)) throw errors.forbidden("You can't give that role.");
+}
+
+async function requireManageable(restaurantId: string, memberId: string, actor: TeamActor, ctx: RequestContext): Promise<TeamMember> {
+  const member = await getTeamMember(restaurantId, memberId, ctx);
+  if (!member) throw errors.notFound("Team member");
+  if (!canManageMember(actor, member)) throw errors.forbidden("You can't change this team member.");
+  return member;
 }
 
 interface PgLikeError {
@@ -40,12 +88,24 @@ const isPgPermissionDenied = (error: unknown): boolean =>
  * team member whose email **already has** an `auth.users` row (e.g. a manager added to a second
  * restaurant) never hits either fallback — `createTeamMember`'s own existing-user branch handles it.
  */
-export async function addTeamMember(restaurantId: string, input: CreateTeamMemberInput, ctx: RequestContext): Promise<TeamMember> {
+export async function addTeamMember(
+  restaurantId: string,
+  input: CreateTeamMemberInput,
+  ctx: RequestContext,
+  actor: TeamActor,
+): Promise<TeamMember> {
+  assertAssignable(actor, input.role);
+  const [locationId, existing] = await Promise.all([
+    branchFor(restaurantId, input.role, input.locationId, actor, ctx),
+    getTeamMemberByEmail(restaurantId, input.email.trim(), ctx),
+  ]);
+  if (existing) throw errors.conflict("This email is already on the team. Edit that member instead.");
   const repoInput = {
     email: input.email,
     fullName: input.fullName,
     phone: input.phone || null,
     role: input.role,
+    locationId,
     password: input.password,
   };
   try {
@@ -73,18 +133,48 @@ export async function addTeamMember(restaurantId: string, input: CreateTeamMembe
 // Every team write clears the cached staff lookups (auth-service#authenticateStaff), so a changed role,
 // a deactivation or a removal applies on this instance's very next page view, not after the cache TTL.
 
-export async function editTeamMember(memberId: string, input: UpdateTeamMemberInput, ctx: RequestContext): Promise<TeamMember> {
-  const member = await updateTeamMember(memberId, { fullName: input.fullName, phone: input.phone || null, role: input.role }, ctx);
+/**
+ * Edits a member. Your own row: name and phone only (no promoting yourself, no moving your own branch).
+ * Anyone else: only members you may manage (canManageMember), only to a role you may give, and a branch
+ * manager can never move someone to another branch.
+ */
+export async function editTeamMember(
+  restaurantId: string,
+  input: UpdateTeamMemberInput,
+  ctx: RequestContext,
+  actor: TeamActor,
+): Promise<TeamMember> {
+  const target = await getTeamMember(restaurantId, input.id, ctx);
+  if (!target) throw errors.notFound("Team member");
+  const details = { fullName: input.fullName, phone: input.phone || null };
+
+  if (target.userId !== null && target.userId === actor.userId) {
+    if (input.role !== target.role || (input.locationId !== undefined && input.locationId !== target.locationId)) {
+      throw errors.forbidden("You can't change your own role or branch.");
+    }
+    const member = await updateTeamMember(target.id, details, ctx);
+    invalidateStaffActors();
+    return member;
+  }
+
+  if (!canManageMember(actor, target)) throw errors.forbidden("You can't change this team member.");
+  assertAssignable(actor, input.role);
+  // keep the current branch when the form did not send one and the role still needs one
+  const requested = input.locationId !== undefined ? input.locationId : target.locationId;
+  const locationId = await branchFor(restaurantId, input.role, requested, actor, ctx);
+  const member = await updateTeamMember(target.id, { ...details, role: input.role, locationId }, ctx);
   invalidateStaffActors();
   return member;
 }
 
-export async function setStaffActive(memberId: string, isActive: boolean, ctx: RequestContext): Promise<void> {
+export async function setStaffActive(restaurantId: string, memberId: string, isActive: boolean, ctx: RequestContext, actor: TeamActor): Promise<void> {
+  await requireManageable(restaurantId, memberId, actor, ctx);
   await setTeamMemberActive(memberId, isActive, ctx);
   invalidateStaffActors();
 }
 
-export async function removeTeamMember(memberId: string, ctx: RequestContext): Promise<void> {
+export async function removeTeamMember(restaurantId: string, memberId: string, ctx: RequestContext, actor: TeamActor): Promise<void> {
+  await requireManageable(restaurantId, memberId, actor, ctx);
   await deleteTeamMember(memberId, ctx);
   invalidateStaffActors();
 }

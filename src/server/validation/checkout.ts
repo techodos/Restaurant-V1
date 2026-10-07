@@ -26,5 +26,7 @@ export const placeOrderSchema = z.object({
     .optional()
     .or(z.literal("")),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
+  /** "Save this address for next time": the name to save a NEW delivery address under (e.g. "Home"); empty = don't save */
+  saveAddressAs: z.string().trim().max(40).optional().or(z.literal("")),
 });
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;

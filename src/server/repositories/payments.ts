@@ -1,6 +1,6 @@
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
-import { mapPayment, num, str, type Row } from "@/server/db/mappers";
+import { branchFilter, mapPayment, num, str, type Row } from "@/server/db/mappers";
 import type { Payment } from "@/shared/contract/models";
 import type { PaymentMethod, PaymentStatus } from "@/shared/contract/enums";
 import { paginate, type Paginated } from "@/shared/contract/api";
@@ -34,7 +34,7 @@ export async function listPayments(
     }
     if (filters.locationId) {
       params.push(filters.locationId);
-      conditions.push(`o.location_id = $${params.length}`);
+      conditions.push(branchFilter("o", `$${params.length}`));
     }
     const where = conditions.join(" and ");
     // the page and the total in ONE statement; only a page past the end falls back to counting

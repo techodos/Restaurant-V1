@@ -5,16 +5,14 @@ import { CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { listPaymentsForAdmin } from "@/server/services/payments";
-import { getLocations } from "@/server/services/restaurants";
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUSES, type PaymentStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { requireAdminPage } from "@/web/session";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
-import { BranchFilter } from "@/components/admin/branch-filter";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Payments" };
@@ -32,31 +30,30 @@ function badgeVariant(status: PaymentStatus): "success" | "warning" | "danger" |
 
 interface PaymentsPageProps {
   params: Promise<{ restaurantSlug: string }>;
-  searchParams: Promise<{ status?: string; page?: string; location?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }
 
 export default async function AdminPaymentsPage({ params, searchParams }: PaymentsPageProps) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("payments.view", restaurantSlug);
+  const actor = await requireAdminPage("payments.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
-  const { status, page, location } = await searchParams;
+  const { status, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   const activeStatus = (status ?? "all") as "all" | PaymentStatus;
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
-  const isHq = actor.member.locationId === null;
-  const activeLocation = isHq ? (location ?? null) : null;
+  // the branch comes from the header's selector (owner/admin) or the member's own branch — never the URL
+  const { locationId } = await getAdminBranchScope(restaurantSlug);
 
-  const [result, locations] = await Promise.all([
-    listPaymentsForAdmin(restaurant.id, { status: activeStatus, locationId: activeLocation ?? undefined, page: pageNum, pageSize: 20 }, ctx),
-    isHq ? getLocations(restaurant.id, { activeOnly: true }) : [],
-  ]);
+  const result = await listPaymentsForAdmin(
+    restaurant.id,
+    { status: activeStatus, locationId: locationId ?? undefined, page: pageNum, pageSize: 20 },
+    ctx,
+  );
 
-  const linkFor = (params: { status?: string; page?: number; location?: string | null }) => {
+  const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
-    const nextLocation = params.location !== undefined ? params.location : activeLocation;
-    if (nextLocation) search.set("location", nextLocation);
     if (params.page && params.page > 1) search.set("page", String(params.page));
     return `${adminPath(restaurantSlug)}/payments?${search.toString()}`;
   };
@@ -71,14 +68,6 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
           active={activeStatus}
           linkFor={(key) => linkFor({ status: key })}
         />
-        {locations.length > 1 ? (
-          <BranchFilter
-            locations={locations}
-            active={activeLocation}
-            basePath={`${adminPath(restaurantSlug)}/payments`}
-            params={{ status: activeStatus }}
-          />
-        ) : null}
       </div>
 
       <Card className="overflow-hidden">

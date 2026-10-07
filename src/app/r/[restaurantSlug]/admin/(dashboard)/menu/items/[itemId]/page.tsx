@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getItemLocationOverridesForAdmin, getMenuItemForAdmin, listCategoriesForAdmin } from "@/server/services/menu-admin";
 import { getLocations } from "@/server/services/restaurants";
 import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
 import { AddonGroupManager } from "@/components/admin/addon-group-manager";
 import { BranchAvailabilityManager } from "@/components/admin/branch-availability-manager";
 import { MenuItemForm } from "@/components/admin/menu-item-form";
@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "Edit item" };
 
 export default async function EditMenuItemPage({ params }: EditItemPageProps) {
   const { restaurantSlug, itemId } = await params;
-  const actor = await requirePermission("menu.manage", restaurantSlug);
+  const actor = await requireAdminPage("menu.manage", restaurantSlug, { restaurantWide: true }); // the shared menu: owner/admin
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 

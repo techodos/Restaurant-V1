@@ -34,6 +34,16 @@ const IDLE = "bg-[var(--brand-surface,#fff)] text-[var(--brand-foreground,#1a1a1
  * there instantly, no request at all; a dish with required choices opens its sheet instead, where a
  * chosen variant/add-ons need the same validation the sheet already mirrors.
  */
+/**
+ * Home-page tiles with multi-branch ordering: no add control until the customer's branch is known (the
+ * header's branch pill), then the normal one — never for a dish switched off at that branch.
+ */
+export function BranchReadyQuickAdd(props: QuickAddButtonProps) {
+  const branching = useBranching();
+  if (!branching.canOrder(props.orderType) || branching.isOffHere(props.item.id)) return null;
+  return <QuickAddButton {...props} />;
+}
+
 export function QuickAddButton({ restaurantSlug, item, orderType, compact = false }: QuickAddButtonProps) {
   const size = compact ? "size-9 [&_svg]:size-4" : "size-11 [&_svg]:size-5";
   const { addLine } = useLocalCart();

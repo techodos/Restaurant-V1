@@ -12,7 +12,7 @@ import { formatMoney } from "@/shared/money";
 import { formatDateKey } from "@/shared/hours";
 import { cn } from "@/shared/utils";
 import { requireStaffForAdmin } from "@/web/session";
-import { getAdminRestaurant } from "@/web/admin";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { RatingStars } from "@/components/storefront/rating-stars";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
@@ -61,17 +61,32 @@ function Panel({
  * the latest orders, the next reservations and the review queue. Each block is gated by the same
  * permission as its own screen; nothing is estimated or invented.
  */
-export default async function AdminDashboardPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
+export default async function AdminDashboardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ restaurantSlug: string }>;
+  searchParams: Promise<{ denied?: string }>;
+}) {
   const { restaurantSlug } = await params;
   const actor = await requireStaffForAdmin(restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
+  // web/session.ts#requireAdminPage sends a member here after opening a screen their role/branch doesn't allow
+  const denied = (await searchParams).denied ? (
+    <p role="alert" className="surface-flat border-l-2 border-[var(--color-warning)] px-4 py-3 text-sm">
+      You don&apos;t have access to that page. Ask the owner or an administrator if you need it.
+    </p>
+  ) : null;
+  const [restaurant, scope] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
+  // every widget shows the branch in scope (header selector / the member's own branch); null = all branches
+  const { locationId } = scope;
   const canOrders = hasAnyPermission(actor.permissions, ["orders.view"]);
   const canReservations = hasAnyPermission(actor.permissions, ["reservations.view"]);
   const canReviews = hasAnyPermission(actor.permissions, ["reviews.view"]);
 
   if (!canOrders && !canReservations && !canReviews) {
     return (
-      <div>
+      <div className="space-y-4">
+        {denied}
         <h1 className="text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">Welcome, {actor.name}</h1>
         <p className="mt-2 text-[var(--color-muted-ink)]">You do not have access to any dashboard widgets yet.</p>
       </div>
@@ -80,10 +95,12 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
 
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
   const [counts, recentOrders, reservations, reviews] = await Promise.all([
-    canOrders ? getOrderStatusCounts(restaurant.id, ctx) : null,
-    canOrders ? getRecentOrdersForAdmin(restaurant.id, ctx, 8) : [],
-    canReservations ? listReservationsForStaff(restaurant.id, { status: "upcoming", page: 1, pageSize: 5 }, ctx) : null,
-    canReviews ? listReviewsForAdmin(restaurant.id, { status: "pending", page: 1, pageSize: 3 }, ctx) : null,
+    canOrders ? getOrderStatusCounts(restaurant.id, ctx, locationId) : null,
+    canOrders ? getRecentOrdersForAdmin(restaurant.id, ctx, 8, locationId) : [],
+    canReservations
+      ? listReservationsForStaff(restaurant.id, { status: "upcoming", locationId: locationId ?? undefined, page: 1, pageSize: 5 }, ctx)
+      : null,
+    canReviews ? listReviewsForAdmin(restaurant.id, { status: "pending", locationId, page: 1, pageSize: 3 }, ctx) : null,
   ]);
 
   const waiting = counts?.pending ?? 0;
@@ -92,6 +109,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
 
   return (
     <div className="space-y-8">
+      {denied}
       {/* the pass: live service at a glance on the night ground */}
       <section className="tone-night relative isolate overflow-hidden rounded-[var(--radius-panel)] p-6 md:p-8">
         <span
@@ -104,7 +122,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             <h1 className="mt-2 font-[family-name:var(--font-heading)] text-[1.8rem] leading-none md:text-[2.15rem]">Service</h1>
             {counts ? (
               <p className="tabular mt-3 text-[15px] text-[var(--color-muted-ink)]">
-                {inService} order{inService === 1 ? "" : "s"} on the pass at {restaurant.name}
+                {inService} order{inService === 1 ? "" : "s"} on the pass at {locationId && scope.current ? scope.current.name : restaurant.name}
                 {waiting > 0 ? `, ${waiting} waiting for confirmation` : ""}.
               </p>
             ) : null}

@@ -6,7 +6,7 @@ import { dec, toMoney, ZERO } from "@/shared/money";
 import { trayItemCount, type Tray, type TrayLine } from "@/shared/tray";
 import { errors } from "@/server/errors";
 import { toCouponPricing } from "@/server/repositories/coupons";
-import { matchDeliveryZone } from "@/server/repositories/deliveries";
+import { matchDeliveryZone, type DeliveryAddressFields, type ZoneBranch } from "@/server/repositories/deliveries";
 import { resolveMenuSelection } from "@/server/domain/menu-selection";
 import {
   computeCouponDiscount,
@@ -133,7 +133,9 @@ export async function priceTray(
   options: {
     zones: DeliveryZone[];
     orderType?: OrderType;
-    address?: { area?: string | null; city?: string | null; postalCode?: string | null } | null;
+    address?: DeliveryAddressFields | null;
+    /** a zone's branch (city + pin), for matching `address` (no function = nothing matches: city is a hard boundary) */
+    branchOf?: (locationId: string) => ZoneBranch | null | undefined;
     /** the signed-in customer's own email/mobile, for a coupon restricted to specific customers */
     customer?: CouponCustomer | null;
   },
@@ -142,11 +144,14 @@ export async function priceTray(
   const problems = view.lines.filter((line) => line.problem);
   const blockers = problems.map((line) => `${line.name}: ${line.problem} Remove it from your cart to continue.`);
 
+  // Preview only (createOrder decides the real zone from the address). Never borrow another branch's
+  // zone: the tray's branch's zone, or — only when every zone belongs to the one branch there is — that one.
+  const singleBranch = new Set(options.zones.map((candidate) => candidate.locationId)).size === 1;
   const matched =
     orderType === "delivery"
       ? options.address
-        ? matchDeliveryZone(options.zones, options.address)
-        : (options.zones.find((candidate) => candidate.locationId === tray.locationId) ?? options.zones[0] ?? null)
+        ? matchDeliveryZone(options.zones, options.address, (locationId) => options.branchOf?.(locationId))
+        : (options.zones.find((candidate) => candidate.locationId === tray.locationId) ?? (singleBranch ? options.zones[0] : null) ?? null)
       : null;
   const zone = matched ? toZonePricing(matched) : null;
   const coupon = tray.couponCode ? await findPreviewCoupon(restaurant.id, tray.couponCode) : null;

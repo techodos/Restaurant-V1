@@ -8,7 +8,7 @@ import { enabledOrderTypes } from "@/shared/ordering";
 import { ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import { getBranching, getStorefrontContext, readTray } from "@/web/storefront";
 import { resolveImage, resolveMenuImage } from "@/web/media";
-import { BranchBar } from "@/components/storefront/branch-bar";
+import { MenuOrderTypeSync } from "@/components/storefront/branch-bar";
 import { DishTile } from "@/components/storefront/dish-tile";
 import { PageHero } from "@/components/storefront/page-hero";
 import { StationNav } from "@/components/storefront/station-nav";
@@ -206,7 +206,7 @@ async function renderMenu(
                   aria-current={activeOrderType === type ? "true" : undefined}
                   className={cn(
                     "flex-1 whitespace-nowrap rounded-[var(--radius-control)] px-4 py-2 text-center text-[13px] font-semibold transition-[background-color,color] duration-200 lg:flex-none",
-                    activeOrderType === type ? "bg-white text-[#111]" : "text-white/75 hover:text-white",
+                    activeOrderType === type ? "bg-[var(--brand-surface)] text-[var(--brand-foreground)]" : "text-white/75 hover:text-white",
                   )}
                 >
                   {ORDER_TYPE_LABELS[type]}
@@ -217,7 +217,7 @@ async function renderMenu(
         </div>
       </PageHero>
 
-      <BranchBar orderType={activeOrderType} explicit={explicitOrderType} />
+      <MenuOrderTypeSync orderType={activeOrderType} explicit={explicitOrderType} />
 
       {isBuffetOnly ? (
         <section className="tone-paper section-y">

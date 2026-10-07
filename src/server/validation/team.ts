@@ -12,6 +12,8 @@ export const createTeamMemberSchema = z.object({
   fullName: z.string().trim().min(1, "Enter a name.").max(120),
   phone: z.string().trim().max(32).optional().or(z.literal("")),
   role: z.enum(TEAM_ROLES),
+  /** the branch a manager/staff member works at; ignored for owner/admin; forced for a branch manager's hires */
+  locationId: z.string().uuid().nullable().optional(),
   password: z.string().min(8, "At least 8 characters.").max(72),
 });
 export type CreateTeamMemberInput = z.infer<typeof createTeamMemberSchema>;
@@ -21,5 +23,6 @@ export const updateTeamMemberSchema = z.object({
   fullName: z.string().trim().min(1, "Enter a name.").max(120),
   phone: z.string().trim().max(32).optional().or(z.literal("")),
   role: z.enum(TEAM_ROLES),
+  locationId: z.string().uuid().nullable().optional(),
 });
 export type UpdateTeamMemberInput = z.infer<typeof updateTeamMemberSchema>;

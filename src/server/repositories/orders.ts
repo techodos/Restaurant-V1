@@ -6,12 +6,12 @@ import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, ty
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary, SalesAnalytics } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
-import { matchDeliveryZone } from "./deliveries";
+import { servingZones } from "./deliveries";
 import { toCouponPricing } from "./coupons";
 import { saveFirstAccountPhone, upsertCustomer } from "./customers";
 import { mapOrderableItems, orderableItemsSql } from "./menu";
 import { resolveMenuSelection } from "@/server/domain/menu-selection";
-import { mapCoupon, mapCustomer, mapDelivery, mapDeliveryZone, mapRestaurant, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, num, str, type Row } from "@/server/db/mappers";
+import { mapCoupon, mapCustomer, mapDelivery, mapDeliveryZone, mapRestaurant, mapOrder, mapOrderItem, mapOrderItemAddon, mapOrderStatusEvent, mapPayment, branchFilter, num, str, type Row } from "@/server/db/mappers";
 import { type DbClient } from "@/server/db/database";
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
@@ -134,9 +134,17 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
                                         where id = $2 and restaurant_id = $1 for update) c) as customer,
          (select coalesce(json_agg(m), '[]') from (${orderableItemsSql("$1", "$3", "$5")}) m) as menu,
          case when $4::boolean then
-           (select coalesce(json_agg(z order by z.sort_order, z.name), '[]') from delivery_zones z
-             where z.restaurant_id = $1 and z.is_active and ($5::uuid is null or z.location_id = $5))
+           (select coalesce(json_agg(zs order by zs.sort_order, zs.name), '[]') from (
+              -- each zone with its branch's city: delivery coverage never crosses a city (deliveries.ts#servingZones)
+              select z.*, l.city as branch_city, l.latitude as branch_latitude, l.longitude as branch_longitude
+                from delivery_zones z
+                join restaurant1s l on l.id = z.location_id and l.is_active
+               where z.restaurant_id = $1 and z.is_active and ($5::uuid is null or z.location_id = $5)) zs)
          end as zones,
+         -- the branch named by the tray cookie: must be an active branch of THIS restaurant
+         case when $5::uuid is not null then
+           (select row_to_json(b) from (select id, city, is_active from restaurant1s where id = $5 and restaurant_id = $1) b)
+         end as branch,
          case when $6::text is not null then
            (select row_to_json(x) from (
               select c.*, (select count(*) from orders o
@@ -236,24 +244,65 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
       throw errors.custom("BUFFET_REQUIRES_DINE_IN", "A dine-in buffet in your cart can only be ordered as Dine-in.");
     }
 
+    // branch: the id comes from a browser cookie, so it is checked here, whatever the order type ---------
+    // Multi-branch ordering: every order is cooked by a branch the customer chose. The storefront never
+    // gets here without one (checkout redirects to the menu), but a stale or edited cookie could — and an
+    // order with no branch is owned by no kitchen. Refuse it rather than guess.
+    if (restaurant.features.BranchingFeature && !input.locationId) {
+      throw errors.custom("BRANCH_UNAVAILABLE", "Please choose the branch for this order on the menu, then check out again.");
+    }
+    if (input.locationId) {
+      const branch = read?.branch as Row | null | undefined;
+      if (!branch || branch.is_active !== true) {
+        throw errors.custom("BRANCH_UNAVAILABLE", "That branch is not taking orders. Please choose another branch.");
+      }
+    }
+
     // delivery zone -----------------------------------------------------------------------------
+    let locationId = input.locationId ?? null;
     let zone: ZonePricing | null = null;
     let zoneRecord: DeliveryZone | null = null;
     if (input.orderType === "delivery") {
       if (!input.address?.line1) {
         throw new PricingError("DELIVERY_ZONE_REQUIRED", "A delivery address is required.");
       }
-      const zones = ((read?.zones as Row[] | null) ?? []).map(mapDeliveryZone);
-      zoneRecord = input.deliveryZoneId
-        ? (zones.find((candidate) => candidate.id === input.deliveryZoneId) ?? null)
-        : matchDeliveryZone(zones, {
-            area: input.address.area ?? null,
-            city: input.address.city ?? null,
-            postalCode: input.address.postalCode ?? null,
-          });
-      if (!zoneRecord) {
-        throw new PricingError("DELIVERY_UNAVAILABLE", "Sorry, we do not deliver to that address yet.");
+      const zoneRows = (read?.zones as Row[] | null) ?? [];
+      const zones = zoneRows.map(mapDeliveryZone);
+      const branches = new Map(
+        zoneRows.map((row) => [
+          str(row.location_id),
+          {
+            city: row.branch_city ? str(row.branch_city) : null,
+            latitude: row.branch_latitude == null ? null : Number(row.branch_latitude),
+            longitude: row.branch_longitude == null ? null : Number(row.branch_longitude),
+          },
+        ]),
+      );
+      if (!input.address.city?.trim()) {
+        throw new PricingError("DELIVERY_UNAVAILABLE", "Please add the city of your delivery address.");
       }
+      // The address decides, never the browser: only zones of THIS order's branch, in the address's city,
+      // covering its map pin (drawn area / radius) or, without a pin, its area/postal code. A zone id from
+      // the form ("Delivery area") is just a preference among those — one that does not serve is ignored.
+      // The pin is the delivery point itself (the rider goes there; it is stored on the order).
+      const serving = servingZones(
+        zones,
+        {
+          area: input.address.area ?? null,
+          city: input.address.city ?? null,
+          postalCode: input.address.postalCode ?? null,
+          latitude: input.address.latitude ?? null,
+          longitude: input.address.longitude ?? null,
+        },
+        (zoneLocationId) => branches.get(zoneLocationId),
+      );
+      zoneRecord = serving.find((candidate) => candidate.id === input.deliveryZoneId) ?? serving[0] ?? null;
+      if (!zoneRecord) {
+        throw new PricingError("DELIVERY_UNAVAILABLE", "Sorry, this branch does not deliver to that address.");
+      }
+      // no branch named (single-location / feature-off restaurants): the branch whose zone delivers it is
+      // the one that cooks it — record that instead of leaving the order unowned
+      locationId ??= zoneRecord.locationId;
       zone = {
         id: zoneRecord.id,
         name: zoneRecord.name,
@@ -308,7 +357,7 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
        returning *`,
       [
         input.restaurantId,
-        input.locationId ?? null,
+        locationId,
         customer.id,
         input.orderType,
         input.customer.fullName,
@@ -405,7 +454,7 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
       const deliveryStart = push(
         input.restaurantId,
         orderId,
-        input.locationId ?? null,
+        locationId,
         zoneRecord?.id ?? null,
         pricing.deliveryFee,
         new Date(Date.now() + etaMinutes * 60_000).toISOString(),
@@ -482,7 +531,7 @@ export async function listOrders(
     }
     if (filters.locationId) {
       params.push(filters.locationId);
-      conditions.push(`o.location_id = $${params.length}`);
+      conditions.push(branchFilter("o", `$${params.length}`));
     }
 
     const where = conditions.join(" and ");
@@ -540,15 +589,17 @@ export async function listOrders(
  */
 export async function getSalesAnalytics(
   restaurantId: string,
-  filters: { fromDateKey: string; toDateKey: string; timezone: string },
+  filters: { fromDateKey: string; toDateKey: string; timezone: string; locationId?: string | null },
   ctx: RequestContext,
 ): Promise<SalesAnalytics> {
   const db = getDb({ restaurantId });
   return db.read({ ...ctx, restaurantId }, async (tx) => {
-    const params = [restaurantId, filters.fromDateKey, filters.toDateKey, filters.timezone];
-    // local midnight of fromDateKey .. local midnight of the day after toDateKey, both converted to UTC in SQL
+    const params = [restaurantId, filters.fromDateKey, filters.toDateKey, filters.timezone, filters.locationId ?? null];
+    // local midnight of fromDateKey .. local midnight of the day after toDateKey, both converted to UTC in SQL;
+    // every sub-select shares it, so the branch (null = all) applies to all four breakdowns alike
     const range = `created_at >= ($2::date)::timestamp at time zone $4
-                    and created_at < ($3::date + 1)::timestamp at time zone $4`;
+                    and created_at < ($3::date + 1)::timestamp at time zone $4
+                    and ${branchFilter("orders", "$5")}`;
 
     // ONE statement for the four breakdowns (they were four queries in a row on the same range):
     // the same SQL as before, each as a sub-select, so totals and boundaries cannot differ
@@ -836,7 +887,7 @@ export async function getOrderById(
 }
 
 /** Active orders for the kitchen display, oldest first (FIFO). */
-export async function listKitchenOrders(restaurantId: string, ctx: RequestContext): Promise<Order[]> {
+export async function listKitchenOrders(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<Order[]> {
   // ONE statement whatever the number of tickets: it used to read each order's items with two more
   // queries, one order after another (~0.7 s per active order on the hosted pooler, every 20 s refresh)
   const rows = await getDb({ restaurantId }).query<Row>(
@@ -846,9 +897,10 @@ export async function listKitchenOrders(restaurantId: string, ctx: RequestContex
        left join restaurant1s l on l.id = o.location_id
        left join delivery_zones dz on dz.id = o.delivery_zone_id
       where o.restaurant_id = $1 and o.status in ('pending','confirmed','preparing','ready')
+        and ${branchFilter("o", "$2")}
       order by o.created_at asc
       limit 60`,
-    [restaurantId],
+    [restaurantId, locationId],
   );
   return rows.map((row) => {
     const order = mapOrder(row);
@@ -861,6 +913,7 @@ export async function listCustomerOrders(
   customerId: string,
   ctx: RequestContext,
   limit = 20,
+  locationId: string | null = null,
 ): Promise<OrderSummary[]> {
   const db = getDb(ctx);
   const rows = await db.read({ ...ctx, customerId }, async (tx) =>
@@ -870,10 +923,10 @@ export async function listCustomerOrders(
               (select coalesce(sum(oi.quantity),0) from order_items oi where oi.order_id = o.id) as item_count,
               (select coalesce(json_agg(oi.item_name order by oi.position, oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview
          from orders o
-        where o.customer_id = $1
+        where o.customer_id = $1 and ${branchFilter("o", "$3")}
         order by o.created_at desc
         limit $2`,
-      [customerId, limit],
+      [customerId, limit, locationId],
     ),
   );
   return rows.map((row) => ({
@@ -926,6 +979,10 @@ export async function updateOrderStatus(
          status = $2::order_status,
          cancel_reason = case when $2 = 'cancelled' then coalesce($3, cancel_reason) else cancel_reason end
        where id = $1
+         -- this runs as app_service (no RLS): keep the caller to their restaurant and, for branch staff,
+         -- their branch — an order id from elsewhere is "not found" (0029's guard is the backstop)
+         and restaurant_id = coalesce(app.current_restaurant_id(), restaurant_id)
+         and app.can_access_location(restaurant_id, location_id)
        returning id, order_number, status`,
       [orderId, status, options.cancelReason ?? null],
     );
@@ -946,10 +1003,14 @@ export async function updateOrderStatus(
 export async function countOrdersByStatus(
   restaurantId: string,
   ctx: RequestContext,
+  locationId: string | null = null,
 ): Promise<Record<OrderStatus, number>> {
   const db = getDb({ restaurantId });
   const rows = await db.read({ ...ctx, restaurantId }, async (tx) =>
-    tx.query<Row>(`select status, count(*) as count from orders where restaurant_id = $1 group by status`, [restaurantId]),
+    tx.query<Row>(
+      `select status, count(*) as count from orders o where o.restaurant_id = $1 and ${branchFilter("o", "$2")} group by status`,
+      [restaurantId, locationId],
+    ),
   );
   const counts = {
     pending: 0, confirmed: 0, preparing: 0, ready: 0, out_for_delivery: 0, completed: 0, cancelled: 0,
@@ -958,8 +1019,13 @@ export async function countOrdersByStatus(
   return counts;
 }
 
-export async function listRecentOrders(restaurantId: string, ctx: RequestContext, limit = 8): Promise<OrderSummary[]> {
-  const result = await listOrders(restaurantId, { page: 1, pageSize: limit }, ctx);
+export async function listRecentOrders(
+  restaurantId: string,
+  ctx: RequestContext,
+  limit = 8,
+  locationId: string | null = null,
+): Promise<OrderSummary[]> {
+  const result = await listOrders(restaurantId, { page: 1, pageSize: limit, locationId: locationId ?? undefined }, ctx);
   return result.rows;
 }
 
@@ -977,16 +1043,21 @@ export interface OrderActivityEvent {
  * multi-order staff feed exists yet — see KitchenAutoRefresh's own comment; this is the same
  * poll-don't-push tradeoff, just for "did anything change" instead of a full page refresh).
  */
-export async function listOrderActivitySince(restaurantId: string, sinceIso: string, ctx: RequestContext): Promise<OrderActivityEvent[]> {
+export async function listOrderActivitySince(
+  restaurantId: string,
+  sinceIso: string,
+  ctx: RequestContext,
+  locationId: string | null = null,
+): Promise<OrderActivityEvent[]> {
   const db = getDb({ restaurantId });
   const rows = await db.read({ ...ctx, restaurantId }, async (tx) =>
     tx.query<Row>(
       `select id, order_number, status, updated_at, (updated_at = created_at) as is_new
-         from orders
-        where restaurant_id = $1 and updated_at > $2::timestamptz
-        order by updated_at asc
+         from orders o
+        where o.restaurant_id = $1 and o.updated_at > $2::timestamptz and ${branchFilter("o", "$3")}
+        order by o.updated_at asc
         limit 50`,
-      [restaurantId, sinceIso],
+      [restaurantId, sinceIso, locationId],
     ),
   );
   return rows.map((row) => ({

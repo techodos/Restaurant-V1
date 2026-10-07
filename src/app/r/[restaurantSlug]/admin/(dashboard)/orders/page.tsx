@@ -7,17 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getOrderStatusCounts, listOrdersForStaff } from "@/server/services/orders";
-import { getLocations } from "@/server/services/restaurants";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, type OrderStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { requireAdminPage } from "@/web/session";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
-import { BranchFilter } from "@/components/admin/branch-filter";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Orders" };
@@ -36,28 +34,25 @@ const TABS: { key: "active" | "all" | OrderStatus; label: string }[] = [
 
 interface OrdersPageProps {
   params: Promise<{ restaurantSlug: string }>;
-  searchParams: Promise<{ status?: string; q?: string; page?: string; location?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 }
 
 export default async function AdminOrdersPage({ params, searchParams }: OrdersPageProps) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("orders.view", restaurantSlug);
-  const { status, q, page, location } = await searchParams;
+  const actor = await requireAdminPage("orders.view", restaurantSlug);
+  const { status, q, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   const activeStatus = (status ?? "active") as "active" | "all" | OrderStatus;
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
-  // A branch-scoped staff member already only ever sees their own branch's rows via RLS — the
-  // dropdown is only useful (and only shown) for HQ-wide staff (owner/admin, no location_id).
-  const isHq = actor.member.locationId === null;
-  const activeLocation = isHq ? (location ?? null) : null;
+  // the branch comes from the header's selector (owner/admin) or the member's own branch — never the URL
+  const { locationId } = await getAdminBranchScope(restaurantSlug);
 
-  // all three side by side (the staff check already tied this session to this slug's restaurant)
-  const [restaurant, counts, result, locations] = await Promise.all([
+  // side by side (the staff check already tied this session to this slug's restaurant)
+  const [restaurant, counts, result] = await Promise.all([
     getAdminRestaurant(restaurantSlug),
-    getOrderStatusCounts(actor.restaurantId, ctx),
-    listOrdersForStaff(actor.restaurantId, { status: activeStatus, search: q, locationId: activeLocation ?? undefined, page: pageNum, pageSize: 20 }, ctx),
-    isHq ? getLocations(actor.restaurantId, { activeOnly: true }) : [],
+    getOrderStatusCounts(actor.restaurantId, ctx, locationId),
+    listOrdersForStaff(actor.restaurantId, { status: activeStatus, search: q, locationId: locationId ?? undefined, page: pageNum, pageSize: 20 }, ctx),
   ]);
 
   const countFor = (key: string): number => {
@@ -66,12 +61,10 @@ export default async function AdminOrdersPage({ params, searchParams }: OrdersPa
     return counts[key as OrderStatus] ?? 0;
   };
 
-  const linkFor = (params: { status?: string; page?: number; location?: string | null }) => {
+  const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
     if (q) search.set("q", q);
-    const nextLocation = params.location !== undefined ? params.location : activeLocation;
-    if (nextLocation) search.set("location", nextLocation);
     if (params.page && params.page > 1) search.set("page", String(params.page));
     return `${adminPath(restaurantSlug)}/orders?${search.toString()}`;
   };
@@ -89,20 +82,11 @@ export default async function AdminOrdersPage({ params, searchParams }: OrdersPa
       <div className="flex flex-wrap items-center gap-3">
         <form action={adminPath(restaurantSlug, "/orders")} className="flex max-w-md flex-1 gap-2">
           <input type="hidden" name="status" value={activeStatus} />
-          {activeLocation ? <input type="hidden" name="location" value={activeLocation} /> : null}
           <Input name="q" defaultValue={q ?? ""} placeholder="Search order #, customer name or phone" />
           <Button type="submit" variant="secondary">
             Search
           </Button>
         </form>
-        {locations.length > 1 ? (
-          <BranchFilter
-            locations={locations}
-            active={activeLocation}
-            basePath={`${adminPath(restaurantSlug)}/orders`}
-            params={{ status: activeStatus, q }}
-          />
-        ) : null}
       </div>
 
       <Card className="overflow-hidden">

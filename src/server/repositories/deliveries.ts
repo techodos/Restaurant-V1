@@ -3,6 +3,7 @@ import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
 import { mapDelivery, mapDeliveryZone, str, type Row } from "@/server/db/mappers";
 import type { Delivery, DeliveryZone } from "@/shared/contract/models";
+import { haversineKm, pointInPolygon, type GeoPoint } from "@/shared/geo";
 import type { DeliveryStatus } from "@/shared/contract/enums";
 import type { Paginated } from "@/shared/contract/api";
 import { paginate } from "@/shared/contract/api";
@@ -39,20 +40,78 @@ export async function getDeliveryZone(zoneId: string, ctx: RequestContext = {}):
  * there yet".
  */
 export function matchDeliveryZone(
-  zones: DeliveryZone[],
-  address: { area?: string | null; city?: string | null; postalCode?: string | null },
+  zones: readonly DeliveryZone[],
+  address: DeliveryAddressFields,
+  /** the branch that owns a zone (zone.locationId → restaurant1s): its city, and its pin for a radius */
+  branchOf: (locationId: string) => ZoneBranch | null | undefined,
 ): DeliveryZone | null {
+  return servingZones(zones, address, branchOf)[0] ?? null;
+}
+
+export interface DeliveryAddressFields {
+  area?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  /** the customer's map pin, when they set one */
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+/** What coverage needs to know about a zone's branch. */
+export interface ZoneBranch {
+  city: string | null | undefined;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+const normalizeCity = (value: string | null | undefined): string => (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+/** Same city, compared loosely (case/spacing). Unknown on either side = NOT the same city. */
+export function sameCity(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = normalizeCity(a);
+  return left !== "" && left === normalizeCity(b);
+}
+
+/** Does this zone cover the address by its area names / postal codes (the original rule)? */
+function coversByName(zone: DeliveryZone, haystack: string, postal: string): boolean {
+  if (postal && zone.postalCodes.some((code) => code.trim().toLowerCase() === postal)) return true;
+  return Boolean(haystack) && zone.areas.some((areaName) => areaName.trim() && haystack.includes(areaName.trim().toLowerCase()));
+}
+
+/**
+ * Every active zone that delivers to `address`, in the given order. THE coverage rule, shared by branch
+ * ranking (services/branching.ts), the checkout preview (services/cart.ts) and the order itself
+ * (orders.ts#createOrder):
+ *   1. the city is a hard boundary — a zone serves only addresses in its own branch's city (zone area
+ *      names are free text: "Bahria Town" exists in Lahore AND Islamabad). No city on either side = not
+ *      served (found 2026-10-07).
+ *   2. a MAP zone (migration 0030) with the customer's pin: the pin must be inside the drawn polygon, or
+ *      within radius_km of the branch's pin. The geometry decides; names do not widen it.
+ *   3. otherwise — a names-only zone, or a map zone when the customer gave no pin (typed address) — the
+ *      zone's postal codes / area names, as before. A map zone with no names then serves no unpinned address.
+ */
+export function servingZones(
+  zones: readonly DeliveryZone[],
+  address: DeliveryAddressFields,
+  branchOf: (locationId: string) => ZoneBranch | null | undefined,
+): DeliveryZone[] {
   const haystack = [address.area, address.city].filter(Boolean).join(", ").toLowerCase();
   const postal = (address.postalCode ?? "").trim().toLowerCase();
-
-  for (const zone of zones) {
-    if (!zone.isActive) continue;
-    if (postal && zone.postalCodes.some((code) => code.trim().toLowerCase() === postal)) return zone;
-    if (haystack && zone.areas.some((areaName) => areaName.trim() && haystack.includes(areaName.trim().toLowerCase()))) {
-      return zone;
+  const pin: GeoPoint | null =
+    typeof address.latitude === "number" && typeof address.longitude === "number" && Number.isFinite(address.latitude) && Number.isFinite(address.longitude)
+      ? { latitude: address.latitude, longitude: address.longitude }
+      : null;
+  return zones.filter((zone) => {
+    if (!zone.isActive) return false;
+    const branch = branchOf(zone.locationId);
+    if (!branch || !sameCity(branch.city, address.city)) return false;
+    if (pin && Array.isArray(zone.polygon) && zone.polygon.length >= 3) return pointInPolygon(pin, zone.polygon);
+    if (pin && typeof zone.radiusKm === "number") {
+      if (typeof branch.latitude !== "number" || typeof branch.longitude !== "number") return false; // cannot measure: not served
+      return haversineKm(pin, { latitude: branch.latitude, longitude: branch.longitude }) <= zone.radiusKm;
     }
-  }
-  return null;
+    return coversByName(zone, haystack, postal);
+  });
 }
 
 export interface DeliveryZoneInput {
@@ -68,6 +127,9 @@ export interface DeliveryZoneInput {
   etaMaxMinutes?: number;
   isActive?: boolean;
   sortOrder?: number;
+  /** null clears it; the two are exclusive (one coverage mode per zone) */
+  radiusKm?: number | null;
+  polygon?: [number, number][] | null;
 }
 
 export async function createDeliveryZone(
@@ -80,16 +142,18 @@ export async function createDeliveryZone(
     const row = await tx.queryOne<Row>(
       `insert into delivery_zones
          (restaurant_id, location_id, name, description, areas, postal_codes, delivery_fee, min_order_amount,
-          free_delivery_over, eta_min_minutes, eta_max_minutes, is_active, sort_order)
+          free_delivery_over, eta_min_minutes, eta_max_minutes, is_active, sort_order, radius_km, polygon)
        values ($1,$2,$3,$4,coalesce($5::text[],'{}'),coalesce($6::text[],'{}'),$7::numeric,coalesce($8::numeric,0),$9::numeric,
                coalesce($10,30),coalesce($11,45),coalesce($12,true),
-               coalesce($13,(select coalesce(max(sort_order),0)+1 from delivery_zones where restaurant_id = $1)))
+               coalesce($13,(select coalesce(max(sort_order),0)+1 from delivery_zones where restaurant_id = $1)),
+               $14::numeric, $15::jsonb)
        returning *`,
       [
         restaurantId, input.locationId, input.name, input.description ?? null, input.areas ?? null,
         input.postalCodes ?? null, input.deliveryFee, input.minOrderAmount ?? null,
         input.freeDeliveryOver ?? null, input.etaMinMinutes ?? null, input.etaMaxMinutes ?? null,
         input.isActive ?? null, input.sortOrder ?? null,
+        input.radiusKm ?? null, input.polygon ? JSON.stringify(input.polygon) : null,
       ],
     );
     if (!row) throw new Error("Delivery zone insert failed");
@@ -116,12 +180,18 @@ export async function updateDeliveryZone(
          eta_min_minutes = coalesce($9, eta_min_minutes),
          eta_max_minutes = coalesce($10, eta_max_minutes),
          is_active = coalesce($11, is_active),
-         sort_order = coalesce($12, sort_order)
+         sort_order = coalesce($12, sort_order),
+         -- coverage is replaced as a whole when sent ("radiusKm"/"polygon" keys present), kept otherwise
+         radius_km = case when $13 then $14::numeric else radius_km end,
+         polygon = case when $13 then $15::jsonb else polygon end
        where id = $1 returning *`,
       [
         zoneId, patch.name ?? null, patch.description ?? null, patch.areas ?? null, patch.postalCodes ?? null,
         patch.deliveryFee ?? null, patch.minOrderAmount ?? null, patch.freeDeliveryOver ?? null,
         patch.etaMinMinutes ?? null, patch.etaMaxMinutes ?? null, patch.isActive ?? null, patch.sortOrder ?? null,
+        "radiusKm" in patch || "polygon" in patch,
+        patch.radiusKm ?? null,
+        patch.polygon ? JSON.stringify(patch.polygon) : null,
       ],
     );
     if (!row) throw new Error("Delivery zone not found");

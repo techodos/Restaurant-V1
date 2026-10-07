@@ -97,7 +97,7 @@ try {
       `insert into team_members
          (id, restaurant_id, user_id, location_id, email, full_name, phone, role, permissions, is_active, accepted_at, last_login_at)
        values ($1,$2,$3,$4,$5,$6,$7,$8::team_role,'{}'::jsonb,true, now(), now() - interval '2 hours')`,
-      [person.member, RID, person.id, IDS.locationF7, person.email, person.name, person.phone, person.role],
+      [person.member, RID, person.id, /* owner/admin are restaurant-wide (0027/0029) */ person.role === "owner" || person.role === "admin" ? null : IDS.locationF7, person.email, person.name, person.phone, person.role],
     );
   }
 

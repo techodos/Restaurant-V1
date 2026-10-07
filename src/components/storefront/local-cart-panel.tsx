@@ -383,9 +383,6 @@ export function LocalCartPanel({
         </div>
         <div className="sticky bottom-0 mt-6 border-t border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:px-7">
           {checkout}
-          <Link href={`${home}/cart`} className="mt-2 block text-center text-xs font-medium text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]">
-            Open full cart
-          </Link>
         </div>
       </div>
     );

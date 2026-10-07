@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import { listCategoriesForAdmin } from "@/server/services/menu-admin";
 import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
 import { MenuItemForm } from "@/components/admin/menu-item-form";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "New item" };
 
 export default async function NewMenuItemPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("menu.manage", restaurantSlug);
+  const actor = await requireAdminPage("menu.manage", restaurantSlug, { restaurantWide: true }); // the shared menu: owner/admin
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
   const categories = await listCategoriesForAdmin(restaurant.id, ctx);

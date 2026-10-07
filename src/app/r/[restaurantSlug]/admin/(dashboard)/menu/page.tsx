@@ -10,12 +10,12 @@ import { Card } from "@/components/ui/card";
 import { getLocationItemOverridesForAdmin, listCategoriesForAdmin, listMenuItemsForAdmin } from "@/server/services/menu-admin";
 import { getLocations } from "@/server/services/restaurants";
 import { formatMoney } from "@/shared/money";
-import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { isRestaurantWide } from "@/server/auth/branch-scope";
+import { requireAdminPage } from "@/web/session";
 import { CategoryManager } from "@/components/admin/category-manager";
 import { ItemRowActions } from "@/components/admin/item-row-actions";
 import { BranchItemToggle } from "@/components/admin/branch-menu-controls";
-import { BranchFilter } from "@/components/admin/branch-filter";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
@@ -25,14 +25,14 @@ export const metadata: Metadata = { title: "Menu" };
 
 interface MenuAdminPageProps {
   params: Promise<{ restaurantSlug: string }>;
-  searchParams: Promise<{ category?: string; location?: string }>;
+  searchParams: Promise<{ category?: string }>;
 }
 
 export default async function AdminMenuPage({ params, searchParams }: MenuAdminPageProps) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("menu.view", restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
-  const { category, location } = await searchParams;
+  const actor = await requireAdminPage("menu.view", restaurantSlug);
+  const [restaurant, scope] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
+  const { category } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   // side by side (they were one after the other)
@@ -40,19 +40,21 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
     listCategoriesForAdmin(restaurant.id, ctx),
     listMenuItemsForAdmin(restaurant.id, category ? { categoryId: category } : {}, ctx),
   ]);
-  const canManage = actor.permissions.includes("menu.manage");
+  // Categories, items and prices are shared by every branch: owner/admin edit them. A branch only switches
+  // items off (menu_item_location_overrides) — the one menu change a branch manager makes, for their branch.
+  const canManage = actor.permissions.includes("menu.manage") && isRestaurantWide(actor);
+  const canToggleBranch = actor.permissions.includes("menu.manage");
 
-  // Multi-branch ordering (features.BranchingFeature): the menu is shared, a branch only switches items
-  // off. `?location=<id>` (the same branch filter as orders/payments/reservations) turns the item list into
-  // that branch's availability view.
-  const branches = restaurant.features.BranchingFeature ? await getLocations(restaurant.id, { activeOnly: true }) : [];
+  // With 2+ branches the list is the availability of the branch in scope: the one chosen in the header
+  // (owner/admin) or the member's own. "All branches" shows the restaurant-wide controls.
+  const branches = await getLocations(restaurant.id, { activeOnly: true });
   const branchMode = branches.length > 1;
-  const selectedBranch = branchMode ? (branches.find((entry) => entry.id === location) ?? null) : null;
+  const selectedBranch = branchMode ? scope.current : null;
   const overrides = selectedBranch ? await getLocationItemOverridesForAdmin(selectedBranch.id, ctx) : null;
+  const showActions = selectedBranch ? canToggleBranch : canManage;
   const menuHref = (next: { category?: string }) => {
     const query = new URLSearchParams();
     if (next.category) query.set("category", next.category);
-    if (selectedBranch) query.set("location", selectedBranch.id);
     const text = query.toString();
     return `${adminPath(restaurantSlug, "/menu")}${text ? `?${text}` : ""}`;
   };
@@ -75,11 +77,10 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
 
       {branchMode ? (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 py-3">
-          <BranchFilter locations={branches} active={selectedBranch?.id ?? null} basePath={adminPath(restaurantSlug, "/menu")} params={{ category }} />
           <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-[var(--color-muted-ink)]">
             {selectedBranch
-              ? `Categories, items and prices are shared by every branch. Switch an item off below to stop selling it at ${selectedBranch.name} only.`
-              : "Categories, items and prices are shared by every branch. Choose a branch to manage what it sells."}
+              ? `Categories, items and prices are shared by every branch.${canToggleBranch ? ` Switch an item off below to stop selling it at ${selectedBranch.name} only.` : ""}${canToggleBranch && !canManage ? " Only the owner or an administrator can change the shared menu." : ""}`
+              : "Categories, items and prices are shared by every branch. Choose a branch in the header to manage what it sells."}
           </p>
         </div>
       ) : null}
@@ -121,7 +122,7 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
                   <th className="px-4 py-3 font-medium">Item</th>
                   <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">Price</th>
-                  {canManage ? (
+                  {showActions ? (
                     <th className="px-4 py-3 text-right font-medium">{selectedBranch ? `At ${selectedBranch.name}` : "Actions"}</th>
                   ) : null}
                 </tr>
@@ -152,7 +153,7 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
                       {formatMoney(item.hasVariants ? item.priceFrom : item.basePrice, { currency: restaurant.currency })}
                       {item.hasVariants ? <span className="text-[var(--color-muted-ink)]"> from</span> : null}
                     </td>
-                    {canManage ? (
+                    {showActions ? (
                       <td className="px-4 py-3">
                         {selectedBranch ? (
                           <BranchItemToggle

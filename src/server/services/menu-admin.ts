@@ -1,4 +1,6 @@
 import type { RequestContext } from "@/server/context";
+import { errors } from "@/server/errors";
+import { assertBranchAccess, type ScopedActor } from "@/server/auth/branch-scope";
 import { getStorefrontCache } from "@/server/cache";
 import type { MenuAddonGroup, MenuCategory, MenuItem, MenuItemSummary } from "@/shared/contract/models";
 import {
@@ -97,14 +99,23 @@ export async function setItemAvailability(
   return item;
 }
 
+/**
+ * Switches one item on/off at one branch. The branch and item come from the browser, so both are checked:
+ * the branch must be THIS restaurant's and inside the caller's reach (branch staff: their own only), and
+ * the item must be this restaurant's. 0029's write guard repeats the branch/tenant check in the database.
+ */
 export async function setItemLocationAvailability(
   restaurantId: string,
   locationId: string,
   itemId: string,
   isAvailable: boolean,
   ctx: RequestContext,
+  actor: ScopedActor,
 ): Promise<void> {
-  await repoSetItemLocationAvailability(restaurantId, locationId, itemId, isAvailable, ctx);
+  assertBranchAccess(actor, locationId); // no database: the actor's own branch is on the session
+  if (!(await repoSetItemLocationAvailability(restaurantId, locationId, itemId, isAvailable, ctx))) {
+    throw errors.notFound("Branch or menu item");
+  }
   getStorefrontCache().invalidate();
 }
 

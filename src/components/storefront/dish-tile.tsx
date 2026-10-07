@@ -4,7 +4,7 @@ import { formatMoney } from "@/shared/money";
 import { resolveMenuImage } from "@/web/media";
 import type { MenuItemSummary } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
-import { QuickAddButton } from "./quick-add-button";
+import { BranchReadyQuickAdd, QuickAddButton } from "./quick-add-button";
 import { SpiceLevel } from "./spice-level";
 
 interface DishTileProps {
@@ -22,8 +22,8 @@ interface DishTileProps {
   /** larger type for signature placements */
   size?: "md" | "lg";
   /**
-   * Multi-branch ordering, outside the menu (home page sections): no add control, and the tile opens
-   * the Menu page at this dish's category, where the branch is chosen before anything goes in the cart.
+   * Multi-branch ordering, outside the menu (home page sections): the tile opens the Menu page at this
+   * dish's category, and the add control appears only once the customer's branch is chosen.
    */
   browseOnly?: boolean;
   /** switched off at the customer's chosen branch (the item itself is still on the menu elsewhere) */
@@ -54,8 +54,9 @@ export function DishTile({
   // the dish sheet opens over the page (no scroll); a jump to the menu chapter must scroll to its anchor
   const linkProps = browseOnly ? {} : { scroll: false as const };
   const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: false });
-  const add = browseOnly ? null : (
-    <QuickAddButton
+  const AddControl = browseOnly ? BranchReadyQuickAdd : QuickAddButton;
+  const add = (
+    <AddControl
       restaurantSlug={restaurantSlug}
       item={{
         id: item.id,

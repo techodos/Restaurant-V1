@@ -353,6 +353,10 @@ export interface DeliveryZone {
   etaMaxMinutes: number;
   isActive: boolean;
   sortOrder: number;
+  /** map coverage (migration 0030): everything within this distance of the branch… */
+  radiusKm: number | null;
+  /** …or this drawn area ([latitude, longitude] points). Neither = area names only. */
+  polygon: [number, number][] | null;
 }
 
 export interface Coupon {

@@ -1,5 +1,6 @@
 import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
+import { logger } from "@/server/logger";
 import {
   deleteAddress,
   getCustomerById,
@@ -10,7 +11,7 @@ import {
   updateCustomerProfile as updateCustomerProfileRow,
 } from "@/server/repositories/customers";
 import type { Customer, CustomerAddress, CustomerGender, Restaurant } from "@/shared/contract/models";
-import type { CustomerAddressInput, UpdateProfileInput } from "@/server/validation/customer-profile";
+import { customerAddressSchema, type CustomerAddressInput, type UpdateProfileInput } from "@/server/validation/customer-profile";
 
 /**
  * The signed-in customer's own profile and saved addresses. Every call is scoped to the customer of the
@@ -101,6 +102,43 @@ export async function saveCustomerAddress(
     await saveAddress(customerId, restaurant.id, fields, ctx);
   }
   return listAddresses(customerId, ctx);
+}
+
+/**
+ * Checkout's "Save this address for next time" (called after the order has committed, never before it —
+ * the order stays ONE transaction and a failed save can never cost an order). Saves a new delivery
+ * address to the signed-in customer's address book unless the same street/area/city is already there;
+ * the first address saved becomes the default. Never throws.
+ */
+export async function rememberCheckoutAddress(
+  restaurant: Pick<Restaurant, "id">,
+  visitor: Visitor,
+  input: { orderType: string; saveAddressAs?: string; addressLine1?: string; addressLine2?: string; area?: string; city?: string; postalCode?: string; latitude?: number; longitude?: number },
+): Promise<void> {
+  const label = input.saveAddressAs?.trim();
+  if (!label || input.orderType !== "delivery" || !visitor.customerId) return;
+  const parsed = customerAddressSchema.safeParse({
+    label,
+    addressLine1: input.addressLine1,
+    addressLine2: input.addressLine2,
+    area: input.area,
+    city: input.city,
+    postalCode: input.postalCode,
+    latitude: input.latitude,
+    longitude: input.longitude,
+  });
+  if (!parsed.success) return; // e.g. no area/city typed: the order went through, nothing worth saving
+  try {
+    const customerId = visitor.customerId;
+    const ctx = { restaurantId: restaurant.id, customerId };
+    const existing = await listAddresses(customerId, ctx);
+    const key = (line1: string, area: string | null, city: string | null) => [line1, area ?? "", city ?? ""].map((part) => part.trim().toLowerCase()).join("|");
+    const address = parsed.data;
+    if (existing.some((saved) => key(saved.addressLine1, saved.area, saved.city) === key(address.addressLine1, address.area, address.city))) return;
+    await saveCustomerAddress(restaurant, visitor, { ...address, isDefault: existing.length === 0 });
+  } catch (error) {
+    logger.warn("action", "could not save the checkout address", String(error));
+  }
 }
 
 export async function deleteCustomerAddress(

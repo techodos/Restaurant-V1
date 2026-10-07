@@ -16,6 +16,7 @@ export function AdminHeader({
   restaurantName,
   restaurantSlug,
   mobileNav,
+  branch,
   showSoundToggle = false,
 }: {
   name: string;
@@ -24,6 +25,8 @@ export function AdminHeader({
   restaurantSlug: string;
   /** menu button for screens without the sidebar */
   mobileNav?: React.ReactNode;
+  /** branch selector (owner/admin) or the member's own branch (read-only); kept apart from account controls */
+  branch?: React.ReactNode;
   /** only staff who can see orders get the "new order" sound toggle */
   showSoundToggle?: boolean;
 }) {
@@ -44,7 +47,10 @@ export function AdminHeader({
     <header className="tone-night sticky top-0 z-30 flex h-[4.75rem] items-center justify-between gap-4 border-b border-[var(--rule)] px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         {mobileNav}
-        <p className="truncate text-sm font-medium text-[var(--color-muted-ink)] lg:hidden">{restaurantName}</p>
+        <p className={`truncate text-sm font-medium text-[var(--color-muted-ink)] lg:hidden ${branch ? "hidden sm:block" : ""}`}>
+          {restaurantName}
+        </p>
+        {branch ? <div className="min-w-0 sm:border-l sm:border-[var(--rule)] sm:pl-3 lg:border-l-0 lg:pl-0">{branch}</div> : null}
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-3">

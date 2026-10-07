@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getKitchenOrders } from "@/server/services/orders";
 import { ORDER_TYPE_LABELS } from "@/shared/contract/enums";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
+import { getAdminBranchScope } from "@/web/admin";
 import { KitchenAutoRefresh } from "@/components/admin/kitchen-auto-refresh";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -19,11 +20,13 @@ function elapsedMinutes(createdAt: string): number {
 
 export default async function AdminKitchenPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("kitchen.view", restaurantSlug);
+  const actor = await requireAdminPage("kitchen.view", restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
-  // the staff check already tied this session to this slug's restaurant; no need to wait for its row
-  const orders = await getKitchenOrders(actor.restaurantId, ctx);
+  // the staff check already tied this session to this slug's restaurant; no need to wait for its row.
+  // Tickets of the branch in scope only (header selector / the member's own branch).
+  const { locationId } = await getAdminBranchScope(restaurantSlug);
+  const orders = await getKitchenOrders(actor.restaurantId, ctx, locationId);
 
   return (
     <div className="space-y-6">

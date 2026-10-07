@@ -37,7 +37,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, readonly Permission[]> = {
     "orders.view", "orders.manage", "orders.update_status", "kitchen.view", "menu.view", "menu.manage",
     "customers.view", "customers.manage", "reservations.view", "reservations.manage", "reviews.view", "reviews.manage",
     "delivery.view", "delivery.manage", "coupons.view", "coupons.manage", "media.view", "media.manage",
-    "staff.view", "locations.view", "payments.view", "analytics.view", "settings.view",
+    "staff.view", "staff.manage", "locations.view", "payments.view", "analytics.view",
   ],
   staff: [
     "orders.view", "orders.update_status", "kitchen.view", "menu.view", "customers.view",
@@ -55,9 +55,32 @@ export const ROLE_LABELS: Record<TeamRole, string> = {
 export const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
   owner: "Full access including billing, staff and settings.",
   admin: "Everything except ownership transfer; can manage staff accounts.",
-  manager: "Day-to-day operations: orders, menu, customers, coupons and reports.",
+  manager: "Runs one branch: its orders, reservations, menu availability, staff and reports. No restaurant settings.",
   staff: "Order taking, kitchen display and reservations.",
 };
+
+/**
+ * Roles a member may give (and manage) with `staff.manage`. Nobody can hand out a role above their own:
+ * only an owner makes owners, an admin cannot create or touch an owner, and a branch manager hires
+ * `staff` only (manager accounts are created by owner/admin, as before managers could manage staff).
+ */
+export function assignableRoles(role: TeamRole): readonly TeamRole[] {
+  switch (role) {
+    case "owner":
+      return ["owner", "admin", "manager", "staff"];
+    case "admin":
+      return ["admin", "manager", "staff"];
+    case "manager":
+      return ["staff"];
+    default:
+      return [];
+  }
+}
+
+/** Owner/admin work across every branch; manager/staff belong to one (team_members.location_id). */
+export function isBranchRole(role: TeamRole): boolean {
+  return role === "manager" || role === "staff";
+}
 
 export interface PermissionOverrides {
   allow?: string[] | null;

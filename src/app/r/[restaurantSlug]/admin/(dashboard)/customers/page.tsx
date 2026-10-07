@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { listCustomersForAdmin } from "@/server/services/customers";
 import { formatMoney } from "@/shared/money";
 import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { requireAdminPage } from "@/web/session";
+import { isRestaurantWide } from "@/server/auth/branch-scope";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
@@ -24,13 +25,16 @@ interface CustomersPageProps {
 
 export default async function AdminCustomersPage({ params, searchParams }: CustomersPageProps) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("customers.view", restaurantSlug);
+  const actor = await requireAdminPage("customers.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const { q, sort, page } = await searchParams;
+  // customers are restaurant-wide records, but their lifetime order count and spend add up every branch:
+  // branch staff get the directory without them (their branch's figures are on the customer's page)
+  const showTotals = isRestaurantWide(actor);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
-  const activeSort = sort === "spend" ? "spend" : "recent";
+  const activeSort = sort === "spend" && showTotals ? "spend" : "recent";
 
   const result = await listCustomersForAdmin(restaurant.id, { search: q, sort: activeSort, page: pageNum, pageSize: 20 }, ctx);
 
@@ -54,6 +58,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
             Search
           </Button>
         </form>
+        {showTotals ? (
         <div className="flex gap-2 text-sm">
           <Link
             href={`${adminPath(restaurantSlug)}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: "recent" }).toString()}`}
@@ -69,6 +74,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
             Top spenders
           </Link>
         </div>
+        ) : null}
       </div>
 
       <Card className="overflow-hidden">
@@ -79,8 +85,12 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
             <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
               <tr>
                 <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Orders</th>
-                <th className="px-4 py-3 font-medium">Total spent</th>
+                {showTotals ? (
+                  <>
+                    <th className="px-4 py-3 font-medium">Orders</th>
+                    <th className="px-4 py-3 font-medium">Total spent</th>
+                  </>
+                ) : null}
                 <th className="px-4 py-3 font-medium">Last order</th>
               </tr>
             </thead>
@@ -97,8 +107,12 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
                       {customer.isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
                     </div>
                   </td>
-                  <td className="px-4 py-3">{customer.totalOrders}</td>
-                  <td className="px-4 py-3 font-medium">{formatMoney(customer.totalSpent, { currency: restaurant.currency })}</td>
+                  {showTotals ? (
+                    <>
+                      <td className="px-4 py-3">{customer.totalOrders}</td>
+                      <td className="px-4 py-3 font-medium">{formatMoney(customer.totalSpent, { currency: restaurant.currency })}</td>
+                    </>
+                  ) : null}
                   <td className="px-4 py-3 text-[var(--color-muted-ink)]">
                     {customer.lastOrderAt
                       ? new Date(customer.lastOrderAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })

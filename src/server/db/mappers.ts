@@ -8,6 +8,7 @@ import { CUSTOMER_GENDERS } from "@/shared/contract/models";
 import { migrateServiceFeeShape, restaurantFeaturesSchema, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
 import type { MediaPurpose, OrderStatus, OrderType, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus, TeamRole, WebsiteStatus, DeliveryStatus, CouponDiscountType } from "@/shared/contract/enums";
 import { parseOpeningHours, parseAvailabilityWindow } from "@/shared/hours";
+import { toPolygon } from "@/shared/geo";
 
 /**
  * Row mappers: snake_case columns → typed contract models.
@@ -15,6 +16,17 @@ import { parseOpeningHours, parseAvailabilityWindow } from "@/shared/hours";
  * defaults instead of breaking a page.
  */
 export type Row = Record<string, unknown>;
+
+/**
+ * SQL for "rows of one branch" in an admin list: that branch plus rows tied to no branch — the same rule
+ * as RLS `app.can_access_location` (migration 0027). `param` bound to null = every branch. Used by every
+ * branch-scoped admin query so the filter happens in the database, never in the UI.
+ */
+export const branchFilter = (alias: string, param: string, column = "location_id"): string => {
+  // a bind placeholder like "$3" — a bare "3" would compare the branch to the NUMBER 3 (seen once: 42846)
+  if (!/^\$\d+$/.test(param)) throw new Error(`branchFilter: expected a bind placeholder like "$2", got "${param}"`);
+  return `(${param}::uuid is null or ${alias}.${column} is null or ${alias}.${column} = ${param}::uuid)`;
+};
 
 export const str = (value: unknown): string => (value === null || value === undefined ? "" : String(value));
 export const strOrNull = (value: unknown): string | null =>
@@ -324,6 +336,8 @@ export function mapDeliveryZone(row: Row): DeliveryZone {
     etaMaxMinutes: num(row.eta_max_minutes, 45),
     isActive: bool(row.is_active, true),
     sortOrder: num(row.sort_order),
+    radiusKm: numOrNull(row.radius_km),
+    polygon: toPolygon(row.polygon),
   };
 }
 

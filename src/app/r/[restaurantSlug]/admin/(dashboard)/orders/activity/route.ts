@@ -1,6 +1,7 @@
 import { jsonError } from "@/server/errors";
 import { getOrderActivitySince } from "@/server/services/orders";
 import { requirePermission } from "@/web/session";
+import { getAdminBranchScope } from "@/web/admin";
 
 /**
  * Polled by the admin's order-sound notifications (OrderActivityWatcher): `GET .../orders/activity?since=<ISO>`.
@@ -24,7 +25,9 @@ export async function GET(
     const since = new URL(request.url).searchParams.get("since");
     const sinceIso = since && !Number.isNaN(Date.parse(since)) ? since : new Date(Date.now() - 10_000).toISOString();
 
-    const events = await getOrderActivitySince(actor.restaurantId, sinceIso, ctx);
+    // chimes for the branch in scope only (a branch member's own; owner/admin: the header's choice)
+    const { locationId } = await getAdminBranchScope(restaurantSlug);
+    const events = await getOrderActivitySince(actor.restaurantId, sinceIso, ctx, locationId);
     return Response.json({ success: true, data: { now: new Date().toISOString(), events } });
   } catch (error) {
     const { body, status } = jsonError(error);

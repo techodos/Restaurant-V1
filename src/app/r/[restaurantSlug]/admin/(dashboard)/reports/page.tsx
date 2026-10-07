@@ -9,8 +9,8 @@ import { getSalesReport, listOrdersForStaff } from "@/server/services/orders";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import { REPORT_RANGE_LABELS, REPORT_RANGE_PRESETS, resolveReportRange, type ReportRangePreset } from "@/shared/reports";
-import { getAdminRestaurant } from "@/web/admin";
-import { requirePermission } from "@/web/session";
+import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { requireAdminPage } from "@/web/session";
 import { adminPath } from "@/shared/utils";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -56,16 +56,21 @@ function StatCard({
 
 export default async function AdminReportsPage({ params, searchParams }: ReportsPageProps) {
   const { restaurantSlug } = await params;
-  const actor = await requirePermission("analytics.view", restaurantSlug);
-  const restaurant = await getAdminRestaurant(restaurantSlug);
+  const actor = await requireAdminPage("analytics.view", restaurantSlug);
+  const [restaurant, scope] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
+  const { locationId } = scope; // a manager: always their branch; owner/admin: the header's choice (null = all)
   const { preset, from, to } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   const range = resolveReportRange(preset, from, to, restaurant.timezone);
 
   const [report, recentInRange] = await Promise.all([
-    getSalesReport(restaurant.id, range, restaurant.timezone, ctx),
-    listOrdersForStaff(restaurant.id, { dateFrom: range.fromDateKey, dateTo: range.toDateKey, status: "all", page: 1, pageSize: 10 }, ctx),
+    getSalesReport(restaurant.id, range, restaurant.timezone, ctx, locationId),
+    listOrdersForStaff(
+      restaurant.id,
+      { dateFrom: range.fromDateKey, dateTo: range.toDateKey, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 10 },
+      ctx,
+    ),
   ]);
 
   const linkFor = (nextPreset: ReportRangePreset) => `${adminPath(restaurantSlug)}/reports?preset=${nextPreset}`;
