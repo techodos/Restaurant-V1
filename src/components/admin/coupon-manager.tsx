@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { deleteCouponAction, saveCouponAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/coupons/actions";
-import { useConfirm } from "@/components/admin/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { COUPON_DISCOUNT_TYPES, ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import type { Coupon } from "@/shared/contract/models";
 

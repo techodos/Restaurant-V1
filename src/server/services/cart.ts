@@ -53,7 +53,7 @@ export interface TrayView {
 
 /** Resolves every tray line against the current menu. Unorderable lines are kept and flagged, never dropped silently. */
 export async function viewTray(restaurant: Restaurant, tray: Tray, now = new Date()): Promise<TrayView> {
-  const menu = await getOrderableMenuItems(restaurant.id, tray.lines.map((line) => line.menuItemId));
+  const menu = await getOrderableMenuItems(restaurant.id, tray.lines.map((line) => line.menuItemId), tray.locationId);
   let subtotal = ZERO;
   const lines = tray.lines.map((line, index): TrayLineView => {
     const entry = menu.get(line.menuItemId);

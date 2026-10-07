@@ -132,7 +132,7 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
          (select row_to_json(r) from (select ${ORDER_RESTAURANT_COLUMNS} from restaurants where id = $1) r) as restaurant,
          (select row_to_json(c) from (select ${ORDER_CUSTOMER_COLUMNS} from customers
                                         where id = $2 and restaurant_id = $1 for update) c) as customer,
-         (select coalesce(json_agg(m), '[]') from (${orderableItemsSql("$1", "$3")}) m) as menu,
+         (select coalesce(json_agg(m), '[]') from (${orderableItemsSql("$1", "$3", "$5")}) m) as menu,
          case when $4::boolean then
            (select coalesce(json_agg(z order by z.sort_order, z.name), '[]') from delivery_zones z
              where z.restaurant_id = $1 and z.is_active and ($5::uuid is null or z.location_id = $5))
@@ -435,6 +435,7 @@ export interface OrderListFilters {
   dateFrom?: string;
   dateTo?: string;
   paymentStatus?: string;
+  locationId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -479,17 +480,22 @@ export async function listOrders(
       params.push(filters.dateTo);
       conditions.push(`o.created_at < ($${params.length}::timestamptz + interval '1 day')`);
     }
+    if (filters.locationId) {
+      params.push(filters.locationId);
+      conditions.push(`o.location_id = $${params.length}`);
+    }
 
     const where = conditions.join(" and ");
     // the page and the total in ONE statement (`count(*) over ()` counts every match before LIMIT);
     // only a page past the end (no rows to carry the total) needs the separate count
     const rows = await tx.query<Row>(
       `select o.id, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
-              o.payment_status, o.payment_method, o.created_at, o.subtotal, o.discount_amount, o.tax_amount,
+              o.payment_status, o.payment_method, o.created_at, o.subtotal, o.discount_amount, o.tax_amount, l.name as location_name,
               (select coalesce(sum(oi.quantity),0) from order_items oi where oi.order_id = o.id) as item_count,
               (select coalesce(json_agg(oi.item_name order by oi.position, oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview,
               count(*) over () as total_count
          from orders o
+         left join restaurant1s l on l.id = o.location_id
         where ${where}
         order by o.created_at desc
         limit ${pageSize} offset ${(page - 1) * pageSize}`,
@@ -519,6 +525,7 @@ export async function listOrders(
       subtotal: toMoney(str(row.subtotal)),
       discountAmount: toMoney(str(row.discount_amount)),
       taxAmount: toMoney(str(row.tax_amount)),
+      locationName: row.location_name ? str(row.location_name) : null,
     }));
 
     return paginate(summaries, total, page, pageSize);

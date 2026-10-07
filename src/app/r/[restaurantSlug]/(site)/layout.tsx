@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import { getVisitorContext } from '@/web/session';
-import { getInitialTray, getStorefrontContext, requireStorefront } from '@/web/storefront';
+import { getBranching, getInitialTray, getStorefrontContext, requireStorefront } from '@/web/storefront';
 import { themeCssVariables, fontStack } from '@/web/theme';
 import { SiteHeader } from '@/components/storefront/site-header';
 import { CurrentOrdersWidget } from '@/components/storefront/current-orders-widget';
 import { MobileDock } from '@/components/storefront/mobile-dock';
 import { LocalCartProvider } from '@/components/storefront/local-cart';
+import { BranchingProvider } from '@/components/storefront/branching';
 import { resolveImage } from '@/web/media';
 import { SiteFooter } from '@/components/storefront/site-footer';
 import { getCustomerSessionSummary } from './account/actions';
@@ -85,10 +86,12 @@ export default async function StorefrontLayout({
   const { restaurant, theme, config, locations, primaryLocation } = context;
   // Both from cookies, no database: the signed session token and the tray cookie (priced from the
   // in-memory menu so the header badge and drawer render correctly on the very first paint).
-  const [customer, visitor, initialTray] = await Promise.all([
+  const [customer, visitor, initialTray, branching] = await Promise.all([
     getCustomerSessionSummary(restaurantSlug).catch(() => ({ signedIn: false, name: null })),
     getVisitorContext(restaurant.id),
     getInitialTray(context),
+    // null unless features.BranchingFeature is on; from the destination cookie + snapshot, no database
+    getBranching(context),
   ]);
   // The one database read a storefront page view makes, and only for a signed-in visitor: an active
   // order's status changes from outside anything this browser does (staff update it), so there is no
@@ -116,6 +119,13 @@ export default async function StorefrontLayout({
       </a>
 
       <LocalCartProvider restaurantSlug={restaurant.slug} initial={initialTray}>
+       <BranchingProvider
+        restaurantSlug={restaurant.slug}
+        state={branching}
+        googleMapsApiKey={serverConfig.maps?.apiKey ?? null}
+        country={restaurant.country}
+        signedIn={Boolean(customer?.signedIn)}
+       >
         <SiteHeader
           restaurant={{
             name: restaurant.name,
@@ -153,6 +163,7 @@ export default async function StorefrontLayout({
           reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
           signedIn={Boolean(customer?.signedIn)}
         />
+       </BranchingProvider>
       </LocalCartProvider>
     </div>
   );

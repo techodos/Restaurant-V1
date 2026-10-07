@@ -33,6 +33,7 @@ const EXPECTED_TABLES = [
   "menu_item_variants",
   "menu_addon_groups",
   "menu_addons",
+  "menu_item_location_overrides",
   "customers",
   "customer_addresses",
   "carts",

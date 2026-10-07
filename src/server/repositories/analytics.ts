@@ -245,6 +245,73 @@ export async function getHourlyLoad(
   return rows.map((row) => ({ hour: num(row.hour), orders: num(row.orders) }));
 }
 
+export interface BranchPerformance {
+  locationId: string | null;
+  locationName: string;
+  orders: number;
+  revenue: string;
+  collected: string;
+  averageOrderValue: string;
+}
+
+/**
+ * Per-branch orders/revenue/collected-payments for the owner/admin view (admin is HQ-wide —
+ * RLS already limits a branch-scoped staff member to their own branch's rows, see
+ * db/migrations/0027_branch_scoping.sql — so this reads the same as any other admin query, no
+ * extra filtering needed here). "Collected" is `orders.payment_status = 'paid'` revenue, not a
+ * second join to `payments` (an order normally has one payment row; this avoids ever double-counting
+ * a retried/failed attempt). An "Unassigned" row is appended when any order in the window has no
+ * `location_id` (legacy orders, or dine-in placed before a branch was chosen).
+ */
+export async function getBranchPerformance(
+  restaurantId: string,
+  days: number,
+  ctx: RequestContext,
+): Promise<BranchPerformance[]> {
+  const db = getDb({ restaurantId });
+  const safeDays = Math.min(Math.max(days, 1), 365);
+  return db.read({ ...ctx, restaurantId }, async (tx) => {
+    const rows = await tx.query<Row>(
+      `select l.id as location_id, l.name as location_name,
+              count(o.id) filter (where o.status <> 'cancelled') as orders,
+              coalesce(sum(o.total) filter (where o.status <> 'cancelled'), 0) as revenue,
+              coalesce(sum(o.total) filter (where o.status <> 'cancelled' and o.payment_status = 'paid'), 0) as collected
+         from restaurant1s l
+         left join orders o
+           on o.location_id = l.id and o.created_at >= now() - ($2::int || ' days')::interval
+        where l.restaurant_id = $1
+        group by l.id, l.name, l.sort_order
+        order by l.sort_order, l.name`,
+      [restaurantId, safeDays],
+    );
+    const unassigned = await tx.queryOne<Row>(
+      `select count(*) filter (where status <> 'cancelled') as orders,
+              coalesce(sum(total) filter (where status <> 'cancelled'), 0) as revenue,
+              coalesce(sum(total) filter (where status <> 'cancelled' and payment_status = 'paid'), 0) as collected
+         from orders
+        where restaurant_id = $1 and location_id is null and created_at >= now() - ($2::int || ' days')::interval`,
+      [restaurantId, safeDays],
+    );
+
+    const toRow = (locationId: string | null, name: string, row: Row | null): BranchPerformance => {
+      const orders = num(row?.orders);
+      const revenue = num(row?.revenue);
+      return {
+        locationId,
+        locationName: name,
+        orders,
+        revenue: toMoney(revenue),
+        collected: toMoney(num(row?.collected)),
+        averageOrderValue: toMoney(orders > 0 ? revenue / orders : 0),
+      };
+    };
+
+    const result = rows.map((row) => toRow(str(row.location_id), str(row.location_name), row));
+    if (num(unassigned?.orders) > 0) result.push(toRow(null, "Unassigned", unassigned));
+    return result;
+  });
+}
+
 export interface DeliveryPerformance {
   averageMinutes: number;
   onTimeRate: number;

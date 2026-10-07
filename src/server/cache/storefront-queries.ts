@@ -61,6 +61,11 @@ export function readDeliveryZones(
   );
 }
 
+/** Ids of the items switched off at one branch. */
+export function readBranchUnavailable(snapshot: StorefrontSnapshot, locationId: string): readonly string[] {
+  return snapshot.branchUnavailable[locationId] ?? [];
+}
+
 export function readPublicReviews(
   snapshot: StorefrontSnapshot,
   filters: { limit?: number; featuredOnly?: boolean } = {},

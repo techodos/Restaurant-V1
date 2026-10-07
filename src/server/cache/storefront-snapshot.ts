@@ -68,6 +68,7 @@ export function buildStorefrontSnapshot(
     context,
     locations: data.locations,
     deliveryZones: data.deliveryZones,
+    branchUnavailable: data.branchUnavailable ?? {},
     pages: data.pages,
     homePage: data.pages.find((page) => page.isHome) ?? null,
     categories: data.categories,

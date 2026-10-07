@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label } from "@/components/ui/input";
 import { deleteLocationAction, saveLocationAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/locations/actions";
-import { useConfirm } from "@/components/admin/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { RestaurantLocation } from "@/shared/contract/models";
 
 function LocationEditForm({ location, onCancel }: { location?: RestaurantLocation; onCancel: () => void }) {

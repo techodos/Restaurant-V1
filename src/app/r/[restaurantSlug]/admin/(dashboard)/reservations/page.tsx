@@ -5,6 +5,7 @@ import { formatDateKey } from "@/shared/hours";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { listReservationsForStaff } from "@/server/services/reservations";
+import { getLocations } from "@/server/services/restaurants";
 import { RESERVATION_STATUS_LABELS, type ReservationStatus } from "@/shared/contract/enums";
 import { requirePermission } from "@/web/session";
 import { ReservationStatusControl } from "@/components/admin/reservation-status-control";
@@ -12,6 +13,7 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { BranchFilter } from "@/components/admin/branch-filter";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Reservations" };
@@ -47,25 +49,32 @@ function badgeVariant(status: ReservationStatus): "warning" | "info" | "soft" | 
 
 interface ReservationsPageProps {
   params: Promise<{ restaurantSlug: string }>;
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; location?: string }>;
 }
 
 export default async function AdminReservationsPage({ params, searchParams }: ReservationsPageProps) {
   const { restaurantSlug } = await params;
   const actor = await requirePermission("reservations.view", restaurantSlug);
-  const { status, page } = await searchParams;
+  const { status, page, location } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
   const canManage = actor.permissions.includes("reservations.manage");
 
   const activeStatus = (status ?? "upcoming") as "upcoming" | "all" | ReservationStatus;
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
+  const isHq = actor.member.locationId === null;
+  const activeLocation = isHq ? (location ?? null) : null;
 
   // the staff check already tied this session to this slug's restaurant (actor.restaurantId)
-  const result = await listReservationsForStaff(actor.restaurantId, { status: activeStatus, page: pageNum, pageSize: 20 }, ctx);
+  const [result, locations] = await Promise.all([
+    listReservationsForStaff(actor.restaurantId, { status: activeStatus, locationId: activeLocation ?? undefined, page: pageNum, pageSize: 20 }, ctx),
+    isHq ? getLocations(actor.restaurantId, { activeOnly: true }) : [],
+  ]);
 
-  const linkFor = (params: { status?: string; page?: number }) => {
+  const linkFor = (params: { status?: string; page?: number; location?: string | null }) => {
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
+    const nextLocation = params.location !== undefined ? params.location : activeLocation;
+    if (nextLocation) search.set("location", nextLocation);
     if (params.page && params.page > 1) search.set("page", String(params.page));
     return `${adminPath(restaurantSlug)}/reservations?${search.toString()}`;
   };
@@ -74,7 +83,17 @@ export default async function AdminReservationsPage({ params, searchParams }: Re
     <div className="space-y-6">
       <AdminPageHeader title="Reservations" description={`${result.total} total`} />
 
-      <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
+        {locations.length > 1 ? (
+          <BranchFilter
+            locations={locations}
+            active={activeLocation}
+            basePath={`${adminPath(restaurantSlug)}/reservations`}
+            params={{ status: activeStatus }}
+          />
+        ) : null}
+      </div>
 
       <Card className="overflow-hidden">
         {result.rows.length === 0 ? (

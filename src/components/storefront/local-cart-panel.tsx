@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Info, Loader2, Minus, Plus, ShoppingBag, Tag, X } from "lucide-react";
+import { ArrowRight, Info, Loader2, Minus, Plus, ShoppingBag, Store, Tag, X } from "lucide-react";
 import { toast } from "sonner";
 import { dec, formatMoney, round2, toMoney } from "@/shared/money";
 import { ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { checkCouponAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
 import { localCartItemCount, localLineTotal, useLocalCart } from "./local-cart";
+import { useBranching } from "./branching";
 import { EmptyState } from "./empty-state";
 
 interface LocalCartPanelProps {
@@ -56,6 +57,9 @@ export function LocalCartPanel({
   const [checkoutPending, startCheckout] = useTransition();
   const hasProblem = cart.lines.some((line) => line.display.problem);
   const router = useRouter();
+  // multi-branch ordering: the cart belongs to one branch (feature off: gate is "ok", nothing shows)
+  const branching = useBranching();
+  const branchGate = branching.gate();
   const drawer = variant === "drawer";
   const home = `/r/${restaurantSlug}`;
   const money = (value: string | number) => formatMoney(value, { currency: currencySymbol, locale });
@@ -66,6 +70,10 @@ export function LocalCartPanel({
   const itemCount = localCartItemCount(cart);
 
   function goToCheckout() {
+    if (branchGate !== "ok") {
+      branching.resolveGate();
+      return;
+    }
     if (!isSignedIn) {
       router.push(signInHref);
       return;
@@ -304,6 +312,35 @@ export function LocalCartPanel({
 
   const notices = (
     <>
+      {branching.enabled && branching.selected ? (
+        <p className="flex items-center gap-2 rounded-[var(--radius-card)] bg-[var(--steel-2)] p-3.5 text-sm">
+          <Store className="size-4 shrink-0 text-[var(--color-muted-ink)]" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="text-[var(--color-muted-ink)]">Ordering from </span>
+            <span className="font-semibold">{branching.selected.name}</span>
+          </span>
+          {branching.branches.length > 1 ? (
+            <button type="button" onClick={branching.openBranches} className="shrink-0 text-[13px] font-medium underline underline-offset-4">
+              Change
+            </button>
+          ) : null}
+        </p>
+      ) : null}
+      {branchGate !== "ok" ? (
+        <p className="flex gap-2 rounded-[var(--radius-card)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] p-3.5 text-sm text-[color-mix(in_srgb,var(--color-warning)_70%,var(--color-ink))]">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            {branchGate === "no-service"
+              ? `We don't deliver to ${branching.destination?.label ?? "that location"} yet. `
+              : branchGate === "need-location"
+                ? "Choose your delivery location to continue. "
+                : "Choose a branch to continue. "}
+            <button type="button" onClick={() => (branchGate === "need-branch" ? branching.openBranches() : branching.openLocation())} className="font-semibold underline underline-offset-4">
+              {branchGate === "need-branch" ? "Choose branch" : branchGate === "no-service" ? "Change location" : "Choose location"}
+            </button>
+          </span>
+        </p>
+      ) : null}
       {!isSignedIn ? (
         <p className="flex gap-2 rounded-[var(--radius-card)] bg-[var(--steel-2)] p-3.5 text-sm text-[var(--color-muted-ink)]">
           <Info className="mt-0.5 size-4 shrink-0" aria-hidden />

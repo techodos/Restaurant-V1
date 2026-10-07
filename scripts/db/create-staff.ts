@@ -2,7 +2,11 @@
  * Creates a staff login, or resets the password of an existing one.
  *
  *   npm run db:create-staff -- --email owner2@bellanapoli.pk --name "Jane Doe" \
- *     --role manager --password "SomePass#1" [--restaurant bella-napoli]
+ *     --role manager --password "SomePass#1" [--restaurant bella-napoli] [--location <branch-slug>]
+ *
+ * --location scopes this staff member to one branch: RLS then limits their orders/reservations
+ * (and everything keyed off an order, e.g. payments/deliveries/status history) to that branch only.
+ * Omit it for HQ staff (owner/admin) who should see every branch.
  *
  * Runs as DATABASE_URL_MIGRATOR (owner), which is required: the runtime roles
  * (app_service/app_runtime) cannot write auth.users on a hosted Supabase project
@@ -29,6 +33,7 @@ const name = arg("name")?.trim();
 const role = arg("role")?.trim();
 const password = arg("password");
 const restaurantSlug = arg("restaurant") ?? "bella-napoli";
+const locationSlug = arg("location");
 
 if (!email || !name || !role || !password) {
   console.error("Usage: npm run db:create-staff -- --email <email> --name <name> --role <owner|admin|manager|staff> --password <password> [--restaurant <slug>]");
@@ -61,6 +66,20 @@ if (!restaurant) {
   process.exit(1);
 }
 
+let locationId: string | null = null;
+if (locationSlug) {
+  const location = await one<{ id: string }>(
+    `select id from restaurant1s where restaurant_id = $1 and slug = $2`,
+    [restaurant.id, locationSlug],
+  );
+  if (!location) {
+    console.error(`No location with slug "${locationSlug}" on ${restaurantSlug}`);
+    await client.end();
+    process.exit(1);
+  }
+  locationId = location.id;
+}
+
 const hashed = await hashPassword(password);
 
 const existingUser = await one<{ id: string }>(`select id from auth.users where lower(email) = $1`, [email]);
@@ -82,12 +101,15 @@ if (!userId) {
 if (!userId) throw new Error("Unable to create the auth user");
 
 await client.query(
-  `insert into team_members (restaurant_id, user_id, email, full_name, role, is_active, accepted_at)
-   values ($1, $2, $3, $4, $5::team_role, true, now())
+  `insert into team_members (restaurant_id, user_id, location_id, email, full_name, role, is_active, accepted_at)
+   values ($1, $2, $3, $4, $5, $6::team_role, true, now())
    on conflict (restaurant_id, email) do update set
-     user_id = excluded.user_id, full_name = excluded.full_name, role = excluded.role, is_active = true`,
-  [restaurant.id, userId, email, name, role],
+     user_id = excluded.user_id, location_id = excluded.location_id, full_name = excluded.full_name,
+     role = excluded.role, is_active = true`,
+  [restaurant.id, userId, locationId, email, name, role],
 );
 
-console.log(`Staff account ready: ${email} / ${password} (${role}) on ${restaurantSlug}, sign in at /r/${restaurantSlug}/admin/login`);
+console.log(
+  `Staff account ready: ${email} / ${password} (${role}${locationSlug ? `, branch: ${locationSlug}` : ", all branches"}) on ${restaurantSlug}, sign in at /r/${restaurantSlug}/admin/login`,
+);
 await client.end();

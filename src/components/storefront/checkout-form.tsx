@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Loader2, Lock, MapPin, Plus } from "lucide-react";
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { useLocalCart } from "@/components/storefront/local-cart";
 import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
 import { sortByDistance } from "@/shared/geo";
+import type { DeliveryDestination } from "@/shared/branching";
 import { signInHref } from "@/shared/return-to";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -94,6 +96,12 @@ interface CheckoutFormProps {
   initialLocationId: string | null;
   /** server-resolved Google Maps browser key; the map/search picker hides itself when this is null */
   googleMapsApiKey: string | null;
+  /**
+   * Multi-branch ordering (`features.BranchingFeature`): the branch was chosen on the menu and is fixed
+   * here — no branch cards, no re-ranking by city — and the destination chosen there prefills the address.
+   * Absent with the feature off: the branch step below works exactly as before.
+   */
+  branch?: { name: string; menuHref: string; destination: DeliveryDestination | null } | null;
 }
 
 /**
@@ -134,7 +142,10 @@ export function CheckoutForm({
   locations,
   initialLocationId,
   googleMapsApiKey,
+  branch = null,
 }: CheckoutFormProps) {
+  const branchLocked = Boolean(branch);
+  const destination = branch?.destination ?? null;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   // state updates are async; this closes the window in which a fast double-click could submit twice
@@ -158,16 +169,26 @@ export function CheckoutForm({
   const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified);
   const [phone, setPhone] = useState(savedPhone ?? "");
   // a saved address is the default when there is one; "new" shows the address fields
-  const [addressChoice, setAddressChoice] = useState<string>(
-    () => savedAddresses.find((address) => address.isDefault)?.id ?? savedAddresses[0]?.id ?? "new",
-  );
+  const [addressChoice, setAddressChoice] = useState<string>(() => {
+    // the address the branch was chosen for (menu) wins: a saved one by id, else it fills "new address"
+    if (destination) return savedAddresses.find((address) => address.id === destination.addressId)?.id ?? "new";
+    return savedAddresses.find((address) => address.isDefault)?.id ?? savedAddresses[0]?.id ?? "new";
+  });
   const chosenAddress = savedAddresses.find((address) => address.id === addressChoice) ?? null;
   const router = useRouter();
   const { clear: clearLocalCart, setLocationId } = useLocalCart();
 
   // "new address" fields are controlled so the map/search picker can fill them in; still hand-editable.
-  const [newAddress, setNewAddress] = useState({ addressLine1: "", addressLine2: "", area: "", city: defaultCity, postalCode: "" });
-  const [pickedPoint, setPickedPoint] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [newAddress, setNewAddress] = useState({
+    addressLine1: destination?.line1 ?? "",
+    addressLine2: "",
+    area: destination?.area ?? "",
+    city: destination?.city || defaultCity,
+    postalCode: destination?.postalCode ?? "",
+  });
+  const [pickedPoint, setPickedPoint] = useState<{ latitude: number; longitude: number } | null>(
+    destination?.latitude != null && destination.longitude != null ? { latitude: destination.latitude, longitude: destination.longitude } : null,
+  );
   const handlePickedLocation = (resolved: ResolvedLocation) => {
     setNewAddress((current) => ({
       ...current,
@@ -199,7 +220,7 @@ export function CheckoutForm({
   // ranking) changes; the customer can still tap another card in the same city to override it.
   const rankedIds = rankedBranches.map((location) => location.id).join(",");
   useEffect(() => {
-    if (!rankedBranches.length) return;
+    if (branchLocked || !rankedBranches.length) return;
     const stillValid = rankedBranches.some((location) => location.id === selectedLocationId);
     if (!stillValid) setSelectedLocationId(recommendedId ?? rankedBranches[0]!.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,7 +302,9 @@ export function CheckoutForm({
           ? "This saved address has no area. Edit it in your profile or use a new address."
           : "Please add your area so we can match a delivery zone.";
       }
-      if (activeLocations.length > 1 && payload.city && rankedBranches.length === 0) {
+      if (branchLocked) {
+        // the branch is fixed; whether it delivers to this address is the order's own zone check
+      } else if (activeLocations.length > 1 && payload.city && rankedBranches.length === 0) {
         nextErrors.city = `We don't have a branch in ${payload.city} yet.`;
       } else if (activeLocations.length > 1 && !selectedLocationId) {
         nextErrors.city = "Please choose a branch for delivery.";
@@ -581,7 +604,20 @@ export function CheckoutForm({
             )}
           </div>
 
-          {activeLocations.length > 1 && customerCity.trim() ? (
+          {branch ? (
+            <div className="mt-5">
+              <Label>Branch</Label>
+              <p className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-brand)] border border-[var(--rule)] px-4 py-3 text-sm">
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">{branch.name}</span>
+                  <span className="block text-[12.5px] text-[var(--color-muted-ink)]">Prepares and delivers this order</span>
+                </span>
+                <Link href={branch.menuHref} className="shrink-0 text-[13px] font-medium underline underline-offset-4">
+                  Change
+                </Link>
+              </p>
+            </div>
+          ) : activeLocations.length > 1 && customerCity.trim() ? (
             <div className="mt-5">
               <Label>Branch</Label>
               {rankedBranches.length === 0 ? (

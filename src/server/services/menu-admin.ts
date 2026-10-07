@@ -12,9 +12,12 @@ import {
   deleteCategory,
   deleteMenuItem,
   deleteVariant,
+  getItemLocationOverrides,
+  getLocationItemOverrides,
   getMenuItem,
   listCategories,
   listMenuItems,
+  setItemLocationAvailability as repoSetItemLocationAvailability,
   setMenuItemAvailability,
   updateAddon,
   updateAddonGroup,
@@ -92,6 +95,26 @@ export async function setItemAvailability(
   const item = await setMenuItemAvailability(itemId, patch, ctx);
   getStorefrontCache().invalidate();
   return item;
+}
+
+export async function setItemLocationAvailability(
+  restaurantId: string,
+  locationId: string,
+  itemId: string,
+  isAvailable: boolean,
+  ctx: RequestContext,
+): Promise<void> {
+  await repoSetItemLocationAvailability(restaurantId, locationId, itemId, isAvailable, ctx);
+  getStorefrontCache().invalidate();
+}
+
+export function getItemLocationOverridesForAdmin(itemId: string, ctx: RequestContext): Promise<Map<string, boolean>> {
+  return getItemLocationOverrides(itemId, ctx);
+}
+
+/** One branch's availability for every item, keyed by item id (missing = available): the menu list's branch view. */
+export function getLocationItemOverridesForAdmin(locationId: string, ctx: RequestContext): Promise<Map<string, boolean>> {
+  return getLocationItemOverrides(locationId, ctx);
 }
 
 export async function saveVariant(

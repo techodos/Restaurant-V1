@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
 import { isSupportedCountry } from "libphonenumber-js";
 import { getCustomerProfile } from "@/server/services/customer-profile";
-import { readTrayView, requireStorefront } from "@/web/storefront";
+import { getBranching, readTrayView, requireStorefront } from "@/web/storefront";
+import { branchesFor } from "@/shared/branching";
 import { priceTray, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
 import { getDeliveryZones } from "@/server/services/restaurants";
@@ -39,6 +40,12 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   // database when it is placed.
   const { tray, view } = await readTrayView(context);
   if (view.lines.length === 0) redirect(`/r/${restaurant.slug}/menu`);
+
+  // Multi-branch ordering: checkout continues the branch chosen on the menu. Without a branch that can
+  // serve this order there is nothing to check out yet — the menu's bar says what is missing.
+  const branching = await getBranching(context);
+  const branch = branching ? (branchesFor(branching, tray.orderType).find((option) => option.id === tray.locationId) ?? null) : null;
+  if (branching && !branch) redirect(`/r/${restaurant.slug}/menu`);
 
   const availability = serviceAvailability(restaurant, primaryLocation, tray.orderType);
   const zones =
@@ -160,6 +167,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
           locations={locations}
           initialLocationId={tray.locationId}
+          branch={branch ? { name: branch.name, menuHref: `/r/${restaurant.slug}/menu`, destination: branching?.destination ?? null } : null}
           googleMapsApiKey={config.maps?.apiKey ?? null}
         />
       </div>

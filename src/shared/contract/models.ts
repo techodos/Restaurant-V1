@@ -517,6 +517,7 @@ export interface OrderSummary {
   createdAt: string;
   itemCount: number;
   itemPreview: string[];
+  locationName?: string | null;
   /** only populated by queries that need them (sales export); undefined elsewhere */
   subtotal?: Money;
   discountAmount?: Money;

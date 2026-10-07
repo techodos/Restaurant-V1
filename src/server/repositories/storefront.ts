@@ -12,7 +12,7 @@ import type {
 } from "@/shared/contract/models";
 import { listPreviewableCoupons } from "./coupons";
 import { listDeliveryZones } from "./deliveries";
-import { listCategories, listStorefrontMenu, type StorefrontMenuRecord } from "./menu";
+import { listBranchUnavailableItems, listCategories, listStorefrontMenu, type StorefrontMenuRecord } from "./menu";
 import { getRestaurantBySlug, listLocations } from "./restaurants";
 import { getRatingBreakdown, listPublicReviews } from "./reviews";
 import { getWebsite, listPublishedPages } from "./websites";
@@ -49,6 +49,8 @@ export interface StorefrontData {
   reviews: { summary: RatingBreakdown; recent: Review[] };
   /** active coupon definitions, for the tray's promo-code preview only (never charged from) */
   coupons: Coupon[];
+  /** location id -> ids of items switched off at that branch (menu_item_location_overrides) */
+  branchUnavailable?: Record<string, string[]>;
 }
 
 /** `null` when no restaurant has that slug. */
@@ -57,7 +59,7 @@ export async function loadStorefrontData(slug: string): Promise<StorefrontData |
   if (!restaurant) return null;
 
   const ctx = forRestaurant(restaurant.id);
-  const [website, pages, locations, deliveryZones, categories, menu, recent, summary, coupons] = await Promise.all([
+  const [website, pages, locations, deliveryZones, categories, menu, recent, summary, coupons, branchUnavailable] = await Promise.all([
     getWebsite(restaurant.id, ctx),
     listPublishedPages(restaurant.id, ctx),
     listLocations(restaurant.id, ctx),
@@ -67,7 +69,8 @@ export async function loadStorefrontData(slug: string): Promise<StorefrontData |
     listPublicReviews(restaurant.id, { limit: STOREFRONT_REVIEW_LIMIT }, ctx),
     getRatingBreakdown(restaurant.id, ctx),
     listPreviewableCoupons(restaurant.id),
+    listBranchUnavailableItems(restaurant.id, ctx),
   ]);
 
-  return { restaurant, website, pages, locations, deliveryZones, categories, menu, reviews: { summary, recent }, coupons };
+  return { restaurant, website, pages, locations, deliveryZones, categories, menu, reviews: { summary, recent }, coupons, branchUnavailable };
 }

@@ -14,6 +14,7 @@ import {
   saveAddonGroup,
   saveMenuItem,
   saveVariant,
+  setItemLocationAvailability,
 } from "@/server/services/menu-admin";
 import { requirePermission } from "@/web/session";
 
@@ -50,6 +51,7 @@ export async function saveVariantAction(menuItemId: string, payload: unknown): P
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await saveVariant(actor.restaurantId, menuItemId, input, ctx);
     revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
+    revalidatePath(adminPath(actor.restaurantSlug, "/menu")); // the list's branch view shows it too
     return null;
   });
 }
@@ -91,6 +93,20 @@ export async function saveAddonAction(menuItemId: string, addonGroupId: string, 
     const input = addonSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await saveAddon(actor.restaurantId, addonGroupId, input, ctx);
+    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
+    return null;
+  });
+}
+
+export async function setItemLocationAvailabilityAction(
+  menuItemId: string,
+  locationId: string,
+  isAvailable: boolean,
+): Promise<ApiResult<null>> {
+  return action(async () => {
+    const actor = await requirePermission("menu.manage");
+    const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
+    await setItemLocationAvailability(actor.restaurantId, locationId, menuItemId, isAvailable, ctx);
     revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
     return null;
   });

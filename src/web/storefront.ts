@@ -3,8 +3,17 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Restaurant, StorefrontContext } from "@/shared/contract/models";
 import { decodeTray, trayCookieName, type InitialTray, type Tray } from "@/shared/tray";
+import {
+  DESTINATION_COOKIE_MAX_AGE,
+  decodeDestination,
+  destinationCookieName,
+  encodeDestination,
+  type BranchingState,
+  type DeliveryDestination,
+} from "@/shared/branching";
 import { AppError } from "@/server/errors";
 import { previewCoupon, viewTray, type TrayView } from "@/server/services/cart";
+import { resolveBranching } from "@/server/services/branching";
 import { loadStorefrontContext } from "@/server/services/storefront";
 import { resolveImage } from "./media";
 
@@ -88,4 +97,29 @@ export async function getInitialTray(context: StorefrontContext): Promise<Initia
 export async function clearTray(slug: string): Promise<void> {
   const store = await cookies();
   store.delete(trayCookieName(slug));
+}
+
+// ─── multi-branch ordering (features.BranchingFeature) ─────────────────────────
+
+/**
+ * The branching state for this request: the remembered delivery destination (its own cookie) and the
+ * branches that serve it, from the snapshot — no database. `null` when the restaurant has not switched
+ * the feature on, so every caller's "feature off" path is one null check and the single-location flow
+ * stays exactly as it was.
+ */
+export const getBranching = cache(async (context: StorefrontContext): Promise<BranchingState | null> => {
+  if (!context.restaurant.features.BranchingFeature) return null;
+  const store = await cookies();
+  const destination = decodeDestination(store.get(destinationCookieName(context.restaurant.slug))?.value);
+  return resolveBranching(context.restaurant.id, destination);
+});
+
+/** Remembers the delivery destination. Only valid in Server Actions and Route Handlers. */
+export async function writeDestination(slug: string, destination: DeliveryDestination): Promise<void> {
+  const store = await cookies();
+  store.set(destinationCookieName(slug), encodeDestination(destination), {
+    path: "/",
+    maxAge: DESTINATION_COOKIE_MAX_AGE,
+    sameSite: "lax",
+  });
 }

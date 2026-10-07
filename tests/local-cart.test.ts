@@ -55,12 +55,33 @@ describe("local cart reducer", () => {
     expect(cart).toEqual({ orderType: "delivery", locationId: null, couponCode: null, couponDiscount: null, lines: [] });
   });
 
-  it("every add is its own line — two identical adds never merge (matches the repository's behaviour)", () => {
+  it("adding the same item (same variant/add-ons/note) twice merges into one line, summing quantity", () => {
     let cart = emptyLocalCart("delivery");
     cart = addLocalLine(cart, line());
     cart = addLocalLine(cart, line());
-    expect(cart.lines).toHaveLength(2);
-    expect(cart.lines[0]!.id).not.toBe(cart.lines[1]!.id);
+    expect(cart.lines).toHaveLength(1);
+    expect(cart.lines[0]!.quantity).toBe(2);
+  });
+
+  it("merges regardless of add-on order, and caps the merged quantity at 99", () => {
+    const SPRINKLES = "55555555-5555-4555-8555-555555555555";
+    let cart = addLocalLine(
+      emptyLocalCart("delivery"),
+      line({ addons: [{ addonId: MOZZARELLA, quantity: 1 }, { addonId: SPRINKLES, quantity: 2 }], quantity: 60 }),
+    );
+    cart = addLocalLine(
+      cart,
+      line({ addons: [{ addonId: SPRINKLES, quantity: 2 }, { addonId: MOZZARELLA, quantity: 1 }], quantity: 60 }),
+    );
+    expect(cart.lines).toHaveLength(1);
+    expect(cart.lines[0]!.quantity).toBe(99);
+  });
+
+  it("keeps different variants, add-ons or notes on separate lines", () => {
+    let cart = addLocalLine(emptyLocalCart("delivery"), line());
+    cart = addLocalLine(cart, line({ addons: [] }));
+    cart = addLocalLine(cart, line({ specialInstructions: "No basil" }));
+    expect(cart.lines).toHaveLength(3);
   });
 
   it("caps quantity at 99 and floors at 1 on add", () => {
@@ -86,7 +107,13 @@ describe("local cart reducer", () => {
 
   it("removeLocalLine removes only the targeted line", () => {
     let cart = addLocalLine(emptyLocalCart("delivery"), line());
-    cart = addLocalLine(cart, line({ quantity: 3 }));
+    cart = addLocalLine(cart, {
+      menuItemId: "44444444-4444-4444-8444-444444444444",
+      variantId: null,
+      quantity: 3,
+      addons: [],
+      display: display("Gulab Jamun", "350.00"),
+    });
     const [first, second] = cart.lines;
     cart = removeLocalLine(cart, first!.id);
     expect(cart.lines).toEqual([second]);
@@ -137,7 +164,13 @@ describe("local cart reducer", () => {
 
   it("a line that can no longer be ordered adds nothing to the subtotal", () => {
     let cart = addLocalLine(emptyLocalCart("delivery"), line({ quantity: 2 }));
-    cart = addLocalLine(cart, { ...line(), display: { ...display("Gone", "999.00"), problem: "That item is currently unavailable." } });
+    cart = addLocalLine(cart, {
+      menuItemId: "44444444-4444-4444-8444-444444444444",
+      variantId: null,
+      quantity: 1,
+      addons: [],
+      display: { ...display("Gone", "999.00"), problem: "That item is currently unavailable." },
+    });
     expect(localCartSubtotal(cart).toFixed(2)).toBe("2900.00");
   });
 
@@ -152,6 +185,23 @@ describe("local cart reducer", () => {
       lines: [{ menuItemId: MARGHERITA, variantId: MEDIUM, quantity: 2, addons: [{ addonId: MOZZARELLA, quantity: 1 }], specialInstructions: "No basil" }],
     });
     expect(decodeTray(encodeTray(tray), "delivery")).toEqual(tray);
+  });
+
+  it("fromInitialTray merges duplicate rows already saved in an old cookie", () => {
+    const tray = {
+      orderType: "delivery" as const,
+      locationId: null,
+      couponCode: null,
+      lines: [
+        { menuItemId: MARGHERITA, variantId: MEDIUM, quantity: 1, addons: [{ addonId: MOZZARELLA, quantity: 1 }] },
+        { menuItemId: MARGHERITA, variantId: MEDIUM, quantity: 1, addons: [{ addonId: MOZZARELLA, quantity: 1 }] },
+      ],
+    };
+    const displays = [display("Margherita Pizza", "1200.00", "250.00"), display("Margherita Pizza", "1200.00", "250.00")];
+    const initial = { encoded: encodeTray(tray), tray, displays, couponDiscount: null };
+    const cart = fromInitialTray(initial);
+    expect(cart.lines).toHaveLength(1);
+    expect(cart.lines[0]!.quantity).toBe(2);
   });
 
   it("fromInitialTray pairs each cookie line with the server's display, with ids stable across server and client renders", () => {

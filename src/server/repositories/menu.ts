@@ -339,9 +339,14 @@ export async function listStorefrontMenu(restaurantId: string, ctx: RequestConte
  * for five items; this projection is one ordinary round trip, ~0.36 s). Prices travel as text so they
  * stay exact decimals, even inside JSON.
  */
-export function orderableItemsSql(restaurantParam: string, idsParam: string): string {
+export function orderableItemsSql(restaurantParam: string, idsParam: string, locationParam = "null"): string {
   return `select mi.id, mi.restaurant_id, mi.category_id, mi.name, mi.slug, mi.image_url, mi.base_price::text as base_price,
-            mi.is_active, mi.is_available, mi.prep_time_minutes, mi.availability, mi.is_buffet_package,
+            mi.is_active,
+            (mi.is_available and coalesce((
+              select mo.is_available from menu_item_location_overrides mo
+              where mo.menu_item_id = mi.id and mo.location_id = ${locationParam}::uuid
+            ), true)) as is_available,
+            mi.prep_time_minutes, mi.availability, mi.is_buffet_package,
             mc.is_active as category_active, mc.availability as category_availability,
             coalesce((select json_agg(json_build_object(
                         'id', v.id, 'menu_item_id', v.menu_item_id, 'name', v.name, 'price', v.price::text,
@@ -382,9 +387,12 @@ export async function loadOrderableItems(
   tx: DbClient,
   restaurantId: string,
   itemIds: readonly string[],
+  locationId: string | null = null,
 ): Promise<Map<string, OrderableMenuItem>> {
   if (itemIds.length === 0) return new Map();
-  return mapOrderableItems(await tx.query<Row>(orderableItemsSql("$1", "$2"), [restaurantId, [...new Set(itemIds)]]));
+  return mapOrderableItems(
+    await tx.query<Row>(orderableItemsSql("$1", "$2", "$3"), [restaurantId, [...new Set(itemIds)], locationId]),
+  );
 }
 
 /** `loadOrderableItems` in its own read transaction (the storefront cache is off). */
@@ -392,9 +400,10 @@ export async function listOrderableItems(
   restaurantId: string,
   itemIds: readonly string[],
   ctx: RequestContext = {},
+  locationId: string | null = null,
 ): Promise<Map<string, OrderableMenuItem>> {
   if (itemIds.length === 0) return new Map();
-  return getDb({ restaurantId }).read(ctx, (tx) => loadOrderableItems(tx, restaurantId, itemIds));
+  return getDb({ restaurantId }).read(ctx, (tx) => loadOrderableItems(tx, restaurantId, itemIds, locationId));
 }
 
 function groupBy(rows: Row[], key: (row: Row) => string): Map<string, Row[]> {
@@ -541,6 +550,58 @@ function positions(ids: readonly string[]): { ids: string[]; positions: number[]
   const last = new Map<string, number>();
   ids.forEach((id, index) => last.set(id, index));
   return { ids: [...last.keys()], positions: [...last.values()] };
+}
+
+/** Per-branch availability overrides for one item, keyed by location id (missing = available). */
+export async function getItemLocationOverrides(itemId: string, ctx: RequestContext): Promise<Map<string, boolean>> {
+  const rows = await getDb(ctx).query<Row>(
+    ctx,
+    `select location_id, is_available from menu_item_location_overrides where menu_item_id = $1`,
+    [itemId],
+  );
+  return new Map(rows.map((row) => [str(row.location_id), Boolean(row.is_available)]));
+}
+
+/**
+ * Every "off at this branch" override of a restaurant, as location id -> item ids. The storefront
+ * snapshot holds this so a branch's menu can be shown (and the tray previewed) without a database read.
+ */
+export async function listBranchUnavailableItems(restaurantId: string, ctx: RequestContext): Promise<Record<string, string[]>> {
+  const rows = await getDb(ctx).query<Row>(
+    ctx,
+    `select location_id, menu_item_id from menu_item_location_overrides where restaurant_id = $1 and not is_available`,
+    [restaurantId],
+  );
+  const byLocation: Record<string, string[]> = {};
+  for (const row of rows) (byLocation[str(row.location_id)] ??= []).push(str(row.menu_item_id));
+  return byLocation;
+}
+
+/** One branch's overrides for every item, keyed by item id (missing = available). Admin menu list. */
+export async function getLocationItemOverrides(locationId: string, ctx: RequestContext): Promise<Map<string, boolean>> {
+  const rows = await getDb(ctx).query<Row>(
+    ctx,
+    `select menu_item_id, is_available from menu_item_location_overrides where location_id = $1`,
+    [locationId],
+  );
+  return new Map(rows.map((row) => [str(row.menu_item_id), Boolean(row.is_available)]));
+}
+
+export async function setItemLocationAvailability(
+  restaurantId: string,
+  locationId: string,
+  itemId: string,
+  isAvailable: boolean,
+  ctx: RequestContext,
+): Promise<void> {
+  await getDb(ctx).write(ctx, async (tx) => {
+    await tx.query(
+      `insert into menu_item_location_overrides (restaurant_id, location_id, menu_item_id, is_available)
+       values ($1, $2, $3, $4)
+       on conflict (location_id, menu_item_id) do update set is_available = excluded.is_available, updated_at = now()`,
+      [restaurantId, locationId, itemId, isAvailable],
+    );
+  });
 }
 
 export async function reorderMenuItems(itemIds: string[], ctx: RequestContext): Promise<void> {

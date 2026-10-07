@@ -13,7 +13,7 @@ import {
   setStaffActiveAction,
   updateStaffAction,
 } from "@/app/r/[restaurantSlug]/admin/(dashboard)/staff/actions";
-import { useConfirm } from "@/components/admin/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ROLE_LABELS } from "@/server/auth/permissions";
 import { TEAM_ROLES, type TeamRole } from "@/shared/contract/enums";
 import type { TeamMember } from "@/shared/contract/models";

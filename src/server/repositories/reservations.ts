@@ -301,6 +301,7 @@ export interface ReservationListFilters {
   status?: ReservationStatus | "all" | "upcoming";
   date?: string;
   from?: string;
+  locationId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -329,6 +330,10 @@ export async function listReservations(
     if (filters.from) {
       params.push(filters.from);
       conditions.push(`r.reservation_date >= $${params.length}::date`);
+    }
+    if (filters.locationId) {
+      params.push(filters.locationId);
+      conditions.push(`r.location_id = $${params.length}`);
     }
     const where = conditions.join(" and ");
     // the page and the total in ONE statement (`count(*) over ()` counts every match before LIMIT);
