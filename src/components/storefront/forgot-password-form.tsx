@@ -185,7 +185,16 @@ export function ForgotPasswordForm({
             maxLength={6}
             placeholder="123456"
             value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
+            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            onPaste={(event) => {
+              // Native maxLength truncates a raw paste (e.g. "123 456") before non-digits are
+              // stripped, dropping digits. Read the clipboard ourselves and keep only digits.
+              const digits = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+              if (digits) {
+                event.preventDefault();
+                setCode(digits);
+              }
+            }}
             className="text-center text-lg tracking-[0.5em]"
           />
           <FieldHint>Enter the code from the email. It expires in 10 minutes.</FieldHint>

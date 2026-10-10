@@ -33,7 +33,7 @@ export async function selectAdminBranch(restaurantSlug: string, value: string): 
     const locations = await getLocations(actor.restaurantId, { activeOnly: true });
     if (!locations.some((location) => location.id === value)) throw errors.notFound("Branch");
   }
-  (await cookies()).set(ADMIN_BRANCH_COOKIE, value, { ...cookieOptions(60 * 60 * 24 * 180), path: adminPath(actor.restaurantSlug) });
+  (await cookies()).set(ADMIN_BRANCH_COOKIE, value, { ...(await cookieOptions(60 * 60 * 24 * 180)), path: adminPath(actor.restaurantSlug) });
 }
 
 /**

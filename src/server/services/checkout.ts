@@ -6,13 +6,15 @@ import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { effectiveOnlineProvider, entitledPaymentMethods } from "@/shared/feature-access";
 import { getPaymentProvider, type PaymentIntentResult } from "@/server/integrations/payments";
+import { signOrderAccessToken } from "@/server/auth/tokens";
 import { createOrder, getOrderForAccessGrant, setOrderPaymentStatus } from "@/server/repositories/orders";
 import type { PlaceOrderInput } from "@/server/validation/checkout";
 import type { Tray } from "@/shared/tray";
 import { assertTrayOrderable } from "./cart";
 
 /**
- * Checkout (signed-in, email-verified customers; placeOrderAction enforces that).
+ * Checkout (a signed-in account, or a guest who verified the checkout email via the OTP modal —
+ * either way `requireVerifiedEmail` is enforced inside `createOrder`, never trusted from the browser).
  *
  * The browser sends customer details and choices, and its tray cookie names the items: every price,
  * discount, fee, tax figure, availability flag and coupon is recomputed inside `createOrder` — the
@@ -33,6 +35,8 @@ export async function placeOrder(
   tray: Tray,
   input: PlaceOrderInput,
   visitor: RequestContext,
+  /** `rememberGuestOrder`: stores a guest's signed order-access token (the delivery layer sets a cookie) */
+  hooks: { rememberGuestOrder?: (token: string) => Promise<void> } = {},
 ): Promise<PlaceOrderResult> {
   assertTrayOrderable(restaurant, { ...tray, orderType: input.orderType });
   if (input.orderType === "delivery" && !input.addressLine1) {
@@ -56,7 +60,9 @@ export async function placeOrder(
       },
       accountCustomerId: visitor.customerId ?? null,
       saveAccountPhone: Boolean(visitor.customerId),
-      requireVerifiedEmail: Boolean(visitor.customerId),
+      // Guests verify too now (the checkout OTP modal), not just accounts — createOrder checks it
+      // against whichever row the order resolves to (the account, or the phone-keyed guest row).
+      requireVerifiedEmail: true,
       address: isDineIn
         ? null
         : {
@@ -85,6 +91,13 @@ export async function placeOrder(
   );
   const phone = order.customerPhone || input.phone;
   const email = customer.email || input.email || null;
+  // A guest's only proof of owning this order: handed to the caller (a cookie) right after it commits,
+  // before anything below can throw — an online payment that cannot start still leaves a viewable order.
+  if (!visitor.customerId && hooks.rememberGuestOrder) {
+    await hooks.rememberGuestOrder(
+      await signOrderAccessToken({ orderId: order.id, restaurantId: restaurant.id, orderNumber: order.orderNumber }),
+    );
+  }
 
   if (!requiresOnlinePayment) return { orderNumber: order.orderNumber, requiresOnlinePayment };
   // a retried checkout whose order is already paid (or refunded) must not start another payment

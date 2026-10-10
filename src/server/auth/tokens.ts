@@ -102,10 +102,17 @@ const ORDER_ACCESS_TTL_SECONDS = 60 * 60 * 24 * 60; // 60 days
 export interface OrderAccessGrant {
   orderId: string;
   restaurantId: string;
+  /** set on a guest's own grant (checkout): lets the browser's saved grants be matched to a page without a DB read */
+  orderNumber?: string;
 }
 
 export async function signOrderAccessToken(grant: OrderAccessGrant): Promise<string> {
-  return new SignJWT({ purpose: ORDER_ACCESS_PURPOSE, oid: grant.orderId, rid: grant.restaurantId })
+  return new SignJWT({
+    purpose: ORDER_ACCESS_PURPOSE,
+    oid: grant.orderId,
+    rid: grant.restaurantId,
+    ...(grant.orderNumber ? { onum: grant.orderNumber } : {}),
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer(ISSUER)
     .setIssuedAt()
@@ -119,7 +126,11 @@ export async function verifyOrderAccessToken(token: string | undefined | null): 
     const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER });
     if (payload.purpose !== ORDER_ACCESS_PURPOSE) return null;
     if (typeof payload.oid !== "string" || typeof payload.rid !== "string") return null;
-    return { orderId: payload.oid, restaurantId: payload.rid };
+    return {
+      orderId: payload.oid,
+      restaurantId: payload.rid,
+      ...(typeof payload.onum === "string" ? { orderNumber: payload.onum } : {}),
+    };
   } catch {
     return null;
   }

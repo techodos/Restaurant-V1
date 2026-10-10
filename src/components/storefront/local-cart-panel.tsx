@@ -56,7 +56,7 @@ export function LocalCartPanel({
   closedBranches = {},
   primaryLocationId = null,
 }: LocalCartPanelProps) {
-  const { cart, updateQuantity, removeLine, clear, setOrderType, setCoupon } = useLocalCart();
+  const { cart, updateQuantity, removeLine, clear, setCoupon } = useLocalCart();
   const [couponInput, setCouponInput] = useState("");
   const [couponPending, startCouponCheck] = useTransition();
   const [checkoutPending, startCheckout] = useTransition();
@@ -80,11 +80,9 @@ export function LocalCartPanel({
       branching.resolveGate();
       return;
     }
-    if (!isSignedIn) {
-      router.push(signInHref);
-      return;
-    }
-    // Nothing to save first: the tray already is the cookie the checkout page reads.
+    // Guests go straight to checkout too now — it verifies their email itself (the OTP modal at
+    // "Place order"), not a sign-in redirect. Nothing to save first: the tray already is the cookie
+    // the checkout page reads.
     startCheckout(() => router.push(`${home}/checkout`));
   }
 
@@ -232,28 +230,6 @@ export function LocalCartPanel({
     </ul>
   );
 
-  const orderTypePicker =
-    availableOrderTypes.length > 1 ? (
-      <div className="flex rounded-full bg-[var(--steel-2)] p-1" role="group" aria-label="Order type">
-        {availableOrderTypes.map((type) => (
-          <button
-            key={type}
-            type="button"
-            aria-pressed={cart.orderType === type}
-            onClick={() => setOrderType(type)}
-            className={cn(
-              "inline-flex flex-1 items-center justify-center gap-2 rounded-full py-2 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-200",
-              cart.orderType === type
-                ? "bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[0_1px_3px_color-mix(in_srgb,var(--color-ink)_14%,transparent)]"
-                : "text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]",
-            )}
-          >
-            {ORDER_TYPE_LABELS[type]}
-          </button>
-        ))}
-      </div>
-    ) : null;
-
   const couponForm = featureCoupons ? (
     cart.couponCode ? (
       <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-dashed border-[var(--rule-strong)] px-4 py-3">
@@ -347,12 +323,6 @@ export function LocalCartPanel({
           </span>
         </p>
       ) : null}
-      {!isSignedIn ? (
-        <p className="flex gap-2 rounded-[var(--radius-card)] bg-[var(--steel-2)] p-3.5 text-sm text-[var(--color-muted-ink)]">
-          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-          Orders are placed from an account with a verified email. Your cart is kept while you sign in.
-        </p>
-      ) : null}
       {belowMinimum ? (
         <p className="flex gap-2 rounded-[var(--radius-card)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] p-3.5 text-sm text-[color-mix(in_srgb,var(--color-warning)_70%,var(--color-ink))]">
           <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -369,7 +339,7 @@ export function LocalCartPanel({
       disabled={checkoutPending || belowMinimum || hasProblem || Boolean(closedLabel)}
       onClick={goToCheckout}
     >
-      <span>{closedLabel ?? (checkoutPending ? "Preparing your order…" : isSignedIn ? "Checkout" : "Sign in to check out")}</span>
+      <span>{closedLabel ?? (checkoutPending ? "Preparing your order…" : "Checkout")}</span>
       <span className={cn("tabular flex items-center gap-2", closedLabel && "hidden")}>
         {checkoutPending ? <Loader2 className="animate-spin" aria-hidden /> : (money(toMoney(round2(subtotal.minus(discount)))))}
         {!checkoutPending ? <ArrowRight aria-hidden /> : null}
@@ -381,7 +351,6 @@ export function LocalCartPanel({
     return (
       <div className="flex min-h-full flex-col">
         <div className="flex-1 space-y-6 px-5 md:px-7">
-          {orderTypePicker}
           {lines}
           {couponForm}
           <div className="rounded-[var(--radius-card)] bg-[var(--steel-1)] p-5">{receipt}</div>
@@ -406,7 +375,6 @@ export function LocalCartPanel({
 
       <div className="mt-7 grid grid-cols-[minmax(0,1fr)] gap-8 md:mt-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
         <div>
-          {orderTypePicker}
           <div className="mt-4">{lines}</div>
           <div className="mt-2 flex flex-col gap-6 border-t border-[var(--rule)] pt-6 sm:flex-row sm:items-start sm:justify-between">
             <Link

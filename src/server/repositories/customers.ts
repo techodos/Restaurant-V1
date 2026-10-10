@@ -133,6 +133,22 @@ export async function getCustomerByEmail(restaurantId: string, email: string, ct
   return row ? mapCustomer(row) : null;
 }
 
+/**
+ * Privileged bootstrap lookup, same reasoning as `getCustomerByEmail` above (no `ctx.customerId` to
+ * satisfy `customers_self` yet). Used by guest checkout to refuse a phone number that already has a
+ * real account before it ever calls `upsertCustomer` — which has no "only if guest" guard and would
+ * otherwise silently overwrite that account's name/email with whatever a stranger typed.
+ */
+export async function findAccountByPhone(restaurantId: string, phone: string, ctx: RequestContext = {}): Promise<Customer | null> {
+  const row = await getDb(ctx).write(ctx, (tx) =>
+    tx.queryOne<Row>(
+      `select ${CUSTOMER_COLUMNS} from customers where restaurant_id = $1 and phone = $2 and not is_guest limit 1`,
+      [restaurantId, phone],
+    ),
+  );
+  return row ? mapCustomer(row) : null;
+}
+
 /** Matches by Google sub first, falling back to email — the same account may have signed up with a password first. */
 export async function getCustomerByGoogleSubOrEmail(
   restaurantId: string,

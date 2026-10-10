@@ -4,8 +4,7 @@ import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
 import type { StorefrontContext } from "@/shared/contract/models";
-import { enabledOrderTypes } from "@/shared/ordering";
-import { ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
+import { ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import { getBranching, getStorefrontContext, readTray } from "@/web/storefront";
 import { resolveImage, resolveMenuImage } from "@/web/media";
 import { MenuOrderTypeSync } from "@/components/storefront/branch-bar";
@@ -94,7 +93,6 @@ async function renderMenu(
     .map((entry) => ({ category: entry, items: items.filter((item) => item.categoryId === entry.id) }))
     .filter((group) => group.items.length > 0);
   const stations = grouped.map((group) => ({ slug: group.category.slug, name: group.category.name, count: group.items.length }));
-  const orderTypes = enabledOrderTypes(restaurant.features);
   const keep = (extra: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
     const merged = { orderType: activeOrderType, q: search || undefined, sort: sort && sort !== "menu" ? sort : undefined, category, ...extra };
@@ -191,29 +189,6 @@ async function renderMenu(
               Search
             </Button>
           </form>
-
-          {orderTypes.length > 1 ? (
-            <div
-              role="group"
-              aria-label="Order type"
-              className="flex rounded-[var(--radius-control)] border border-white/20 bg-black/30 p-1 backdrop-blur-md"
-            >
-              {orderTypes.map((type) => (
-                <Link
-                  key={type}
-                  href={keep({ orderType: type })}
-                  scroll={false}
-                  aria-current={activeOrderType === type ? "true" : undefined}
-                  className={cn(
-                    "flex-1 whitespace-nowrap rounded-[var(--radius-control)] px-4 py-2 text-center text-[13px] font-semibold transition-[background-color,color] duration-200 lg:flex-none",
-                    activeOrderType === type ? "bg-[var(--brand-surface)] text-[var(--brand-foreground)]" : "text-white/75 hover:text-white",
-                  )}
-                >
-                  {ORDER_TYPE_LABELS[type]}
-                </Link>
-              ))}
-            </div>
-          ) : null}
         </div>
       </PageHero>
 

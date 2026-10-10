@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
 import { isSupportedCountry } from "libphonenumber-js";
-import { getCustomerProfile } from "@/server/services/customer-profile";
+import { getCustomerProfile, type CustomerProfile } from "@/server/services/customer-profile";
 import { getBranching, readTrayView, requireStorefront } from "@/web/storefront";
 import { branchesFor } from "@/shared/branching";
 import { branchClosedLabel, priceTray, serviceAvailability } from "@/server/services/cart";
@@ -14,7 +14,6 @@ import { config } from "@/server/config";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { resolveMenuImage } from "@/web/media";
 import { Button } from "@/components/ui/button";
-import { signInHref } from "@/shared/return-to";
 
 interface CheckoutPageProps {
   params: Promise<{ restaurantSlug: string }>;
@@ -30,10 +29,9 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const context = await requireStorefront(restaurantSlug);
 
   const { restaurant, primaryLocation, locations } = context;
-  // Orders are for signed-in customers only (placeOrderAction enforces it; this sends a guest to sign in
-  // and straight back here). An unverified customer stays: the form shows the verify-code step.
+  // Guests check out directly (the OTP modal verifies their email at "Place order", no sign-in
+  // required) — `customer` is null for a guest; every prop below already has a guest fallback.
   const customer = await getStorefrontCustomer(restaurant.id);
-  if (!customer) redirect(signInHref(restaurant.slug, `/r/${restaurant.slug}/checkout`));
 
   // The tray is the browser's cookie and is priced from the in-memory menu, zones and coupon definitions:
   // no database. The page makes exactly one database read — the account's own profile (saved mobile,
@@ -58,8 +56,11 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       ? await getDeliveryZones(restaurant.id, { locationId: tray.locationId ?? undefined, activeOnly: true })
       : [];
   // the same profile the header drawer shows: account email, saved mobile, saved addresses (and the
-  // identity a customer-restricted coupon is checked against)
-  const profile = await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id));
+  // identity a customer-restricted coupon is checked against). A guest has no account row to read —
+  // `getCustomerProfile` requires a session — so it gets the empty shape; the form asks for everything.
+  const profile: CustomerProfile = customer
+    ? await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id))
+    : { fullName: "", email: null, phone: null, gender: null, dateOfBirth: null, authProvider: "password", emailVerified: false, addresses: [] };
   const pricingResult = await priceTray(restaurant, tray, view, {
     zones,
     customer: { email: profile.email, phone: profile.phone },

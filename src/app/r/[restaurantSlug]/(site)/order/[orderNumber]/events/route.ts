@@ -1,6 +1,6 @@
 import { jsonError } from "@/server/errors";
 import { openOrderStream, orderEventsEnabled, type OrderStream } from "@/server/services/order-events";
-import { getVisitorContext } from "@/web/session";
+import { getVisitorContext, guestOrderAccessToken } from "@/web/session";
 import { requireStorefrontRestaurant } from "@/web/storefront";
 
 /**
@@ -38,9 +38,11 @@ export async function GET(
       return Response.json({ success: false, error: { code: "DISABLED", message: "Live updates are not configured." } }, { status: 503 });
     }
     const { restaurantSlug, orderNumber } = await params;
-    const accessToken = new URL(request.url).searchParams.get("t");
     const restaurant = await requireStorefrontRestaurant(restaurantSlug); // snapshot: no database read
     const visitor = await getVisitorContext(restaurant.id);
+    // the email link's `?t=`, else the grant a guest's checkout saved in this browser
+    const accessToken =
+      new URL(request.url).searchParams.get("t") ?? (await guestOrderAccessToken(restaurant.id, decodeURIComponent(orderNumber)));
 
     const encoder = new TextEncoder();
     let controller!: ReadableStreamDefaultController<Uint8Array>;

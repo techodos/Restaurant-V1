@@ -1,39 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-/** Only signed-in customers may place an order (verification is enforced in the order transaction). The customer lookup is mocked. */
-const { getCustomerById } = vi.hoisted(() => ({ getCustomerById: vi.fn() }));
-vi.mock("@/server/repositories/customers", () => ({
-  getCustomerById,
-  getCustomerByGoogleSubOrEmail: vi.fn(),
-  markCustomerEmailVerified: vi.fn(),
-  linkGoogleToCustomer: vi.fn(),
-  createGoogleCustomer: vi.fn(),
-}));
-
-import { assertCanPlaceOrder } from "@/server/services/customer-auth";
+import { describe, expect, it } from "vitest";
 import { safeReturnTo, signInHref } from "@/shared/return-to";
+import { signOrderAccessToken, verifyCustomerSession, verifyOrderAccessToken } from "@/server/auth/tokens";
 
-const codeOf = async (run: unknown) => {
-  try {
-    await (typeof run === "function" ? (run as () => unknown)() : run);
-    return "OK";
-  } catch (error) {
-    return (error as { code?: string }).code;
-  }
-};
+describe("guest order grant (how a guest's browser sees its own order)", () => {
+  const orderId = "7a170002-aaaa-4aaa-8aaa-000000000001";
+  const restaurantId = "7a170002-aaaa-4aaa-8aaa-000000000002";
 
-describe("assertCanPlaceOrder", () => {
-  beforeEach(() => getCustomerById.mockReset());
-
-  it("refuses a guest (no customer session) with SIGN_IN_REQUIRED, without a database read", async () => {
-    expect(await codeOf(() => assertCanPlaceOrder({ userId: null, customerId: null }))).toBe("SIGN_IN_REQUIRED");
-    expect(await codeOf(() => assertCanPlaceOrder({}))).toBe("SIGN_IN_REQUIRED");
-    expect(getCustomerById).not.toHaveBeenCalled();
+  it("carries the order number so the browser's saved grants match a page without a database read", async () => {
+    const token = await signOrderAccessToken({ orderId, restaurantId, orderNumber: "ETEQ-YVYJK" });
+    expect(await verifyOrderAccessToken(token)).toEqual({ orderId, restaurantId, orderNumber: "ETEQ-YVYJK" });
   });
 
-  it("lets a signed-in customer through without a database read — email verification is checked inside the order transaction", async () => {
-    expect(await codeOf(() => assertCanPlaceOrder({ userId: "c1", customerId: "c1" }))).toBe("OK");
-    expect(getCustomerById).not.toHaveBeenCalled();
+  it("still verifies an email-link token signed without an order number", async () => {
+    const token = await signOrderAccessToken({ orderId, restaurantId });
+    expect(await verifyOrderAccessToken(token)).toEqual({ orderId, restaurantId });
+  });
+
+  it("is never accepted as a customer session, and a tampered token is refused", async () => {
+    const token = await signOrderAccessToken({ orderId, restaurantId, orderNumber: "ETEQ-YVYJK" });
+    expect(await verifyCustomerSession(token)).toBeNull();
+    expect(await verifyOrderAccessToken(`${token.slice(0, -2)}xx`)).toBeNull();
   });
 });
 

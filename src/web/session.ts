@@ -14,6 +14,7 @@ import {
 } from "@/server/auth/auth-service";
 import {
   verifyCustomerSession,
+  verifyOrderAccessToken,
   verifyStaffSession,
   SESSION_TTL,
   type CustomerSessionPayload,
@@ -32,6 +33,7 @@ import {
   LEGACY_CART_COUNT_COOKIE,
   GOOGLE_RETURN_TO_COOKIE,
   GOOGLE_STATE_COOKIE,
+  GUEST_ORDERS_COOKIE,
   STAFF_COOKIE,
   SUPER_ADMIN_COOKIE,
   LEGACY_STAFF_COOKIE,
@@ -194,8 +196,8 @@ export async function signInStaffSession(
   const store = await cookies();
   // Scoped to /r/<slug>/admin: each restaurant's admin keeps its own session (signing in to one never
   // replaces another's), and the cookie never travels with storefront requests.
-  if (member.role === "super_admin") store.set(SUPER_ADMIN_COOKIE, token, cookieOptions(maxAge));
-  else store.set(STAFF_COOKIE, token, { ...cookieOptions(maxAge), path: adminPath(restaurant.slug) });
+  if (member.role === "super_admin") store.set(SUPER_ADMIN_COOKIE, token, await cookieOptions(maxAge));
+  else store.set(STAFF_COOKIE, token, { ...(await cookieOptions(maxAge)), path: adminPath(restaurant.slug) });
   return {
     // signInStaff already rejects a member with no linked login.
     userId: member.userId as string,
@@ -230,7 +232,7 @@ export const getStorefrontCustomer = cache(async (restaurantId: string): Promise
 /** Signs the customer in for this browser. Only valid in Server Actions and Route Handlers. */
 export async function setCustomerSession(token: string, maxAge: number): Promise<void> {
   const store = await cookies();
-  store.set(CUSTOMER_COOKIE, token, cookieOptions(maxAge));
+  store.set(CUSTOMER_COOKIE, token, await cookieOptions(maxAge));
 }
 
 /**
@@ -242,7 +244,7 @@ export async function refreshCustomerSession(patch: { name?: string; emailVerifi
   if (!session) return;
   const token = await reissueCustomerSession(session, patch);
   const store = await cookies();
-  store.set(CUSTOMER_COOKIE, token, cookieOptions(SESSION_TTL.customer));
+  store.set(CUSTOMER_COOKIE, token, await cookieOptions(SESSION_TTL.customer));
 }
 
 /**
@@ -260,7 +262,7 @@ export async function clearCustomerSession(): Promise<void> {
 /** Stores the CSRF state for a Google sign-in redirect just before leaving for Google. */
 export async function setGoogleState(state: string): Promise<void> {
   const store = await cookies();
-  store.set(GOOGLE_STATE_COOKIE, state, cookieOptions(600));
+  store.set(GOOGLE_STATE_COOKIE, state, await cookieOptions(600));
 }
 
 /** Reads and clears the state cookie; the caller compares it against Google's callback `state`. */
@@ -274,7 +276,7 @@ export async function consumeGoogleState(): Promise<string | null> {
 /** Stores the page to return to after the Google OAuth round trip (the page "Continue with Google" was opened from). */
 export async function setGoogleReturnTo(path: string): Promise<void> {
   const store = await cookies();
-  store.set(GOOGLE_RETURN_TO_COOKIE, path, cookieOptions(600));
+  store.set(GOOGLE_RETURN_TO_COOKIE, path, await cookieOptions(600));
 }
 
 /** Reads and clears the return-to cookie. */
@@ -285,9 +287,44 @@ export async function consumeGoogleReturnTo(): Promise<string | null> {
   return value;
 }
 
+// ── A guest's own orders ──────────────────────────────────────────────────────────────────────────
+// There is no database cart (the tray is a cookie), so a guest proves ownership of an order the same
+// way a notification email link does: a signed order-access token (auth/tokens.ts, 60 days, one order).
+// Checkout stores it in GUEST_ORDERS_COOKIE (httpOnly); only tokens that verify for this restaurant count.
+
+const MAX_GUEST_ORDERS = 5;
+const GUEST_ORDERS_MAX_AGE = 60 * 60 * 24 * 60; // the tokens' own lifetime
+
+async function readGuestOrderTokens(): Promise<string[]> {
+  const value = (await cookies()).get(GUEST_ORDERS_COOKIE)?.value;
+  return value ? value.split("~").filter(Boolean).slice(0, MAX_GUEST_ORDERS) : [];
+}
+
+/** Remembers a guest's freshly placed order in this browser (newest first). Server Actions/Route Handlers only. */
+export async function rememberGuestOrder(token: string): Promise<void> {
+  const tokens = [token, ...(await readGuestOrderTokens()).filter((existing) => existing !== token)];
+  (await cookies()).set(GUEST_ORDERS_COOKIE, tokens.slice(0, MAX_GUEST_ORDERS).join("~"), await cookieOptions(GUEST_ORDERS_MAX_AGE));
+}
+
+/** This browser's verified guest-order grants for one restaurant (signature checks only, no database). */
+export const getGuestOrderGrants = cache(async (restaurantId: string): Promise<{ token: string; orderId: string; orderNumber: string | null }[]> => {
+  const grants = await Promise.all(
+    (await readGuestOrderTokens()).map(async (token) => ({ token, grant: await verifyOrderAccessToken(token) })),
+  );
+  return grants.flatMap(({ token, grant }) =>
+    grant && grant.restaurantId === restaurantId ? [{ token, orderId: grant.orderId, orderNumber: grant.orderNumber ?? null }] : [],
+  );
+});
+
+/** The saved access token for one of this browser's guest orders, or null — used where a page takes `?t=`. */
+export async function guestOrderAccessToken(restaurantId: string, orderNumber: string): Promise<string | null> {
+  return (await getGuestOrderGrants(restaurantId)).find((grant) => grant.orderNumber === orderNumber)?.token ?? null;
+}
+
 /**
  * Who is visiting this restaurant's storefront — the signed-in customer, in the shape services expect.
- * From the session cookie only (no database). Never sets cookies.
+ * From cookies only (no database). Never sets cookies. A guest carries the ids of orders this browser
+ * placed (`guestOrderIds`), which is how "Current orders" finds them.
  */
 export async function getVisitorContext(restaurantId: string): Promise<RequestContext> {
   const customer = await getStorefrontCustomer(restaurantId);
@@ -296,5 +333,6 @@ export async function getVisitorContext(restaurantId: string): Promise<RequestCo
     cartToken: null,
     customerId: customer?.customerId ?? null,
     userId: customer?.userId ?? null,
+    guestOrderIds: customer ? null : (await getGuestOrderGrants(restaurantId)).map((grant) => grant.orderId),
   };
 }

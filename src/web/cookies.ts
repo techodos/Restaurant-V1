@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { config } from "@/server/config";
 
 /** Cookie names and attributes. Nothing outside `web/` knows how sessions travel. */
@@ -24,16 +25,34 @@ export const CUSTOMER_COOKIE = "rp_customer_session";
  */
 export const LEGACY_CART_COOKIE = "rp_cart";
 export const LEGACY_CART_COUNT_COOKIE = "rp_cart_n";
+/**
+ * A guest's last few orders: signed order-access tokens joined by "~" (never in a JWT), newest first.
+ * The only way a guest's browser can show its own orders — there is no database cart to match any more.
+ */
+export const GUEST_ORDERS_COOKIE = "rp_guest_orders";
 /** CSRF state for the Google OAuth redirect round trip; cleared as soon as the callback reads it. */
 export const GOOGLE_STATE_COOKIE = "rp_google_state";
 /** Where to return the browser after the Google OAuth round trip; cleared as soon as the callback reads it. */
 export const GOOGLE_RETURN_TO_COOKIE = "rp_google_return_to";
 
-export function cookieOptions(maxAge: number) {
+/**
+ * `secure` follows the actual connection, not just NODE_ENV: a real deployment sits behind an HTTPS
+ * reverse proxy (Vercel or nginx/Caddy, section 10) which sets `x-forwarded-proto: https`, so this
+ * still resolves `true` there. A bare `next start` reached over plain HTTP — e.g. testing on a phone
+ * at the LAN IP (`http://192.168.x.x:3000`) — has no proxy to set that header; NODE_ENV alone would
+ * still say "production" and force `secure: true`, and a Secure cookie set over plain HTTP to
+ * anything other than `localhost` (which browsers special-case as a secure context) is silently
+ * dropped by the browser. Sign-in then "succeeds" (the action's response, and the toast with it) but
+ * no cookie is ever stored, so the very next page load finds no session and bounces back to sign-in —
+ * found 2026-10-10 testing sign-in on a phone against `next start` at a LAN IP.
+ */
+export async function cookieOptions(maxAge: number) {
+  const proto = (await headers()).get("x-forwarded-proto");
+  const secure = proto ? proto === "https" : config.app.isProduction;
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: config.app.isProduction,
+    secure,
     path: "/",
     maxAge,
   };

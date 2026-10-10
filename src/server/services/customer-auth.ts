@@ -34,6 +34,9 @@ import {
   getCustomerByGoogleSubOrEmail,
   linkGoogleToCustomer,
   createGoogleCustomer,
+  findAccountByPhone,
+  getCustomerByEmail,
+  upsertCustomer,
 } from "@/server/repositories/customers";
 import type { Restaurant } from "@/shared/contract/models";
 import type { SignInInput, SignUpInput } from "@/server/validation/customer-auth";
@@ -62,17 +65,6 @@ export async function signInCustomerAccount(restaurant: Pick<Restaurant, "id">, 
 
 function hashCode(code: string): string {
   return createHmac("sha256", config.auth.secret).update(code).digest("hex");
-}
-
-/**
- * Who may place an order: a signed-in customer (a customer session for this restaurant) whose login
- * email is verified. Guests are refused here with SIGN_IN_REQUIRED (no database needed). The email
- * check is authoritative inside the order transaction itself (`createOrder`, `requireVerifiedEmail`),
- * which refuses with EMAIL_NOT_VERIFIED — the checkout form turns that code into the inline
- * verify-code step. Hiding the checkout button for guests is only UX.
- */
-export function assertCanPlaceOrder(visitor: Pick<RequestContext, "userId" | "customerId">): void {
-  if (!visitor.customerId) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in to place an order.");
 }
 
 export async function getCustomerUser(customerId: string) {
@@ -141,6 +133,92 @@ export async function verifyEmailCode(customerId: string, code: string): Promise
   if (outcome === "expired") throw errors.validation("That code has expired. Request a new one.");
   if (outcome === "locked") throw errors.validation("Too many attempts. Request a new code.");
   if (outcome === "wrong") throw errors.validation("That code is not correct.");
+}
+
+// ── Guest checkout OTP (the "Place order" modal, no account/session required) ────────────────────
+// Reuses the exact same code table/generator/TTL/limits above — a guest proves the checkout email the
+// same way an account proves its login email. The guest row is upserted by phone (same row every
+// guest order already upserts, repositories/customers.ts#upsertCustomer), so by the time the order is
+// placed `createOrder`'s guest branch resolves the identical row and finds it already verified.
+
+export interface GuestContact {
+  fullName: string;
+  phone: string;
+  email: string;
+}
+
+/** True when the phone already belongs to a real (non-guest) account — guest checkout must never touch it. */
+export async function isPhoneTaken(restaurant: Pick<Restaurant, "id">, phone: string): Promise<boolean> {
+  const existing = await findAccountByPhone(restaurant.id, phone, { restaurantId: restaurant.id });
+  return Boolean(existing);
+}
+
+/** True when the email is already a real (non-guest) account's login here (`getCustomerByEmail` skips guest rows). */
+export async function isEmailTaken(restaurant: Pick<Restaurant, "id">, email: string): Promise<boolean> {
+  return Boolean(await getCustomerByEmail(restaurant.id, email, { restaurantId: restaurant.id }));
+}
+
+export const PHONE_HAS_ACCOUNT = "This phone number already has an account. Please sign in to use it.";
+export const EMAIL_HAS_ACCOUNT = "This email already has an account. Please sign in to use it.";
+
+/**
+ * Checkout's as-you-type check. It tells a caller whether an account exists for a phone/email — asked
+ * for explicitly (a returning customer should sign in instead) — so it is rate limited per caller to
+ * keep it from being used to sweep for accounts. Either value may be omitted.
+ */
+export async function checkGuestContact(
+  restaurant: Pick<Restaurant, "id">,
+  input: { phone?: string; email?: string },
+  identifier: string,
+): Promise<{ phoneTaken: boolean; emailTaken: boolean }> {
+  checkRateLimit({ key: "guest-contact-check-ip", identifier, limit: 40, windowMs: 15 * 60_000 });
+  const [phoneTaken, emailTaken] = await Promise.all([
+    input.phone ? isPhoneTaken(restaurant, input.phone) : false,
+    input.email ? isEmailTaken(restaurant, input.email) : false,
+  ]);
+  return { phoneTaken, emailTaken };
+}
+
+/**
+ * Upserts the guest row, refusing a phone or email that already belongs to a real account first —
+ * `upsertCustomer` has no "only if guest" guard and would otherwise silently overwrite a stranger's
+ * name/email; an account's email should sign in rather than check out as a guest.
+ */
+async function upsertGuestContact(restaurant: Pick<Restaurant, "id">, input: GuestContact) {
+  const [phoneTaken, emailTaken] = await Promise.all([isPhoneTaken(restaurant, input.phone), isEmailTaken(restaurant, input.email)]);
+  if (phoneTaken) throw errors.conflict(PHONE_HAS_ACCOUNT);
+  if (emailTaken) throw errors.conflict(EMAIL_HAS_ACCOUNT);
+  return upsertCustomer(
+    { restaurantId: restaurant.id, fullName: input.fullName, phone: input.phone, email: input.email, isGuest: true },
+    { restaurantId: restaurant.id },
+  );
+}
+
+/** Opening the OTP modal: sends a code only if this phone+email isn't already verified from earlier. */
+export async function sendGuestVerificationCode(
+  restaurant: Parameters<typeof sendVerificationCode>[3] & Pick<Restaurant, "id">,
+  input: GuestContact,
+  identifier: string,
+): Promise<void> {
+  const customer = await upsertGuestContact(restaurant, input);
+  if (customer.emailVerified) return;
+  await ensureVerificationCode(customer.id, input.email, identifier, restaurant);
+}
+
+/** The modal's explicit "Resend code" — always a fresh code. */
+export async function resendGuestVerificationCode(
+  restaurant: Parameters<typeof sendVerificationCode>[3] & Pick<Restaurant, "id">,
+  input: GuestContact,
+  identifier: string,
+): Promise<void> {
+  const customer = await upsertGuestContact(restaurant, input);
+  await sendVerificationCode(customer.id, input.email, identifier, restaurant);
+}
+
+/** Same (restaurant_id, phone)-keyed row the OTP was sent to — upsert is idempotent, so no id round-trips through the client. */
+export async function verifyGuestCode(restaurant: Pick<Restaurant, "id">, input: GuestContact & { code: string }): Promise<void> {
+  const customer = await upsertGuestContact(restaurant, input);
+  await verifyEmailCode(customer.id, input.code);
 }
 
 // ── Forgot password ──────────────────────────────────────────────────────────

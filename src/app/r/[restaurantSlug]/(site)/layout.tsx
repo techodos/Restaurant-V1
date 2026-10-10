@@ -93,7 +93,8 @@ export default async function StorefrontLayout({
     // null unless features.BranchingFeature is on; from the destination cookie + snapshot, no database
     getBranching(context),
   ]);
-  // The one database read a storefront page view makes, and only for a signed-in visitor: an active
+  // The one database read a storefront page view makes, and only for a signed-in visitor or a guest
+  // whose browser holds saved order grants (web/session.ts#getGuestOrderGrants; none = no read): an active
   // order's status changes from outside anything this browser does (staff update it), so there is no
   // cookie to keep current and the widget must reflect it promptly.
   // Only the count is shown, so only the count is read (one tiny statement).
