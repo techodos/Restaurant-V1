@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { setItemLocationAvailabilityAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
+import { useSyncedState } from "@/components/admin/use-synced-state";
 import type { RestaurantLocation } from "@/shared/contract/models";
 
 export function BranchAvailabilityManager({
@@ -15,7 +16,7 @@ export function BranchAvailabilityManager({
   locations: RestaurantLocation[];
   overrides: Record<string, boolean>;
 }) {
-  const [available, setAvailable] = useState<Record<string, boolean>>(overrides);
+  const [available, setAvailable] = useSyncedState<Record<string, boolean>>(`menu-item-overrides:${menuItemId}`, overrides);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 

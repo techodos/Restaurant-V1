@@ -23,8 +23,13 @@ const { db } = vi.hoisted(() => ({
     phoneTaken: false,
     /** restaurants.features.BranchingFeature */
     branching: false,
+    /** restaurant1s.hours of the branch (and of its zones' branch) */
+    branchHours: {} as Record<string, unknown>,
   },
 }));
+
+/** Open around the clock (open === close is the 24h marker). */
+const ALL_DAY = Object.fromEntries(["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((day) => [day, [{ open: "00:00", close: "00:00" }]]));
 
 const RESTAURANT = "11111111-1111-4111-8111-111111111111";
 const PIZZA = "22222222-2222-4222-8222-222222222222";
@@ -63,10 +68,10 @@ function answer(sql: string, params: readonly unknown[] = []): Record<string, un
         id: RESTAURANT, name: "Bella", slug: "bella", status: "active", currency: "PKR", timezone: "Asia/Karachi",
         features: { onlineOrdering: true, delivery: true, pickup: true, coupons: true, BranchingFeature: db.branching }, settings: {},
       },
-      branch: params[4] ? { id: params[4], city: "Islamabad", is_active: true } : null,
+      branch: params[4] ? { id: params[4], city: "Islamabad", is_active: true, hours: db.branchHours } : null,
       customer: params[1] ? db.customer : null,
       menu: ids.filter((id) => id === PIZZA || id === TEA).map(menuRow),
-      zones: params[3] ? [{ id: "zone-1", restaurant_id: RESTAURANT, location_id: "branch-1", branch_city: "Islamabad", name: "F-7", areas: ["F-7"], delivery_fee: 150, min_order_amount: 0, is_active: true }] : null,
+      zones: params[3] ? [{ id: "zone-1", restaurant_id: RESTAURANT, location_id: "branch-1", branch_city: "Islamabad", branch_hours: db.branchHours, name: "F-7", areas: ["F-7"], delivery_fee: 150, min_order_amount: 0, is_active: true }] : null,
       coupon:
         params[5] === "SAVE10"
           ? { id: "coupon-1", restaurant_id: RESTAURANT, code: "SAVE10", discount_type: "percentage", discount_value: 10, min_order_amount: 0, applies_to: "order", order_types: [], is_active: true, used_count: 0, phone_usage: 0, eligible_emails: db.couponEligibleEmails, eligible_phones: [] }
@@ -81,7 +86,8 @@ function answer(sql: string, params: readonly unknown[] = []): Record<string, un
   if (s.startsWith("insert into orders")) {
     return [{ id: "order-1", order_number: "ORD-1", restaurant_id: RESTAURANT, status: "pending", order_type: params[3], customer_phone: params[6], total: params[20], created_at: new Date() }];
   }
-  if (s.startsWith("with order_lines as")) return [{ id: "payment-1" }];
+  // with a coupon the statement also reports whether the (limit-guarded) usage increment matched a row
+  if (s.startsWith("with order_lines as")) return [{ id: "payment-1", ...(s.includes("coupon_use") ? { coupon_counted: 1 } : {}) }];
   throw new Error(`unexpected SQL in fake: ${s.slice(0, 80)}`);
 }
 
@@ -138,6 +144,7 @@ describe("createOrder — the single order transaction", () => {
     db.teaIsBuffet = false;
     db.couponEligibleEmails = [];
     db.branching = false;
+    db.branchHours = ALL_DAY;
     db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
   });
 
@@ -270,6 +277,7 @@ describe("createOrder — the order always has the branch that cooks it", () => 
     db.transactions = 0;
     db.statements = [];
     db.branching = false;
+    db.branchHours = ALL_DAY;
     db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
   });
   const orderInsert = () => statementsMatching(/^\s*insert into orders/i)[0];
@@ -295,5 +303,38 @@ describe("createOrder — the order always has the branch that cooks it", () => 
   it("no branch named and not delivery: unchanged (no branch to infer)", async () => {
     await createOrder(input(1, { locationId: null }), { restaurantId: RESTAURANT });
     expect(orderInsert()!.params[1]).toBeNull();
+  });
+});
+
+describe("createOrder — never into a closed kitchen", () => {
+  const delivery = { orderType: "delivery" as const, paymentMethod: "cash_on_delivery" as const, address: { line1: "House 1", area: "F-7", city: "Islamabad" } };
+  // Mon–Sun 12:00–23:00 in Asia/Karachi (UTC+5, no DST)
+  const LUNCH_TO_LATE = Object.fromEntries(["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((day) => [day, [{ open: "12:00", close: "23:00" }]]));
+  beforeEach(() => {
+    db.transactions = 0;
+    db.statements = [];
+    db.branching = false;
+    db.branchHours = LUNCH_TO_LATE;
+    db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
+  });
+
+  it("refuses an order for a branch outside its hours, before anything is written (a page left open past closing)", async () => {
+    const threeAm = new Date("2026-10-09T22:00:00Z"); // 03:00 in Karachi
+    await expect(createOrder(input(1, { locationId: "branch-1", now: threeAm }), { restaurantId: RESTAURANT })).rejects.toMatchObject({ code: "ORDERING_DISABLED" });
+    await expect(createOrder(input(1, { ...delivery, locationId: null, now: threeAm }), { restaurantId: RESTAURANT })).rejects.toMatchObject({ code: "ORDERING_DISABLED" });
+    expect(statementsMatching(/^\s*insert into orders/i)).toHaveLength(0);
+  });
+
+  it("a branch with no hours set takes orders at any time (hours not configured is not 'closed')", async () => {
+    db.branchHours = {};
+    const threeAm = new Date("2026-10-09T22:00:00Z");
+    await createOrder(input(1, { locationId: "branch-1", now: threeAm }), { restaurantId: RESTAURANT });
+    expect(db.statements).toHaveLength(3);
+  });
+
+  it("takes the same order while that branch is open, with no extra statement", async () => {
+    const sevenPm = new Date("2026-10-09T14:00:00Z"); // 19:00 in Karachi
+    await createOrder(input(1, { locationId: "branch-1", now: sevenPm }), { restaurantId: RESTAURANT });
+    expect(db.statements).toHaveLength(3);
   });
 });

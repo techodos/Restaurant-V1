@@ -48,7 +48,7 @@ export async function toggleItemAvailabilityAction(
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const item = await setItemAvailability(itemId, patch, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/menu"));
+    // no revalidatePath (see setItemLocationAvailabilityAction): ItemRowActions keeps the switch's state
     return item;
   });
 }

@@ -36,7 +36,8 @@ export function AdminLoginForm({ restaurantSlug }: { restaurantSlug: string }) {
           return;
         }
         toast.success(`Welcome back, ${result.data.name}.`);
-        router.push(adminPath(restaurantSlug));
+        // platform developers land on their own portal; they open a restaurant's admin from there
+        router.push(result.data.superAdmin ? "/super-admin" : adminPath(restaurantSlug));
         router.refresh();
       });
     });

@@ -49,7 +49,7 @@ export default async function EditMenuItemPage({ params }: EditItemPageProps) {
           <p className="mb-3 text-sm text-[var(--color-muted-ink)]">
             Off at a branch means it can&apos;t be ordered from that branch, even though it stays on the restaurant-wide menu above.
           </p>
-          <BranchAvailabilityManager menuItemId={item.id} locations={locations} overrides={Object.fromEntries(overrides)} />
+          <BranchAvailabilityManager menuItemId={item.id} locations={locations} overrides={Object.fromEntries([...overrides].sort(([a], [b]) => a.localeCompare(b)))} />
         </section>
       )}
 

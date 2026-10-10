@@ -3,6 +3,7 @@ import { parseSections } from "@/shared/contract/sections";
 import type { StorefrontContext, WebsitePage } from "@/shared/contract/models";
 import { getPageContent } from "@/server/services/storefront";
 import { requireStorefront } from "@/web/storefront";
+import { resolveImage } from "@/web/media";
 import { SectionRenderer } from "@/components/storefront/section-renderer";
 
 /**
@@ -16,6 +17,8 @@ import { SectionRenderer } from "@/components/storefront/section-renderer";
 export interface PageHeading {
   title: string | undefined;
   subtitle: string | undefined;
+  /** configured hero photo URL (already resolved); undefined => the page falls back to the restaurant's cover */
+  image: string | undefined;
   /** true when the body opens the page (no configured section above it), so it may run under the header */
   leading: boolean;
 }
@@ -37,6 +40,7 @@ export async function ConfiguredPage({ restaurantSlug, pageSlug, render }: Confi
   const body = await render(context, {
     title: marker?.title,
     subtitle: marker?.subtitle,
+    image: resolveImage(marker?.image?.url) ?? undefined,
     leading: visible.length === 0 || visible[0]?.type === "page_content",
   });
   return <SectionRenderer context={context} sections={page?.sections ?? []} body={body} />;

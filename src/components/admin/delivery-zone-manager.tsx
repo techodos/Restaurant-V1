@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
 import { deleteDeliveryZoneAction, saveDeliveryZoneAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/delivery-zones/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -13,6 +12,7 @@ import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models"
 import type { Polygon } from "@/shared/geo";
 import { cn } from "@/shared/utils";
 import { ZoneCoverageMap } from "@/components/admin/zone-coverage-map";
+import { StatusPill } from "@/components/admin/admin-ui";
 
 type Coverage = "areas" | "radius" | "polygon";
 const COVERAGE_LABELS: Record<Coverage, string> = { areas: "Area names", radius: "Radius", polygon: "Draw on map" };
@@ -283,8 +283,8 @@ export function DeliveryZoneManager({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">{zone.name}</span>
-                <Badge variant="soft">{locationName(zone.locationId)}</Badge>
-                {!zone.isActive ? <Badge variant="neutral">Inactive</Badge> : null}
+                <StatusPill tone="brand" dot={false}>{locationName(zone.locationId)}</StatusPill>
+                {!zone.isActive ? <StatusPill tone="neutral">Inactive</StatusPill> : null}
               </div>
               <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
                 {zone.polygon ? "Drawn area · " : zone.radiusKm != null ? `Within ${zone.radiusKm} km · ` : ""}

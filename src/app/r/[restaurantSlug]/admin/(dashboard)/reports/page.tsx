@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Banknote, ClipboardList, Download, Percent, ReceiptText, XCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,11 +11,11 @@ import { REPORT_RANGE_LABELS, REPORT_RANGE_PRESETS, resolveReportRange, type Rep
 import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { adminPath } from "@/shared/utils";
-import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { OrdersTrendChart, PaymentBreakdownList, SalesTrendChart } from "@/components/admin/sales-charts";
+import { StatusPill, orderStatusTone, tableHead } from "@/components/admin/admin-ui";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Sales Reports" };
@@ -196,7 +195,7 @@ export default async function AdminReportsPage({ params, searchParams }: Reports
         ) : (
           <div className="overflow-x-auto">
             <table className="tabular w-full min-w-[42rem] text-sm">
-              <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
+              <thead className={tableHead}>
                 <tr>
                   <th className="px-4 py-3 font-medium">Order</th>
                   <th className="px-4 py-3 font-medium">Type</th>
@@ -216,7 +215,7 @@ export default async function AdminReportsPage({ params, searchParams }: Reports
                     <td className="px-4 py-3">{ORDER_TYPE_LABELS[order.orderType]}</td>
                     <td className="px-4 py-3 font-medium">{formatMoney(order.total, { currency: restaurant.currency })}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={orderStatusBadgeVariant(order.status)}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+                      <StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>
                     </td>
                     <td className="px-4 py-3 text-[var(--color-muted-ink)]">
                       {new Date(order.createdAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}

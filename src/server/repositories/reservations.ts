@@ -1,5 +1,5 @@
 import { errors } from "@/server/errors";
-import { isOpenAt, timeToMinutes } from "@/shared/hours";
+import { isOpenAt, timeToMinutes, zonedDateTime } from "@/shared/hours";
 import type { Reservation } from "@/shared/contract/models";
 import type { OpeningHours } from "@/shared/contract/models";
 import type { ReservationStatus } from "@/shared/contract/enums";
@@ -54,6 +54,7 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
 
   return db.write(context, async (tx) => {
     assertBookable(input);
+    await lockBookingDay(tx, input.locationId, input.date);
 
     // Physical table inventory across the slot. Bookings inside ±slotMinutes of
     // each other compete for the same tables, so capacity is real: the assigned
@@ -122,7 +123,8 @@ function assertBookable(input: BookingRules): void {
     throw errors.custom("RESERVATION_CAPACITY", `Parties of ${input.guests} cannot be booked online.`);
   }
 
-  const reservationDate = new Date(`${input.date}T${input.time}:00`);
+  // the restaurant's wall clock, not the server's (UTC on most hosts)
+  const reservationDate = zonedDateTime(input.date, input.time, input.timezone);
   if (Number.isNaN(reservationDate.getTime())) {
     throw errors.validation("Please choose a valid date and time.");
   }
@@ -145,6 +147,17 @@ function assertBookable(input: BookingRules): void {
 }
 
 /** The table this party gets: the one asked for if free, else the first free table that seats them. */
+/**
+ * Bookings for one branch and day, one at a time. The table check is "read the slot's bookings, pick a free
+ * table, insert" — without this, two guests booking the last table at the same moment both saw it free and
+ * both got it. The lock is held until this transaction ends, and it is its own statement BEFORE the read
+ * (a READ COMMITTED read takes its snapshot when it starts, so it then sees the booking that just committed).
+ * Other branches and days are unaffected. One extra round trip per booking.
+ */
+async function lockBookingDay(tx: DbClient, locationId: string, date: string): Promise<void> {
+  await tx.query("select pg_advisory_xact_lock(hashtextextended('reservation:' || $1::text || ':' || $2::text, 0))", [locationId, date]);
+}
+
 function pickTable(
   settings: ReservationInput["settings"],
   guests: number,
@@ -230,9 +243,10 @@ export async function bookReservation(input: BookReservationInput, ctx: RequestC
   // (same reason as createOrder: the status-history trigger's changed_by is a staff FK).
   const context: RequestContext = { ...ctx, restaurantId: input.restaurantId, customerId: input.accountCustomerId, userId: null };
   return getDb({ restaurantId: input.restaurantId }).write(context, async (tx) => {
+    await lockBookingDay(tx, input.locationId, input.date);
     const read = await tx.queryOne<Row>(
       `select
-         (select row_to_json(r) from (select id, name, slug, status, timezone, features, settings
+         (select row_to_json(r) from (select id, name, slug, status, timezone, features, entitlements, settings
                                         from restaurants where id = $1) r) as restaurant,
          (select row_to_json(l) from (select id, restaurant_id, name, hours, is_active
                                         from restaurant1s where id = $2 and restaurant_id = $1) l) as location,
@@ -460,9 +474,7 @@ export async function listBookedSlotsInRange(
 }
 
 export function isSlotInPast(date: string, time: string, timezone: string, now = new Date()): boolean {
-  const candidate = new Date(`${date}T${time}:00`);
-  void timezone;
-  return candidate.getTime() < now.getTime() - 60_000;
+  return zonedDateTime(date, time, timezone).getTime() < now.getTime() - 60_000;
 }
 
 export function slotToMinutes(time: string): number {

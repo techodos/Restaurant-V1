@@ -554,3 +554,84 @@
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
 }
+
+/* ---------------------------------------------------------------------------
+   SUPER ADMIN (/super-admin): a neutral SaaS palette for the platform team, scoped to
+   `.sa-root` so no restaurant storefront or owner admin is affected. It re-declares the SAME
+   semantic tokens every shared primitive reads (Button, Input, Card, Badge), so those adapt
+   without a fork; `--sa-*` are the few extra tokens the portal's own components use.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .sa-root {
+    /* palette */
+    --color-brand: #4f46e5;
+    --color-brand-foreground: #ffffff;
+    --color-canvas: #f8fafc;
+    --color-surface: #ffffff;
+    --color-ink: #111827;
+    --color-muted-ink: #64748b;
+    --color-hairline: #e2e8f0;
+    --color-success: #16a34a;
+    --color-warning: #d97706;
+    --color-danger: #dc2626;
+    --color-info: #2563eb;
+    --sa-primary-hover: #4338ca;
+    --sa-primary-soft: #eef2ff;
+    --sa-primary-soft-ink: #3730a3;
+    --sa-subtle: #f1f5f9;
+    --sa-subtle-strong: #e2e8f0;
+    --sa-faint-ink: #94a3b8;
+    --sa-border-strong: #cbd5e1;
+    --sa-focus: color-mix(in srgb, #4f46e5 22%, transparent);
+    /* one sans for the whole product: no serif display face on a working tool */
+    --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    /* shape and depth */
+    --radius-brand: 8px;
+    --radius-control: 8px;
+    --radius-card: 12px;
+    --radius-panel: 16px;
+    --sa-shadow-xs: 0 1px 2px rgb(15 23 42 / 0.05);
+    --sa-shadow-sm: 0 1px 3px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04);
+    --sa-shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+    --shadow-brand: 0 1px 2px rgb(79 70 229 / 0.25);
+    --sa-container: 1120px;
+    accent-color: var(--color-brand);
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+/* Unlayered on purpose: these must beat the shared primitives' Tailwind utilities, inside .sa-root only. */
+.sa-root :is(h1, h2, h3, h4) {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+.sa-root :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select) {
+  height: 2.5rem;
+}
+.sa-root :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea) {
+  border-radius: var(--radius-control);
+  border-color: var(--color-hairline);
+  box-shadow: var(--sa-shadow-xs);
+  font-size: 0.875rem;
+}
+.sa-root :is(input, select, textarea):focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--sa-focus);
+}
+.sa-root :is(input, select, textarea):disabled {
+  background-color: var(--sa-subtle);
+  color: var(--sa-faint-ink);
+}
+.sa-root .surface-card {
+  box-shadow: var(--sa-shadow-xs);
+}
+.sa-root :focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+.sa-root input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+}

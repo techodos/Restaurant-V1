@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { ChefHat } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getKitchenOrders } from "@/server/services/orders";
 import { ORDER_TYPE_LABELS } from "@/shared/contract/enums";
@@ -10,6 +9,7 @@ import { KitchenAutoRefresh } from "@/components/admin/kitchen-auto-refresh";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { StatusPill } from "@/components/admin/admin-ui";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Kitchen" };
@@ -51,7 +51,7 @@ export default async function AdminKitchenPage({ params }: { params: Promise<{ r
                       {order.tableNumber ? ` · Table ${order.tableNumber}` : ""}
                     </p>
                   </div>
-                  <Badge variant={minutes >= 20 ? "danger" : "neutral"}>{minutes}m</Badge>
+                  <StatusPill tone={minutes >= 20 ? "danger" : "neutral"}>{minutes}m</StatusPill>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-0">
                   <ul className="space-y-1.5 text-sm">

@@ -79,6 +79,22 @@ export function zonedNow(date: Date, timeZone: string): ZonedNow {
   };
 }
 
+/**
+ * The instant at which the restaurant's wall clock reads `date` (YYYY-MM-DD) `time` (HH:MM) in `timeZone`.
+ * `new Date("2026-10-09T19:00:00")` reads the SERVER's zone instead, which is UTC on most hosts: a 19:00 booking
+ * in Karachi was then checked as midnight and refused as "closed". Two passes so a DST change is respected.
+ */
+export function zonedDateTime(date: string, time: string, timeZone: string): Date {
+  const wall = Date.parse(`${date}T${time}:00Z`);
+  if (Number.isNaN(wall)) return new Date(Number.NaN);
+  const offsetAt = (instant: number): number => {
+    const zoned = zonedNow(new Date(instant), timeZone);
+    return Date.parse(`${zoned.dateKey}T${minutesToTime(zoned.minutes)}:00Z`) - Math.floor(instant / 60_000) * 60_000;
+  };
+  const first = wall - offsetAt(wall);
+  return new Date(wall - offsetAt(first));
+}
+
 /** Handles windows that cross midnight (e.g. 18:00 → 02:00). */
 export function isWithinWindow(minutes: number, window: DayHours): boolean {
   const open = timeToMinutes(window.open);
@@ -86,6 +102,15 @@ export function isWithinWindow(minutes: number, window: DayHours): boolean {
   if (open === close) return true; // 24h
   if (close > open) return minutes >= open && minutes < close;
   return minutes >= open || minutes < close;
+}
+
+/**
+ * Ordering: a branch with NO opening hours set takes orders at any time. `{}` means "not configured" (the admin
+ * Locations form has no hours field, so every branch added there has none), not "closed forever". Reservations
+ * still need hours (no hours = no slots); they use isOpenAt directly.
+ */
+export function acceptsOrdersAt(hours: OpeningHours, date: Date, timeZone: string): boolean {
+  return Object.keys(hours).length === 0 || isOpenAt(hours, date, timeZone);
 }
 
 export function isOpenAt(hours: OpeningHours, date: Date, timeZone: string): boolean {

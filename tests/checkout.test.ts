@@ -3,7 +3,7 @@ import { createOrder, type CreateOrderLine } from "@/server/repositories/orders"
 import { getMenuItem, loadOrderableItems } from "@/server/repositories/menu";
 import { getOrderById, updateOrderStatus } from "@/server/repositories/orders";
 import { resolveMenuSelection, type SelectionInput } from "@/server/domain/menu-selection";
-import { ANON, BELLA, OWNER, testDatabase } from "./helpers/db";
+import { ANON, BELLA, BELLA_OPEN_NOW, OWNER, testDatabase } from "./helpers/db";
 import type { MenuItem } from "@/shared/contract/models";
 
 /**
@@ -131,6 +131,7 @@ describe("order creation", () => {
     const { order, paymentId } = await createOrder(
       {
         restaurantId,
+        now: BELLA_OPEN_NOW,
         lines: buildLines(),
         orderType: "delivery",
         customer: { fullName: "Test Guest", phone: "+92 300 0000001", email: "guest@example.com" },
@@ -141,7 +142,7 @@ describe("order creation", () => {
       ANON,
     );
 
-    expect(order.orderNumber).toMatch(/^ORD-\d{4}-\d{5}$/);
+    expect(order.orderNumber).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{5}$/); // 0026: random XXXX-XXXXX code
     expect(order.status).toBe("pending");
     expect(order.subtotal).toBe("1450.00"); // 1250 pizza + 200 extra mozzarella
     expect(order.deliveryFee).toBe("100.00");
@@ -159,6 +160,8 @@ describe("order creation", () => {
   });
 
   it("applies a valid coupon, recalculates tax and increments usage", async () => {
+    // a fresh phone each run: WELCOME10 allows one use per customer, so a fixed number only passed on a fresh seed
+    const couponPhone = `+92 301 ${String(Date.now()).slice(-7)}`;
 
     const owner = { userId: BELLA.userOwner, restaurantId: BELLA.restaurantId, actor: "Owner" };
     const before = await testDatabase.read(owner, (db) =>
@@ -168,9 +171,10 @@ describe("order creation", () => {
     const { order } = await createOrder(
       {
         restaurantId,
+        now: BELLA_OPEN_NOW,
         lines: buildLines({ addGulabJamun: true }),
         orderType: "pickup",
-        customer: { fullName: "Coupon Guest", phone: "+92 300 0000002" },
+        customer: { fullName: "Coupon Guest", phone: couponPhone },
         paymentMethod: "cash",
         couponCode: "WELCOME10",
       },
@@ -194,9 +198,10 @@ describe("order creation", () => {
       createOrder(
         {
           restaurantId,
+          now: BELLA_OPEN_NOW,
           lines: buildLines(),
           orderType: "pickup",
-          customer: { fullName: "Coupon Guest", phone: "+92 300 0000002" },
+          customer: { fullName: "Coupon Guest", phone: couponPhone },
           paymentMethod: "cash",
           couponCode: "FLAT250", // requires 2,500 — this cart totals 1,450
         },
@@ -210,6 +215,7 @@ describe("order creation", () => {
       createOrder(
         {
           restaurantId,
+          now: BELLA_OPEN_NOW,
           lines: buildLines(),
           orderType: "pickup",
           customer: { fullName: "Guest", phone: "+92 300 0000003" },
@@ -224,6 +230,7 @@ describe("order creation", () => {
       createOrder(
         {
           restaurantId,
+          now: BELLA_OPEN_NOW,
           lines: buildLines(),
           orderType: "pickup",
           customer: { fullName: "Guest", phone: "+92 300 0000004" },
@@ -237,6 +244,7 @@ describe("order creation", () => {
       createOrder(
         {
           restaurantId,
+          now: BELLA_OPEN_NOW,
           lines: buildLines(),
           orderType: "delivery",
           customer: { fullName: "Guest", phone: "+92 300 0000005" },
@@ -245,7 +253,7 @@ describe("order creation", () => {
         },
         ANON,
       ),
-    ).rejects.toThrowError(/do not deliver/i);
+    ).rejects.toThrowError(/not deliver/i);
   });
 
   it("refuses an empty tray", async () => {
@@ -253,6 +261,7 @@ describe("order creation", () => {
       createOrder(
         {
           restaurantId,
+          now: BELLA_OPEN_NOW,
           lines: [],
           orderType: "pickup",
           customer: { fullName: "Guest", phone: "+92 300 0000006" },
@@ -269,6 +278,7 @@ describe("order status machine", () => {
     const { order } = await createOrder(
       {
         restaurantId,
+        now: BELLA_OPEN_NOW,
         lines: buildLines(),
         orderType: "pickup",
         customer: { fullName: `Status ${label}`, phone: `+92 300 10000${Math.floor(Math.random() * 90 + 10)}` },

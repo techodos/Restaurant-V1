@@ -3,6 +3,7 @@ import { enabledOrderTypes } from "@/shared/ordering";
 import { getStorefrontCustomer } from "@/web/session";
 import { signInHref } from "@/shared/return-to";
 import { resolveImage } from "@/web/media";
+import { branchClosedLabel } from "@/server/services/cart";
 import { LocalCartPanel } from "./local-cart-panel";
 
 /**
@@ -13,6 +14,14 @@ import { LocalCartPanel } from "./local-cart-panel";
 export async function CartView({ context, variant }: { context: StorefrontContext; variant: "page" | "drawer" }) {
   const { restaurant } = context;
   const customer = await getStorefrontCustomer(restaurant.id).catch(() => null);
+  // which branches are closed right now (the cart's own branch decides; without one, the primary branch)
+  const active = context.locations.filter((location) => location.isActive);
+  const closedBranches = Object.fromEntries(
+    active.flatMap((location) => {
+      const label = branchClosedLabel(restaurant, location, active.length > 1);
+      return label ? [[location.id, label]] : [];
+    }),
+  );
 
   return (
     <LocalCartPanel
@@ -28,6 +37,8 @@ export async function CartView({ context, variant }: { context: StorefrontContex
       availableOrderTypes={enabledOrderTypes(restaurant.features)}
       isSignedIn={Boolean(customer)}
       signInHref={signInHref(restaurant.slug, `/r/${restaurant.slug}/checkout`)}
+      closedBranches={closedBranches}
+      primaryLocationId={context.primaryLocation?.id ?? null}
     />
   );
 }

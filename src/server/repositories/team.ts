@@ -12,6 +12,7 @@ export async function listTeamMembers(restaurantId: string, ctx: RequestContext,
   const rows = await getDb({ restaurantId }).query<Row>(
     { ...ctx, restaurantId },
     `select * from team_members where restaurant_id = $1 and ($2::uuid is null or location_id = $2::uuid)
+        and role <> 'super_admin' -- platform accounts are not a restaurant's staff (managed by script only)
       order by is_active desc, created_at`,
     [restaurantId, locationId],
   );

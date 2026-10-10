@@ -7,7 +7,7 @@
 export const RESTAURANT_STATUSES = ["onboarding", "active", "suspended", "closed"] as const;
 export type RestaurantStatus = (typeof RESTAURANT_STATUSES)[number];
 
-export const TEAM_ROLES = ["owner", "admin", "manager", "staff"] as const;
+export const TEAM_ROLES = ["super_admin", "owner", "admin", "manager", "staff"] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];
 
 export const WEBSITE_STATUSES = ["draft", "published", "disabled"] as const;

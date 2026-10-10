@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useSettledToast } from "@/components/admin/use-settled-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { moderateReviewAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/reviews/actions";
@@ -24,33 +24,30 @@ export function ReviewModerationControl({
   const [showReply, setShowReply] = useState(false);
   const [reply, setReply] = useState(response ?? "");
   const [featured, setFeatured] = useState(isFeatured);
-  const router = useRouter();
+  const later = useSettledToast(pending);
 
   function setStatus(next: ReviewStatus) {
-    startTransition(() => {
-      moderateReviewAction({ reviewId, status: next }).then((result) => {
-        if (!result.success) {
-          toast.error(result.error.message);
-          return;
-        }
-        toast.success(next === "approved" ? "Review approved." : "Review rejected.");
-        router.refresh();
-      });
+    // no router.refresh(): the action revalidates /reviews, so its response already carries the updated list
+    startTransition(async () => {
+      const result = await moderateReviewAction({ reviewId, status: next });
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      later(next === "approved" ? "Review approved." : "Review rejected.");
     });
   }
 
   function saveReply(event: React.FormEvent) {
     event.preventDefault();
-    startTransition(() => {
-      moderateReviewAction({ reviewId, response: reply, isFeatured: featured }).then((result) => {
-        if (!result.success) {
-          toast.error(result.error.message);
-          return;
-        }
-        toast.success("Saved.");
-        setShowReply(false);
-        router.refresh();
-      });
+    startTransition(async () => {
+      const result = await moderateReviewAction({ reviewId, response: reply, isFeatured: featured });
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      later("Saved.");
+      setShowReply(false);
     });
   }
 

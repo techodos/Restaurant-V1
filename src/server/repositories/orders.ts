@@ -1,5 +1,7 @@
 import { dec, sumMoney, toMoney } from "@/shared/money";
 import { isOrderTypeEnabled } from "@/shared/ordering";
+import { acceptsOrdersAt, parseOpeningHours } from "@/shared/hours";
+import { effectiveOnlineProvider, entitledPaymentMethods } from "@/shared/feature-access";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
 import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
@@ -66,6 +68,13 @@ export interface CreateOrderInput {
   saveAccountPhone?: boolean;
   /** refuse the order (EMAIL_NOT_VERIFIED) unless the account's login email is verified — read in this transaction */
   requireVerifiedEmail?: boolean;
+  /**
+   * One random key per checkout (0033). A signed-in customer's order that already carries it is returned as is
+   * (`replayed`), so a retried or duplicated "Place order" never creates a second order.
+   */
+  idempotencyKey?: string | null;
+  /** the clock the order is decided at (opening hours, menu availability windows); tests pin it */
+  now?: Date;
   userId?: string | null;
   actor?: string | null;
 }
@@ -76,13 +85,18 @@ export interface CreateOrderResult {
   requiresOnlinePayment: boolean;
   /** the customer row the order was linked to (its saved phone/email are the order's) */
   customer: Customer;
+  /** true when `idempotencyKey` named an order this customer had already placed: nothing new was written */
+  replayed: boolean;
 }
+
+/** The index 0033 adds: two concurrent requests with one key — the loser's insert fails on it. */
+const IDEMPOTENCY_INDEX = "orders_idempotency_key_uidx";
 
 /**
  * Only what an order is decided from — on the hosted pooler a response's time grows with its size, and
  * the full rows (SEO, social, theme and customer metadata JSON) are dead weight here.
  */
-const ORDER_RESTAURANT_COLUMNS = "id, name, slug, status, currency, currency_symbol, locale, timezone, country, features, settings";
+const ORDER_RESTAURANT_COLUMNS = "id, name, slug, status, currency, currency_symbol, locale, timezone, country, features, entitlements, settings";
 const ORDER_CUSTOMER_COLUMNS = "id, restaurant_id, full_name, phone, email, is_email_verified, is_guest, auth_provider, created_at";
 
 /** `($1,$2,…),($n,…)` placeholders for a multi-row insert of `rows` × `width` parameters, starting after `offset`. */
@@ -125,6 +139,23 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
 
   if (input.lines.length === 0) throw errors.custom("CART_EMPTY", "Your cart is empty.");
 
+  try {
+    return await placeInTransaction(db, input, context);
+  } catch (error) {
+    // the same checkout submitted twice at once: the other request committed this key first, so this one's
+    // insert hit the unique index — run again, and the read now finds that order and returns it
+    if ((error as { code?: string; constraint?: string }).code === "23505" && (error as { constraint?: string }).constraint === IDEMPOTENCY_INDEX) {
+      return placeInTransaction(db, input, context);
+    }
+    throw error;
+  }
+}
+
+async function placeInTransaction(
+  db: ReturnType<typeof getDb>,
+  input: CreateOrderInput,
+  context: RequestContext,
+): Promise<CreateOrderResult> {
   return db.write(context, async (tx) => {
     // 1 ─ everything the order is decided from, in one statement ------------------------------------
     const read = await tx.queryOne<Row>(
@@ -136,15 +167,19 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
          case when $4::boolean then
            (select coalesce(json_agg(zs order by zs.sort_order, zs.name), '[]') from (
               -- each zone with its branch's city: delivery coverage never crosses a city (deliveries.ts#servingZones)
-              select z.*, l.city as branch_city, l.latitude as branch_latitude, l.longitude as branch_longitude
+              select z.*, l.city as branch_city, l.latitude as branch_latitude, l.longitude as branch_longitude,
+                     l.hours as branch_hours
                 from delivery_zones z
                 join restaurant1s l on l.id = z.location_id and l.is_active
                where z.restaurant_id = $1 and z.is_active and ($5::uuid is null or z.location_id = $5)) zs)
          end as zones,
          -- the branch named by the tray cookie: must be an active branch of THIS restaurant
          case when $5::uuid is not null then
-           (select row_to_json(b) from (select id, city, is_active from restaurant1s where id = $5 and restaurant_id = $1) b)
+           (select row_to_json(b) from (select id, city, is_active, hours from restaurant1s where id = $5 and restaurant_id = $1) b)
          end as branch,
+         -- the kitchen when the tray names none (single-branch restaurants): the same one the checkout page shows
+         (select row_to_json(p) from (select id, hours from restaurant1s where restaurant_id = $1 and is_active
+                                       order by is_primary desc, sort_order, name limit 1) p) as primary_branch,
          case when $6::text is not null then
            (select row_to_json(x) from (
               select c.*, (select count(*) from orders o
@@ -152,7 +187,11 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
                               and o.customer_phone = coalesce(nullif(trim((select phone from customers where id = $2)), ''), $7)
                           )::int as phone_usage
                 from coupons c where c.restaurant_id = $1 and c.code = upper(trim($6))) x)
-         end as coupon`,
+         end as coupon,
+         -- this checkout already produced an order (a retry / double submit): it is returned, not repeated
+         case when $8::uuid is not null and $2::uuid is not null then
+           (select id from orders where restaurant_id = $1 and customer_id = $2 and idempotency_key = $8::uuid)
+         end as replay_order_id`,
       [
         input.restaurantId,
         input.accountCustomerId ?? null,
@@ -161,12 +200,33 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
         input.locationId ?? null,
         input.couponCode || null,
         input.customer.phone,
+        input.idempotencyKey ?? null,
       ],
     );
 
     // restaurant + configuration (this transaction's own read, never a cached copy)
     const restaurant = read?.restaurant ? mapRestaurant(read.restaurant as Row) : null;
     if (!restaurant) throw errors.notFound("Restaurant");
+    // a replay answers with the order as it was placed, before any rule below that may have changed since
+    if (read?.replay_order_id && read.customer) {
+      const existing = await tx.queryOne<Row>(
+        `select o.*, z.name as delivery_zone_name,
+                (select p.id from payments p where p.order_id = o.id order by p.created_at desc limit 1) as payment_id
+           from orders o left join delivery_zones z on z.id = o.delivery_zone_id
+          where o.id = $1`,
+        [read.replay_order_id],
+      );
+      if (existing) {
+        const order = mapOrder(existing);
+        return {
+          order,
+          paymentId: existing.payment_id ? str(existing.payment_id) : "",
+          requiresOnlinePayment: order.paymentMethod === "card_online" || order.paymentMethod === "wallet",
+          customer: mapCustomer(read.customer as Row),
+          replayed: true,
+        };
+      }
+    }
     if (restaurant.status !== "active") throw errors.custom("ORDERING_DISABLED", "This restaurant is not accepting orders right now.");
     if (!restaurant.features.onlineOrdering) {
       throw errors.custom("ORDERING_DISABLED", "Online ordering is currently switched off.");
@@ -177,7 +237,12 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
     if (!isOrderTypeEnabled(restaurant.features, input.orderType)) {
       throw errors.custom("ORDERING_DISABLED", "That order type is not available at the moment.");
     }
-    if (!settings.payments.enabledMethods.includes(input.paymentMethod)) {
+    if (
+      !entitledPaymentMethods(settings.payments.enabledMethods, restaurant.entitlements).includes(input.paymentMethod) ||
+      // card/wallet need a gateway the platform allows; refused here, before the order exists, not at the intent
+      ((input.paymentMethod === "card_online" || input.paymentMethod === "wallet") &&
+        effectiveOnlineProvider(settings.payments.onlineProvider, restaurant.entitlements) === "none")
+    ) {
       throw errors.custom("PAYMENT_UNAVAILABLE", "That payment method is not available.");
     }
     // "Cash on delivery" for a dine-in order, a terminal payment for delivery, etc. make no sense —
@@ -219,7 +284,7 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
 
     // re-validate every line against the live menu -----------------------------------------------
     const menu = mapOrderableItems((read?.menu as Row[] | undefined) ?? []);
-    const now = new Date();
+    const now = input.now ?? new Date();
     let maxPrepTime = settings.ordering.preparationTimeMinutes;
     const resolvedLines = input.lines.map((line) => {
       const resolved = resolveMenuSelection(menu.get(line.menuItemId), line, restaurant.timezone, now);
@@ -312,6 +377,18 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
       };
     }
 
+    // opening hours: the kitchen that cooks it must be open now. The checkout page says so too, but a page left
+    // open past closing time (or a direct request) must not get an order into a closed kitchen.
+    const primaryBranch = read?.primary_branch as Row | null | undefined;
+    const hoursByBranch = new Map<string, unknown>();
+    if (primaryBranch) hoursByBranch.set(str(primaryBranch.id), primaryBranch.hours);
+    for (const row of (read?.zones as Row[] | null) ?? []) hoursByBranch.set(str(row.location_id), row.branch_hours);
+    if (read?.branch) hoursByBranch.set(str((read.branch as Row).id), (read.branch as Row).hours);
+    const cookingBranch = locationId ?? (primaryBranch ? str(primaryBranch.id) : null);
+    if (cookingBranch && !acceptsOrdersAt(parseOpeningHours(hoursByBranch.get(cookingBranch)), now, restaurant.timezone)) {
+      throw errors.custom("ORDERING_DISABLED", "The kitchen is closed right now. Please order again when we open.");
+    }
+
     // coupon (with this phone's past usage, read in the same statement) ---------------------------
     let coupon = null;
     let couponUsageByCustomer = 0;
@@ -350,10 +427,10 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
           customer_phone, delivery_address, delivery_zone_id, table_number, guests, scheduled_for, coupon_id,
           coupon_code, subtotal, discount_amount, delivery_fee, tax_amount, service_fee, tip_amount, total, currency,
           tax_rate, pricing_breakdown, payment_method, payment_status, notes, special_instructions, placed_by,
-          estimated_ready_at)
+          estimated_ready_at, idempotency_key)
        values ($1,$2,$3,null,$4,'pending',$5,$6,$7,$8::jsonb,$9,$10,$11,$12::timestamptz,$13,$14,
                $15::numeric,$16::numeric,$17::numeric,$18::numeric,$19::numeric,$20::numeric,$21::numeric,$22,
-               $23::numeric,$24::jsonb,$25,'pending',$26,$27,'customer',$28::timestamptz)
+               $23::numeric,$24::jsonb,$25,'pending',$26,$27,'customer',$28::timestamptz,$29::uuid)
        returning *`,
       [
         input.restaurantId,
@@ -384,6 +461,8 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
         input.notes ?? null,
         input.specialInstructions ?? null,
         estimatedReadyAt.toISOString(),
+        // only a signed-in customer's checkout is keyed (the replay read is scoped to their own orders)
+        input.accountCustomerId ? (input.idempotencyKey ?? null) : null,
       ],
     );
     if (!orderRow) throw errors.internal("Unable to create the order");
@@ -467,13 +546,26 @@ export async function createOrder(input: CreateOrderInput, ctx: RequestContext):
 
     if (coupon) {
       const couponStart = push(coupon.id);
-      parts.push(`coupon_use as (update coupons set used_count = used_count + 1 where id = $${couponStart + 1}::uuid)`);
+      // The limit check above read used_count without a lock, so two orders at the same moment could both
+      // pass it. Counting only while under the limit makes the row lock decide: the second update waits for
+      // the first, re-checks the new count, and matches nothing once the code is used up.
+      parts.push(`coupon_use as (
+        update coupons set used_count = used_count + 1
+         where id = $${couponStart + 1}::uuid and (usage_limit is null or used_count < usage_limit)
+        returning id)`);
     }
 
-    const paymentRow = await tx.queryOne<Row>(`with ${parts.join(",\n")} select id from payment`, params);
+    const paymentRow = await tx.queryOne<Row>(
+      `with ${parts.join(",\n")} select id${coupon ? ", (select count(*) from coupon_use)::int as coupon_counted" : ""} from payment`,
+      params,
+    );
+    if (coupon && num(paymentRow?.coupon_counted) === 0) {
+      // throwing rolls the whole order back
+      throw new PricingError("COUPON_USAGE_LIMIT", "This promo code has reached its usage limit.", { code: coupon.code });
+    }
 
     const order = mapOrder({ ...orderRow, delivery_zone_name: zoneRecord?.name ?? null });
-    return { order, paymentId: str(paymentRow?.id ?? ""), requiresOnlinePayment, customer };
+    return { order, paymentId: str(paymentRow?.id ?? ""), requiresOnlinePayment, customer, replayed: false };
   });
 }
 
@@ -1042,31 +1134,50 @@ export interface OrderActivityEvent {
  * Rows touched since `sinceIso`, for the admin's order-sound polling (no SSE/LISTEN infra for a
  * multi-order staff feed exists yet — see KitchenAutoRefresh's own comment; this is the same
  * poll-don't-push tradeoff, just for "did anything change" instead of a full page refresh).
+ *
+ * `now` is the database's own `statement_timestamp()` — fixed the instant THIS statement began, in the
+ * same statement/snapshot as the `orders` read — not a timestamp stamped by the app server after the
+ * round trip. An order that commits in the gap between "the query ran" and "the app server got the
+ * response and called `new Date()`" (measured ~0.35s per round trip on the hosted pooler — see section
+ * 17's performance notes) used to be silently and PERMANENTLY dropped: the next poll's cursor had
+ * already moved past it. Reproduced 2026-10-10 with a script placing a real order against the live dev
+ * DB while an admin tab polled: the order's `updated_at` landed before a poll's app-stamped `now`, so no
+ * later poll's `updated_at > since` ever matched it again — no chime, no badge, no list update, ever,
+ * until a manual reload (which reads fresh, not through this cursor at all). `statement_timestamp()`
+ * cannot be later than the snapshot this same statement's `orders` scan used, so it can never skip past
+ * a row that scan did not (and could not) yet see.
  */
 export async function listOrderActivitySince(
   restaurantId: string,
   sinceIso: string,
   ctx: RequestContext,
   locationId: string | null = null,
-): Promise<OrderActivityEvent[]> {
+): Promise<{ events: OrderActivityEvent[]; now: string }> {
   const db = getDb({ restaurantId });
-  const rows = await db.read({ ...ctx, restaurantId }, async (tx) =>
-    tx.query<Row>(
-      `select id, order_number, status, updated_at, (updated_at = created_at) as is_new
-         from orders o
-        where o.restaurant_id = $1 and o.updated_at > $2::timestamptz and ${branchFilter("o", "$3")}
-        order by o.updated_at asc
-        limit 50`,
+  const row = await db.read({ ...ctx, restaurantId }, async (tx) =>
+    tx.queryOne<Row>(
+      `select statement_timestamp() as server_now, coalesce(json_agg(activity order by activity.updated_at asc), '[]') as rows
+         from (
+           select id, order_number, status, updated_at, (updated_at = created_at) as is_new
+             from orders o
+            where o.restaurant_id = $1 and o.updated_at > $2::timestamptz and ${branchFilter("o", "$3")}
+            order by o.updated_at asc
+            limit 50
+         ) activity`,
       [restaurantId, sinceIso, locationId],
     ),
   );
-  return rows.map((row) => ({
-    id: str(row.id),
-    orderNumber: str(row.order_number),
-    status: str(row.status) as OrderStatus,
-    isNew: Boolean(row.is_new),
-    updatedAt: new Date(String(row.updated_at)).toISOString(),
-  }));
+  const rows = (row?.rows as unknown as Row[] | undefined) ?? [];
+  return {
+    events: rows.map((activityRow) => ({
+      id: str(activityRow.id),
+      orderNumber: str(activityRow.order_number),
+      status: str(activityRow.status) as OrderStatus,
+      isNew: Boolean(activityRow.is_new),
+      updatedAt: new Date(String(activityRow.updated_at)).toISOString(),
+    })),
+    now: new Date(String(row?.server_now)).toISOString(),
+  };
 }
 
 /**
@@ -1079,21 +1190,26 @@ export async function setOrderPaymentStatus(
   orderId: string,
   status: "pending" | "authorized" | "paid" | "failed" | "refunded" | "cancelled",
   ctx: RequestContext,
-  options: { transactionId?: string | null; failureReason?: string | null } = {},
-): Promise<void> {
+  options: { transactionId?: string | null; failureReason?: string | null; expectedStatus?: string } = {},
+): Promise<boolean> {
   const db = getDb(ctx);
-  await db.write(ctx, async (tx) => {
-    await tx.query(
+  return db.write(ctx, async (tx) => {
+    // `expectedStatus`: only if the payment is still what the caller saw (two staff clicking at once: the second
+    // changes nothing and is told so). Going back to unpaid/failed clears paid_at; refunded_at only on a refund.
+    const updated = await tx.query(
       `update payments set
          status = $2::payment_status,
          transaction_id = coalesce($3, transaction_id),
          failure_reason = coalesce($4, failure_reason),
-         paid_at = case when $2 = 'paid' then now() else paid_at end,
+         paid_at = case when $2 = 'paid' then now() when $2 in ('pending', 'failed') then null else paid_at end,
          refunded_at = case when $2 = 'refunded' then now() else refunded_at end
-       where order_id = $1`,
-      [orderId, status, options.transactionId ?? null, options.failureReason ?? null],
+       where order_id = $1 and ($5::payment_status is null or status = $5::payment_status)
+       returning id`,
+      [orderId, status, options.transactionId ?? null, options.failureReason ?? null, options.expectedStatus ?? null],
     );
+    if (options.expectedStatus && updated.length === 0) return false;
     await tx.query(`update orders set payment_status = $2::payment_status where id = $1`, [orderId, status]);
+    return true;
   });
 }
 

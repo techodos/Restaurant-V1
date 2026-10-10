@@ -31,6 +31,11 @@ export function checkRateLimit({ key, identifier, limit, windowMs }: RateLimitOp
     for (const [existingKey, bucket] of buckets) {
       if (bucket.resetAt < now) buckets.delete(existingKey);
     }
+    // still full (many distinct callers inside one window): drop the oldest so memory stays bounded
+    for (const existingKey of buckets.keys()) {
+      if (buckets.size <= MAX_TRACKED_KEYS) break;
+      buckets.delete(existingKey);
+    }
   }
 
   const bucket = buckets.get(bucketKey);

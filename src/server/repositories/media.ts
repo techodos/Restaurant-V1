@@ -58,7 +58,7 @@ export async function createMedia(
     const row = await tx.queryOne<Row>(
       `insert into media
          (restaurant_id, uploaded_by, bucket, path, url, file_name, mime_type, size_bytes, width, height, purpose, alt_text, tags)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, coalesce($11,'other')::media_purpose, $12, coalesce($13,'{}'))
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, coalesce($11,'other')::media_purpose, $12, coalesce($13::text[], '{}'::text[]))
        on conflict (bucket, path) do update set
          url = excluded.url, alt_text = excluded.alt_text, purpose = excluded.purpose, tags = excluded.tags
        returning *`,

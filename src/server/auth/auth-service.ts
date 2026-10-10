@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { errors } from '@/server/errors';
 import { checkRateLimit } from '@/server/rate-limit';
-import { can, effectivePermissions, type Permission } from './permissions';
+import { can, effectivePermissions, isSuperAdmin, type Permission } from './permissions';
 import type { TeamRole } from '@/shared/contract/enums';
 import type { RequestContext } from '@/server/context';
 import { getDb } from '@/server/db/registry';
@@ -93,12 +93,12 @@ async function loadStaffActor(session: StaffSessionPayload, restaurantSlug?: str
     [session.sub, session.restaurantId, restaurantSlug ?? null],
   );
   if (!row || !row.checked_restaurant_id) return null;
-  const member = mapTeamMember(row);
+  const home = mapTeamMember(row);
   const restaurant = { id: str(row.checked_restaurant_id), slug: str(row.checked_restaurant_slug) };
-  if (restaurant.id !== member.restaurantId) {
-    // A member may not act on a restaurant they do not belong to.
-    return null;
-  }
+  // A super admin's row lives in one "home" restaurant but acts in any; everyone else may not act on a
+  // restaurant they do not belong to.
+  if (restaurant.id !== home.restaurantId && !isSuperAdmin(home.role)) return null;
+  const member = actingMember(home, restaurant.id);
 
   return {
     userId: session.sub,
@@ -110,6 +110,13 @@ async function loadStaffActor(session: StaffSessionPayload, restaurantSlug?: str
     member,
     permissions: effectivePermissions(member.role, member.permissions),
   };
+}
+
+/** A super admin's home membership as the member of `restaurantId`: same login, restaurant-wide. */
+export function actingMember(member: TeamMember, restaurantId: string): TeamMember {
+  return isSuperAdmin(member.role) && member.restaurantId !== restaurantId
+    ? { ...member, restaurantId, locationId: null }
+    : member;
 }
 
 /** Server-side authorisation: hiding UI is never enough. */
@@ -148,20 +155,29 @@ export async function signInStaff(
     limit: 8,
     windowMs: 5 * 60_000,
   });
+  // per account too: the caller key is an IP, so one account guessed from many addresses was never limited
+  checkRateLimit({
+    key: 'staff-signin-account',
+    identifier: email.trim().toLowerCase(),
+    limit: 10,
+    windowMs: 15 * 60_000,
+  });
 
   const restaurant = await getRestaurantBySlug(restaurantSlug);
   if (!restaurant) throw errors.unauthorized('Invalid email or password.');
 
   const db = getDb({ restaurantId: restaurant.id });
-  const row = await db.write({}, async (tx) =>
-    tx.queryOne<Row>(
-      `select tm.*, u.encrypted_password, u.id as auth_user_id
+  const row = await db.write({}, async (tx) => {
+    const sql = `select tm.*, u.encrypted_password, u.id as auth_user_id
          from team_members tm
          left join auth.users u on u.id = tm.user_id
-        where tm.restaurant_id = $1 and lower(tm.email) = lower($2) and tm.is_active`,
-      [restaurant.id, email.trim()],
-    ),
-  );
+        where lower(tm.email) = lower($2) and tm.is_active and `;
+    // the restaurant's own member first; failing that a super admin (one row, any restaurant) signing in here
+    return (
+      (await tx.queryOne<Row>(`${sql} tm.restaurant_id = $1`, [restaurant.id, email.trim()])) ??
+      (await tx.queryOne<Row>(`${sql} tm.role = 'super_admin' order by tm.created_at limit 1`, [restaurant.id, email.trim()]))
+    );
+  });
 
   const passwordOk = await verifyPassword(
     password,
@@ -171,11 +187,12 @@ export async function signInStaff(
     throw errors.unauthorized('Invalid email or password.');
   }
 
-  const member = mapTeamMember(row);
-  if (!member.userId)
+  const home = mapTeamMember(row);
+  if (!home.userId)
     throw errors.unauthorized(
       'This staff account is not linked to a login yet.',
     );
+  const member = actingMember(home, restaurant.id);
 
   // auth.users is Supabase's own protected schema on a hosted project (DECISIONS.md §2:
   // "NEVER attempt to modify the Supabase auth schema") — app_service cannot write to it there,
@@ -185,16 +202,17 @@ export async function signInStaff(
     async (tx) => {
       await tx.query(
         `update team_members set last_login_at = now() where id = $1`,
-        [member.id],
+        [home.id],
       );
     },
   );
 
   const token = await signStaffSession({
-    sub: member.userId,
+    sub: home.userId,
     email: member.email,
     name: member.fullName,
-    restaurantId: restaurant.id,
+    // the token stays anchored to the member's own (home) restaurant; authenticateStaff widens it for a super admin
+    restaurantId: home.restaurantId,
     role: member.role,
   });
 
@@ -210,7 +228,7 @@ export interface CustomerSignInResult {
 
 /**
  * Customer email/password sign-in: ONE database read (the account row, including its verification
- * state) plus the scrypt check. The restaurant comes from the caller (the storefront snapshot), not a
+ * state) plus the password (bcrypt) check. The restaurant comes from the caller (the storefront snapshot), not a
  * second lookup, and the verification state travels in the session token so the pages that follow
  * never have to ask the database who is signed in.
  */
@@ -220,11 +238,19 @@ export async function signInCustomer(
   restaurant: Pick<Restaurant, 'id'>,
   identifier = 'unknown',
 ): Promise<CustomerSignInResult> {
+  // Per caller (IP): generous, because mobile carriers put many customers behind one address (CGNAT); the
+  // per-account limit below is what stops guessing one account's password.
   checkRateLimit({
     key: 'customer-signin',
     identifier,
-    limit: 8,
+    limit: 30,
     windowMs: 5 * 60_000,
+  });
+  checkRateLimit({
+    key: 'customer-signin-account',
+    identifier: `${restaurant.id}:${email.trim().toLowerCase()}`,
+    limit: 10,
+    windowMs: 15 * 60_000,
   });
 
   const row = await getDb({ restaurantId: restaurant.id }).write(
@@ -356,6 +382,8 @@ export async function resetCustomerPassword(
   };
 }
 
+export const PHONE_TAKEN_MESSAGE = 'An account with that phone number already exists. Please sign in instead.';
+
 /** Guest accounts can be upgraded to a real login without losing history. */
 export async function createCustomerAccount(
   input: {
@@ -387,11 +415,14 @@ export async function createCustomerAccount(
       if (existing)
         throw errors.conflict('An account with that email already exists.');
 
+      // A phone number is never verified, so a same-phone row is only taken over when it is a GUEST row with no
+      // email or this same email (a guest upgrading). Anyone else's account comes back as no row: refused.
       const row = await tx.queryOne<Row>(
         `insert into customers (restaurant_id, full_name, email, phone, password_hash, is_guest)
        values ($1,$2,$3,$4,$5,false)
        on conflict (restaurant_id, phone) do update set
          full_name = excluded.full_name, email = excluded.email, password_hash = excluded.password_hash, is_guest = false
+       where customers.is_guest and (customers.email is null or lower(customers.email) = lower(excluded.email))
        returning id`,
         [
           restaurant.id,
@@ -401,7 +432,7 @@ export async function createCustomerAccount(
           hashed,
         ],
       );
-      if (!row) throw errors.internal('Unable to create the account');
+      if (!row) throw errors.conflict(PHONE_TAKEN_MESSAGE);
       return str(row.id);
     },
   );

@@ -5,7 +5,8 @@ import { action } from '@/server/errors';
 import { getCustomerUser } from '@/server/services/customer-auth';
 import { previewCoupon } from '@/server/services/cart';
 import { checkCouponSchema } from '@/server/validation/cart';
-import { getStorefrontCustomer } from '@/web/session';
+import { checkRateLimit } from '@/server/rate-limit';
+import { callerIdentifier, getStorefrontCustomer } from '@/web/session';
 import { requireStorefrontRestaurant } from '@/web/storefront';
 
 /**
@@ -23,6 +24,8 @@ export async function checkCouponAction(
 ): Promise<ApiResult<{ code: string; discount: string }>> {
   return action(async () => {
     const input = checkCouponSchema.parse(payload);
+    // a promo code is a short secret: stop one caller from trying them by the thousand
+    checkRateLimit({ key: 'coupon-check', identifier: await callerIdentifier(), limit: 30, windowMs: 5 * 60_000 });
     const restaurant = await requireStorefrontRestaurant(slug);
     return previewCoupon(restaurant, input.code, input.orderType, input.subtotal, async () => {
       const customer = await getStorefrontCustomer(restaurant.id);

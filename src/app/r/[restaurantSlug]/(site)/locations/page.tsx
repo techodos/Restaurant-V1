@@ -65,7 +65,7 @@ async function renderLocations(context: StorefrontContext, heading: PageHeading)
       <PageHero
         overlay={heading.leading}
         size="sm"
-        image={resolveImage(restaurant.coverUrl)}
+        image={heading.image ?? resolveImage(restaurant.coverUrl)}
         eyebrow="Visit"
         title={heading.title ?? "Find us"}
         subtitle={

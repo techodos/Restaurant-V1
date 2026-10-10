@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import { CreditCard } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { listPaymentsForAdmin } from "@/server/services/payments";
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUSES, type PaymentStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
+import { PaymentStatusControl } from "@/components/admin/payment-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { StatusPill, badgeTone, tableHead } from "@/components/admin/admin-ui";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Payments" };
@@ -36,6 +37,7 @@ interface PaymentsPageProps {
 export default async function AdminPaymentsPage({ params, searchParams }: PaymentsPageProps) {
   const { restaurantSlug } = await params;
   const actor = await requireAdminPage("payments.view", restaurantSlug);
+  const canManagePayment = actor.permissions.includes("orders.manage");
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const { status, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
@@ -75,7 +77,7 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
           <AdminEmptyState icon={CreditCard} title="No payments match this filter." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
-            <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
+            <thead className={tableHead}>
               <tr>
                 <th className="px-4 py-3 font-medium">Order</th>
                 <th className="px-4 py-3 font-medium">Customer</th>
@@ -84,6 +86,7 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
                 <th className="px-4 py-3 font-medium">Amount</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Paid at</th>
+                {canManagePayment ? <th className="px-4 py-3 font-medium"><span className="sr-only">Actions</span></th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-hairline)]">
@@ -99,13 +102,20 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
                   <td className="px-4 py-3">{PAYMENT_METHOD_LABELS[payment.method]}</td>
                   <td className="px-4 py-3 font-medium">{formatMoney(payment.amount, { currency: restaurant.currency })}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={badgeVariant(payment.status)}>{label(payment.status)}</Badge>
+                    <StatusPill tone={badgeTone(badgeVariant(payment.status))}>{label(payment.status)}</StatusPill>
                   </td>
                   <td className="px-4 py-3 text-[var(--color-muted-ink)]">
                     {payment.paidAt
                       ? new Date(payment.paidAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
                       : "—"}
                   </td>
+                  {canManagePayment ? (
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <PaymentStatusControl orderId={payment.orderId} orderNumber={payment.orderNumber} method={payment.method} status={payment.status} size="xs" />
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

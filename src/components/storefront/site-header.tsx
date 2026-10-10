@@ -185,8 +185,7 @@ export function SiteHeader({ restaurant, config, orderingOpen, customer, googleM
             )}
           </Link>
           {/* desktop: the branch is the order's context, so it sits with the brand, clear of the centred nav */}
-          <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[var(--rule-strong)] xl:block" />
-          <HeaderBranchPill tone={tone} align="start" className="hidden lg:flex" />
+          <HeaderBranchPill tone={tone} align="start" className="hidden lg:flex" divider />
           </div>
 
           <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">

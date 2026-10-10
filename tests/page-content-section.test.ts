@@ -19,6 +19,12 @@ describe("page_content section (menu / reservation / reviews / locations pages)"
     ]);
   });
 
+  it("keeps an optional hero image (the body's own top photo, separate from a closing cta banner)", () => {
+    expect(parseSections([{ type: "page_content", image: { url: "https://x/hero.jpg" } }])[0]).toMatchObject({
+      image: { url: "https://x/hero.jpg", alt: "" },
+    });
+  });
+
   it("renders the built-in body exactly where the marker sits", () => {
     const html = render([{ type: "rich_text", body: "BEFORE" }, { type: "page_content" }, { type: "rich_text", body: "AFTER" }]);
     expect(html.indexOf("BEFORE")).toBeLessThan(html.indexOf("BODY"));

@@ -145,7 +145,9 @@ describe("email send rate", () => {
     vi.unstubAllGlobals();
 
     expect(times).toHaveLength(5);
-    for (let i = 1; i < times.length; i++) expect(times[i]! - times[i - 1]!).toBeGreaterThanOrEqual(85);
+    // 100 ms apart; the floor allows timer jitter (Windows timers tick every ~15.6 ms and a busy machine adds more):
+    // without pacing the five sends land within a couple of ms of each other
+    for (let i = 1; i < times.length; i++) expect(times[i]! - times[i - 1]!).toBeGreaterThanOrEqual(75);
   });
 });
 

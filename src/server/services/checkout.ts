@@ -4,6 +4,7 @@ import { enabledOrderTypes } from "@/shared/ordering";
 import { config, isPaymentProviderConfigured } from "@/server/config";
 import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
+import { effectiveOnlineProvider, entitledPaymentMethods } from "@/shared/feature-access";
 import { getPaymentProvider, type PaymentIntentResult } from "@/server/integrations/payments";
 import { createOrder, getOrderForAccessGrant, setOrderPaymentStatus } from "@/server/repositories/orders";
 import type { PlaceOrderInput } from "@/server/validation/checkout";
@@ -42,7 +43,7 @@ export async function placeOrder(
   // email win over the form, a first mobile is stored on it, its email must be verified), every tray
   // line re-priced from the live menu, zone, coupon limits, and the order rows themselves.
   const isDineIn = input.orderType === "dine_in";
-  const { order, requiresOnlinePayment, customer } = await createOrder(
+  const { order, requiresOnlinePayment, customer, replayed } = await createOrder(
     {
       restaurantId: restaurant.id,
       lines: tray.lines,
@@ -78,6 +79,7 @@ export async function placeOrder(
       customerId: visitor.customerId ?? null,
       userId: visitor.userId ?? null,
       actor: input.fullName,
+      idempotencyKey: input.idempotencyKey ?? null,
     },
     { customerId: visitor.customerId ?? null },
   );
@@ -85,12 +87,16 @@ export async function placeOrder(
   const email = customer.email || input.email || null;
 
   if (!requiresOnlinePayment) return { orderNumber: order.orderNumber, requiresOnlinePayment };
+  // a retried checkout whose order is already paid (or refunded) must not start another payment
+  if (replayed && order.paymentStatus !== "pending" && order.paymentStatus !== "failed") {
+    return { orderNumber: order.orderNumber, requiresOnlinePayment: false };
+  }
 
   // A failed intent must never fail an order that is already committed — the order stays
   // `pending`/unpaid (same as an unpaid cash order) and the customer can retry or contact the
   // restaurant, instead of losing the order they already placed over a gateway hiccup.
   try {
-    const provider = getPaymentProvider(input.paymentMethod, restaurant.settings.payments.onlineProvider);
+    const provider = getPaymentProvider(input.paymentMethod, effectiveOnlineProvider(restaurant.settings.payments.onlineProvider, restaurant.entitlements));
     const intent: PaymentIntentResult = await provider.createIntent({
       restaurantId: restaurant.id,
       orderId: order.id,
@@ -139,7 +145,11 @@ export async function confirmOnlinePayment(
   const ctx: RequestContext = { restaurantId };
   const order = await getOrderForAccessGrant(restaurantId, orderNumber, orderId);
   if (!order) throw errors.notFound("Order");
-  if (order.payment && order.payment.status !== "pending") return; // already resolved: idempotent on a retried callback
+  // Idempotent on a retried/duplicated callback: a failure only resolves a pending payment, and a verified
+  // success resolves a pending OR failed one (money was taken; an earlier "could not start the payment" or a
+  // failed first attempt must not leave a paid order showing as failed). Nothing overwrites a paid one.
+  const current = order.payment?.status ?? "pending";
+  if (outcome.success ? current !== "pending" && current !== "failed" : current !== "pending") return;
   await setOrderPaymentStatus(orderId, outcome.success ? "paid" : "failed", ctx, {
     transactionId: outcome.transactionId,
     failureReason: outcome.failureReason,
@@ -158,15 +168,16 @@ export interface CheckoutOptions {
  */
 export function getCheckoutOptions(restaurant: Restaurant, orderType?: OrderType): CheckoutOptions {
   const { features, settings } = restaurant;
-  const enabled = settings.payments.enabledMethods.filter((method) => {
+  const onlineProvider = effectiveOnlineProvider(settings.payments.onlineProvider, restaurant.entitlements);
+  const enabled = entitledPaymentMethods(settings.payments.enabledMethods, restaurant.entitlements).filter((method) => {
     // "wallet" (JazzCash) is gated exactly like "card_online" (Stripe) — both need the restaurant's
     // chosen online provider to actually be configured server-side, or the option would show at
     // checkout and then fail (or worse, silently record an unpaid order as if payment were possible).
     if (method === "card_online" || method === "wallet") {
       if (
         !features.onlinePayments ||
-        settings.payments.onlineProvider === "none" ||
-        !isPaymentProviderConfigured(settings.payments.onlineProvider)
+        onlineProvider === "none" ||
+        !isPaymentProviderConfigured(onlineProvider)
       ) {
         return false;
       }

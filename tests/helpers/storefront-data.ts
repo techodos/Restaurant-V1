@@ -12,6 +12,8 @@ import type {
 } from "@/shared/contract/models";
 import { restaurantFeaturesSchema, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
 
+import { parseEntitlements } from "@/shared/feature-access";
+
 /** Database-free fixtures for the storefront read model. */
 
 export const RESTAURANT_ID = "00000000-0000-4000-8000-000000000001";
@@ -41,6 +43,8 @@ export function restaurant(overrides: Partial<Restaurant> = {}): Restaurant {
     plan: "standard",
     planStatus: "active",
     features: restaurantFeaturesSchema.parse({}),
+    ownerFeatures: restaurantFeaturesSchema.parse({}),
+    entitlements: parseEntitlements({}),
     settings: restaurantSettingsSchema.parse({}),
     social: {},
     seo: {},

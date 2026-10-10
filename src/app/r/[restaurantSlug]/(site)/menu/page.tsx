@@ -112,7 +112,7 @@ async function renderMenu(
     }
     return null;
   };
-  const heroImage = resolveImage(restaurant.coverUrl) ?? (grouped[0] ? chapterPhoto(grouped[0]) : null);
+  const heroImage = heading.image ?? resolveImage(restaurant.coverUrl) ?? (grouped[0] ? chapterPhoto(grouped[0]) : null);
   // alaCarteEnabled off means every non-buffet category/item is already hidden from this menu (rule 12) —
   // the whole page IS the buffet, so it earns a taller hero and its own "how this works" band.
   const isBuffetOnly = !restaurant.features.alaCarteEnabled;

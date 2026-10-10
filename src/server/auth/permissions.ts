@@ -25,6 +25,7 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 export const ROLE_PERMISSIONS: Record<TeamRole, readonly Permission[]> = {
+  super_admin: PERMISSIONS, // platform developers: owner-level inside every restaurant, plus /super-admin
   owner: PERMISSIONS,
   admin: [
     "orders.view", "orders.manage", "orders.update_status", "kitchen.view", "menu.view", "menu.manage",
@@ -46,6 +47,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, readonly Permission[]> = {
 };
 
 export const ROLE_LABELS: Record<TeamRole, string> = {
+  super_admin: "Super admin",
   owner: "Owner",
   admin: "Administrator",
   manager: "Manager",
@@ -53,6 +55,7 @@ export const ROLE_LABELS: Record<TeamRole, string> = {
 };
 
 export const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
+  super_admin: "Platform developer: every restaurant, plus which features and website content each one gets.",
   owner: "Full access including billing, staff and settings.",
   admin: "Everything except ownership transfer; can manage staff accounts.",
   manager: "Runs one branch: its orders, reservations, menu availability, staff and reports. No restaurant settings.",
@@ -65,7 +68,10 @@ export const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
  * `staff` only (manager accounts are created by owner/admin, as before managers could manage staff).
  */
 export function assignableRoles(role: TeamRole): readonly TeamRole[] {
+  // `super_admin` is never assignable from the app (scripts/db/create-staff.ts only), so nobody can
+  // promote themselves or manage a platform account.
   switch (role) {
+    case "super_admin":
     case "owner":
       return ["owner", "admin", "manager", "staff"];
     case "admin":
@@ -75,6 +81,11 @@ export function assignableRoles(role: TeamRole): readonly TeamRole[] {
     default:
       return [];
   }
+}
+
+/** The platform developers' role: crosses restaurants, reaches /super-admin. */
+export function isSuperAdmin(role: TeamRole | null | undefined): boolean {
+  return role === "super_admin";
 }
 
 /** Owner/admin work across every branch; manager/staff belong to one (team_members.location_id). */

@@ -3,7 +3,8 @@
  * SQL-first migration runner.
  *   npm run db:migrate            apply pending migrations
  *   npm run db:migrate -- --fresh drop & recreate the public schema first
- * Files in db/migrations/*.sql run in lexical order, each in its own transaction.
+ * Files in db/migrations/*.sql run in lexical order, each in its own transaction (an optional
+ * db/migrations/compat/<file>.pre.sql runs first, in that transaction, only while <file> is pending).
  * Runs as DATABASE_URL_MIGRATOR (schema owner) so RLS does not apply.
  */
 import { readdir, readFile } from "node:fs/promises";
@@ -58,6 +59,10 @@ for (const file of files) {
   process.stdout.write(`→ ${file} ... `);
   try {
     await client.query("begin");
+    // compat/<name>.pre.sql: a fix-up that only a database built from scratch needs before this migration
+    // (it runs only while the migration is pending, so already-migrated databases and checksums are untouched)
+    const pre = await readFile(path.join(dir, "compat", file.replace(/\.sql$/, ".pre.sql")), "utf8").catch(() => null);
+    if (pre) await client.query(pre);
     await client.query(sql);
     await client.query("insert into schema_migrations (version, checksum) values ($1,$2)", [file, checksum]);
     await client.query("commit");

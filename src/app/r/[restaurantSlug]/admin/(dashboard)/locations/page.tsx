@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getLocations } from "@/server/services/restaurants";
+import { getLocationsForAdmin } from "@/server/services/restaurants";
 import { getAdminMaps, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { memberBranch } from "@/server/auth/branch-scope";
@@ -16,7 +16,7 @@ export default async function AdminLocationsPage({ params }: { params: Promise<{
 
   // branch staff see their own branch only; adding/editing branches is owner/admin (locations.manage)
   const own = memberBranch(actor);
-  const locations = (await getLocations(restaurant.id)).filter((location) => own === null || location.id === own);
+  const locations = (await getLocationsForAdmin(restaurant.id, { userId: actor.userId, actor: actor.name })).filter((location) => own === null || location.id === own);
 
   return (
     <div className="space-y-6">

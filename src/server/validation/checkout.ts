@@ -28,5 +28,7 @@ export const placeOrderSchema = z.object({
   notes: z.string().trim().max(500).optional().or(z.literal("")),
   /** "Save this address for next time": the name to save a NEW delivery address under (e.g. "Home"); empty = don't save */
   saveAddressAs: z.string().trim().max(40).optional().or(z.literal("")),
+  /** one random key per checkout: a retried or doubled "Place order" returns the first order (0033) */
+  idempotencyKey: z.string().uuid().optional(),
 });
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;

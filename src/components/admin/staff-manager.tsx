@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Power, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
 import {
   createStaffAction,
@@ -17,6 +16,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ROLE_LABELS, isBranchRole } from "@/server/auth/permissions";
 import type { TeamRole } from "@/shared/contract/enums";
 import type { TeamMember } from "@/shared/contract/models";
+import { StatusPill } from "@/components/admin/admin-ui";
 
 /** What the signed-in member may do on this screen. Only shapes the UI — services/team.ts re-checks all of it. */
 interface StaffRules {
@@ -244,18 +244,18 @@ export function StaffManager({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{member.fullName}</span>
-                <Badge variant="soft">{ROLE_LABELS[member.role]}</Badge>
+                <StatusPill tone="brand" dot={false}>{ROLE_LABELS[member.role]}</StatusPill>
                 {multiBranch ? (
                   branchName ? (
-                    <Badge variant="neutral">{branchName}</Badge>
+                    <StatusPill tone="neutral">{branchName}</StatusPill>
                   ) : isBranchRole(member.role) ? (
-                    <Badge variant="warning">No branch</Badge>
+                    <StatusPill tone="warning">No branch</StatusPill>
                   ) : (
-                    <Badge variant="neutral">All branches</Badge>
+                    <StatusPill tone="neutral">All branches</StatusPill>
                   )
                 ) : null}
-                {!member.isActive ? <Badge variant="neutral">Disabled</Badge> : null}
-                {isSelf ? <Badge variant="info">You</Badge> : null}
+                {!member.isActive ? <StatusPill tone="neutral">Disabled</StatusPill> : null}
+                {isSelf ? <StatusPill tone="info" dot={false}>You</StatusPill> : null}
               </div>
               <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
                 {member.email}

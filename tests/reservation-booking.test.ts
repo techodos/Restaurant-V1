@@ -91,11 +91,14 @@ beforeEach(() => {
 });
 
 describe("bookReservation — one transaction, one read, one insert", () => {
-  it("books in one transaction with two statements, the account's own phone and email winning", async () => {
+  it("books in one transaction with three statements, the account's own phone and email winning", async () => {
     const reservation = await bookReservation(input, ctx);
     expect(db.transactions).toBe(1);
-    expect(db.statements).toHaveLength(2);
-    expect(db.statements[0]!.sql).toMatch(/for update/); // the customer's row is locked for the booking
+    expect(db.statements).toHaveLength(3);
+    // the branch+day lock comes first, so two guests can never both take the last table
+    expect(db.statements[0]!.sql).toMatch(/pg_advisory_xact_lock/);
+    expect(db.statements[0]!.params).toEqual([input.locationId, input.date]);
+    expect(db.statements[1]!.sql).toMatch(/for update/); // the customer's row is locked for the booking
     expect(reservation).toEqual(expect.objectContaining({
       guestPhone: "+923001234567", guestEmail: "noor@example.com", customerId: CUSTOMER, tableNumber: "T1",
       status: "pending", locationName: "Gulberg", durationMinutes: 90, confirmationCode: "RSV-ABC123",
@@ -106,9 +109,9 @@ describe("bookReservation — one transaction, one read, one insert", () => {
     db.read = readRow({ account: { phone: "" } });
     const reservation = await bookReservation(input, ctx);
     expect(db.transactions).toBe(1);
-    expect(db.statements).toHaveLength(3);
-    expect(db.statements[1]!.sql).toMatch(/update customers set phone/);
-    expect(db.statements[1]!.params).toEqual([CUSTOMER, "+923339998877", RESTAURANT]);
+    expect(db.statements).toHaveLength(4);
+    expect(db.statements[2]!.sql).toMatch(/update customers set phone/);
+    expect(db.statements[2]!.params).toEqual([CUSTOMER, "+923339998877", RESTAURANT]);
     expect(reservation.guestPhone).toBe("+923339998877");
   });
 

@@ -1,5 +1,6 @@
 import type { Order, OrderSummary, Restaurant, SalesAnalytics } from "@/shared/contract/models";
-import type { OrderStatus } from "@/shared/contract/enums";
+import type { OrderStatus, PaymentStatus } from "@/shared/contract/enums";
+import { isManualPaymentMethod, manualPaymentTargets } from "@/shared/payment-flow";
 import type { Paginated } from "@/shared/contract/api";
 import type { RequestContext } from "@/server/context";
 import { AppError, errors } from "@/server/errors";
@@ -11,7 +12,9 @@ import {
   buildReorderLines,
   countActiveVisitorOrders,
   countOrdersByStatus,
+  getOrderById,
   getOrderByNumber,
+  setOrderPaymentStatus,
   getOrderForAccessGrant,
   getSalesAnalytics,
   listKitchenOrders,
@@ -191,6 +194,34 @@ export function changeOrderStatus(
   return updateOrderStatus(orderId, status, ctx, options);
 }
 
+export interface PaymentStatusChange {
+  orderNumber: string;
+  status: PaymentStatus;
+}
+
+/**
+ * Staff set the payment of an order the restaurant collects itself (cash, card terminal, cash on delivery, bank
+ * transfer): mark paid / failed / refunded / unpaid. The order is read as the staff member (RLS: their restaurant
+ * and, for branch staff, their branch), the allowed change is `shared/payment-flow.ts` (online payments are the
+ * gateway's), and the write only happens if the payment is still what was read — two clicks at once cannot both
+ * apply. The DB write guard refuses another restaurant's or branch's row as well. The `payment_status` change
+ * reaches live order tracking through the existing NOTIFY trigger (0015).
+ */
+export async function changePaymentStatus(orderId: string, status: PaymentStatus, ctx: RequestContext): Promise<PaymentStatusChange> {
+  const order = await getOrderById(orderId, ctx);
+  if (!order) throw errors.notFound("Order");
+  if (!isManualPaymentMethod(order.paymentMethod)) {
+    throw errors.validation("Online payments are updated by the payment provider, not by hand.");
+  }
+  const current = order.payment?.status ?? order.paymentStatus;
+  if (!manualPaymentTargets(order.paymentMethod, current).includes(status)) {
+    throw errors.validation(`A ${current} payment cannot be marked ${status}.`);
+  }
+  const changed = await setOrderPaymentStatus(orderId, status, ctx, { expectedStatus: current });
+  if (!changed) throw errors.conflict("This payment was just changed by someone else. Reload to see it.");
+  return { orderNumber: order.orderNumber, status };
+}
+
 // Admin reads below take `locationId` = the admin's branch scope (web/admin.ts#getAdminBranchScope;
 // null = every branch). RLS (0027) already hides other branches from branch staff; the filter makes the
 // owner's branch choice work and keeps branch staff scoped even if RLS were ever off.
@@ -231,6 +262,11 @@ export function getOrdersForExport(restaurantId: string, range: ReportRange, ctx
 }
 
 /** New/changed orders since a timestamp, polled by the admin's order-sound notifications (no SSE for a multi-order staff feed). */
-export function getOrderActivitySince(restaurantId: string, sinceIso: string, ctx: RequestContext, locationId: string | null = null): Promise<OrderActivityEvent[]> {
+export function getOrderActivitySince(
+  restaurantId: string,
+  sinceIso: string,
+  ctx: RequestContext,
+  locationId: string | null = null,
+): Promise<{ events: OrderActivityEvent[]; now: string }> {
   return listOrderActivitySince(restaurantId, sinceIso, ctx, locationId);
 }

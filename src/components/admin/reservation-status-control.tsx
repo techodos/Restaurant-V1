@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useSettledToast } from "@/components/admin/use-settled-toast";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { updateReservationStatusAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/reservations/actions";
@@ -17,20 +18,19 @@ export function ReservationStatusControl({
 }) {
   const [status, setStatus] = useState<ReservationStatus>(currentStatus);
   const [pending, startTransition] = useTransition();
+  const later = useSettledToast(pending);
 
   function submit() {
     if (status === currentStatus) return;
-    startTransition(() => {
-      updateReservationStatusAction({ reservationId, status }).then((result) => {
-        if (!result.success) {
-          toast.error(result.error.message);
-          setStatus(currentStatus);
-          return;
-        }
-        toast.success(`Marked ${RESERVATION_STATUS_LABELS[status].toLowerCase()}.`);
-        // no client refresh here: the action revalidates, so its response already carried this page
-        // re-rendered with the new status (refreshing again was a second full render after every change)
-      });
+    startTransition(async () => {
+      const result = await updateReservationStatusAction({ reservationId, status });
+      if (!result.success) {
+        toast.error(result.error.message);
+        setStatus(currentStatus);
+        return;
+      }
+      // shown once the list shows the new status (useSettledToast); no client refresh: the action revalidates
+      later(`Marked ${RESERVATION_STATUS_LABELS[status].toLowerCase()}.`);
     });
   }
 
@@ -40,6 +40,7 @@ export function ReservationStatusControl({
         value={status}
         onChange={(event) => setStatus(event.target.value as ReservationStatus)}
         className="h-9 w-36 text-sm"
+        aria-label="Reservation status"
         disabled={pending}
       >
         {RESERVATION_STATUSES.map((option) => (

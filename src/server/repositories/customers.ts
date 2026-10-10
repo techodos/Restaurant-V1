@@ -62,7 +62,10 @@ export async function getCustomerById(customerId: string, ctx: RequestContext): 
 export async function linkGoogleToCustomer(customerId: string, googleSub: string, ctx: RequestContext): Promise<void> {
   await getDb(ctx).write(ctx, (tx) =>
     tx.query(
+      // An unverified email means whoever set the password never proved they own the inbox (someone may have
+      // registered another person's email first); Google just proved it, so that password stops working.
       `update customers set google_sub = $2, is_email_verified = true,
+         password_hash = case when is_email_verified then password_hash else null end,
          auth_provider = case when auth_provider = 'password' then 'password+google' else auth_provider end
        where id = $1`,
       [customerId, googleSub],
@@ -88,11 +91,13 @@ export async function createGoogleCustomer(input: GoogleCustomerInput, ctx: Requ
          full_name = excluded.full_name, email = excluded.email, google_sub = excluded.google_sub,
          auth_provider = case when customers.auth_provider = 'password' then 'password+google' else excluded.auth_provider end,
          is_email_verified = true, is_guest = false
+       -- same rule as password sign-up: an unverified phone may only upgrade a guest row with no/the same email
+       where customers.is_guest and (customers.email is null or lower(customers.email) = lower(excluded.email))
        returning ${CUSTOMER_COLUMNS}`,
       [input.restaurantId, input.fullName, input.email.trim().toLowerCase(), input.phone.trim(), input.googleSub],
     ),
   );
-  if (!row) throw new Error("Unable to create the account");
+  if (!row) throw errors.conflict("An account with that phone number already exists. Please sign in instead.");
   return mapCustomer(row);
 }
 

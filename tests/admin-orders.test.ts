@@ -323,4 +323,16 @@ describe("the status click renders the page once", () => {
     expect(session).toMatch(/headers\(\)\)\.has\("next-action"\)/);
     expect(session).toMatch(/authenticateStaff\(session, restaurantSlug, \{ fresh: await isServerActionRequest\(\) \}\)/);
   });
+
+  it("a slug-less staff check (every admin action) acts in the restaurant of the request path, not the member's home", async () => {
+    const session = readFileSync("src/web/session.ts", "utf8");
+    expect(session).toMatch(/const restaurantSlug = slug \?\? \(await adminSlugFromRequest\(\)\);/);
+    const { adminSlugFromPath } = await import("@/shared/utils");
+    expect(adminSlugFromPath("/r/zaytoun/admin/menu/items/1")).toBe("zaytoun");
+    expect(adminSlugFromPath("/r/blue-hour/admin")).toBe("blue-hour");
+    expect(adminSlugFromPath("/r/zaytoun/menu")).toBeNull(); // storefront, not admin
+    expect(adminSlugFromPath("/r/zaytoun/administrator")).toBeNull();
+    expect(adminSlugFromPath("/super-admin")).toBeNull();
+    expect(adminSlugFromPath(null)).toBeNull();
+  });
 });

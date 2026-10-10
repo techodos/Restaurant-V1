@@ -5,8 +5,9 @@ import type {
   Website, WebsitePage, CustomerGender,
 } from "@/shared/contract/models";
 import { CUSTOMER_GENDERS } from "@/shared/contract/models";
-import { migrateServiceFeeShape, restaurantFeaturesSchema, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
+import { migrateServiceFeeShape, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
 import type { MediaPurpose, OrderStatus, OrderType, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus, TeamRole, WebsiteStatus, DeliveryStatus, CouponDiscountType } from "@/shared/contract/enums";
+import { resolveFeatures } from "@/shared/feature-access";
 import { parseOpeningHours, parseAvailabilityWindow } from "@/shared/hours";
 import { toPolygon } from "@/shared/geo";
 
@@ -94,7 +95,7 @@ export function mapRestaurant(row: Row): Restaurant {
     status: str(row.status) as RestaurantStatus,
     plan: str(row.plan) || "standard",
     planStatus: str(row.plan_status) || "active",
-    features: restaurantFeaturesSchema.parse(jsonObject(row.features)),
+    ...resolveFeatures(jsonObject(row.features), jsonObject(row.entitlements)),
     settings: restaurantSettingsSchema.parse(migrateServiceFeeShape(jsonObject(row.settings))),
     social: Object.fromEntries(
       Object.entries(jsonObject(row.social)).filter(([, value]) => typeof value === "string"),

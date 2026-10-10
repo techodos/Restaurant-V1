@@ -3,16 +3,15 @@ import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClipboardList } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCustomerForAdmin, getCustomerOrderHistory, getCustomerStatsForAdmin } from "@/server/services/customers";
 import { ORDER_STATUS_LABELS } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
-import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { StatusPill, orderStatusTone, tableHead } from "@/components/admin/admin-ui";
 
 interface CustomerDetailPageProps {
   params: Promise<{ restaurantSlug: string; customerId: string }>;
@@ -46,8 +45,8 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
         title={customer.fullName}
         badge={
           <>
-            {customer.isGuest ? <Badge variant="neutral">Guest</Badge> : null}
-            {customer.isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
+            {customer.isGuest ? <StatusPill tone="neutral">Guest</StatusPill> : null}
+            {customer.isBlocked ? <StatusPill tone="danger">Blocked</StatusPill> : null}
           </>
         }
         description={`${customer.phone}${customer.email ? ` · ${customer.email}` : ""}`}
@@ -89,7 +88,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
           <AdminEmptyState icon={ClipboardList} title="No orders yet." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
-            <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
+            <thead className={tableHead}>
               <tr>
                 <th className="px-4 py-3 font-medium">Order</th>
                 <th className="px-4 py-3 font-medium">Total</th>
@@ -107,7 +106,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
                   </td>
                   <td className="px-4 py-3 font-medium">{money(order.total)}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={orderStatusBadgeVariant(order.status)}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+                    <StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>
                   </td>
                   <td className="px-4 py-3 text-[var(--color-muted-ink)]">
                     {new Date(order.createdAt).toLocaleString(undefined, {

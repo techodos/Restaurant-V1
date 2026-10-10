@@ -1,5 +1,6 @@
 import { Database } from "@/server/db/database";
 import { type RequestContext } from "@/server/context";
+import { zonedDateTime, zonedNow } from "@/shared/hours";
 
 /** Shared connection to the disposable test database. */
 export const testDatabase = new Database(
@@ -62,3 +63,9 @@ export function cartContext(token: string, extra: Partial<RequestContext> = {}):
 export function newCartToken(): string {
   return `test-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
+
+/**
+ * A moment Bella Napoli's seeded branches are open (15:00 today in Lahore): orders are refused while the kitchen
+ * is closed, so DB tests that place orders pin their clock instead of depending on when they run.
+ */
+export const BELLA_OPEN_NOW = zonedDateTime(zonedNow(new Date(), "Asia/Karachi").dateKey, "15:00", "Asia/Karachi");

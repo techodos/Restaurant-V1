@@ -1,6 +1,7 @@
 import type { DeliveryZone, Restaurant, RestaurantLocation } from "@/shared/contract/models";
 import type { RestaurantFeatures, RestaurantSettings, RestaurantTheme } from "@/shared/contract/settings";
 import { restaurantFeaturesSchema, restaurantSettingsSchema } from "@/shared/contract/settings";
+import { FEATURE_ENTITLEMENTS } from "@/shared/feature-access";
 import { getStorefrontCache, readDeliveryZones, readLocations, snapshotForRestaurant } from "@/server/cache";
 import { errors } from "@/server/errors";
 import { resolveTheme } from "@/server/domain/storefront-context";
@@ -35,6 +36,15 @@ export async function getLocations(restaurantId: string, options: { activeOnly?:
   const snapshot = snapshotForRestaurant(restaurantId);
   if (snapshot) return readLocations(snapshot, options);
   return listLocations(restaurantId, forRestaurant(restaurantId), options);
+}
+
+/**
+ * Branches for the admin Locations screen, from the database: it must show what was just saved, and the
+ * storefront snapshot (getLocations) reloads in the background after a write.
+ */
+export function getLocationsForAdmin(restaurantId: string, ctx: RequestContext): Promise<RestaurantLocation[]> {
+  // as the staff member (RLS restaurant1s_team_select), so inactive branches are listed too
+  return listLocations(restaurantId, { ...ctx, restaurantId }, {});
 }
 
 export interface AdminRestaurantContext {
@@ -117,7 +127,13 @@ export async function updateRestaurantFeatures(
   ctx: RequestContext,
 ): Promise<Restaurant> {
   const current = await requireCurrentRestaurant(restaurantId, ctx);
-  const merged = restaurantFeaturesSchema.parse({ ...current.features, ...patch });
+  // merge onto the owner's stored switches (not the effective ones), and never let a save change a switch the
+  // platform has turned off: it keeps its stored value, so it comes back as it was if the platform re-allows it
+  const own = current.ownerFeatures;
+  const merged = restaurantFeaturesSchema.parse({ ...own, ...patch });
+  for (const key of FEATURE_ENTITLEMENTS) if (!current.entitlements[key]) (merged as Record<string, unknown>)[key] = own[key];
+  if (!current.entitlements.emailNotify) merged.notificationChannels.emailNotify = own.notificationChannels.emailNotify;
+  if (!current.entitlements.pushNotify) merged.notificationChannels.pushNotify = own.notificationChannels.pushNotify;
   const restaurant = await updateRestaurant(restaurantId, { features: merged }, ctx);
   getStorefrontCache().invalidate();
   invalidateAdminRestaurants();

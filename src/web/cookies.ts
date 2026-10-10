@@ -8,6 +8,11 @@ import { config } from "@/server/config";
  * one, because Next's cookie parser keeps the last duplicate.
  */
 export const STAFF_COOKIE = "rp_admin_session";
+/**
+ * Super admin session. Unlike STAFF_COOKIE it is scoped to "/" because one login works in /super-admin and in every
+ * restaurant's admin. A restaurant-scoped STAFF_COOKIE, when present, still wins (web/session.ts#getStaffSession).
+ */
+export const SUPER_ADMIN_COOKIE = "rp_super_admin_session";
 /** Restaurant-wide staff's chosen branch in the admin (a location id or "all"); path /r/<slug>/admin. */
 export const ADMIN_BRANCH_COOKIE = "rp_admin_branch";
 /** Pre-2026-09-27 staff cookie (path "/"); only ever deleted. */

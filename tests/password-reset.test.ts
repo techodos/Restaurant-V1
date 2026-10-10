@@ -106,7 +106,7 @@ describe("verifying the code", () => {
 });
 
 describe("setting the new password", () => {
-  it("stores a new scrypt hash, marks the email verified and signs the customer in", async () => {
+  it("stores a new bcrypt hash, marks the email verified and signs the customer in", async () => {
     const token = await verifyPasswordResetCode(RESTAURANT, "noor@example.com", "123456", ip());
     const result = await completePasswordReset(RESTAURANT, token, "brand new password");
 
