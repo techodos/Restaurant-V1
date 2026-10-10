@@ -40,6 +40,8 @@ export function hasPublicImage(url: string | null | undefined): boolean {
   if (!url) return false;
   if (/^https?:\/\//i.test(url)) return true; // remote (Supabase Storage / CDN)
   if (!url.startsWith("/")) return false;
+  // a locally stored upload (integrations/storage.ts without Supabase), served by app/api/media/[...path]
+  if (url.startsWith("/api/media/")) return true;
   return fileExists(url);
 }
 

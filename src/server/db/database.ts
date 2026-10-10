@@ -110,6 +110,7 @@ export class Database {
     role = "app_runtime",
   ): Promise<T> {
     const client = await pool.connect();
+    let broken = false;
     try {
       await beginWithContext(client, context, role);
       const result = await handler(new TxClient(client));
@@ -119,11 +120,11 @@ export class Database {
       try {
         await client.query("rollback");
       } catch {
-        /* connection already broken — the pool will discard it */
+        broken = true; // the connection is gone: it must not go back into the pool for the next request
       }
       throw error;
     } finally {
-      client.release();
+      client.release(broken);
     }
   }
 

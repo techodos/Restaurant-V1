@@ -20,8 +20,12 @@ import {
   type StaffSessionPayload,
 } from "@/server/auth/tokens";
 import type { RequestContext } from "@/server/context";
+import { config } from "@/server/config";
 import { reissueCustomerSession } from "@/server/services/customer-auth";
-import { adminPath } from "@/shared/utils";
+import { adminPath, adminSlugFromPath } from "@/shared/utils";
+import { PATHNAME_HEADER } from "@/middleware";
+import { entitlementForPermission, isEntitled } from "@/shared/feature-access";
+import { getAdminRestaurantContext } from "@/server/services/restaurants";
 import {
   CUSTOMER_COOKIE,
   LEGACY_CART_COOKIE,
@@ -29,6 +33,7 @@ import {
   GOOGLE_RETURN_TO_COOKIE,
   GOOGLE_STATE_COOKIE,
   STAFF_COOKIE,
+  SUPER_ADMIN_COOKIE,
   LEGACY_STAFF_COOKIE,
   cookieOptions,
 } from "./cookies";
@@ -41,7 +46,11 @@ import {
 
 export async function getStaffSession(): Promise<StaffSessionPayload | null> {
   const store = await cookies();
-  return verifyStaffSession(store.get(STAFF_COOKIE)?.value);
+  // a restaurant-scoped session wins; the super admin one (path "/") covers every restaurant and /super-admin
+  return (
+    (await verifyStaffSession(store.get(STAFF_COOKIE)?.value)) ??
+    (await verifyStaffSession(store.get(SUPER_ADMIN_COOKIE)?.value))
+  );
 }
 
 export async function getCustomerSession(): Promise<CustomerSessionPayload | null> {
@@ -58,9 +67,20 @@ export const isServerActionRequest = cache(async (): Promise<boolean> => {
   return (await headers()).has("next-action");
 });
 
-export const getCurrentStaff = cache(async (restaurantSlug?: string): Promise<StaffActor | null> => {
+/**
+ * The restaurant whose admin this request is for, from the path the middleware stamps on every /r/* request
+ * (a Server Action POSTs to the page it was called from). Without it a slug-less check fell back to the
+ * member's HOME restaurant, so a super admin working in restaurant B's admin wrote into restaurant A. It only
+ * narrows which membership is checked (authenticateStaff still requires one there), so it can never widen access.
+ */
+async function adminSlugFromRequest(): Promise<string | undefined> {
+  return adminSlugFromPath((await headers()).get(PATHNAME_HEADER)) ?? undefined;
+}
+
+export const getCurrentStaff = cache(async (slug?: string): Promise<StaffActor | null> => {
   const session = await getStaffSession();
   if (!session) return null;
+  const restaurantSlug = slug ?? (await adminSlugFromRequest());
   // page views and GET routes: cached membership (≤30 s); writes: always the database
   return authenticateStaff(session, restaurantSlug, { fresh: await isServerActionRequest() });
 });
@@ -71,10 +91,47 @@ export async function requireStaff(restaurantSlug?: string): Promise<StaffActor>
   return actor;
 }
 
+/**
+ * The signed-in platform super admin (role re-read from the database, `fresh` for Server Actions), or null.
+ * Reads only the super admin cookie: a restaurant staff session is never a way into /super-admin.
+ */
+export const getSuperAdmin = cache(async (): Promise<StaffActor | null> => {
+  const session = await verifyStaffSession((await cookies()).get(SUPER_ADMIN_COOKIE)?.value);
+  if (!session || session.role !== "super_admin") return null;
+  const actor = await authenticateStaff(session, undefined, { fresh: await isServerActionRequest() });
+  return actor?.role === "super_admin" ? actor : null;
+});
+
+/** Server Actions/Route Handlers: refuses anyone but a super admin. */
+export async function requireSuperAdmin(): Promise<StaffActor> {
+  const actor = await getSuperAdmin();
+  if (!actor) throw errors.forbidden("Only a platform super admin can do that.");
+  return actor;
+}
+
+/** Pages: anyone else goes to the default restaurant's admin sign-in (super admins sign in there, like everyone). */
+export async function requireSuperAdminPage(): Promise<StaffActor> {
+  const actor = await getSuperAdmin();
+  if (!actor) redirect(adminPath(config.app.defaultRestaurantSlug, "/login"));
+  return actor;
+}
+
 export async function requirePermission(permission: Permission, restaurantSlug?: string): Promise<StaffActor> {
   const actor = await requireStaff(restaurantSlug);
   assertPermission(actor, permission);
+  if (!(await isEntitledFor(actor, permission))) throw errors.forbidden("This feature is not enabled for your restaurant.");
   return actor;
+}
+
+/**
+ * Has the platform switched off the screen/feature behind `permission` for this restaurant (restaurants.entitlements)?
+ * A super admin is exempt, so they can still open everything they turned off. Same per-process cache as the admin shell.
+ */
+async function isEntitledFor(actor: StaffActor, permission: Permission): Promise<boolean> {
+  const key = entitlementForPermission(permission);
+  if (!key || actor.role === "super_admin") return true;
+  const { restaurant } = await getAdminRestaurantContext(actor.restaurantSlug);
+  return isEntitled(restaurant.entitlements, key);
 }
 
 /**
@@ -100,7 +157,9 @@ export async function requireAdminPage(
 ): Promise<StaffActor> {
   const actor = await requireStaffForAdmin(restaurantSlug);
   const allowed =
-    actor.permissions.includes(permission) && (!options.restaurantWide || actor.member.locationId === null);
+    actor.permissions.includes(permission) &&
+    (!options.restaurantWide || actor.member.locationId === null) &&
+    (await isEntitledFor(actor, permission));
   if (!allowed) redirect(`${adminPath(restaurantSlug)}?denied=1`);
   return actor;
 }
@@ -135,7 +194,8 @@ export async function signInStaffSession(
   const store = await cookies();
   // Scoped to /r/<slug>/admin: each restaurant's admin keeps its own session (signing in to one never
   // replaces another's), and the cookie never travels with storefront requests.
-  store.set(STAFF_COOKIE, token, { ...cookieOptions(maxAge), path: adminPath(restaurant.slug) });
+  if (member.role === "super_admin") store.set(SUPER_ADMIN_COOKIE, token, cookieOptions(maxAge));
+  else store.set(STAFF_COOKIE, token, { ...cookieOptions(maxAge), path: adminPath(restaurant.slug) });
   return {
     // signInStaff already rejects a member with no linked login.
     userId: member.userId as string,
@@ -153,6 +213,7 @@ export async function signInStaffSession(
 export async function signOutStaffSession(restaurantSlug: string): Promise<void> {
   const store = await cookies();
   store.delete({ name: STAFF_COOKIE, path: adminPath(restaurantSlug) });
+  store.delete({ name: SUPER_ADMIN_COOKIE, path: "/" });
   // the pre-/r/<slug>/admin cookie, if this browser still has one
   store.delete({ name: LEGACY_STAFF_COOKIE, path: "/" });
 }

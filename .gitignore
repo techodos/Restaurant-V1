@@ -12,3 +12,6 @@ next-env.d.ts
 
 # alternate Next output folders (NEXT_DIST_DIR)
 .next-*/
+
+# load-test fixtures/outputs (scripts/load)
+scripts/load/.out/

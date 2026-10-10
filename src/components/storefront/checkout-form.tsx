@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  ArrowRight, Banknote, Bike, Check, ChevronDown, ChevronRight, CreditCard, Landmark, Loader2, Lock, Mail, MapPin,
+  ArrowRight, Banknote, Bike, Check, ChevronDown, ChevronRight, Clock, CreditCard, Landmark, Loader2, Lock, Mail, MapPin,
   Plus, ShieldCheck, ShoppingBag, Store, User, UtensilsCrossed, Wallet, type LucideIcon,
 } from "lucide-react";
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
@@ -55,6 +55,16 @@ export interface CheckoutSummaryItem {
  * cannot carry these fields. The form is submitted and left in the DOM; the page is about to
  * navigate away, so nothing needs to clean it up.
  */
+/** A random UUID v4; `crypto.randomUUID` only exists on https/localhost, so a plain-http LAN test still works. */
+function newIdempotencyKey(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function submitWalletForm(formAction: string, formFields: Record<string, string>): void {
   const form = document.createElement("form");
   form.method = "POST";
@@ -72,6 +82,8 @@ function submitWalletForm(formAction: string, formFields: Record<string, string>
 }
 
 interface CheckoutFormProps {
+  /** "Restaurant closed · opens 12:00 PM" while the branch that would cook it is closed: Place order is disabled */
+  closedLabel?: string | null;
   restaurantSlug: string;
   orderType: OrderType;
   orderTypeOptions: OrderType[];
@@ -175,6 +187,7 @@ function RadioDot({ on }: { on: boolean }) {
  * action (createOrder) before anything is written.
  */
 export function CheckoutForm({
+  closedLabel = null,
   restaurantSlug,
   orderType,
   orderTypeOptions,
@@ -210,6 +223,9 @@ export function CheckoutForm({
   const [pending, startTransition] = useTransition();
   // state updates are async; this closes the window in which a fast double-click could submit twice
   const submitting = useRef(false);
+  // one key for this checkout: a retry after "We could not confirm your order" (or any repeat) gets the same
+  // order back from the server instead of a second one
+  const [idempotencyKey] = useState(newIdempotencyKey);
   const [orderTypeState, setOrderTypeState] = useState<OrderType>(orderType);
   // The server already filters `paymentMethods` for the cart's order type at load ("cash on
   // delivery" for pickup/dine-in makes no sense) — this re-filters client-side too, because
@@ -355,6 +371,7 @@ export function CheckoutForm({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (closedLabel) return; // the kitchen is closed (createOrder refuses it too)
     const form = new FormData(event.currentTarget);
     const value = (key: string) => String(form.get(key) ?? "").trim();
 
@@ -402,6 +419,7 @@ export function CheckoutForm({
       notes: value("notes"),
       saveAddressAs:
         isSignedIn && orderTypeState === "delivery" && !chosenAddress && saveForLater ? saveLabel.trim() || "Home" : "",
+      idempotencyKey,
     };
 
     const nextErrors: Record<string, string> = {};
@@ -478,7 +496,7 @@ export function CheckoutForm({
       } catch {
         submitting.current = false;
         toast.error("We could not confirm your order.", {
-          description: "Check your connection, then try again. If the order page opens, it went through.",
+          description: "Check your connection, then try again. Trying again will not place a second order.",
         });
       }
     });
@@ -509,7 +527,13 @@ export function CheckoutForm({
     "tabular h-11 min-w-[5.5rem] rounded-[var(--radius-brand)] border px-4 text-sm transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)] motion-reduce:transition-none motion-reduce:active:scale-100";
   const tipOn = "border-[var(--color-brand)] bg-[var(--color-brand)] font-semibold text-[var(--color-brand-foreground)]";
   const tipOff = "border-[var(--color-hairline)] bg-[var(--color-surface)] font-medium hover:border-[color-mix(in_srgb,var(--color-brand)_45%,var(--color-hairline))]";
-  const placeOrderContent = (
+  const placeOrderContent = closedLabel ? (
+    // closed: just the reason (no total or arrow on a button that cannot be pressed)
+    <span className="flex w-full items-center justify-center gap-2.5">
+      <Clock className="size-[18px]" aria-hidden />
+      {closedLabel}
+    </span>
+  ) : (
     <>
       <span className="flex items-center gap-2.5">
         {pending ? (
@@ -1173,7 +1197,7 @@ export function CheckoutForm({
               </p>
             ) : null}
 
-            <button type="submit" data-testid="place-order" disabled={pending} className={cn(ctaButton, "mt-5 hidden lg:flex")}>
+            <button type="submit" data-testid="place-order" disabled={pending || Boolean(closedLabel)} className={cn(ctaButton, "mt-5 hidden lg:flex")}>
               {placeOrderContent}
             </button>
             <p className="mt-3 text-center text-xs leading-relaxed text-[var(--color-muted-ink)]">
@@ -1185,7 +1209,7 @@ export function CheckoutForm({
 
       {/* phones: the place-order action stays under the thumb with the live total */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-canvas)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl lg:hidden">
-        <button type="submit" disabled={pending} className={ctaButton}>
+        <button type="submit" disabled={pending || Boolean(closedLabel)} className={ctaButton}>
           {placeOrderContent}
         </button>
       </div>

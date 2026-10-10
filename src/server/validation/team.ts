@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fitsPasswordLimit } from "@/server/auth/password";
 import { TEAM_ROLES } from "@/shared/contract/enums";
 
 export const staffLoginSchema = z.object({
@@ -14,7 +15,7 @@ export const createTeamMemberSchema = z.object({
   role: z.enum(TEAM_ROLES),
   /** the branch a manager/staff member works at; ignored for owner/admin; forced for a branch manager's hires */
   locationId: z.string().uuid().nullable().optional(),
-  password: z.string().min(8, "At least 8 characters.").max(72),
+  password: z.string().min(8, "At least 8 characters.").refine(fitsPasswordLimit, "At most 72 characters."),
 });
 export type CreateTeamMemberInput = z.infer<typeof createTeamMemberSchema>;
 

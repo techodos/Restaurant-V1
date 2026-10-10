@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { config } from "@/server/config";
+import type { TeamRole } from "@/shared/contract/enums";
 
 /**
  * Session tokens are short-lived HS256 JWTs. The delivery layer decides where
@@ -17,7 +18,7 @@ export interface StaffSessionPayload extends JWTPayload {
   email: string;
   name: string;
   restaurantId: string;
-  role: "owner" | "admin" | "manager" | "staff";
+  role: TeamRole;
 }
 
 export interface CustomerSessionPayload extends JWTPayload {

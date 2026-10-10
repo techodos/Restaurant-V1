@@ -7,7 +7,7 @@ import { isSupportedCountry } from "libphonenumber-js";
 import { getCustomerProfile } from "@/server/services/customer-profile";
 import { getBranching, readTrayView, requireStorefront } from "@/web/storefront";
 import { branchesFor } from "@/shared/branching";
-import { priceTray, serviceAvailability } from "@/server/services/cart";
+import { branchClosedLabel, priceTray, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
 import { getDeliveryZones } from "@/server/services/restaurants";
 import { config } from "@/server/config";
@@ -48,7 +48,11 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const branch = branching ? (branchesFor(branching, tray.orderType).find((option) => option.id === tray.locationId) ?? null) : null;
   if (branching && !branch) redirect(`/r/${restaurant.slug}/menu`);
 
-  const availability = serviceAvailability(restaurant, primaryLocation, tray.orderType);
+  // the kitchen that will cook it (the cart's branch, else the primary one): the same one createOrder checks
+  const orderLocation = locations.find((location) => location.id === tray.locationId) ?? primaryLocation;
+  const availability = serviceAvailability(restaurant, orderLocation, tray.orderType);
+  // closed by its hours: the form still shows, with Place order disabled and saying so (not a blocking page)
+  const closedLabel = branchClosedLabel(restaurant, orderLocation, locations.filter((location) => location.isActive).length > 1);
   const zones =
     tray.orderType === "delivery"
       ? await getDeliveryZones(restaurant.id, { locationId: tray.locationId ?? undefined, activeOnly: true })
@@ -65,7 +69,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
   const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant, tray.orderType);
 
-  if (!pricingResult.pricing || pricingResult.blockers.length > 0 || !availability.acceptsOrders) {
+  if (!pricingResult.pricing || pricingResult.blockers.length > 0 || (!availability.acceptsOrders && !closedLabel)) {
     const reason = pricingResult.blockers[0] ?? availability.message;
     return (
       <div>
@@ -149,6 +153,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       <div className="mt-8 md:mt-10">
         <CheckoutForm
           restaurantSlug={restaurant.slug}
+          closedLabel={closedLabel}
           orderType={tray.orderType}
           orderTypeOptions={orderTypeOptions}
           items={view.lines.map((line) => ({

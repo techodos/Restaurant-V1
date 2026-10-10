@@ -7,8 +7,16 @@ import type { Restaurant, RestaurantLocation } from '@/shared/contract/models';
 const RESTAURANT_COLUMNS = `
   id, name, slug, legal_name, description, short_description, cuisines, phone, whatsapp, email,
   website_url, logo_url, cover_url, primary_color, currency, currency_symbol, locale, timezone,
-  country, status, plan, plan_status, features, settings, social, seo, created_at, updated_at
+  country, status, plan, plan_status, features, entitlements, settings, social, seo, created_at, updated_at
 `;
+
+/** Every restaurant on the platform, newest first. Privileged read: the caller (services/platform.ts) checks super_admin. */
+export async function listAllRestaurants(ctx: RequestContext): Promise<Restaurant[]> {
+  const rows = await getDb().write(ctx, (tx) =>
+    tx.query<Row>(`select ${RESTAURANT_COLUMNS} from restaurants order by created_at desc, name`),
+  );
+  return rows.map(mapRestaurant);
+}
 
 export async function getRestaurantBySlug(
   slug: string,
@@ -128,6 +136,8 @@ export async function updateRestaurant(
     country: string;
     status: Restaurant['status'];
     features: unknown;
+    /** platform-controlled (services/platform.ts); the owner's own save path never sets it */
+    entitlements: unknown;
     settings: unknown;
     social: unknown;
   }>,
@@ -155,7 +165,8 @@ export async function updateRestaurant(
          status = coalesce($17, status),
          features = coalesce($18::jsonb, features),
          settings = coalesce($19::jsonb, settings),
-         social = coalesce($20::jsonb, social)
+         social = coalesce($20::jsonb, social),
+         entitlements = coalesce($21::jsonb, entitlements)
        where id = $1
        returning ${RESTAURANT_COLUMNS}`,
       [
@@ -179,6 +190,7 @@ export async function updateRestaurant(
         patch.features === undefined ? null : JSON.stringify(patch.features),
         patch.settings === undefined ? null : JSON.stringify(patch.settings),
         patch.social === undefined ? null : JSON.stringify(patch.social),
+        patch.entitlements === undefined ? null : JSON.stringify(patch.entitlements),
       ],
     );
     if (!row) throw new Error('Restaurant not found');

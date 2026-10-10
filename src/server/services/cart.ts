@@ -1,7 +1,7 @@
 import type { Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
 import { DAY_KEYS, type OrderType } from "@/shared/contract/enums";
 import { isOrderTypeEnabled } from "@/shared/ordering";
-import { isOpenAt, timeToMinutes, to12Hour, zonedNow } from "@/shared/hours";
+import { acceptsOrdersAt, timeToMinutes, to12Hour, zonedNow } from "@/shared/hours";
 import { dec, toMoney, ZERO } from "@/shared/money";
 import { trayItemCount, type Tray, type TrayLine } from "@/shared/tray";
 import { errors } from "@/server/errors";
@@ -266,7 +266,7 @@ export function serviceAvailability(
   if (!isOrderTypeEnabled(features, orderType)) return closed("That ordering option is currently unavailable.");
 
   const hours: OpeningHours = location?.hours ?? {};
-  if (!isOpenAt(hours, now, restaurant.timezone)) {
+  if (!acceptsOrdersAt(hours, now, restaurant.timezone)) {
     const reopening = nextOpeningTime(hours, now, restaurant.timezone);
     return closed(
       reopening
@@ -276,6 +276,18 @@ export function serviceAvailability(
     );
   }
   return { isOpen: true, opensAt: null, message: "", acceptsOrders: true };
+}
+
+/**
+ * What the Checkout / Place order button says when the branch that would cook the order is closed right now
+ * ("Restaurant closed" for a single-branch restaurant, "Branch closed" otherwise, plus when it reopens), or null
+ * when it is taking orders. Same rule as checkout and createOrder: hours that are not set never close a branch.
+ */
+export function branchClosedLabel(restaurant: Restaurant, location: RestaurantLocation | null, multiBranch: boolean, now = new Date()): string | null {
+  const hours: OpeningHours = location?.hours ?? {};
+  if (acceptsOrdersAt(hours, now, restaurant.timezone)) return null;
+  const reopening = nextOpeningTime(hours, now, restaurant.timezone);
+  return `${multiBranch ? "Branch" : "Restaurant"} closed${reopening ? ` · opens ${to12Hour(reopening)}` : ""}`;
 }
 
 /**

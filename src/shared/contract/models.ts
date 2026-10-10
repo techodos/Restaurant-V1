@@ -3,6 +3,7 @@ import type {
   PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus,
   TeamRole, WebsiteStatus,
 } from "./enums";
+import type { RestaurantEntitlements } from "../feature-access";
 import type { RestaurantFeatures, RestaurantSettings, RestaurantTheme, WebsiteConfig } from "./settings";
 
 /** All monetary values cross the wire as strings (PostgreSQL numeric). */
@@ -38,7 +39,12 @@ export interface Restaurant {
   status: RestaurantStatus;
   plan: string;
   planStatus: string;
+  /** EFFECTIVE features: the owner's switches AND what the platform allows (shared/feature-access.ts). */
   features: RestaurantFeatures;
+  /** the owner's own switches, as stored; what the Settings screen edits */
+  ownerFeatures: RestaurantFeatures;
+  /** what the platform (super admin) allows this restaurant */
+  entitlements: RestaurantEntitlements;
   settings: RestaurantSettings;
   social: Record<string, string>;
   seo: Record<string, unknown>;
@@ -111,6 +117,15 @@ export interface WebsitePage {
   seo: Record<string, unknown>;
   sections: unknown[];
   config: Record<string, unknown>;
+}
+
+/** One image the super-admin media picker offers (a `media` row, or an image already used on the website). */
+export interface LibraryImage {
+  url: string;
+  name: string;
+  alt: string | null;
+  source: "upload" | "website";
+  createdAt: string | null;
 }
 
 export interface MediaAsset {

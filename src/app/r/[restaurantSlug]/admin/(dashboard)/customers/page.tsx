@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import { Users } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,7 @@ import { isRestaurantWide } from "@/server/auth/branch-scope";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { StatusPill, tableHead } from "@/components/admin/admin-ui";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Customers" };
@@ -82,7 +82,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
           <AdminEmptyState icon={Users} title="No customers match this search." />
         ) : (
           <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
-            <thead className="border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)] text-left text-xs font-medium text-[var(--color-muted-ink)]">
+            <thead className={tableHead}>
               <tr>
                 <th className="px-4 py-3 font-medium">Customer</th>
                 {showTotals ? (
@@ -103,8 +103,8 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
                     </Link>
                     <p className="text-xs text-[var(--color-muted-ink)]">{customer.phone}</p>
                     <div className="mt-1 flex gap-1.5">
-                      {customer.isGuest ? <Badge variant="neutral">Guest</Badge> : null}
-                      {customer.isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
+                      {customer.isGuest ? <StatusPill tone="neutral">Guest</StatusPill> : null}
+                      {customer.isBlocked ? <StatusPill tone="danger">Blocked</StatusPill> : null}
                     </div>
                   </td>
                   {showTotals ? (

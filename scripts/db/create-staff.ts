@@ -13,15 +13,17 @@
  * (docs/skills/restaurant-platform/SKILL.md §6/§16) — this script bypasses that
  * by never running through the app.
  *
- * role must be one of: owner, admin, manager, staff.
+ * role must be one of: super_admin, owner, admin, manager, staff.
+ * super_admin is platform-wide (every restaurant's admin + /super-admin); its row lives in --restaurant, so keep that
+ * restaurant stable (deleting it deletes the login).
  */
 import pg from "pg";
 import { loadEnv } from "./env";
-import { hashPassword } from "../../src/server/auth/password";
+import { fitsPasswordLimit, hashPassword } from "../../src/server/auth/password";
 
 loadEnv();
 
-const ROLES = ["owner", "admin", "manager", "staff"];
+const ROLES = ["super_admin", "owner", "admin", "manager", "staff"];
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -36,15 +38,15 @@ const restaurantSlug = arg("restaurant") ?? "bella-napoli";
 const locationSlug = arg("location");
 
 if (!email || !name || !role || !password) {
-  console.error("Usage: npm run db:create-staff -- --email <email> --name <name> --role <owner|admin|manager|staff> --password <password> [--restaurant <slug>]");
+  console.error("Usage: npm run db:create-staff -- --email <email> --name <name> --role <super_admin|owner|admin|manager|staff> --password <password> [--restaurant <slug>]");
   process.exit(1);
 }
 if (!ROLES.includes(role)) {
   console.error(`--role must be one of: ${ROLES.join(", ")}`);
   process.exit(1);
 }
-if (password.length < 8) {
-  console.error("--password must be at least 8 characters");
+if (password.length < 8 || !fitsPasswordLimit(password)) {
+  console.error("--password must be 8 to 72 characters");
   process.exit(1);
 }
 

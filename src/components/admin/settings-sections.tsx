@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useId, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { updateSettingsAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/settings/actions";
 import {
@@ -20,13 +19,18 @@ import {
 } from "@/shared/contract/enums";
 import type { RestaurantFeatures, RestaurantSettings } from "@/shared/contract/settings";
 import type { SettingsSection } from "@/server/validation/settings";
+import { entitledPaymentMethods, isEntitled, ONLINE_PROVIDER_LABELS, ONLINE_PROVIDERS, providerEntitlement, type RestaurantEntitlements } from "@/shared/feature-access";
+import { AdminSwitch, AdminSwitchRow } from "@/components/admin/admin-switch";
 
 function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+  const id = useId();
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      {label}
-    </label>
+    <span className="flex items-center gap-2.5 text-sm">
+      <AdminSwitch id={id} checked={checked} onChange={onChange} aria-labelledby={`${id}-label`} />
+      <label id={`${id}-label`} htmlFor={id} className="cursor-pointer">
+        {label}
+      </label>
+    </span>
   );
 }
 
@@ -47,15 +51,21 @@ function SectionForm({
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  // what was last saved, to know whether this section has unsaved edits (each section saves on its own)
+  const current = JSON.stringify(patch());
+  const [saved, setSaved] = useState(current);
+  const dirty = current !== saved;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    const sent = current;
     startTransition(() => {
       updateSettingsAction(section, patch()).then((result) => {
         if (!result.success) {
           toast.error(result.error.message);
           return;
         }
+        setSaved(sent);
         toast.success(`${title} saved.`);
         router.refresh();
       });
@@ -63,79 +73,105 @@ function SectionForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="space-y-4">
-          <fieldset disabled={readOnly || pending} className="space-y-4">
-            {children}
-            {!readOnly ? (
-              <Button type="submit" size="sm" disabled={pending}>
-                {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-                Save
-              </Button>
+    <section id={`settings-${section}`} aria-labelledby={`settings-${section}-title`} className="surface-card scroll-mt-24 overflow-hidden">
+      <header className="border-b border-[var(--color-hairline)] px-5 py-4">
+        <h2 id={`settings-${section}-title`} className="text-[15px] font-semibold leading-6">
+          {title}
+        </h2>
+        <p className="text-[13px] leading-5 text-[var(--color-muted-ink)]">{description}</p>
+      </header>
+      <form onSubmit={submit}>
+        <fieldset disabled={readOnly || pending} className="space-y-4 px-5 py-5">
+          {children}
+        </fieldset>
+        {!readOnly ? (
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_2%,var(--color-surface))] px-5 py-3">
+            {dirty ? (
+              <span role="status" className="mr-auto flex items-center gap-2 text-[13px] text-[var(--color-muted-ink)]">
+                <span aria-hidden className="size-2 rounded-full bg-[var(--color-warning)]" />
+                Unsaved changes
+              </span>
             ) : null}
-          </fieldset>
-        </form>
-      </CardContent>
-    </Card>
+            <Button type="submit" size="sm" disabled={pending || !dirty}>
+              {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+              {pending ? "Saving" : "Save changes"}
+            </Button>
+          </div>
+        ) : null}
+      </form>
+    </section>
   );
 }
 
-export function FeaturesSection({ features, readOnly }: { features: RestaurantFeatures; readOnly: boolean }) {
+export function FeaturesSection({
+  features,
+  entitlements,
+  readOnly,
+}: {
+  features: RestaurantFeatures;
+  entitlements: RestaurantEntitlements;
+  readOnly: boolean;
+}) {
   const [state, setState] = useState(features);
-  const flags: { key: keyof RestaurantFeatures; label: string }[] = [
-    { key: "onlineOrdering", label: "Online ordering" },
-    { key: "delivery", label: "Delivery" },
-    { key: "pickup", label: "Pickup" },
-    { key: "dineIn", label: "Dine-in" },
-    { key: "reservations", label: "Reservations" },
-    { key: "reviews", label: "Reviews" },
-    { key: "coupons", label: "Coupons" },
-    { key: "loyalty", label: "Loyalty" },
-    { key: "gallery", label: "Gallery" },
-    { key: "customDomain", label: "Custom domain" },
-    { key: "analytics", label: "Analytics" },
-    { key: "onlinePayments", label: "Online payments" },
-    { key: "notifications", label: "Notifications" },
-    { key: "alaCarteEnabled", label: "A la carte menu (off = buffet packages only)" },
-    { key: "BranchingFeature", label: "Multi-branch ordering (location and branch before cart)" },
+  const flags: { key: keyof RestaurantFeatures; label: string; description: string }[] = [
+    { key: "onlineOrdering", label: "Online ordering", description: "Customers can place orders on the storefront." },
+    { key: "delivery", label: "Delivery", description: "Delivery orders to your delivery zones." },
+    { key: "pickup", label: "Pickup", description: "Order ahead and collect at the restaurant." },
+    { key: "dineIn", label: "Dine-in", description: "Orders placed at the table." },
+    { key: "reservations", label: "Reservations", description: "Online table booking." },
+    { key: "reviews", label: "Reviews", description: "Guests can review completed orders." },
+    { key: "coupons", label: "Coupons", description: "Promo codes at checkout." },
+    { key: "loyalty", label: "Loyalty", description: "Points on orders." },
+    { key: "gallery", label: "Gallery", description: "Photo gallery on the storefront." },
+    { key: "customDomain", label: "Custom domain", description: "Serve the storefront on your own domain." },
+    { key: "analytics", label: "Analytics", description: "Sales reports in this admin." },
+    { key: "onlinePayments", label: "Online payments", description: "Card and wallet payments at checkout." },
+    { key: "notifications", label: "Notifications", description: "Order and reservation updates to customers." },
+    { key: "alaCarteEnabled", label: "A la carte menu", description: "Off = buffet packages only." },
+    { key: "BranchingFeature", label: "Multi-branch ordering", description: "Location and branch before the cart." },
   ];
 
   return (
     <SectionForm title="Features" description="Turn storefront features on or off." section="features" patch={() => state} readOnly={readOnly}>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {flags.map((flag) => (
-          <Checkbox
-            key={flag.key}
-            label={flag.label}
-            checked={Boolean(state[flag.key])}
-            onChange={(value) => setState((current) => ({ ...current, [flag.key]: value }))}
-          />
+      <div className="grid gap-x-8 sm:grid-cols-2 [&>*]:border-b [&>*]:border-[var(--color-hairline)] [&>*]:py-3">
+        {/* a feature the platform has switched off is not offered at all (shared/feature-access.ts) */}
+        {flags.filter((flag) => isEntitled(entitlements, flag.key)).map((flag) => (
+          <div key={flag.key}>
+            <AdminSwitchRow
+              id={`feature-${flag.key}`}
+              title={flag.label}
+              description={flag.description}
+              checked={Boolean(state[flag.key])}
+              onChange={(value) => setState((current) => ({ ...current, [flag.key]: value }))}
+            />
+          </div>
         ))}
       </div>
-      <div className="border-t border-[var(--color-hairline)] pt-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-muted-ink)]">Notification channels</p>
-        <div className="flex gap-4">
-          <Checkbox
-            label="Email"
-            checked={state.notificationChannels.emailNotify}
-            onChange={(value) =>
-              setState((current) => ({ ...current, notificationChannels: { ...current.notificationChannels, emailNotify: value } }))
-            }
-          />
-          <Checkbox
-            label="Push"
-            checked={state.notificationChannels.pushNotify}
-            onChange={(value) =>
-              setState((current) => ({ ...current, notificationChannels: { ...current.notificationChannels, pushNotify: value } }))
-            }
-          />
+      {entitlements.notifications && (entitlements.emailNotify || entitlements.pushNotify) ? (
+        <div className="pt-1">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">Notification channels</p>
+          <div className="flex flex-wrap gap-6">
+            {entitlements.emailNotify ? (
+              <Checkbox
+                label="Email"
+                checked={state.notificationChannels.emailNotify}
+                onChange={(value) =>
+                  setState((current) => ({ ...current, notificationChannels: { ...current.notificationChannels, emailNotify: value } }))
+                }
+              />
+            ) : null}
+            {entitlements.pushNotify ? (
+              <Checkbox
+                label="Push"
+                checked={state.notificationChannels.pushNotify}
+                onChange={(value) =>
+                  setState((current) => ({ ...current, notificationChannels: { ...current.notificationChannels, pushNotify: value } }))
+                }
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
     </SectionForm>
   );
 }
@@ -339,7 +375,16 @@ export function OrderingSection({
   );
 }
 
-export function PaymentsSettingsSection({ payments, readOnly }: { payments: RestaurantSettings["payments"]; readOnly: boolean }) {
+export function PaymentsSettingsSection({
+  payments,
+  entitlements,
+  readOnly,
+}: {
+  payments: RestaurantSettings["payments"];
+  /** methods the platform has not allowed are hidden; their stored value is kept on save (state starts from it) */
+  entitlements: RestaurantEntitlements;
+  readOnly: boolean;
+}) {
   const [state, setState] = useState(payments);
   function toggleMethod(method: PaymentMethod) {
     setState((s) => ({
@@ -352,7 +397,7 @@ export function PaymentsSettingsSection({ payments, readOnly }: { payments: Rest
       <div>
         <Label>Enabled methods</Label>
         <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {PAYMENT_METHODS.map((method) => (
+          {entitledPaymentMethods(PAYMENT_METHODS, entitlements).map((method) => (
             <Checkbox key={method} label={PAYMENT_METHOD_LABELS[method]} checked={state.enabledMethods.includes(method)} onChange={() => toggleMethod(method)} />
           ))}
         </div>
@@ -361,8 +406,13 @@ export function PaymentsSettingsSection({ payments, readOnly }: { payments: Rest
         <Label htmlFor="onlineProvider">Online payment provider</Label>
         <Select id="onlineProvider" value={state.onlineProvider} onChange={(e) => setState((s) => ({ ...s, onlineProvider: e.target.value as typeof s.onlineProvider }))} className="max-w-48">
           <option value="none">None</option>
-          <option value="stripe">Stripe</option>
-          <option value="jazzcash">JazzCash</option>
+          {/* a provider the platform has not allowed is only listed (disabled) while it is the stored choice, so a save keeps it */}
+          {ONLINE_PROVIDERS.filter((p) => entitlements[providerEntitlement(p)] || p === payments.onlineProvider).map((p) => (
+            <option key={p} value={p} disabled={!entitlements[providerEntitlement(p)]}>
+              {ONLINE_PROVIDER_LABELS[p]}
+              {entitlements[providerEntitlement(p)] ? "" : " (not available on your plan)"}
+            </option>
+          ))}
         </Select>
       </div>
       <Checkbox label="Pay at store enabled" checked={state.payAtStoreEnabled} onChange={(value) => setState((s) => ({ ...s, payAtStoreEnabled: value }))} />

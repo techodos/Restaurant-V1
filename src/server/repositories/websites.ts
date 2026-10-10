@@ -64,6 +64,11 @@ export async function getHomePage(restaurantId: string, ctx: RequestContext = {}
   return row ? mapWebsitePage(row) : null;
 }
 
+export async function getPageById(pageId: string, ctx: RequestContext = {}): Promise<WebsitePage | null> {
+  const row = await getDb(ctx).queryOne<Row>(ctx, `select * from website_pages where id = $1`, [pageId]);
+  return row ? mapWebsitePage(row) : null;
+}
+
 export async function updateWebsite(
   websiteId: string,
   patch: { name?: string; status?: Website["status"]; theme?: unknown; config?: unknown; seo?: unknown; domain?: string | null },

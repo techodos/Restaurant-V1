@@ -110,8 +110,8 @@ export async function setItemLocationAvailabilityAction(
     const actor = await requirePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await setItemLocationAvailability(actor.restaurantId, locationId, menuItemId, isAvailable, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
-    revalidatePath(adminPath(actor.restaurantSlug, "/menu"));
+    // no revalidatePath: it made Next re-render the whole open page into the response (the slow part of a
+    // click). Every switch keeps its own state, and the admin pages are dynamic, so a visit reads fresh.
     return null;
   });
 }

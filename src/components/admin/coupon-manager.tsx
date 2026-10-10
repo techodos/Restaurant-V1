@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { deleteCouponAction, saveCouponAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/coupons/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { COUPON_DISCOUNT_TYPES, ORDER_TYPE_LABELS, ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
 import type { Coupon } from "@/shared/contract/models";
+import { StatusPill } from "@/components/admin/admin-ui";
 
 interface CouponEditFormProps {
   coupon?: Coupon;
@@ -226,14 +226,14 @@ export function CouponManager({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono font-medium">{coupon.code}</span>
-                <Badge variant="soft">
+                <StatusPill tone="brand" dot={false}>
                   {coupon.discountType === "percentage" ? `${coupon.discountValue}% off` : `${coupon.discountValue} off`}
-                </Badge>
-                {!coupon.isActive ? <Badge variant="neutral">Inactive</Badge> : null}
+                </StatusPill>
+                {!coupon.isActive ? <StatusPill tone="neutral">Inactive</StatusPill> : null}
                 {coupon.eligibleEmails.length + coupon.eligiblePhones.length > 0 ? (
-                  <Badge variant="soft">
+                  <StatusPill tone="brand" dot={false}>
                     {coupon.eligibleEmails.length + coupon.eligiblePhones.length} customer(s) only
-                  </Badge>
+                  </StatusPill>
                 ) : null}
               </div>
               {coupon.description ? <p className="mt-1 text-xs text-[var(--color-muted-ink)]">{coupon.description}</p> : null}

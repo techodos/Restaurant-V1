@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ORDER_STATUSES, ORDER_TYPES } from "@/shared/contract/enums";
+import { ORDER_STATUSES, ORDER_TYPES, PAYMENT_STATUSES } from "@/shared/contract/enums";
 
 export const updateOrderStatusSchema = z.object({
   orderId: z.string().uuid(),
@@ -22,3 +22,8 @@ export const orderListFiltersSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
 export type OrderListFiltersInput = z.infer<typeof orderListFiltersSchema>;
+
+export const updatePaymentStatusSchema = z.object({
+  orderId: z.string().uuid(),
+  status: z.enum(PAYMENT_STATUSES),
+});

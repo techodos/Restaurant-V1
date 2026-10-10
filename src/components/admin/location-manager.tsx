@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FieldError, Input, Label } from "@/components/ui/input";
 import { deleteLocationAction, saveLocationAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/locations/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { RestaurantLocation } from "@/shared/contract/models";
 import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
+import { StatusPill } from "@/components/admin/admin-ui";
+import { OpeningHoursEditor } from "@/components/admin/opening-hours-editor";
+import type { OpeningHours } from "@/shared/contract/models";
 
 /** Google Maps for the branch pin; null = no key configured (the pin is then simply not editable here). */
 export type AdminMaps = { apiKey: string; country: string } | null;
@@ -24,6 +26,7 @@ function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantL
   const [email, setEmail] = useState(location?.email ?? "");
   const [isActive, setIsActive] = useState(location?.isActive ?? true);
   const [isPrimary, setIsPrimary] = useState(location?.isPrimary ?? false);
+  const [hours, setHours] = useState<OpeningHours>(location?.hours ?? {});
   const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(
     location?.latitude != null && location.longitude != null ? { latitude: location.latitude, longitude: location.longitude } : null,
   );
@@ -41,7 +44,7 @@ function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantL
   function submit(event: React.FormEvent) {
     event.preventDefault();
     setErrors({});
-    const payload = { id: location?.id, name, addressLine1, area, city, phone, email, isActive, isPrimary, ...(pin ?? {}) };
+    const payload = { id: location?.id, name, addressLine1, area, city, phone, email, isActive, isPrimary, hours, ...(pin ?? {}) };
     startTransition(() => {
       saveLocationAction(payload).then((result) => {
         if (!result.success) {
@@ -108,6 +111,14 @@ function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantL
         </div>
       </div>
 
+      <div>
+        <Label>Opening hours</Label>
+        <p className="mb-2 text-xs text-[var(--color-muted-ink)]">
+          Orders are only taken while this branch is open, and reservation times are built from these hours.
+        </p>
+        <OpeningHoursEditor value={hours} onChange={setHours} error={errors.hours} />
+      </div>
+
       <div className="flex items-center justify-between">
         <div className="flex gap-5">
           <label className="flex items-center gap-2 text-sm">
@@ -129,6 +140,15 @@ function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantL
       </div>
     </form>
   );
+}
+
+/** One line for the branch list: whether hours are set, and the common case. */
+function hoursSummary(hours: OpeningHours): string {
+  const days = Object.values(hours).filter((windows) => windows && windows.length > 0);
+  if (days.length === 0) return "Hours not set (takes orders any time)";
+  const allDay = days.length === 7 && days.every((windows) => windows!.length === 1 && windows![0]!.open === windows![0]!.close);
+  if (allDay) return "Open 24 hours, every day";
+  return `Open ${days.length} day${days.length === 1 ? "" : "s"} a week`;
 }
 
 export function LocationManager({ locations, canManage, maps = null }: { locations: RestaurantLocation[]; canManage: boolean; maps?: AdminMaps }) {
@@ -169,12 +189,13 @@ export function LocationManager({ locations, canManage, maps = null }: { locatio
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">{location.name}</span>
-                {location.isPrimary ? <Badge variant="soft">Primary</Badge> : null}
-                {!location.isActive ? <Badge variant="neutral">Inactive</Badge> : null}
+                {location.isPrimary ? <StatusPill tone="brand" dot={false}>Primary</StatusPill> : null}
+                {!location.isActive ? <StatusPill tone="neutral">Inactive</StatusPill> : null}
               </div>
               <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
                 {[location.addressLine1, location.area, location.city].filter(Boolean).join(", ") || "No address on file"}
               </p>
+              <p className="mt-0.5 text-xs text-[var(--color-muted-ink)]">{hoursSummary(location.hours)}</p>
             </div>
             {canManage ? (
               <div className="flex items-center gap-1">

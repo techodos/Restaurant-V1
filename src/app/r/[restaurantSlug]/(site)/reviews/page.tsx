@@ -84,7 +84,7 @@ async function renderReviews(
       <PageHero
         overlay={heading.leading}
         size="sm"
-        image={resolveImage(restaurant.coverUrl)}
+        image={heading.image ?? resolveImage(restaurant.coverUrl)}
         eyebrow="Reviews"
         title={heading.title ?? "Guest reviews"}
         subtitle={

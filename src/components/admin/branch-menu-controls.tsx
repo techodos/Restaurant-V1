@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { AdminSwitch } from "@/components/admin/admin-switch";
+import { useSyncedState } from "@/components/admin/use-synced-state";
 import { setItemLocationAvailabilityAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
 
 /**
@@ -27,7 +29,7 @@ export function BranchItemToggle({
   /** the item is off for the whole restaurant: a branch cannot switch it back on */
   disabled?: boolean;
 }) {
-  const [on, setOn] = useState(available);
+  const [on, setOn] = useSyncedState(`menu-item-branch:${menuItemId}:${locationId}`, available);
   const [pending, startTransition] = useTransition();
 
   function toggle() {
@@ -39,16 +41,16 @@ export function BranchItemToggle({
           setOn(!next);
           toast.error(result.error.message);
         }
-        // no router.refresh(): the action revalidates /menu, so Next already answers with the page re-rendered
+        // no router.refresh() and no revalidation: the switch keeps its own state (useSyncedState)
       });
     });
   }
 
   return (
-    <label className="flex items-center justify-end gap-1.5 text-xs text-[var(--color-muted-ink)]">
+    <span className="flex items-center justify-end gap-2 text-xs text-[var(--color-muted-ink)]">
       {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
-      <input type="checkbox" checked={on && !disabled} onChange={toggle} disabled={pending || disabled} aria-label={`Available at ${branchName}`} />
-      {disabled ? "Off everywhere" : `Available at ${branchName}`}
-    </label>
+      <span className={on || disabled ? "" : "font-medium text-[var(--color-ink)]"}>{disabled ? "Off everywhere" : on ? `Available at ${branchName}` : `Off at ${branchName}`}</span>
+      <AdminSwitch checked={on && !disabled} onChange={toggle} disabled={pending || disabled} aria-label={`Available at ${branchName}`} />
+    </span>
   );
 }

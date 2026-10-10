@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { updateOrderStatusAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/orders/actions";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_RANK, TERMINAL_ORDER_STATUSES, type OrderStatus } from "@/shared/contract/enums";
+import { useSettledToast } from "@/components/admin/use-settled-toast";
 
 export function OrderStatusControl({ orderId, currentStatus }: { orderId: string; currentStatus: OrderStatus }) {
   const [pending, startTransition] = useTransition();
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
+  const later = useSettledToast(pending);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelForm, setShowCancelForm] = useState(false);
 
@@ -28,18 +30,17 @@ export function OrderStatusControl({ orderId, currentStatus }: { orderId: string
 
   function submit(status: OrderStatus, options: { cancelReason?: string } = {}) {
     setPendingStatus(status);
-    startTransition(() => {
-      updateOrderStatusAction({ orderId, status, cancelReason: options.cancelReason }).then((result) => {
-        setPendingStatus(null);
-        if (!result.success) {
-          toast.error(result.error.message);
-          return;
-        }
-        toast.success(`Order marked ${ORDER_STATUS_LABELS[status].toLowerCase()}.`);
-        setShowCancelForm(false);
-        // no client refresh here: the action revalidates, so its response already carried this page
-        // re-rendered with the new status (refreshing again was a second full render, ~5 s, every click)
-      });
+    startTransition(async () => {
+      const result = await updateOrderStatusAction({ orderId, status, cancelReason: options.cancelReason });
+      setPendingStatus(null);
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      // shown once the page shows the new status (useSettledToast); no client refresh: the action revalidates,
+      // so its response already carries this page re-rendered (refreshing again was a second full render)
+      later(`Order marked ${ORDER_STATUS_LABELS[status].toLowerCase()}.`);
+      setShowCancelForm(false);
     });
   }
 

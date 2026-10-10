@@ -195,6 +195,8 @@ export const pageContentSectionSchema = z.object({
   enabled: z.boolean().default(true),
   title: z.string().trim().max(140).optional(),
   subtitle: z.string().trim().max(400).optional(),
+  /** the body's own hero photo (menu, reviews, locations, reservation); absent => the restaurant's cover photo */
+  image: imageSchema.optional(),
 });
 
 export const sectionSchema = z.discriminatedUnion("type", [

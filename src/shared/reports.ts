@@ -115,6 +115,14 @@ function csvCell(value: string): string {
   return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
+/**
+ * Text a customer typed (their name). A cell starting with = + - @ (or tab/CR) is a FORMULA to Excel/Sheets, so
+ * `=HYPERLINK(...)` or `=cmd|...` would run when staff open the export; a leading ' makes it plain text (OWASP).
+ */
+export function csvText(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 /** CSV text (CRLF, Excel-friendly) for the sales export. Never includes anything not already visible to staff. */
 export function buildSalesCsv(rows: SalesCsvRow[], restaurant: { locale: string; timezone: string }): string {
   const headers = [
@@ -142,7 +150,7 @@ export function buildSalesCsv(rows: SalesCsvRow[], restaurant: { locale: string;
         date,
         ORDER_STATUS_LABELS[row.status],
         ORDER_TYPE_LABELS[row.orderType],
-        row.customerName,
+        csvText(row.customerName),
         row.customerPhone,
         String(row.itemCount),
         row.subtotal,

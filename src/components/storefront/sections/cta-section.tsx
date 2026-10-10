@@ -9,8 +9,8 @@ import type { SectionTone } from "@/components/storefront/section-shell";
 /**
  * A closing band, full width. `image` = the configured photograph under a scrim, `primary` = the brand
  * colour as ground (buttons invert by themselves, see `.tone-brand`), `neutral` = whatever the page rhythm
- * gives it (section-rhythm.ts); a neutral band that lands on the night ground borrows the restaurant's
- * own cover photograph, so it closes the page on an image instead of a flat panel.
+ * gives it (section-rhythm.ts); a neutral band that lands on the night ground uses its own photo when one is
+ * set, else borrows the restaurant's cover photograph, so it closes the page on an image instead of a flat panel.
  */
 export function CtaSection({
   section,
@@ -23,7 +23,7 @@ export function CtaSection({
 }) {
   const configured = section.tone === "image" ? resolveImage(section.image?.url) : null;
   const tone: SectionTone = configured ? "night" : section.tone === "primary" ? "brand" : (rhythm ?? "muted");
-  const image = configured ?? (tone === "night" ? resolveImage(context.restaurant.coverUrl) : null);
+  const image = configured ?? (tone === "night" ? (resolveImage(section.image?.url) ?? resolveImage(context.restaurant.coverUrl)) : null);
 
   return (
     <section className={cn(`tone-${tone}`, "relative isolate overflow-hidden")}>

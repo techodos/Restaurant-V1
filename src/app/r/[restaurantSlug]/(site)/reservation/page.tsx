@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { isSupportedCountry } from "libphonenumber-js";
 import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
 import type { StorefrontContext } from "@/shared/contract/models";
 import { CalendarX, Clock, Phone, Users } from "lucide-react";
 import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
 import { getStorefrontContext } from "@/web/storefront";
-import { isOpenAt, minutesToTime, timeToMinutes, zonedNow } from "@/shared/hours";
+import { isOpenAt, minutesToTime, timeToMinutes, zonedDateTime, zonedNow } from "@/shared/hours";
 import { ReservationForm } from "@/components/storefront/reservation-form";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { resolveImage } from "@/web/media";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { breadcrumbJsonLd } from "@/web/seo";
 import { getLocations } from "@/server/services/restaurants";
+import { ReservationFormSkeleton } from "@/components/storefront/page-skeletons";
 import { getBookedSlotCounts } from "@/server/services/reservations";
 import { getCustomerProfile } from "@/server/services/customer-profile";
 
@@ -78,6 +80,84 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
     );
   }
 
+  const cover = heading.image ?? resolveImage(restaurant.coverUrl);
+  const phone = restaurant.phone;
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: restaurant.name, path: `/r/${restaurant.slug}` },
+          { name: "Reservations", path: `/r/${restaurant.slug}/reservation` },
+        ])}
+      />
+
+      {/* the cinematic side: the restaurant's own photograph, the promise and the practical notes */}
+      <aside className="tone-night relative isolate overflow-hidden lg:sticky lg:top-[var(--header-h,4.5rem)] lg:h-[calc(100svh-var(--header-h,4.5rem))]">
+        {cover ? (
+          <>
+            <Image src={cover} alt="" fill priority sizes="(min-width: 1024px) 42vw, 100vw" className="animate-hero -z-20 object-cover" />
+            <span aria-hidden className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgb(0_0_0/0.35)_0%,rgb(0_0_0/0.55)_45%,rgb(0_0_0/0.88)_100%)]" />
+          </>
+        ) : null}
+        <div className="flex h-full flex-col justify-end gap-8 px-5 pb-8 pt-16 md:px-10 lg:px-12 lg:pb-10">
+          <div>
+            <p className="eyebrow animate-rise mb-3 text-white/85">Reservations</p>
+            <h1 className="display-1 animate-rise text-white [animation-delay:80ms]">
+              {heading.title ?? `Book a table at ${restaurant.name}`}
+            </h1>
+            <p className="animate-rise mt-3 max-w-md text-[15px] leading-relaxed text-white/78 [animation-delay:160ms]">
+              {heading.subtitle ??
+                `Choose a time below — you will get a confirmation code immediately${
+                  settings.autoConfirm ? "" : " and a call if we need to adjust anything"
+                }.`}
+            </p>
+          </div>
+
+          <ul className="hidden gap-3 border-t border-white/15 pt-6 text-[13.5px] text-white/75 sm:grid">
+            <li className="flex gap-3">
+              <Clock className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+              Tables are held for 15 minutes after your booking time.
+            </li>
+            <li className="flex gap-3">
+              <Users className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+              Online bookings take {settings.minGuests}–{settings.maxGuests} guests; call for larger parties.
+            </li>
+            <li className="flex gap-3">
+              <CalendarX className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+              Need to cancel? Call us and we will release the table for someone else.
+            </li>
+            {phone ? (
+              <li>
+                <a
+                  href={`tel:${phone.replace(/\s+/g, "")}`}
+                  className="mt-2 inline-flex items-center gap-2.5 font-semibold text-white underline decoration-white/35 underline-offset-[6px] hover:decoration-white"
+                >
+                  <Phone className="size-4 text-[var(--color-brand-accent)]" aria-hidden />
+                  Prefer to talk? {phone}
+                </a>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      </aside>
+
+      {/* the photo panel above needs no database; the form (live availability + the account's profile) streams in */}
+      <Suspense fallback={<ReservationFormSkeleton />}>
+        <ReservationFormSection context={context} />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * The booking form with live availability: the page's only database reads (booked slots, the signed-in
+ * account's profile). Streamed behind a skeleton so the page itself appears the moment it is opened.
+ */
+async function ReservationFormSection({ context }: { context: StorefrontContext }) {
+  const { restaurant } = context;
+  const settings = restaurant.settings.reservations;
+
   // A guest may browse this page and fill in the form freely; sign-in is only required to actually
   // submit a booking (the "Request table" button below sends a guest to sign in and back here — see
   // ReservationForm/bookTable, which is the real, server-side gate). This mirrors the pattern used for
@@ -138,7 +218,8 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
         const lastSeating = close > open ? close - 60 : close + 24 * 60 - 60;
         for (let minute = open; minute <= lastSeating; minute += settings.slotMinutes) {
           const time = minutesToTime(minute % (24 * 60));
-          const probe = new Date(`${day.dateKey}T${time}:00Z`);
+          // the slot on the restaurant's own clock (an "…Z" probe was UTC: a 19:00 Karachi slot was checked at midnight)
+          const probe = zonedDateTime(day.dateKey, time, restaurant.timezone);
           if (!isOpenAt(location.hours, probe, restaurant.timezone)) continue;
           if (offset === 0 && minute <= today.minutes) continue; // already passed today
           slots[time] = { booked: bookedByTime[time] ?? 0, capacity };
@@ -150,91 +231,29 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
 
   const defaultDate = dates[0]?.value ?? today.dateKey;
 
-  const cover = resolveImage(restaurant.coverUrl);
-  const phone = restaurant.phone;
-
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <JsonLd
-        data={breadcrumbJsonLd([
-          { name: restaurant.name, path: `/r/${restaurant.slug}` },
-          { name: "Reservations", path: `/r/${restaurant.slug}/reservation` },
-        ])}
-      />
-
-      {/* the cinematic side: the restaurant's own photograph, the promise and the practical notes */}
-      <aside className="tone-night relative isolate overflow-hidden lg:sticky lg:top-[var(--header-h,4.5rem)] lg:h-[calc(100svh-var(--header-h,4.5rem))]">
-        {cover ? (
-          <>
-            <Image src={cover} alt="" fill priority sizes="(min-width: 1024px) 42vw, 100vw" className="animate-hero -z-20 object-cover" />
-            <span aria-hidden className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgb(0_0_0/0.35)_0%,rgb(0_0_0/0.55)_45%,rgb(0_0_0/0.88)_100%)]" />
-          </>
-        ) : null}
-        <div className="flex h-full flex-col justify-end gap-8 px-5 pb-8 pt-16 md:px-10 lg:px-12 lg:pb-10">
-          <div>
-            <p className="eyebrow animate-rise mb-3 text-white/85">Reservations</p>
-            <h1 className="display-1 animate-rise text-white [animation-delay:80ms]">
-              {heading.title ?? `Book a table at ${restaurant.name}`}
-            </h1>
-            <p className="animate-rise mt-3 max-w-md text-[15px] leading-relaxed text-white/78 [animation-delay:160ms]">
-              {heading.subtitle ??
-                `Choose a time below — you will get a confirmation code immediately${
-                  settings.autoConfirm ? "" : " and a call if we need to adjust anything"
-                }.`}
-            </p>
-          </div>
-
-          <ul className="hidden gap-3 border-t border-white/15 pt-6 text-[13.5px] text-white/75 sm:grid">
-            <li className="flex gap-3">
-              <Clock className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
-              Tables are held for 15 minutes after your booking time.
-            </li>
-            <li className="flex gap-3">
-              <Users className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
-              Online bookings take {settings.minGuests}–{settings.maxGuests} guests; call for larger parties.
-            </li>
-            <li className="flex gap-3">
-              <CalendarX className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
-              Need to cancel? Call us and we will release the table for someone else.
-            </li>
-            {phone ? (
-              <li>
-                <a
-                  href={`tel:${phone.replace(/s+/g, "")}`}
-                  className="mt-2 inline-flex items-center gap-2.5 font-semibold text-white underline decoration-white/35 underline-offset-[6px] hover:decoration-white"
-                >
-                  <Phone className="size-4 text-[var(--color-brand-accent)]" aria-hidden />
-                  Prefer to talk? {phone}
-                </a>
-              </li>
-            ) : null}
-          </ul>
-        </div>
-      </aside>
-
-      <div className="px-5 py-10 md:px-10 md:py-12 lg:px-14 xl:px-20">
-        <div className="mx-auto max-w-[46rem]">
-          <ReservationForm
-            restaurantSlug={restaurant.slug}
-            locations={locations.map((location) => ({
-              id: location.id,
-              name: location.name,
-              area: location.area,
-              city: location.city,
-            }))}
-            dates={dates}
-            slotsByDate={slotsByDate}
-            minGuests={settings.minGuests}
-            maxGuests={settings.maxGuests}
-            slotMinutes={settings.slotMinutes}
-            defaultDate={defaultDate}
-            isSignedIn={Boolean(customer)}
-            customerDefaults={customer ? { fullName: customer.name, phone: "", email: profile?.email ?? "" } : null}
-            accountEmail={emailVerified ? (profile?.email ?? null) : null}
-            savedPhone={profile?.phone ?? null}
-            phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
-          />
-        </div>
+    <div className="px-5 py-10 md:px-10 md:py-12 lg:px-14 xl:px-20">
+      <div className="mx-auto max-w-[46rem]">
+        <ReservationForm
+          restaurantSlug={restaurant.slug}
+          locations={locations.map((location) => ({
+            id: location.id,
+            name: location.name,
+            area: location.area,
+            city: location.city,
+          }))}
+          dates={dates}
+          slotsByDate={slotsByDate}
+          minGuests={settings.minGuests}
+          maxGuests={settings.maxGuests}
+          slotMinutes={settings.slotMinutes}
+          defaultDate={defaultDate}
+          isSignedIn={Boolean(customer)}
+          customerDefaults={customer ? { fullName: customer.name, phone: "", email: profile?.email ?? "" } : null}
+          accountEmail={emailVerified ? (profile?.email ?? null) : null}
+          savedPhone={profile?.phone ?? null}
+          phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
+        />
       </div>
     </div>
   );

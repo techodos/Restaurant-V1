@@ -2,17 +2,17 @@ import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import { notFound } from "next/navigation";
 import { MapPin, Phone, Receipt, Store } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getOrderForStaff } from "@/server/services/orders";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
 import { getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
+import { PaymentStatusControl } from "@/components/admin/payment-status-control";
 import { canAccessBranch } from "@/server/auth/branch-scope";
-import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { StatusPill, orderStatusTone } from "@/components/admin/admin-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,8 @@ function formatDateTime(value: string): string {
 export default async function AdminOrderDetailPage({ params }: OrderDetailPageProps) {
   const { restaurantSlug, orderNumber } = await params;
   const actor = await requireAdminPage("orders.view", restaurantSlug);
+  // money collected at the counter / door is confirmed by managers and above (shared/payment-flow.ts)
+  const canManagePayment = actor.permissions.includes("orders.manage");
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   // side by side: the staff check already proved this session belongs to this slug's restaurant
@@ -51,7 +53,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
         backHref={adminPath(restaurantSlug, "/orders")}
         backLabel="Back to orders"
         title={`Order ${order.orderNumber}`}
-        badge={<Badge variant={orderStatusBadgeVariant(order.status)}>{ORDER_STATUS_LABELS[order.status]}</Badge>}
+        badge={<StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>}
         description={`${ORDER_TYPE_LABELS[order.orderType]} · placed ${formatDateTime(order.createdAt)}`}
       />
 
@@ -167,6 +169,9 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
               <p className="flex items-center gap-2 text-[var(--color-muted-ink)]">
                 <Receipt className="size-4" aria-hidden /> {PAYMENT_METHOD_LABELS[order.paymentMethod]} · {order.paymentStatus}
               </p>
+              {canManagePayment ? (
+                <PaymentStatusControl orderId={order.id} orderNumber={order.orderNumber} method={order.paymentMethod} status={order.paymentStatus} />
+              ) : null}
               {order.notes ? (
                 <p className="mt-2 rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-ink)_4%,transparent)] p-3 text-[var(--color-muted-ink)]">
                   {order.notes}

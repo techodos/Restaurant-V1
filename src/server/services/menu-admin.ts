@@ -17,6 +17,7 @@ import {
   getItemLocationOverrides,
   getLocationItemOverrides,
   getMenuItem,
+  listBranchUnavailableItems,
   listCategories,
   listMenuItems,
   setItemLocationAvailability as repoSetItemLocationAvailability,
@@ -121,6 +122,11 @@ export async function setItemLocationAvailability(
 
 export function getItemLocationOverridesForAdmin(itemId: string, ctx: RequestContext): Promise<Map<string, boolean>> {
   return getItemLocationOverrides(itemId, ctx);
+}
+
+/** Every branch's switched-off items (location id -> item ids): the menu list's "All branches" view. */
+export function listBranchUnavailableItemsForAdmin(restaurantId: string, ctx: RequestContext): Promise<Record<string, string[]>> {
+  return listBranchUnavailableItems(restaurantId, ctx);
 }
 
 /** One branch's availability for every item, keyed by item id (missing = available): the menu list's branch view. */

@@ -1,4 +1,4 @@
-import { restaurantFeaturesSchema } from "@/shared/contract/settings";
+import { resolveFeatures } from "@/shared/feature-access";
 import { ALL_CHANNELS_ON, notificationChannelsEnabled } from "@/shared/notification-channels";
 import { getDb, type TenantScope } from "@/server/db/registry";
 import { mapOrder, mapReservation, str, strOrNull, type Row } from "@/server/db/mappers";
@@ -78,8 +78,16 @@ export async function claimDueNotificationEvents(
 }
 
 /** Restaurant branding + notification switches from a row that carries the `restaurant_*` aliases. */
+function safeResolve(features: unknown, entitlements: unknown) {
+  try {
+    return { success: true as const, data: resolveFeatures(features, entitlements).features };
+  } catch {
+    return { success: false as const };
+  }
+}
+
 function mapNotificationRestaurant(row: Row, restaurantId: string): NotificationRestaurant {
-  const features = restaurantFeaturesSchema.safeParse(row.restaurant_features ?? {});
+  const features = safeResolve(row.restaurant_features, row.restaurant_entitlements);
   return {
     id: restaurantId,
     name: str(row.restaurant_name),
@@ -99,7 +107,8 @@ function mapNotificationRestaurant(row: Row, restaurantId: string): Notification
 const RESTAURANT_COLUMNS = `r.name as restaurant_name, r.slug as restaurant_slug, r.logo_url as restaurant_logo_url,
               r.primary_color as restaurant_primary_color, r.email as restaurant_email,
               r.phone as restaurant_phone, r.currency_symbol as restaurant_currency_symbol,
-              r.locale as restaurant_locale, r.timezone as restaurant_timezone, r.features as restaurant_features`;
+              r.locale as restaurant_locale, r.timezone as restaurant_timezone, r.features as restaurant_features,
+              r.entitlements as restaurant_entitlements`;
 
 /** The order plus restaurant branding for one event, or null when the ids do not belong together. */
 export async function loadNotificationOrderContext(

@@ -29,6 +29,9 @@ interface LocalCartPanelProps {
   availableOrderTypes: OrderType[];
   isSignedIn: boolean;
   signInHref: string;
+  /** branch id → "Restaurant closed · opens 12:00 PM" for branches not taking orders right now */
+  closedBranches?: Record<string, string>;
+  primaryLocationId?: string | null;
 }
 
 /**
@@ -50,6 +53,8 @@ export function LocalCartPanel({
   availableOrderTypes,
   isSignedIn,
   signInHref,
+  closedBranches = {},
+  primaryLocationId = null,
 }: LocalCartPanelProps) {
   const { cart, updateQuantity, removeLine, clear, setOrderType, setCoupon } = useLocalCart();
   const [couponInput, setCouponInput] = useState("");
@@ -68,6 +73,7 @@ export function LocalCartPanel({
   const discount = cart.couponDiscount ? dec(cart.couponDiscount) : dec(0);
   const belowMinimum = dec(minimumOrderAmount).greaterThan(0) && subtotal.greaterThan(0) && subtotal.lessThan(dec(minimumOrderAmount));
   const itemCount = localCartItemCount(cart);
+  const closedLabel = closedBranches[cart.locationId ?? primaryLocationId ?? ""] ?? null;
 
   function goToCheckout() {
     if (branchGate !== "ok") {
@@ -360,11 +366,11 @@ export function LocalCartPanel({
     <Button
       size="lg"
       className="h-13 w-full justify-between rounded-full px-6"
-      disabled={checkoutPending || belowMinimum || hasProblem}
+      disabled={checkoutPending || belowMinimum || hasProblem || Boolean(closedLabel)}
       onClick={goToCheckout}
     >
-      <span>{checkoutPending ? "Preparing your order…" : isSignedIn ? "Checkout" : "Sign in to check out"}</span>
-      <span className="tabular flex items-center gap-2">
+      <span>{closedLabel ?? (checkoutPending ? "Preparing your order…" : isSignedIn ? "Checkout" : "Sign in to check out")}</span>
+      <span className={cn("tabular flex items-center gap-2", closedLabel && "hidden")}>
         {checkoutPending ? <Loader2 className="animate-spin" aria-hidden /> : (money(toMoney(round2(subtotal.minus(discount)))))}
         {!checkoutPending ? <ArrowRight aria-hidden /> : null}
       </span>

@@ -27,8 +27,10 @@ export async function GET(
 
     // chimes for the branch in scope only (a branch member's own; owner/admin: the header's choice)
     const { locationId } = await getAdminBranchScope(restaurantSlug);
-    const events = await getOrderActivitySince(actor.restaurantId, sinceIso, ctx, locationId);
-    return Response.json({ success: true, data: { now: new Date().toISOString(), events } });
+    // `now` comes from the same database read as `events` (listOrderActivitySince's statement_timestamp()),
+    // never the app server's own clock — see that function's doc comment for the race it closes.
+    const { events, now } = await getOrderActivitySince(actor.restaurantId, sinceIso, ctx, locationId);
+    return Response.json({ success: true, data: { now, events } });
   } catch (error) {
     const { body, status } = jsonError(error);
     return Response.json(body, { status });

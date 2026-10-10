@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePathname, useRouter } from "next/navigation";
 import { adminPath } from "@/shared/utils";
+import { pageShowsActivity } from "@/shared/admin-activity";
 
 /**
  * Admin "new order" / "cancelled order" sound notifications. No SSE/LISTEN infra exists for a
@@ -20,7 +22,7 @@ import { adminPath } from "@/shared/utils";
 
 const STORAGE_KEY = "rp_admin_sound_enabled";
 const PREF_EVENT = "rp-admin-sound-pref";
-const POLL_MS = 7_000;
+const POLL_MS = 3_000;
 
 function readPreference(): boolean {
   try {
@@ -120,6 +122,7 @@ export function SoundToggleButton() {
     <Button
       variant="outline"
       size="icon"
+      className="size-9 rounded-[var(--radius-brand)] border-[var(--rule-strong)]"
       aria-pressed={enabled}
       aria-label={enabled ? "Order sound notifications on" : "Order sound notifications off"}
       title={enabled ? "Order sound notifications: on" : "Order sound notifications: off"}
@@ -129,23 +132,99 @@ export function SoundToggleButton() {
         if (next) playChime("new-order"); // the unlocking gesture + an audible confirmation it's on
       }}
     >
-      {enabled ? <Bell className="size-4" aria-hidden /> : <BellOff className="size-4" aria-hidden />}
+      {enabled ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
     </Button>
+  );
+}
+
+const ACTIVITY_COUNT_EVENT = "rp-admin-order-activity-count";
+let activityCount = 0;
+
+function bumpActivityCount(by: number): void {
+  activityCount += by;
+  window.dispatchEvent(new CustomEvent(ACTIVITY_COUNT_EVENT, { detail: activityCount }));
+}
+
+/** Exported for nav links that land on an order screen — arriving there is as good as a tap on the banner. */
+export function resetActivityCount(): void {
+  if (activityCount === 0) return;
+  activityCount = 0;
+  window.dispatchEvent(new CustomEvent(ACTIVITY_COUNT_EVENT, { detail: 0 }));
+}
+
+/**
+ * How many new/cancelled orders the poll has seen since the count was last reset (by visiting an
+ * order screen or tapping the banner below) — unlike the sidebar's `activeOrders`, this is pure
+ * client state from the same poll that plays the chime, so it never depends on a server re-render.
+ */
+export function useOrderActivityCount(): number {
+  const [count, setCount] = useState(activityCount);
+  useEffect(() => {
+    setCount(activityCount);
+    const onEvent = (event: Event) => setCount((event as CustomEvent<number>).detail);
+    window.addEventListener(ACTIVITY_COUNT_EVENT, onEvent);
+    return () => window.removeEventListener(ACTIVITY_COUNT_EVENT, onEvent);
+  }, []);
+  return count;
+}
+
+/**
+ * The visible half of the fix: a staff member reported the chime playing while the order list stayed
+ * stale until a manual reload. `router.refresh()` on its own background timer is what filled the list
+ * before, and may just need a moment — this banner means they are never stuck guessing: it shows the
+ * count the instant the poll sees it (independent of any refresh), and tapping it forces a fresh
+ * render right now, from a real click rather than an interval. Drop it near the top of any admin page.
+ */
+export function OrderActivityBanner() {
+  const count = useOrderActivityCount();
+  const router = useRouter();
+  if (count === 0) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        resetActivityCount();
+        router.refresh();
+      }}
+      className="press mb-4 flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand-accent)] px-4 py-2.5 text-sm font-semibold text-[var(--color-brand-accent-foreground)]"
+    >
+      <Bell className="size-4" aria-hidden />
+      {count} new order{count === 1 ? "" : "s"} — tap to refresh
+    </button>
   );
 }
 
 /**
  * Mounted once (admin dashboard layout) so it watches every page, not just /orders. Polls a small
- * JSON endpoint rather than router.refresh() (KitchenAutoRefresh's approach) so it never re-renders
- * whatever page the staff member is actually looking at. A brand-new order (created_at === updated_at)
- * plays the "new order" chime; any row that is now `cancelled` plays the cancellation chime — once each,
- * tracked by the server's own clock (`now` in the response) so clock skew can't replay or skip events.
+ * JSON endpoint rather than router.refresh() so it never re-renders whatever page the staff member is
+ * actually looking at. A brand-new order plays the "new order" chime; any row that is now `cancelled`
+ * plays the cancellation chime — once each, tracked by the server's own clock (`now` in the response)
+ * so clock skew can't replay or skip events.
+ *
+ * `since` lags the server's reported `now` by `CURSOR_SAFETY_MARGIN_MS` instead of using it exactly.
+ * Reproduced 2026-10-10 against the live dev DB: `createOrder` is a multi-statement transaction that
+ * can take over a second to commit on the hosted pooler, and its `updated_at` is stamped by `now()` at
+ * transaction START, not at COMMIT (when the row actually becomes visible to other sessions). A poll
+ * whose query ran while that transaction was still open correctly saw nothing, then advanced its cursor
+ * past that row's timestamp anyway — permanently excluding it from every later poll (no duplicate, no
+ * retry, nothing). The chime depends on the same cursor, so that poll's "new order" sound and the list
+ * update were both silently lost together, matching the reported "sound plays, order never appears"
+ * exactly. A trailing margin re-checks the last few seconds on every poll, so a row that lands in that
+ * window is seen again rather than skipped — a duplicate chime/refresh is harmless (see "No
+ * duplicate/repeat sounds" below for why a genuine repeat still can't happen), a silent loss is not.
  */
+const CURSOR_SAFETY_MARGIN_MS = 5_000;
+
 export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: string }) {
   const [enabled] = useSoundPreference();
   const sinceRef = useRef<string>(new Date().toISOString());
+  const seenRef = useRef<Set<string>>(new Set());
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const router = useRouter();
+  const pathname = usePathname();
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
 
   const poll = useCallback(async () => {
     try {
@@ -154,18 +233,38 @@ export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: strin
       if (!response.ok) return;
       const body = await response.json();
       if (!body?.success) return;
-      const { now, events } = body.data as { now: string; events: { status: string; isNew: boolean }[] };
+      const { now, events } = body.data as { now: string; events: { orderNumber: string; status: string; isNew: boolean }[] };
+      // dedupe across the safety-margin re-check: `id` would be tighter, but orderNumber+status already
+      // can't legitimately repeat for the kinds of event this plays a sound for (a cancelled order stays
+      // cancelled; a brand-new order's `isNew` row is only ever seen once since its own updated_at never
+      // repeats a "pending, isNew" row) — so a key the seen-set naturally caps in size without needing ids.
+      const fresh = events.filter((event) => {
+        const key = `${event.orderNumber}:${event.status}:${event.isNew}`;
+        if (seenRef.current.has(key)) return false;
+        seenRef.current.add(key);
+        return true;
+      });
+      if (seenRef.current.size > 200) seenRef.current.clear(); // bounded: this is dedupe, not an audit log
       if (enabledRef.current) {
-        for (const event of events) {
+        for (const event of fresh) {
           if (event.status === "cancelled") playChime("cancelled");
           else if (event.isNew) playChime("new-order");
         }
       }
-      sinceRef.current = now;
+      sinceRef.current = new Date(Math.max(0, Date.parse(now) - CURSOR_SAFETY_MARGIN_MS)).toISOString();
+      const notable = fresh.filter((event) => event.isNew || event.status === "cancelled");
+      // the sound alone left the list stale until a manual reload: re-render the page when it shows these
+      // orders (dashboard, orders list, kitchen, that order's page) — never on forms like menu or settings
+      if (pageShowsActivity(pathRef.current, adminPath(restaurantSlug), fresh.map((event) => event.orderNumber))) {
+        router.refresh();
+      }
+      // kept separate from the refresh above: the banner stays up until a staff member actually taps it,
+      // since a background router.refresh() succeeding is not guaranteed to be visible the moment it happens
+      if (notable.length > 0) bumpActivityCount(notable.length);
     } catch {
       /* a missed poll just means the next one covers a wider window; nothing to recover */
     }
-  }, [restaurantSlug]);
+  }, [restaurantSlug, router]);
 
   useEffect(() => {
     const timer = setInterval(poll, POLL_MS);

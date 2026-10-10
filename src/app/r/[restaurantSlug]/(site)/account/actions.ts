@@ -21,6 +21,7 @@ import {
   verifyPasswordResetCode,
 } from "@/server/services/customer-auth";
 import {
+  finishGoogleSignupSchema,
   passwordResetRequestSchema,
   passwordResetSchema,
   passwordResetVerifySchema,
@@ -222,7 +223,9 @@ export async function handleGoogleCallback(
 
 export async function finishGoogleSignupAction(payload: { pendingToken: string; phone: string }): Promise<ApiResult<null>> {
   return action(async () => {
-    const result = await finishGoogleSignup(payload.pendingToken, payload.phone);
+    // validated like every other phone (E.164): it was stored as typed, any length
+    const input = finishGoogleSignupSchema.parse(payload);
+    const result = await finishGoogleSignup(input.pendingToken, input.phone);
     await setCustomerSession(result.token, result.maxAge);
     return null;
   });

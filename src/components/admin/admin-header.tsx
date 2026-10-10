@@ -1,75 +1,37 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ROLE_LABELS } from "@/server/auth/permissions";
-import { signOutAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/actions";
-import type { TeamRole } from "@/shared/contract/enums";
-import { adminPath } from "@/shared/utils";
+import { AdminBreadcrumb } from "@/components/admin/admin-sidebar";
 import { SoundToggleButton } from "@/components/admin/order-sound-notifications";
 
+/**
+ * The admin's top bar, on the same night surface as the sidebar (unchanged colours): where you are on the left
+ * (breadcrumb), the branch in scope and the new-order sound on the right. The account (name, role, Platform admin,
+ * Sign out) lives in the sidebar's user card.
+ */
 export function AdminHeader({
-  name,
-  role,
-  restaurantName,
   restaurantSlug,
   mobileNav,
   branch,
   showSoundToggle = false,
 }: {
-  name: string;
-  role: TeamRole;
-  restaurantName: string;
   restaurantSlug: string;
   /** menu button for screens without the sidebar */
   mobileNav?: React.ReactNode;
-  /** branch selector (owner/admin) or the member's own branch (read-only); kept apart from account controls */
+  /** branch selector (owner/admin) or the member's own branch (read-only) */
   branch?: React.ReactNode;
   /** only staff who can see orders get the "new order" sound toggle */
   showSoundToggle?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const router = useRouter();
-
-  function handleSignOut() {
-    startTransition(() => {
-      signOutAction(restaurantSlug).then(() => {
-        router.push(adminPath(restaurantSlug, "/login"));
-        router.refresh();
-      });
-    });
-  }
-
-  // the same night surface as the sidebar, and the same height as its brand block so the two rules line up
+  // same height as the sidebar's brand block, so the two bottom rules line up
   return (
-    <header className="tone-night sticky top-0 z-30 flex h-[4.75rem] items-center justify-between gap-4 border-b border-[var(--rule)] px-4 sm:px-6">
+    <header className="tone-night sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-[var(--rule)] px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         {mobileNav}
-        <p className={`truncate text-sm font-medium text-[var(--color-muted-ink)] lg:hidden ${branch ? "hidden sm:block" : ""}`}>
-          {restaurantName}
-        </p>
-        {branch ? <div className="min-w-0 sm:border-l sm:border-[var(--rule)] sm:pl-3 lg:border-l-0 lg:pl-0">{branch}</div> : null}
+        <AdminBreadcrumb restaurantSlug={restaurantSlug} />
       </div>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="hidden size-9 place-items-center rounded-full bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)] sm:grid"
-          >
-            {name.slice(0, 1)}
-          </span>
-          <div className="hidden text-left sm:block">
-            <p className="text-sm font-semibold leading-tight">{name}</p>
-            <p className="text-xs text-[var(--color-muted-ink)]">{ROLE_LABELS[role]}</p>
-          </div>
-        </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {branch}
         {showSoundToggle ? <SoundToggleButton /> : null}
-        <Button variant="outline" size="sm" onClick={handleSignOut} disabled={pending}>
-          <LogOut className="size-4" aria-hidden />
-          <span className="hidden sm:inline">Sign out</span>
-        </Button>
       </div>
     </header>
   );
