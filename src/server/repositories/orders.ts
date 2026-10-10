@@ -276,6 +276,12 @@ async function placeInTransaction(
         context,
         tx,
       );
+      // A guest proves email ownership the same way an account does: the OTP step upserts this same
+      // phone-keyed row and verifies it before checkout ever reaches here, so `customer.emailVerified`
+      // is already true by the time this runs (unique on (restaurant_id, phone) — same row either way).
+      if (input.requireVerifiedEmail && !customer.emailVerified) {
+        throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
+      }
     }
     const hasSavedPhone = Boolean(customer.phone.trim());
     // the account's own saved mobile/email win over what the form sent
@@ -797,15 +803,37 @@ async function getItemsForOrders(tx: DbClient, orderIds: readonly string[]): Pro
  * The browser sends no order id, so there is nothing to tamper with.
  */
 /**
+ * A guest's order ids (from signed grants verified by the web layer). Read with a privileged
+ * transaction because the RLS guest policy (0008) only knows the retired database-cart token; every
+ * query using these still pins `restaurant_id` and lists only these ids. Capped, uuid-shaped only.
+ */
+function guestIds(visitor: RequestContext): string[] {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return (visitor.guestOrderIds ?? []).filter((id) => uuid.test(id)).slice(0, 10);
+}
+
+/**
  * How many orders this visitor has in progress — all the storefront layout shows (the floating "track
  * your order" widget and the dock), on EVERY page view of a signed-in customer. It used to load the
  * active orders AND up to 20 past ones, full rows with every item, only to count the active ones (on the
  * hosted pooler response time grows with size: several seconds per page view for a regular customer).
- * Same ownership rule as `listVisitorOrders` (customer id, or a guest's cart token), same RLS context.
+ * Same ownership rule as `listVisitorOrders` (customer id, a guest's saved order grants, or a legacy
+ * cart token).
  */
 export async function countActiveVisitorOrders(restaurantId: string, visitor: RequestContext): Promise<number> {
   const customerId = visitor.customerId ?? null;
   const cartToken = visitor.cartToken ?? null;
+  const guestOrderIds = guestIds(visitor);
+  if (!customerId && guestOrderIds.length) {
+    const row = await getDb({ restaurantId }).write({ restaurantId }, (tx) =>
+      tx.queryOne<Row>(
+        `select count(*) as count from orders o
+          where o.restaurant_id = $1 and o.id = any($2::uuid[]) and o.status = any($3::order_status[])`,
+        [restaurantId, guestOrderIds, [...ACTIVE_ORDER_STATUSES]],
+      ),
+    );
+    return num(row?.count);
+  }
   if (!customerId && !cartToken) return 0;
   const ctx: RequestContext = { restaurantId, customerId, cartToken, userId: null };
   const row = await getDb({ restaurantId }).queryOne<Row>(
@@ -827,9 +855,28 @@ export async function listVisitorOrders(
 ): Promise<{ orders: Order[]; history: boolean }> {
   const customerId = visitor.customerId ?? null;
   const cartToken = visitor.cartToken ?? null;
-  if (!customerId && !cartToken) return { orders: [], history: false };
-
+  const guestOrderIds = guestIds(visitor);
   const db = getDb({ restaurantId });
+
+  if (!customerId && guestOrderIds.length) {
+    const orders = await db.write({ restaurantId }, async (tx) => {
+      const rows = await tx.query<Row>(
+        `select ${ORDER_DETAIL_SELECT}
+           from orders o
+           left join restaurant1s l on l.id = o.location_id
+           left join delivery_zones dz on dz.id = o.delivery_zone_id
+          where o.restaurant_id = $1 and o.id = any($2::uuid[]) and o.status = any($3::order_status[])
+          order by o.created_at desc`,
+        [restaurantId, guestOrderIds, [...ACTIVE_ORDER_STATUSES]],
+      );
+      const mapped = rows.map(mapOrder);
+      const items = await getItemsForOrders(tx, mapped.map((order) => order.id));
+      for (const order of mapped) order.items = items.get(order.id) ?? [];
+      return mapped;
+    });
+    return { orders, history: false };
+  }
+  if (!customerId && !cartToken) return { orders: [], history: false };
   // customer identity is customer_id / cart token only; app.current_user_id (auth.users) is for staff
   const ctx: RequestContext = { restaurantId, customerId, cartToken, userId: null };
   const active = [...ACTIVE_ORDER_STATUSES];

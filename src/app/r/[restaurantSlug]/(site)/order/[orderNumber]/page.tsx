@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, MapPin, Phone, Receipt, SearchX, Store } from "lucide-react";
 import { EmptyState } from "@/components/storefront/empty-state";
 import { ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
-import { getVisitorContext } from "@/web/session";
+import { getVisitorContext, guestOrderAccessToken } from "@/web/session";
 import { requireStorefront } from "@/web/storefront";
 import { trackOrder } from "@/server/services/orders";
 import { getPushClientConfigFor } from "@/server/services/notifications";
@@ -28,21 +28,21 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Order status", robots: { index: false, follow: false } };
 
 /**
- * Order tracking.
- *
- * Access is decided by the database, not this page: the RLS policy from
- * migration 0008 lets a guest read an order only from the browser that placed it
- * (the cart cookie), so an order number alone reveals nothing. Signed-in
- * customers get their own orders through the same policy set.
+ * Order tracking. An order number alone reveals nothing: a signed-in customer sees their own orders
+ * (RLS), and anyone else needs a signed order-access token for that one order — from the email link
+ * (`?t=`), or, for a guest on the browser that placed it, the grant checkout saved in a cookie.
  */
 export default async function OrderStatusPage({ params, searchParams }: OrderPageProps) {
-  const { restaurantSlug, orderNumber } = await params;
-  const { t: accessToken } = await searchParams;
+  const { restaurantSlug, orderNumber: rawOrderNumber } = await params;
+  const orderNumber = decodeURIComponent(rawOrderNumber);
+  const { t } = await searchParams;
 
   const context = await requireStorefront(restaurantSlug);
 
   const visitor = await getVisitorContext(context.restaurant.id);
-  const order = await trackOrder(context.restaurant.id, decodeURIComponent(orderNumber), visitor, accessToken);
+  // the same token flows on to live updates, cancel and reorder, so they work for the guest too
+  const accessToken = t ?? (await guestOrderAccessToken(context.restaurant.id, orderNumber)) ?? undefined;
+  const order = await trackOrder(context.restaurant.id, orderNumber, visitor, accessToken);
   if (!order) {
     return (
       <div className="container-page py-12 md:py-16">

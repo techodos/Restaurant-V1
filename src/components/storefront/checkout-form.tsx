@@ -12,8 +12,9 @@ import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { FieldError, FieldHint, Input, inputStyles, Label, Select, Textarea } from "@/components/ui/input";
-import { placeOrderAction } from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
+import { checkGuestContactAction, placeOrderAction, sendGuestVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
 import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { GuestVerifyDialog } from "@/components/storefront/guest-verify-dialog";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { formatMoney, sumMoney } from "@/shared/money";
 import type { CustomerAddress, DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
@@ -246,6 +247,18 @@ export function CheckoutForm({
   const customTipInput = useRef<HTMLInputElement>(null);
   const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified);
   const [phone, setPhone] = useState(savedPhone ?? "");
+  // Guest checkout OTP gate: a phone already tied to a real account (checked as they type), the
+  // {phone, email} pair the guest last verified (so re-submitting doesn't re-prompt), and whether the
+  // "Place order" OTP modal is open. The payload built at submit time is kept so the modal's onDone
+  // can finish the same submission without the customer re-entering anything.
+  const [phoneTakenMessage, setPhoneTakenMessage] = useState<string | null>(null);
+  const [emailTakenMessage, setEmailTakenMessage] = useState<string | null>(null);
+  // a guest's email is controlled (not read from FormData alone) so it can be checked as they type
+  const [guestEmail, setGuestEmail] = useState(customerDefaults?.email ?? "");
+  const [guestVerifiedFor, setGuestVerifiedFor] = useState<{ phone: string; email: string } | null>(null);
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
+  const [sendingGuestCode, setSendingGuestCode] = useState(false);
+  const pendingGuestPayload = useRef<Record<string, unknown> | null>(null);
   // a saved address is the default when there is one; "new" shows the address fields
   const [addressChoice, setAddressChoice] = useState<string>(() => {
     // the address the branch was chosen for (menu) wins: a saved one by id, else it fills "new address"
@@ -335,6 +348,32 @@ export function CheckoutForm({
     // only on first mount of the gate: resending belongs to the form's own "Resend code" button
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Guest only: tell them right away if this phone or email already belongs to a real account (they
+  // should sign in instead), rather than at "Place order" — which re-checks both server-side anyway.
+  useEffect(() => {
+    const checkPhone = !isSignedIn && Boolean(phone) && isValidPhoneNumber(phone);
+    const email = guestEmail.trim();
+    const checkEmail = !isSignedIn && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!checkPhone) setPhoneTakenMessage(null);
+    if (!checkEmail) setEmailTakenMessage(null);
+    if (!checkPhone && !checkEmail) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void checkGuestContactAction(restaurantSlug, {
+        ...(checkPhone ? { phone } : {}),
+        ...(checkEmail ? { email } : {}),
+      }).then((result) => {
+        if (cancelled || !result.success) return;
+        if (checkPhone) setPhoneTakenMessage(result.data.phoneTaken ? "This phone number already has an account. Please sign in to use it." : null);
+        if (checkEmail) setEmailTakenMessage(result.data.emailTaken ? "This email already has an account. Please sign in to use it." : null);
+      });
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isSignedIn, phone, guestEmail, restaurantSlug]);
 
   const money = (value: string) => formatMoney(value, { currency: currencySymbol, locale });
   const tipOptions = useMemo(() => {
@@ -426,7 +465,8 @@ export function CheckoutForm({
     if (payload.fullName.length < 2) nextErrors.fullName = "Please enter your name.";
     if (!payload.phone) nextErrors.phone = "Please enter your mobile number.";
     else if (!isValidPhoneNumber(payload.phone)) nextErrors.phone = "That mobile number does not look right for the selected country.";
-    if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) nextErrors.email = "That email looks incomplete.";
+    if (!payload.email) nextErrors.email = "Please enter your email.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) nextErrors.email = "That email looks incomplete.";
     if (orderTypeState === "delivery") {
       if (!payload.addressLine1) nextErrors.addressLine1 = locationLocked ? "Add your house / flat number and street." : "Where should we deliver?";
       // the city decides which branch can deliver (the order re-checks it): ask before sending
@@ -448,12 +488,37 @@ export function CheckoutForm({
       nextErrors.tableNumber = "Add a table number or the number of guests.";
     }
     if (tip && !/^\d+(\.\d{1,2})?$/.test(tip)) nextErrors.tip = "Enter a tip like 150 or 150.50";
+    if (!isSignedIn && phoneTakenMessage) nextErrors.phone = phoneTakenMessage;
+    if (!isSignedIn && emailTakenMessage) nextErrors.email = emailTakenMessage;
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       toast.error("Please check the highlighted fields.");
       return;
     }
 
+    // Guest, not yet verified for this exact phone+email: open the OTP modal instead of submitting.
+    // The payload is kept so the modal's onDone finishes this same submission automatically.
+    const verifiedForThis = guestVerifiedFor && guestVerifiedFor.phone === payload.phone && guestVerifiedFor.email === payload.email;
+    if (!isSignedIn && !verifiedForThis) {
+      pendingGuestPayload.current = payload;
+      setSendingGuestCode(true);
+      void sendGuestVerificationCodeAction(restaurantSlug, { fullName: payload.fullName, phone: payload.phone, email: payload.email }).then(
+        (result) => {
+          setSendingGuestCode(false);
+          if (!result.success) {
+            toast.error(result.error.message);
+            return;
+          }
+          setGuestModalOpen(true);
+        },
+      );
+      return;
+    }
+
+    submitOrder(payload);
+  }
+
+  function submitOrder(payload: Record<string, unknown>) {
     if (submitting.current) return;
     submitting.current = true;
     startTransition(async () => {
@@ -502,6 +567,15 @@ export function CheckoutForm({
     });
   }
 
+  /** The guest OTP modal: verified (as a guest, or as a freshly-registered account either way) → finish the kept submission. */
+  function handleGuestVerified(_registered: boolean) {
+    const payload = pendingGuestPayload.current;
+    setGuestModalOpen(false);
+    if (!payload) return;
+    setGuestVerifiedFor({ phone: String(payload.phone), email: String(payload.email) });
+    submitOrder(payload);
+  }
+
   if (needsVerification) {
     return (
       <section className={cn(card, "max-w-md")} aria-labelledby="verify-title">
@@ -527,6 +601,18 @@ export function CheckoutForm({
     "tabular h-11 min-w-[5.5rem] rounded-[var(--radius-brand)] border px-4 text-sm transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)] motion-reduce:transition-none motion-reduce:active:scale-100";
   const tipOn = "border-[var(--color-brand)] bg-[var(--color-brand)] font-semibold text-[var(--color-brand-foreground)]";
   const tipOff = "border-[var(--color-hairline)] bg-[var(--color-surface)] font-medium hover:border-[color-mix(in_srgb,var(--color-brand)_45%,var(--color-hairline))]";
+  // guests can order without an account; a returning customer signs in and comes straight back here
+  const signInPrompt = isSignedIn ? null : (
+    <p className="text-center text-[13px] text-[var(--color-muted-ink)]">
+      Already have an account?{" "}
+      <Link
+        href={signInHref(restaurantSlug, `/r/${restaurantSlug}/checkout`)}
+        className="rounded-sm font-semibold text-[var(--color-brand)] underline decoration-1 underline-offset-4 transition-[text-decoration-thickness] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]"
+      >
+        Sign in
+      </Link>
+    </p>
+  );
   const placeOrderContent = closedLabel ? (
     // closed: just the reason (no total or arrow on a button that cannot be pressed)
     <span className="flex w-full items-center justify-center gap-2.5">
@@ -536,12 +622,12 @@ export function CheckoutForm({
   ) : (
     <>
       <span className="flex items-center gap-2.5">
-        {pending ? (
+        {pending || sendingGuestCode ? (
           <Loader2 className="size-[18px] animate-spin" aria-hidden />
         ) : (
           <Lock className="size-[18px] text-[var(--color-brand-foreground)]" aria-hidden />
         )}
-        {pending ? "Placing your order" : "Place order"}
+        {pending ? "Placing your order" : sendingGuestCode ? "Sending code…" : "Place order"}
       </span>
       <span className="tabular flex items-center gap-2">
         {money(totalDue)}
@@ -554,10 +640,15 @@ export function CheckoutForm({
   );
 
   return (
+    <>
     <form
       onSubmit={handleSubmit}
       noValidate
-      className="grid grid-cols-[minmax(0,1fr)] gap-6 pb-28 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:gap-10 lg:pb-0 xl:gap-12"
+      className={cn(
+        "grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:gap-10 lg:pb-0 xl:gap-12",
+        // clears the phones' sticky Place order bar (a line taller for guests: the sign-in prompt)
+        isSignedIn ? "pb-28" : "pb-36",
+      )}
     >
       <div className="space-y-6">
         <section className={card}>
@@ -657,7 +748,7 @@ export function CheckoutForm({
                 defaultCountry={phoneCountry}
                 disabled={Boolean(savedPhone)}
                 required={!savedPhone}
-                aria-invalid={Boolean(errors.phone) || undefined}
+                aria-invalid={Boolean(errors.phone || phoneTakenMessage) || undefined}
                 aria-describedby="phone-hint"
                 className="[&_button]:h-12 [&_input]:h-12"
               />
@@ -666,7 +757,7 @@ export function CheckoutForm({
                   ? "Saved on your account. You can change it from your profile."
                   : "Required. We save it to your account with this order, so next time it is filled in for you."}
               </p>
-              <FieldError>{errors.phone}</FieldError>
+              <FieldError>{errors.phone || phoneTakenMessage}</FieldError>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="email">
@@ -693,9 +784,10 @@ export function CheckoutForm({
                     id="email"
                     name="email"
                     type="email"
-                    defaultValue={customerDefaults?.email ?? ""}
+                    value={guestEmail}
+                    onChange={(event) => setGuestEmail(event.target.value)}
                     autoComplete="email"
-                    aria-invalid={Boolean(errors.email)}
+                    aria-invalid={Boolean(errors.email || emailTakenMessage)}
                     className={cn(field, "pl-10")}
                   />
                 )}
@@ -705,7 +797,7 @@ export function CheckoutForm({
                   Your order updates and receipt go to this address.
                 </p>
               ) : null}
-              <FieldError>{errors.email}</FieldError>
+              <FieldError>{errors.email || emailTakenMessage}</FieldError>
             </div>
           </div>
         </section>
@@ -1103,11 +1195,13 @@ export function CheckoutForm({
       </div>
 
       <aside className="lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
+        {/* A sticky card taller than the space under the header keeps its bottom off-screen until the page
+            ends, so on desktop it is capped to that space (1.5rem gap top and bottom) and its body scrolls. */}
         <section
           aria-labelledby="summary-title"
-          className="overflow-hidden rounded-[var(--radius-panel)] border border-[var(--color-hairline)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]"
+          className="overflow-hidden rounded-[var(--radius-panel)] border border-[var(--color-hairline)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] lg:flex lg:max-h-[calc(100dvh-var(--header-h,4.5rem)-3rem)] lg:flex-col"
         >
-          <div className="relative bg-[var(--color-brand)] px-6 pb-6 pt-6 text-[var(--color-brand-foreground)] sm:px-7">
+          <div className="relative shrink-0 bg-[var(--color-brand)] px-6 pb-6 pt-6 text-[var(--color-brand-foreground)] sm:px-7">
             <div className="flex items-baseline justify-between gap-3">
               <h2 id="summary-title" className="font-[family-name:var(--font-display)] text-[1.55rem] font-normal leading-tight">
                 Order summary
@@ -1121,8 +1215,10 @@ export function CheckoutForm({
             <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-[var(--color-brand-accent)]" />
           </div>
 
-          <div className="px-6 pb-6 pt-5 sm:px-7">
-            <ul aria-label="Items in your order" className="-mx-1 space-y-4 px-1 py-1 lg:max-h-[min(34vh,19rem)] lg:overflow-y-auto">
+          {/* when capped, the item list shrinks first (it scrolls itself) so totals and Place order stay in view;
+              the body only scrolls as a last resort on very short windows */}
+          <div className="px-6 pb-6 pt-5 sm:px-7 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:overscroll-contain lg:[&>*:not(ul)]:shrink-0">
+            <ul aria-label="Items in your order" className="-mx-1 space-y-4 px-1 py-1 lg:max-h-[min(34vh,19rem)] lg:min-h-[4.5rem] lg:overflow-y-auto lg:overscroll-contain">
               {items.map((item, index) => (
                 <li key={index} className="flex items-center gap-3.5">
                   <div className="relative size-14 shrink-0 overflow-hidden rounded-[var(--radius-brand)] bg-[var(--brand-tint)]">
@@ -1197,9 +1293,10 @@ export function CheckoutForm({
               </p>
             ) : null}
 
-            <button type="submit" data-testid="place-order" disabled={pending || Boolean(closedLabel)} className={cn(ctaButton, "mt-5 hidden lg:flex")}>
+            <button type="submit" data-testid="place-order" disabled={pending || sendingGuestCode || Boolean(closedLabel)} className={cn(ctaButton, "mt-5 hidden lg:flex")}>
               {placeOrderContent}
             </button>
+            {signInPrompt ? <div className="mt-3 hidden lg:block">{signInPrompt}</div> : null}
             <p className="mt-3 text-center text-xs leading-relaxed text-[var(--color-muted-ink)]">
               The kitchen receives your order right away. You will get a confirmation once the restaurant accepts it.
             </p>
@@ -1209,10 +1306,23 @@ export function CheckoutForm({
 
       {/* phones: the place-order action stays under the thumb with the live total */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-canvas)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl lg:hidden">
-        <button type="submit" disabled={pending || Boolean(closedLabel)} className={ctaButton}>
+        <button type="submit" disabled={pending || sendingGuestCode || Boolean(closedLabel)} className={ctaButton}>
           {placeOrderContent}
         </button>
+        {signInPrompt ? <div className="mt-2">{signInPrompt}</div> : null}
       </div>
     </form>
+    {!isSignedIn ? (
+      <GuestVerifyDialog
+        restaurantSlug={restaurantSlug}
+        open={guestModalOpen}
+        onOpenChange={setGuestModalOpen}
+        fullName={String(pendingGuestPayload.current?.fullName ?? "")}
+        phone={String(pendingGuestPayload.current?.phone ?? "")}
+        email={String(pendingGuestPayload.current?.email ?? "")}
+        onDone={handleGuestVerified}
+      />
+    ) : null}
+    </>
   );
 }

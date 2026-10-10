@@ -2,6 +2,23 @@ import { z } from "zod";
 import { ORDER_TYPES, PAYMENT_METHODS } from "@/shared/contract/enums";
 import { e164Phone } from "./common";
 
+/** Guest checkout OTP: the same fullName/phone/email already typed on the checkout form. */
+export const guestContactSchema = z.object({
+  fullName: z.string().trim().min(2, "Please enter your name.").max(120),
+  phone: e164Phone,
+  email: z.string().trim().email("That email address looks incomplete.").max(160),
+});
+
+/** The as-you-type account check: either field may be absent (only the valid ones are sent). */
+export const guestContactCheckSchema = z.object({
+  phone: e164Phone.optional(),
+  email: guestContactSchema.shape.email.optional(),
+});
+
+export const guestVerifyCodeSchema = guestContactSchema.extend({
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code."),
+});
+
 export const placeOrderSchema = z.object({
   orderType: z.enum(ORDER_TYPES),
   fullName: z.string().trim().min(2, "Please enter your name.").max(120),

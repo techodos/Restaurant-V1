@@ -17,6 +17,11 @@ export interface RequestContext {
   customerId?: string | null;
   /** opaque guest cart token */
   cartToken?: string | null;
+  /**
+   * Orders this browser placed as a guest — ids from its signed order-access grants (web/session.ts,
+   * verified server-side), the guest's only proof of ownership now that there is no database cart.
+   */
+  guestOrderIds?: string[] | null;
   /** human readable actor name stored on audit rows */
   actor?: string | null;
 }

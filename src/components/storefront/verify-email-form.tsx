@@ -8,13 +8,19 @@ import {
   sendVerificationCodeAction,
   verifyEmailCodeAction,
 } from '@/app/r/[restaurantSlug]/(site)/account/actions';
+import type { ApiResult } from '@/shared/contract/api';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
 /**
- * Reused on the account/sign-up screen and inline at checkout — the same 6-digit code gate either
- * way. No router.refresh() on success: `verifyEmailCodeAction` re-signs the session cookie, and Next
- * answers a cookie-setting action with the current route freshly rendered (and clears the router
+ * Reused on the account/sign-up screen, inline at checkout for a signed-in-but-unverified customer,
+ * and inside the guest checkout OTP modal — the same 6-digit code UI either way. `sendAction`/
+ * `verifyAction` default to the session-based actions (every pre-existing caller is unchanged); the
+ * guest modal passes the guest-scoped actions bound to the typed fullName/phone/email instead, since
+ * a guest has no session for those to read.
+ *
+ * No router.refresh() on success: the default `verifyEmailCodeAction` re-signs the session cookie, and
+ * Next answers a cookie-setting action with the current route freshly rendered (and clears the router
  * cache), so server components already see the verified state. A refresh on top was a second full
  * server render, and the sign-in / sign-up callers then navigated and refreshed again (three renders
  * before the next screen). `onVerified` is for a caller that changes what is on screen or navigates.
@@ -22,9 +28,13 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export function VerifyEmailForm({
   restaurantSlug,
   onVerified,
+  sendAction = sendVerificationCodeAction,
+  verifyAction = verifyEmailCodeAction,
 }: {
   restaurantSlug: string;
   onVerified?: () => void;
+  sendAction?: (slug: string) => Promise<ApiResult<null>>;
+  verifyAction?: (slug: string, payload: { code: string }) => Promise<ApiResult<null>>;
 }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +57,7 @@ export function VerifyEmailForm({
     event.preventDefault();
     setWorking(true);
     setError(null);
-    const result = await verifyEmailCodeAction(restaurantSlug, { code });
+    const result = await verifyAction(restaurantSlug, { code });
     if (!result.success) {
       setWorking(false);
       setError(result.error.message);
@@ -62,7 +72,7 @@ export function VerifyEmailForm({
   async function resend() {
     if (secondsLeft > 0 || resending) return;
     setResending(true);
-    const result = await sendVerificationCodeAction(restaurantSlug);
+    const result = await sendAction(restaurantSlug);
     setResending(false);
     if (result.success) {
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
@@ -84,7 +94,16 @@ export function VerifyEmailForm({
           maxLength={6}
           placeholder='123456'
           value={code}
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+          onPaste={(event) => {
+            // Native maxLength truncates a raw paste (e.g. "123 456") before non-digits are
+            // stripped, dropping digits. Read the clipboard ourselves and keep only digits.
+            const digits = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+            if (digits) {
+              event.preventDefault();
+              setCode(digits);
+            }
+          }}
           className='text-center text-lg tracking-[0.5em]'
         />
         <FieldHint>
