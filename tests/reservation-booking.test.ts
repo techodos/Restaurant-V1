@@ -91,16 +91,16 @@ beforeEach(() => {
 });
 
 describe("bookReservation — one transaction, one read, one insert", () => {
-  it("books in one transaction with three statements, the account's own phone and email winning", async () => {
+  it("books in one transaction with three statements, the account's own phone and email winning, no table assignment", async () => {
     const reservation = await bookReservation(input, ctx);
     expect(db.transactions).toBe(1);
     expect(db.statements).toHaveLength(3);
-    // the branch+day lock comes first, so two guests can never both take the last table
+    // the branch+day lock comes first, so race conditions are prevented
     expect(db.statements[0]!.sql).toMatch(/pg_advisory_xact_lock/);
     expect(db.statements[0]!.params).toEqual([input.locationId, input.date]);
     expect(db.statements[1]!.sql).toMatch(/for update/); // the customer's row is locked for the booking
     expect(reservation).toEqual(expect.objectContaining({
-      guestPhone: "+923001234567", guestEmail: "noor@example.com", customerId: CUSTOMER, tableNumber: "T1",
+      guestPhone: "+923001234567", guestEmail: "noor@example.com", customerId: CUSTOMER, tableNumber: null,
       status: "pending", locationName: "Gulberg", durationMinutes: 90, confirmationCode: "RSV-ABC123",
     }));
   });
@@ -120,14 +120,10 @@ describe("bookReservation — one transaction, one read, one insert", () => {
     expect((await bookReservation(input, ctx)).status).toBe("confirmed");
   });
 
-  it("skips tables taken by bookings inside ±slotMinutes, and only those", async () => {
-    const at = (hhmm: string) => Number(hhmm.slice(0, 2)) * 3600 + Number(hhmm.slice(3)) * 60;
-    db.read = readRow({ booked: [{ table_number: "T1", seconds: at("19:45") }, { table_number: "T2", seconds: at("19:30") }] });
-    // 19:30 is exactly 30 min away — outside the window, so T2 is still free; T1 (15 min away) is taken
-    expect((await bookReservation(input, ctx)).tableNumber).toBe("T2");
-    db.read = readRow({ booked: [{ table_number: "T1", seconds: at("20:00") }, { table_number: "T2", seconds: at("20:15") }] });
-    expect(await errorOf(bookReservation(input, ctx))).toBe("RESERVATION_UNAVAILABLE: That slot is fully booked. Please try another time.");
-    expect(db.statements.filter((s) => s.sql.includes("insert"))).toHaveLength(1); // the refused one wrote nothing
+  it("does not assign tables (handled by staff separately)", async () => {
+    db.read = readRow({ booked: [{ table_number: "T1", seconds: Number("20") * 3600 + Number("00") * 60 }] });
+    // Even if tables are taken, we ignore them and always return null for tableNumber
+    expect((await bookReservation(input, ctx)).tableNumber).toBeNull();
   });
 
   it("refuses with the same errors, in the same order, as before", async () => {

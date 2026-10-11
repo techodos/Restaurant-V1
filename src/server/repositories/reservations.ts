@@ -1,5 +1,5 @@
 import { errors } from "@/server/errors";
-import { isOpenAt, timeToMinutes, zonedDateTime } from "@/shared/hours";
+import { isOpenAt, zonedDateTime } from "@/shared/hours";
 import type { Reservation } from "@/shared/contract/models";
 import type { OpeningHours } from "@/shared/contract/models";
 import type { ReservationStatus } from "@/shared/contract/enums";
@@ -56,18 +56,9 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
     assertBookable(input);
     await lockBookingDay(tx, input.locationId, input.date);
 
-    // Physical table inventory across the slot. Bookings inside ±slotMinutes of
-    // each other compete for the same tables, so capacity is real: the assigned
-    // table is persisted and therefore blocks the slot for the next party.
-    const booked = await tx.query<Row>(
-      `select table_number from reservations
-        where location_id = $1 and reservation_date = $2::date
-          and status in ('pending','confirmed','seated')
-          and abs(extract(epoch from (reservation_time - $3::time))) < $4::int * 60`,
-      [input.locationId, input.date, input.time, input.settings.slotMinutes],
-    );
-    const takenTables = new Set(booked.map((row) => str(row.table_number)).filter(Boolean));
-    const tableNumber = pickTable(input.settings, input.guests, takenTables, input.tableNumber ?? null);
+    // No table assignment: the restaurant accommodates any party size, and table assignment (if needed)
+    // is handled manually by staff or via the admin panel. The advisory lock ensures one party per
+    // (location, date) is processed at a time, preventing race conditions.
 
     // A signed-in visitor already has their own customer row (keyed by their account email); resolve it
     // by id, never by the phone typed into this form — `customers` has an independent unique key on
@@ -99,7 +90,7 @@ export async function createReservation(input: ReservationInput, ctx: RequestCon
       time: input.time,
       durationMinutes: input.settings.defaultDurationMinutes,
       guests: input.guests,
-      tableNumber,
+      tableNumber: null,
       specialRequests: input.specialRequests ?? null,
       occasion: input.occasion ?? null,
       status: input.autoConfirm ? "confirmed" : "pending",
@@ -146,36 +137,13 @@ function assertBookable(input: BookingRules): void {
   }
 }
 
-/** The table this party gets: the one asked for if free, else the first free table that seats them. */
 /**
- * Bookings for one branch and day, one at a time. The table check is "read the slot's bookings, pick a free
- * table, insert" — without this, two guests booking the last table at the same moment both saw it free and
- * both got it. The lock is held until this transaction ends, and it is its own statement BEFORE the read
- * (a READ COMMITTED read takes its snapshot when it starts, so it then sees the booking that just committed).
- * Other branches and days are unaffected. One extra round trip per booking.
+ * Booking day lock prevents race conditions on (location, date). The lock is held until this transaction
+ * ends, and it is its own statement BEFORE any reads (a READ COMMITTED read takes its snapshot when it
+ * starts, so it then sees any bookings that just committed). Other branches and days are unaffected.
  */
 async function lockBookingDay(tx: DbClient, locationId: string, date: string): Promise<void> {
   await tx.query("select pg_advisory_xact_lock(hashtextextended('reservation:' || $1::text || ':' || $2::text, 0))", [locationId, date]);
-}
-
-function pickTable(
-  settings: ReservationInput["settings"],
-  guests: number,
-  takenTables: ReadonlySet<string>,
-  requested: string | null,
-): string | null {
-  if (requested) {
-    if (takenTables.has(requested)) {
-      throw errors.custom("RESERVATION_UNAVAILABLE", "That table is already booked for this slot.");
-    }
-    return requested;
-  }
-  if (settings.tables.length === 0) return null;
-  const candidate = settings.tables.find((table) => table.seats >= guests && !takenTables.has(table.name));
-  if (!candidate) {
-    throw errors.custom("RESERVATION_UNAVAILABLE", "That slot is fully booked. Please try another time.");
-  }
-  return candidate.name;
 }
 
 async function insertReservation(
@@ -231,12 +199,11 @@ export interface BookReservationInput {
 
 /**
  * A signed-in customer's table booking in ONE transaction with ONE read: the restaurant's reservation
- * settings and time zone, the location's hours, the customer's own row (locked) and the slot's bookings
- * — all as they are NOW (never the storefront snapshot) — then the same rules as `createReservation`
- * (`assertBookable`, `pickTable`) and one insert. The booking used to cost three transactions (the
- * restaurant, then the account, then the booking itself with three more statements), ~11 round trips.
- * The account's saved mobile/email win over the form's (same precedence as checkout); a first mobile is
- * stored on the account in this transaction, so only when the booking commits.
+ * settings and time zone, the location's hours, the customer's own row (locked)
+ * — all as they are NOW (never the storefront snapshot) — then validation rules and one insert.
+ * No table assignment: the restaurant accommodates any party size, and table assignment (if needed)
+ * is handled manually by staff. The account's saved mobile/email win over the form's (same precedence
+ * as checkout); a first mobile is stored on the account in this transaction, so only when the booking commits.
  */
 export async function bookReservation(input: BookReservationInput, ctx: RequestContext): Promise<Reservation> {
   // A customer is identified by customer_id only; app.current_user_id (auth.users, staff) stays unset
@@ -251,13 +218,8 @@ export async function bookReservation(input: BookReservationInput, ctx: RequestC
          (select row_to_json(l) from (select id, restaurant_id, name, hours, is_active
                                         from restaurant1s where id = $2 and restaurant_id = $1) l) as location,
          (select row_to_json(c) from (select id, restaurant_id, phone, email
-                                        from customers where id = $3 and restaurant_id = $1 for update) c) as account,
-         (select coalesce(json_agg(json_build_object('table_number', table_number,
-                                                     'seconds', extract(epoch from reservation_time))), '[]'::json)
-            from reservations
-           where location_id = $2 and reservation_date = $4::date
-             and status in ('pending','confirmed','seated')) as booked`,
-      [input.restaurantId, input.locationId, input.accountCustomerId, input.date],
+                                        from customers where id = $3 and restaurant_id = $1 for update) c) as account`,
+      [input.restaurantId, input.locationId, input.accountCustomerId],
     );
 
     const restaurant = read?.restaurant ? mapRestaurant(read.restaurant as Row) : null;
@@ -276,16 +238,6 @@ export async function bookReservation(input: BookReservationInput, ctx: RequestC
     const settings = restaurant.settings.reservations;
     assertBookable({ settings, guests: input.guests, date: input.date, time: input.time, hours: location.hours, timezone: restaurant.timezone });
 
-    // the slot's competing bookings: inside ±slotMinutes of the requested time (as createReservation's query)
-    const requested = timeToMinutes(input.time) * 60;
-    const takenTables = new Set(
-      ((read?.booked as Row[] | null) ?? [])
-        .filter((row) => Math.abs(num(row.seconds) - requested) < settings.slotMinutes * 60)
-        .map((row) => str(row.table_number))
-        .filter(Boolean),
-    );
-    const tableNumber = pickTable(settings, input.guests, takenTables, null);
-
     const savedPhone = str(account.phone).trim() ? str(account.phone) : null;
     const phone = savedPhone ?? input.guestPhone;
     const email = str(account.email) || input.guestEmail || null;
@@ -302,7 +254,7 @@ export async function bookReservation(input: BookReservationInput, ctx: RequestC
       time: input.time,
       durationMinutes: settings.defaultDurationMinutes,
       guests: input.guests,
-      tableNumber,
+      tableNumber: null,
       specialRequests: input.specialRequests ?? null,
       occasion: input.occasion ?? null,
       status: settings.autoConfirm ? "confirmed" : "pending",
@@ -475,8 +427,4 @@ export async function listBookedSlotsInRange(
 
 export function isSlotInPast(date: string, time: string, timezone: string, now = new Date()): boolean {
   return zonedDateTime(date, time, timezone).getTime() < now.getTime() - 60_000;
-}
-
-export function slotToMinutes(time: string): number {
-  return timeToMinutes(time);
 }
