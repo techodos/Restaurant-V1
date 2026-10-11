@@ -26,12 +26,15 @@ export function HeaderBranchPill({
   align = "end",
   className,
   divider = false,
+  variant = "pill",
 }: {
   tone: "night" | "paper";
   /** desktop: a hairline before the pill, separating it from the logo (shown only when the pill is) */
   divider?: boolean;
   /** which edge of the pill the popover lines up with: "start" next to the logo, "end" among the actions */
   align?: "start" | "end";
+  /** "strip": phones, a full-width "Serving from <branch> · <city>  Change" bar along the header's bottom edge */
+  variant?: "pill" | "strip";
   className?: string;
 }) {
   const branching = useBranching();
@@ -40,6 +43,13 @@ export function HeaderBranchPill({
   const [container, setContainer] = useState<HTMLElement | null>(null);
   // portalled into `.theme-root` (like Sheet / useConfirm) so the restaurant's theme variables apply
   useEffect(() => setContainer(document.querySelector<HTMLElement>(".theme-root")), []);
+  // the strip slides away while the page scrolls down; its popover goes with it rather than float unanchored
+  useEffect(() => {
+    if (variant !== "strip" || !open) return;
+    const onScroll = () => setOpen(false);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [variant, open]);
 
   if (!branching.enabled) return null;
 
@@ -58,6 +68,63 @@ export function HeaderBranchPill({
     <>
       {divider ? <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[var(--rule-strong)] xl:block" /> : null}
       <Popover.Root open={open} onOpenChange={setOpen}>
+        {variant === "strip" ? (
+          <Popover.Trigger
+            className={cn(
+              "group/branch block w-full border-t text-left transition-colors duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-brand-accent)]",
+              unserved
+                ? "border-[color-mix(in_srgb,var(--color-warning)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_8%,transparent)]"
+                : "border-[color-mix(in_srgb,var(--color-brand-accent)_18%,transparent)] bg-[color-mix(in_srgb,var(--color-brand-accent)_7%,transparent)] active:bg-[color-mix(in_srgb,var(--color-brand-accent)_12%,transparent)] data-[state=open]:bg-[color-mix(in_srgb,var(--color-brand-accent)_12%,transparent)]",
+              className,
+            )}
+            aria-label={
+              unserved
+                ? `Ordering isn't available in ${destination?.label ?? "your location"}. Change location`
+                : `${delivery ? "Serving from" : cart.orderType === "pickup" ? "Picking up from" : "Dining at"} ${selected?.name ?? ""}${
+                    selected?.city ? `, ${selected.city}` : ""
+                  }. Change branch or location`
+            }
+          >
+            <span className="container-page flex h-10 items-center gap-2.5 text-[12.5px]">
+              {unserved ? (
+                <MapPinOff className="size-[15px] shrink-0 text-[var(--color-warning)]" strokeWidth={1.75} aria-hidden />
+              ) : (
+                <MapPin className={cn("size-[15px] shrink-0", iconTone)} strokeWidth={1.75} aria-hidden />
+              )}
+              {unserved ? (
+                <span className="min-w-0 truncate text-[var(--color-ink)]">
+                  <span className="text-[var(--color-muted-ink)]">Not available in </span>
+                  <span className="font-semibold">{destination?.label ?? "your location"}</span>
+                </span>
+              ) : (
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="shrink-0 text-[var(--color-muted-ink)]">
+                    {delivery ? "Serving from" : cart.orderType === "pickup" ? "Pick up at" : "Dining at"}
+                  </span>
+                  <span className="min-w-0 truncate font-semibold text-[var(--color-ink)]">{selected?.name}</span>
+                  {selected?.city ? (
+                    <span
+                      className={cn(
+                        "hidden shrink-0 min-[360px]:inline",
+                        tone === "night" ? "text-[color-mix(in_srgb,var(--color-brand-accent)_75%,var(--color-muted-ink))]" : "text-[var(--color-muted-ink)]",
+                      )}
+                    >
+                      · {selected.city}
+                    </span>
+                  ) : null}
+                </span>
+              )}
+              <span className={cn("ml-auto flex shrink-0 items-center gap-1 pl-2 font-semibold", unserved ? "text-[var(--color-warning)]" : iconTone)}>
+                Change
+                <ChevronDown
+                  className="size-3.5 transition-transform duration-300 ease-[var(--ease-out)] group-data-[state=open]/branch:rotate-180 motion-reduce:transition-none"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              </span>
+            </span>
+          </Popover.Trigger>
+        ) : (
         <Popover.Trigger
           className={cn(
             "press group/branch flex h-9 min-w-0 max-w-[12rem] items-center rounded-full border bg-[color-mix(in_srgb,var(--color-brand-accent)_6%,transparent)] pl-3 pr-3 text-left transition-[background-color,border-color] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand-accent)_11%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-accent)] data-[state=open]:bg-[color-mix(in_srgb,var(--color-brand-accent)_11%,transparent)] lg:h-10 lg:max-w-[16rem] lg:pl-3.5 lg:pr-3.5",
@@ -105,11 +172,12 @@ export function HeaderBranchPill({
             aria-hidden
           />
         </Popover.Trigger>
+        )}
 
         <Popover.Portal container={container}>
           <Popover.Content
             align={align}
-            sideOffset={10}
+            sideOffset={variant === "strip" ? 6 : 10}
             collisionPadding={12}
             className="animate-popover z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[var(--shadow-raised)] outline-none"
           >

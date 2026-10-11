@@ -9,10 +9,10 @@ import { CtaLink } from "@/components/storefront/cta-link";
 import { serviceStatus } from "@/components/storefront/service-status";
 
 const HEIGHTS: Record<string, string> = {
-  sm: "min-h-[min(58svh,560px)]",
-  md: "min-h-[min(68svh,640px)]",
-  lg: "min-h-[min(100svh,900px)]",
-  full: "min-h-[100svh]",
+  sm: "min-h-[min(48svh,420px)] md:min-h-[min(58svh,560px)]",
+  md: "min-h-[min(62svh,560px)] md:min-h-[min(68svh,640px)]",
+  lg: "min-h-[min(70svh,600px)] md:min-h-[min(100svh,900px)]",
+  full: "min-h-[min(84svh,700px)] md:min-h-[100svh]",
 };
 
 const STATUS_DOT = {
@@ -74,7 +74,7 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
 
       <div
         className={cn(
-          "container-page flex w-full flex-1 flex-col justify-center pb-10 pt-20 [[data-hero-overlay]_&]:pt-[calc(var(--header-h,4.25rem)+3rem)]",
+          "container-page flex w-full flex-1 flex-col justify-end pb-9 pt-12 md:justify-center md:pb-10 md:pt-20 [[data-hero-overlay]_&]:pt-[calc(var(--header-h,4.25rem)+2.75rem)] md:[[data-hero-overlay]_&]:pt-[calc(var(--header-h,4.25rem)+3rem)]",
           centered && "items-center text-center",
         )}
       >
@@ -99,7 +99,7 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
           {section.primaryCta || secondary ? (
             <div
               className={cn(
-                "animate-rise mt-8 flex flex-wrap items-center gap-x-8 gap-y-4 [animation-delay:240ms]",
+                "animate-rise mt-7 flex flex-wrap items-center gap-x-8 gap-y-4 [animation-delay:240ms] md:mt-8",
                 centered && "justify-center",
               )}
             >
@@ -123,7 +123,7 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
       </div>
 
       {!compact ? (
-        <div className="container-page relative w-full pb-8 md:pb-10">
+        <div className="container-page relative w-full pb-7 md:pb-10">
           <div className="flex flex-col gap-4 border-t border-white/15 pt-5 text-[13px] text-white/75 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               <span className="hidden items-center gap-2.5 text-[10.5px] font-semibold uppercase tracking-[0.22em] text-white/70 md:inline-flex">
@@ -149,7 +149,7 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
               ) : null}
             </div>
             {section.highlights.length ? (
-              <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
+              <ul className="hidden flex-wrap gap-x-5 gap-y-1.5 md:flex">
                 {section.highlights.map((highlight) => (
                   <li key={highlight} className="flex items-center gap-2">
                     <span aria-hidden className="size-1 rounded-full bg-[var(--color-brand-accent)]" />
