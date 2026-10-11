@@ -140,6 +140,14 @@ export default async function StorefrontLayout({
             restaurant.status === 'active' && restaurant.features.onlineOrdering
           }
           customer={customer}
+          // the menu sheet lists every live page, not only the configured nav (de-duplicated there)
+          extraLinks={[
+            ...(restaurant.features.reservations && restaurant.settings.reservations.enabled
+              ? [{ label: 'Book a Table', href: `/r/${restaurant.slug}/reservation` }]
+              : []),
+            ...(restaurant.features.reviews ? [{ label: 'Reviews', href: `/r/${restaurant.slug}/reviews` }] : []),
+            ...(locations.length ? [{ label: 'Locations', href: `/r/${restaurant.slug}/locations` }] : []),
+          ]}
           googleEnabled={googleAuthAvailable()}
           googleMapsApiKey={serverConfig.maps?.apiKey ?? null}
         />
