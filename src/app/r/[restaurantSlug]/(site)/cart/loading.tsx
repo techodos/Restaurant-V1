@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CartLoading() {
   return (
-    <div className="container-page py-10 md:py-14">
+    <div className="container-page page-y">
       <Skeleton className="h-9 w-40" />
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-4">

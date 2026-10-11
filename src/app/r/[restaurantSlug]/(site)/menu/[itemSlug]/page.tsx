@@ -59,7 +59,7 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
   const related = (await searchMenu(restaurant.id, { excludeIds: [item.id], limit: 4 })).slice(0, 4);
 
   return (
-    <div className="container-page py-8 md:py-12">
+    <div className="container-page page-y">
       <JsonLd data={menuItemJsonLd(item, restaurant)} />
       <JsonLd
         data={breadcrumbJsonLd([

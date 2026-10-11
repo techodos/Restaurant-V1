@@ -22,7 +22,7 @@ export function EmptyState({
   titleAs?: "h1" | "h2";
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "title" | "children" | "className">) {
   return (
-    <div className={cn("mx-auto max-w-md py-10 text-center", className)} {...rest}>
+    <div className={cn("mx-auto max-w-md py-6 text-center", className)} {...rest}>
       <span className="mx-auto grid size-16 place-items-center rounded-full border border-[var(--rule-strong)] text-[var(--color-brand-accent)]">
         <Icon className="size-6" aria-hidden />
       </span>

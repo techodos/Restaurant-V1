@@ -45,7 +45,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
   const order = await trackOrder(context.restaurant.id, orderNumber, visitor, accessToken);
   if (!order) {
     return (
-      <div className="container-page py-12 md:py-16">
+      <div className="container-page page-y">
         <EmptyState
           icon={SearchX}
           title="We cannot show this order"
@@ -96,7 +96,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
       history={order.statusHistory ?? []}
       orderType={order.orderType}
     >
-      <div className="pb-12 md:pb-16">
+      <div className="pb-10 md:pb-14">
         <JsonLd
           data={{
             "@context": "https://schema.org",

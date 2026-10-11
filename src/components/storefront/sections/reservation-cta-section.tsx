@@ -54,7 +54,7 @@ export function ReservationCtaSection({
           <span aria-hidden className="absolute inset-0 -z-10 bg-black/20" />
         </>
       ) : null}
-      <div className="container-page grid grid-cols-[minmax(0,1fr)] items-center gap-8 py-14 text-white md:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-12">
+      <div className="container-page grid grid-cols-[minmax(0,1fr)] items-center gap-8 py-12 text-white md:py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-12">
         <div className="max-w-xl">
           <p className="eyebrow mb-3 text-white/80">Reservations</p>
           <h2 className="display-1">{section.title}</h2>

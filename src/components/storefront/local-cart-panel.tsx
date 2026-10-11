@@ -107,7 +107,7 @@ export function LocalCartPanel({
         icon={ShoppingBag}
         title="Your cart is empty"
         titleAs={drawer ? "h2" : "h1"}
-        className={drawer ? "px-6 py-14" : "py-0"}
+        className={drawer ? "px-6 py-10" : "py-0"}
         actions={
           <>
             <Button asChild size="lg">
@@ -364,7 +364,7 @@ export function LocalCartPanel({
   }
 
   return (
-    <div className="container-page pb-12 pt-8 md:pb-16 md:pt-12">
+    <div className="container-page page-y">
       <header className="border-b border-[var(--rule)] pb-6 md:pb-8">
         <p className="eyebrow mb-2.5">Your order</p>
         <h1 className="display-2 font-normal">My Cart</h1>

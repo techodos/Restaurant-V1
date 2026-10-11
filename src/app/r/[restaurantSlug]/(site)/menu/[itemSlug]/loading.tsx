@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** A dish opened as its own page (reload / shared link): photo beside the details and the add controls. */
 export default function DishLoading() {
   return (
-    <div className="container-page py-8 md:py-12" aria-busy="true" aria-label="Loading dish">
+    <div className="container-page page-y" aria-busy="true" aria-label="Loading dish">
       <Skeleton className="h-4 w-40" />
       <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
         <Skeleton className="aspect-[4/3] w-full rounded-[var(--radius-panel)]" />

@@ -75,6 +75,62 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
     );
   }
 
+  const cartFull = () => toast.error("Your cart is full", { description: "Check out or remove something before adding more." });
+
+  // Every row of this dish, whatever its variant / add-ons / note (the sheet adds those). The card shows
+  // their total and acts on the most recently added row: "+" repeats it exactly, "−" / trash take from it.
+  const lines = cart.lines.filter((candidate) => candidate.menuItemId === item.id);
+  const line = lines.at(-1);
+
+  if (line) {
+    const total = lines.reduce((sum, entry) => sum + entry.quantity, 0);
+    const hit = compact ? "h-9 w-8 [&_svg]:size-4" : "h-11 w-10 [&_svg]:size-[18px]";
+    const atMax = line.quantity >= 99;
+    return (
+      <div
+        role="group"
+        aria-label={`${item.name} in your cart`}
+        data-testid={`quick-qty-${item.slug}`}
+        className="flex items-center rounded-full bg-[var(--brand-primary,var(--color-brand))] text-[var(--brand-primary-foreground,#fff)] shadow-[0_8px_20px_-8px_rgb(0_0_0/0.45)]"
+      >
+        {/* at 1 the left button removes the row; above 1 it takes one away */}
+        <button
+          type="button"
+          aria-label={total > 1 ? `Remove one ${item.name}` : `Remove ${item.name} from cart`}
+          onClick={() => (line.quantity > 1 ? updateQuantity(line.id, line.quantity - 1) : removeLine(line.id))}
+          className={cn(hit, "press grid place-items-center rounded-full pl-1 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-current")}
+        >
+          {total > 1 ? <Minus aria-hidden strokeWidth={2.25} /> : <Trash2 aria-hidden strokeWidth={2} />}
+        </button>
+        <span aria-live="polite" className={cn("tabular min-w-5 text-center font-semibold", compact ? "text-[13px]" : "text-[15px]")}>
+          {total}
+        </span>
+        <button
+          type="button"
+          aria-label={`Add one more ${item.name}`}
+          disabled={atMax}
+          onClick={() => {
+            // same variant / add-ons / note → addLine merges into this row and keeps the cookie-full check
+            const repeated = addLine({
+              menuItemId: line.menuItemId,
+              variantId: line.variantId,
+              quantity: 1,
+              addons: line.addons,
+              ...(line.specialInstructions ? { specialInstructions: line.specialInstructions } : {}),
+              display: line.display,
+            });
+            if (!repeated) cartFull();
+          }}
+          className={cn(hit, "press grid place-items-center rounded-full pr-1 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-current disabled:cursor-not-allowed disabled:opacity-45")}
+        >
+          <span aria-hidden className={cn("grid place-items-center rounded-full bg-white/20", compact ? "size-6" : "size-7")}>
+            <Plus strokeWidth={2.25} />
+          </span>
+        </button>
+      </div>
+    );
+  }
+
   if (item.requiresSelection) {
     return (
       <Link
@@ -89,8 +145,7 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
   }
 
   // requiresSelection is false: no variant, and no addon group forces a default (see
-  // resolveMenuSelection) — the item's base price is the whole line. addLine merges into the same plain
-  // line (sameLine) and refuses when the cookie would overflow, so "+" reuses it as-is.
+  // resolveMenuSelection) — the item's base price is the whole line.
   const addOne = () =>
     addLine({
       menuItemId: item.id,
@@ -108,51 +163,6 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
         problem: null,
       },
     });
-  const cartFull = () => toast.error("Your cart is full", { description: "Check out or remove something before adding more." });
-
-  // the plain line this button adds; a line with a note or add-ons (from the dish sheet) is its own row
-  const line = cart.lines.find(
-    (candidate) => candidate.menuItemId === item.id && candidate.variantId === null && candidate.addons.length === 0 && !candidate.specialInstructions,
-  );
-
-  if (line) {
-    const hit = compact ? "h-9 w-8 [&_svg]:size-4" : "h-11 w-10 [&_svg]:size-[18px]";
-    const atMax = line.quantity >= 99;
-    return (
-      <div
-        role="group"
-        aria-label={`${item.name} in your cart`}
-        data-testid={`quick-qty-${item.slug}`}
-        className="flex items-center rounded-full bg-[var(--brand-primary,var(--color-brand))] text-[var(--brand-primary-foreground,#fff)] shadow-[0_8px_20px_-8px_rgb(0_0_0/0.45)]"
-      >
-        {/* at 1 the left button removes the line; above 1 it takes one away */}
-        <button
-          type="button"
-          aria-label={line.quantity > 1 ? `Remove one ${item.name}` : `Remove ${item.name} from cart`}
-          onClick={() => (line.quantity > 1 ? updateQuantity(line.id, line.quantity - 1) : removeLine(line.id))}
-          className={cn(hit, "press grid place-items-center rounded-full pl-1 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-current")}
-        >
-          {line.quantity > 1 ? <Minus aria-hidden strokeWidth={2.25} /> : <Trash2 aria-hidden strokeWidth={2} />}
-        </button>
-        <span aria-live="polite" className={cn("tabular min-w-5 text-center font-semibold", compact ? "text-[13px]" : "text-[15px]")}>
-          {line.quantity}
-        </span>
-        <button
-          type="button"
-          aria-label={`Add one more ${item.name}`}
-          disabled={atMax}
-          onClick={() => {
-            if (!addOne()) cartFull();
-          }}
-          className={cn(hit, "press grid place-items-center rounded-full pr-1 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-current disabled:cursor-not-allowed disabled:opacity-45")}
-        >
-          <span aria-hidden className={cn("grid place-items-center rounded-full bg-white/20", compact ? "size-6" : "size-7")}>
-            <Plus strokeWidth={2.25} />
-          </span>
-        </button>
-      </div>
-    );
-  }
 
   return (
     <button

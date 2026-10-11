@@ -50,7 +50,7 @@ export default async function CurrentOrdersPage({ params }: CurrentOrdersPagePro
         title={current.length > 1 ? "Current orders" : "Current order"}
         subtitle="Live status for every order in progress right now."
       />
-      <div className="container-page py-10 md:py-12">
+      <div className="container-page page-y">
         {current.length ? (
           <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-2">
             {current.map((order) => (
