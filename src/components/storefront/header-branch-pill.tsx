@@ -47,8 +47,6 @@ export function HeaderBranchPill({
   const gate = branching.gate();
   const delivery = cart.orderType === "delivery";
   const iconTone = tone === "night" ? "text-[var(--color-brand-accent)]" : "text-[var(--color-brand)]";
-  const pill =
-    "press group/branch flex h-8 min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-[var(--rule-strong)] bg-[var(--tint)] pl-2 pr-2.5 text-left text-[12px] text-[var(--color-ink)] transition-[background-color,border-color] duration-200 hover:border-[color-mix(in_srgb,var(--color-ink)_34%,transparent)] hover:bg-[var(--tint-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-accent)] data-[state=open]:bg-[var(--tint-strong)]";
 
   // nothing to show until the customer has chosen a location and branch (asked at "Add to cart")
   if (gate === "need-location" || gate === "need-branch") return null;
@@ -61,8 +59,13 @@ export function HeaderBranchPill({
       {divider ? <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[var(--rule-strong)] xl:block" /> : null}
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger
-          className={cn(pill, unserved && "border-[color-mix(in_srgb,var(--color-warning)_55%,transparent)]", "lg:max-xl:size-8 lg:max-xl:shrink-0 lg:max-xl:justify-center lg:max-xl:px-0", className)}
-          // the full name on hover: narrow desktop widths shorten the pill to the branch name alone
+          className={cn(
+            "press group/branch flex h-9 min-w-0 max-w-[12rem] items-center rounded-full border bg-[color-mix(in_srgb,var(--color-brand-accent)_6%,transparent)] pl-3 pr-3 text-left transition-[background-color,border-color] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand-accent)_11%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-accent)] data-[state=open]:bg-[color-mix(in_srgb,var(--color-brand-accent)_11%,transparent)] lg:h-10 lg:max-w-[16rem] lg:pl-3.5 lg:pr-3.5",
+            unserved
+              ? "border-[color-mix(in_srgb,var(--color-warning)_55%,transparent)]"
+              : "border-[color-mix(in_srgb,var(--color-brand-accent)_30%,transparent)] hover:border-[color-mix(in_srgb,var(--color-brand-accent)_50%,transparent)]",
+            className,
+          )}
           title={unserved ? destination?.label : [selected?.name, selected?.city].filter(Boolean).join(" · ")}
           aria-label={
             unserved
@@ -73,20 +76,32 @@ export function HeaderBranchPill({
           }
         >
           {unserved ? (
-            <MapPinOff className="size-3.5 shrink-0 text-[var(--color-warning)]" aria-hidden />
+            <MapPinOff className="size-4 shrink-0 text-[var(--color-warning)] lg:size-[18px]" strokeWidth={1.75} aria-hidden />
           ) : (
-            <MapPin className={cn("size-3.5 shrink-0", iconTone)} aria-hidden />
+            <MapPin className={cn("size-4 shrink-0 lg:size-[18px]", iconTone)} strokeWidth={1.75} aria-hidden />
           )}
-          <span className="flex min-w-0 flex-1 items-baseline gap-1.5 lg:max-xl:hidden">
-            <span className="min-w-0 max-w-[6.5rem] truncate font-semibold min-[400px]:max-w-[8.5rem] sm:max-w-[11rem]">
+          <span aria-hidden className="mx-2.5 h-5 w-px shrink-0 bg-[color-mix(in_srgb,var(--color-brand-accent)_22%,transparent)] lg:mx-3 lg:h-[22px]" />
+          <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1.5 leading-none">
+            <span className="truncate text-[10.5px] font-medium text-[var(--color-ink)] lg:text-[11.5px]">
               {unserved ? (destination?.label ?? "Your location") : selected?.name}
             </span>
             {!unserved && selected?.city ? (
-              <span className="hidden min-w-0 max-w-[7rem] shrink-[2] truncate text-[var(--color-muted-ink)] md:inline lg:hidden 2xl:inline">· {selected.city}</span>
+              <span
+                className={cn(
+                  "hidden truncate text-[9px] min-[400px]:block lg:text-[10px]",
+                  tone === "night" ? "text-[color-mix(in_srgb,var(--color-brand-accent)_75%,var(--color-muted-ink))]" : "text-[var(--color-muted-ink)]",
+                )}
+              >
+                {selected.city}
+              </span>
             ) : null}
           </span>
           <ChevronDown
-            className="size-3 shrink-0 text-[var(--color-muted-ink)] transition-transform duration-200 group-data-[state=open]/branch:rotate-180 motion-reduce:transition-none lg:max-xl:hidden"
+            className={cn(
+              "ml-3 size-3.5 shrink-0 transition-transform lg:ml-5 lg:size-4 duration-200 group-data-[state=open]/branch:rotate-180 motion-reduce:transition-none",
+              iconTone,
+            )}
+            strokeWidth={2}
             aria-hidden
           />
         </Popover.Trigger>

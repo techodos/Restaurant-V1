@@ -210,25 +210,37 @@
      section-y      a full-width section's own padding (the gap between two
                     sections is twice this, so it stays moderate)
      section-body   heading group -> the section's content
+     page-y         a working page's body (cart, checkout, orders...) under its hero
      stack-tight    eyebrow -> title, title -> lede (inside a heading group)
    Phones are tighter than desktop; related content stays close, a new section
    is where the breathing room goes.
    --------------------------------------------------------------------------- */
 @utility section-y {
-  padding-block: 3rem;
+  padding-block: 2.5rem;
   @media (min-width: 768px) {
-    padding-block: 4rem;
+    padding-block: 3.25rem;
   }
   @media (min-width: 1280px) {
-    padding-block: 4.75rem;
+    padding-block: 4rem;
   }
 }
 
 /* space between a section's heading group and its content */
 @utility section-body {
-  margin-top: 1.75rem;
+  margin-top: 1.5rem;
   @media (min-width: 768px) {
-    margin-top: 2.25rem;
+    margin-top: 2rem;
+  }
+}
+
+/* a working page's body under its PageHero (cart, checkout, orders, order tracking, dish page):
+   one value instead of each page picking its own; more room below, where the footer starts */
+@utility page-y {
+  padding-top: 1.75rem;
+  padding-bottom: 2.5rem;
+  @media (min-width: 768px) {
+    padding-top: 2.25rem;
+    padding-bottom: 3.5rem;
   }
 }
 

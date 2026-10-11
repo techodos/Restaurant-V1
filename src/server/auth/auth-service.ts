@@ -171,11 +171,11 @@ export async function signInStaff(
     const sql = `select tm.*, u.encrypted_password, u.id as auth_user_id
          from team_members tm
          left join auth.users u on u.id = tm.user_id
-        where lower(tm.email) = lower($2) and tm.is_active and `;
+        where lower(tm.email) = lower($1) and tm.is_active and `;
     // the restaurant's own member first; failing that a super admin (one row, any restaurant) signing in here
     return (
-      (await tx.queryOne<Row>(`${sql} tm.restaurant_id = $1`, [restaurant.id, email.trim()])) ??
-      (await tx.queryOne<Row>(`${sql} tm.role = 'super_admin' order by tm.created_at limit 1`, [restaurant.id, email.trim()]))
+      (await tx.queryOne<Row>(`${sql} tm.restaurant_id = $2`, [email.trim(), restaurant.id])) ??
+      (await tx.queryOne<Row>(`${sql} tm.role = 'super_admin' order by tm.created_at limit 1`, [email.trim()]))
     );
   });
 

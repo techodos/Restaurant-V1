@@ -213,7 +213,7 @@ export function ReservationForm({
   const summary = [selectedDate?.label, time || null, `${guests} guest${guests === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-8 pb-24 md:pb-0">
+    <form onSubmit={handleSubmit} noValidate className="space-y-8">
       <Step index={1} title="When">
         {locations.length > 1 ? (
           <div className="space-y-2.5">

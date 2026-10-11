@@ -5,7 +5,7 @@ export default function OrderLoading() {
   return (
     <div aria-busy="true" aria-label="Loading your order">
       <section className="tone-night relative isolate overflow-hidden">
-        <div className="container-page pb-10 pt-8 md:pb-12 md:pt-10">
+        <div className="container-page page-y">
           <Skeleton className="h-4 w-36" />
           <Skeleton className="mt-6 h-12 w-[min(26rem,85%)]" />
           <Skeleton className="mt-4 h-4 w-[min(30rem,90%)]" />

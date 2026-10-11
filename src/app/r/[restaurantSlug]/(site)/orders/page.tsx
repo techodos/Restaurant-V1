@@ -48,11 +48,10 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
     return (
       <>
         {hero(`Every order you have placed at ${restaurant.name}, in one place.`)}
-        <div className="container-page">
+        <div className="container-page page-y">
           <EmptyState
             icon={LogIn}
             title="Sign in to see your orders"
-            className="py-12 md:py-16"
             actions={
               <>
                 <Button asChild size="lg">
@@ -75,7 +74,7 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
   return (
     <>
       {hero(`Your previous orders at ${restaurant.name}.`)}
-      <div className="container-page pb-12 pt-8 md:pb-16 md:pt-12">
+      <div className="container-page page-y">
         {previous.length ? (
           <ol className="border-b border-[var(--rule)]">
             {previous.map((order) => (

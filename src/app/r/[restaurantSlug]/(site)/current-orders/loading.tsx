@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CurrentOrdersLoading() {
   return (
-    <div className="container-page py-10 md:py-14" aria-busy="true" aria-label="Loading your current orders">
+    <div className="container-page page-y" aria-busy="true" aria-label="Loading your current orders">
       <Skeleton className="h-9 w-48" />
       <Skeleton className="mt-3 h-4 w-72 max-w-full" />
       <div className="mt-8 space-y-4">

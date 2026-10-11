@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function CheckoutLoading() {
   return (
     <div>
-      <div className="container-page pb-12 pt-6 md:pb-20 md:pt-10">
+      <div className="container-page page-y">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="mt-5 h-12 w-56" />
         <Skeleton className="mt-3 h-4 w-72 max-w-full" />

@@ -39,7 +39,7 @@ export function CtaSection({
       <div
         className={cn(
           "container-page flex flex-col items-start gap-8 md:flex-row md:items-end md:justify-between",
-          image ? "py-16 md:py-20" : "py-12 md:py-14",
+          image ? "py-14 md:py-16" : "py-10 md:py-12",
         )}
       >
         <div className="max-w-2xl">

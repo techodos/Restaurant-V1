@@ -290,7 +290,7 @@ async function renderMenu(
                     <>
                       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 border-b border-[var(--rule)] pb-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-end lg:gap-12">
                         <div>
-                          <p className="eyebrow mb-5">{dishes(group.items.length)}</p>
+                          <p className="eyebrow mb-3">{dishes(group.items.length)}</p>
                           <h2 id={`${group.category.slug}-title`} className="display-1">
                             {group.category.name}
                           </h2>

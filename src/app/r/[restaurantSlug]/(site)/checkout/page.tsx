@@ -103,7 +103,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
   return (
     <div>
-    <div className="container-page pb-12 pt-6 md:pb-20 md:pt-10">
+    <div className="container-page page-y">
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-6 border-b border-[var(--rule)] pb-6 md:pb-8">
         <div>
           <Link
