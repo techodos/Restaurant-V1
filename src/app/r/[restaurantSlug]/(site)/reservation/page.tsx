@@ -15,7 +15,6 @@ import { JsonLd } from "@/components/storefront/json-ld";
 import { breadcrumbJsonLd } from "@/web/seo";
 import { getLocations } from "@/server/services/restaurants";
 import { ReservationFormSkeleton } from "@/components/storefront/page-skeletons";
-import { getBookedSlotCounts } from "@/server/services/reservations";
 import { getCustomerProfile } from "@/server/services/customer-profile";
 
 interface ReservationPageProps {
@@ -176,20 +175,13 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
     day: zonedNow(new Date(Date.now() + offset * 86_400_000), restaurant.timezone),
   }));
 
-  // The page's only database reads, side by side (they used to run one after the other): the bookings
-  // in the window — one query for every day and location — and, when signed in, the same profile the
-  // checkout page reads (account email, saved mobile; the form locks whichever are on file, exactly like
-  // checkout's own fields; one read, it carries the verification state too). A guest (no account yet)
-  // gets no profile and the form falls back to plain, editable fields.
-  const [bookedCounts, profile] = await Promise.all([
-    getBookedSlotCounts(
-      restaurant.id,
-      locations.map((location) => location.id),
-      today.dateKey,
-      (days.at(-1)?.day ?? today).dateKey,
-    ),
-    customer ? getVisitorContext(restaurant.id).then((visitor) => getCustomerProfile(restaurant, visitor)) : Promise.resolve(null),
-  ]);
+  // Only read the signed-in customer's profile when signed in (account email, saved mobile; the form
+  // locks whichever are on file, exactly like checkout's own fields). A guest gets no profile and
+  // the form falls back to plain, editable fields. Slots are generated from the location's opening
+  // hours (cached in the storefront snapshot) without querying booked reservations — the restaurant
+  // can accommodate any party size, so all generated slots are available. Availability is re-checked
+  // at booking time (bookReservation/createReservation checks the slot exists and the restaurant is open).
+  const profile = customer ? await getVisitorContext(restaurant.id).then((visitor) => getCustomerProfile(restaurant, visitor)) : null;
   const emailVerified = profile?.emailVerified ?? false;
 
   for (const { offset, day } of days) {
@@ -208,9 +200,10 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
         continue;
       }
 
-      const bookedByTime = bookedCounts[key] ?? {};
-
-      const capacity = settings.tables.length || Math.max(1, Math.floor(settings.maxGuests / 2));
+      // Generate slots at 30-minute intervals from opening to closing time. Use branch opening/closing
+      // if multi-branching is enabled; otherwise use restaurant hours. All slots are marked available
+      // because the restaurant can cater to any number of guests (table inventory is enforced at
+      // booking time via advisory lock, not via slot capacity display).
       const slots: Record<string, { booked: number; capacity: number }> = {};
       for (const window of windows) {
         const open = timeToMinutes(window.open);
@@ -222,7 +215,8 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
           const probe = zonedDateTime(day.dateKey, time, restaurant.timezone);
           if (!isOpenAt(location.hours, probe, restaurant.timezone)) continue;
           if (offset === 0 && minute <= today.minutes) continue; // already passed today
-          slots[time] = { booked: bookedByTime[time] ?? 0, capacity };
+          // Slot is always available; capacity check is deferred to booking time for concurrency safety.
+          slots[time] = { booked: 0, capacity: 1 };
         }
       }
       slotsByDate[key] = slots;
