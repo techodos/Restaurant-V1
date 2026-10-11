@@ -36,6 +36,12 @@ export const heroSectionSchema = z.object({
   primaryCta: ctaSchema.optional(),
   secondaryCta: ctaSchema.optional(),
   highlights: z.array(z.string().trim().max(60)).max(6).default([]),
+  /**
+   * 3D template only (TEMPLATE_ID=2): a .glb / .gltf model shown in the hero instead of the built-in burger.
+   * An https URL (CORS-enabled) or a site path such as /images/<slug>/burger.glb. Ignored by other templates;
+   * a malformed value is dropped rather than discarding the whole hero.
+   */
+  modelUrl: z.string().trim().max(600).optional().catch(undefined),
 });
 
 export const announcementSectionSchema = z.object({

@@ -13,6 +13,8 @@ import { getCustomerSessionSummary } from './account/actions';
 import { getActiveOrderCount } from '@/server/services/orders';
 import { googleAuthAvailable } from '@/server/services/customer-auth';
 import { config as serverConfig } from '@/server/config';
+import { getActiveTemplate } from '@/web/template';
+import { DepthTilt } from '@/components/storefront/templates/depth/depth-tilt';
 
 interface StorefrontLayoutProps {
   children: React.ReactNode;
@@ -100,9 +102,13 @@ export default async function StorefrontLayout({
   // Only the count is shown, so only the count is read (one tiny statement).
   const activeOrderCount = await getActiveOrderCount(restaurant.id, visitor).catch(() => 0);
 
+  // TEMPLATE_ID: presentation only. Classic (1) adds nothing, so its markup is exactly what it was.
+  const template = getActiveTemplate();
+
   return (
     <div
       data-restaurant={restaurant.slug}
+      data-template={template.id === 1 ? undefined : template.key}
       className='theme-root flex min-h-dvh flex-col bg-[var(--color-canvas)] text-[var(--color-ink)]'
       style={
         {
@@ -157,6 +163,9 @@ export default async function StorefrontLayout({
         </main>
 
         {modal}
+
+        {/* 3D template: cards lean toward the pointer (one delegated listener; nothing in other templates) */}
+        {template.key === 'depth' ? <DepthTilt /> : null}
 
         <SiteFooter
           restaurant={restaurant}

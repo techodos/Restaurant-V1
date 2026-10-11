@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { resolveTemplateId } from "@/shared/templates";
+import { logger } from "@/server/logger";
 
 /**
  * The only module that reads `process.env`. Everything else asks for a typed
@@ -265,6 +267,14 @@ const maps = lazy(() => {
   return env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? { apiKey: env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY } : null;
 });
 
+// TEMPLATE_ID (1 = Classic 2D, the default; 2 = 3D; 3 = placeholder slot). Never fails: an unset or
+// unknown value falls back to 1 and is logged once per process.
+const template = lazy(() => {
+  const resolved = resolveTemplateId(process.env.TEMPLATE_ID);
+  if (resolved.warning) logger.warn("config", resolved.warning);
+  return { id: resolved.id };
+});
+
 export const config = {
   get app() {
     return app();
@@ -301,6 +311,9 @@ export const config = {
   },
   get maps() {
     return maps();
+  },
+  get template() {
+    return template();
   },
 };
 

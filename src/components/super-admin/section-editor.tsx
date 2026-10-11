@@ -74,6 +74,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
     },
     { k: "primaryCta", label: "Main button", t: "cta" },
     { k: "secondaryCta", label: "Second button", t: "cta" },
+    { k: "modelUrl", label: "3D model URL (.glb, 3D template only; empty = built-in burger)", t: "text", wide: true },
     {
       k: "highlights",
       label: "Highlights (short badges)",

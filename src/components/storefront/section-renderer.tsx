@@ -18,6 +18,8 @@ import { WhyChooseUsSection } from "@/components/storefront/sections/why-choose-
 import { sectionTones } from "@/components/storefront/section-rhythm";
 import type { SectionTone } from "@/components/storefront/section-shell";
 import type { StorefrontContext } from "@/shared/contract/models";
+import { TEMPLATE_SECTIONS } from "@/components/storefront/templates/registry";
+import { getActiveTemplate } from "@/web/template";
 
 /**
  * Website pages are stored as `sections` JSONB. This is the only place that
@@ -68,12 +70,14 @@ export function SectionRenderer({ context, sections, only, skip, body }: Section
   });
 
   const tones = sectionTones(visible);
+  // the deployment's template (TEMPLATE_ID) may present some section types differently; content is the same
+  const overrides = TEMPLATE_SECTIONS[getActiveTemplate().id];
 
   return (
     <>
       {visible.map((section, index) => {
         if (section.type === "page_content") return <div key={`body-${index}`}>{body}</div>;
-        const Renderer = RENDERERS[section.type];
+        const Renderer = overrides[section.type] ?? RENDERERS[section.type];
         if (!Renderer) return null;
         // A hero that opens the page runs under the header, which floats transparent over it.
         const overlay = index === 0 && section.type === "hero";
