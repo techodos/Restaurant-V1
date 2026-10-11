@@ -35,6 +35,8 @@ interface SiteHeaderProps {
   orderingOpen: boolean;
   /** null while no customer sign-in system was reachable (never blocks rendering). */
   customer: { signedIn: boolean; name: string | null } | null;
+  /** live pages beyond the configured nav (reservation, reviews, locations); listed in the menu sheet */
+  extraLinks?: { label: string; href: string }[];
   googleEnabled: boolean;
   googleMapsApiKey: string | null;
 }
@@ -52,9 +54,45 @@ function isActive(pathname: string, href: string, home: string): boolean {
 // square icon at rest that slides open into a pill on hover / focus, at every width. Opened, it has
 // more room on the right than the left, where the icon already carries its own visual padding.
 const headerIconLinkClass =
-  'group/action press flex h-10 items-center rounded-[var(--radius-control)] border border-transparent px-2.5 text-[var(--color-ink)] transition-[background-color,border-color,padding] duration-300 ease-[var(--ease-out)] hover:border-[var(--rule-strong)] hover:bg-[var(--tint)] hover:pl-3 hover:pr-4 focus-visible:border-[var(--rule-strong)] focus-visible:bg-[var(--tint)] focus-visible:pl-3 focus-visible:pr-4';
+  'group/action press flex h-10 items-center rounded-[var(--radius-control)] px-2.5 text-[var(--color-ink)] transition-[background-color,padding] duration-300 ease-[var(--ease-out)] hover:bg-[var(--tint-strong)] hover:pl-3 hover:pr-4 focus-visible:bg-[var(--tint-strong)] focus-visible:pl-3 focus-visible:pr-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-accent)]';
 const headerIconLabelClass =
   'max-w-0 overflow-hidden whitespace-nowrap text-[13px] font-semibold opacity-0 transition-[max-width,opacity,margin] duration-300 ease-[var(--ease-out)] group-hover/action:max-w-28 group-hover/action:opacity-100 group-focus-visible/action:max-w-28 group-focus-visible/action:opacity-100';
+
+/** The signed-in account mark: the name's capital first letter in a soft disc (an icon when there is no name). */
+function AccountInitial({ name }: { name?: string | null }) {
+  const initial = name?.trim().charAt(0).toLocaleUpperCase();
+  return (
+    <span
+      aria-hidden
+      // the brand colour lifted a touch so it reads on a dark header too; the letter is its foreground tinted toward it
+      className='grid size-7 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_82%,white)] text-[12px] font-semibold leading-none text-[color-mix(in_srgb,var(--color-brand-foreground)_85%,var(--color-brand))]'
+    >
+      {initial || <UserRound className='size-4' />}
+    </span>
+  );
+}
+
+/** `flip`: the short bar sits on the left, for the button at the header's left edge. */
+function MenuButton({ open, onClick, flip, className }: { open: boolean; onClick: () => void; flip?: boolean; className?: string }) {
+  return (
+    <button
+      type='button'
+      onClick={onClick}
+      aria-expanded={open}
+      aria-label='Open menu'
+      // callers set the display per width (`grid lg:hidden` / `hidden lg:grid`)
+      className={cn(
+        'press size-10 place-items-center rounded-full text-[var(--color-ink)] transition-colors hover:bg-[var(--tint-strong)]',
+        className,
+      )}
+    >
+      <span aria-hidden className='relative block h-2.5 w-5'>
+        <span className='absolute left-0 top-0 h-[1.5px] w-full rounded-full bg-current' />
+        <span className={cn('absolute bottom-0 h-[1.5px] w-3/5 rounded-full bg-current', flip ? 'left-0' : 'right-0')} />
+      </span>
+    </button>
+  );
+}
 
 function HeaderIconLink({
   href,
@@ -108,6 +146,7 @@ export function SiteHeader({
   config,
   orderingOpen,
   customer,
+  extraLinks = [],
   googleMapsApiKey,
 }: SiteHeaderProps) {
   const { itemCount } = useLocalCart();
@@ -123,6 +162,13 @@ export function SiteHeader({
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const navItems = config.navigation.items.filter((item) => item.enabled);
+  // the menu sheet: the configured nav first, then any other live page it doesn't already link to
+  const menuItems = [
+    ...navItems,
+    ...extraLinks.filter((link) => !navItems.some((item) => item.href === link.href)),
+  ];
+  // desktop opens the menu from the left (its button sits left of the logo), phones from the bottom
+  const [menuSide, setMenuSide] = useState<'left' | 'right'>('right');
   const announcement = config.announcement;
   const home = `/r/${restaurant.slug}`;
   // only rendered while signed out (signed in opens the profile drawer); brings them back to this page
@@ -210,8 +256,8 @@ export function SiteHeader({
           transparent
             ? 'border-b border-transparent bg-[linear-gradient(180deg,rgb(0_0_0/0.62)_0%,rgb(0_0_0/0.28)_65%,transparent_100%)]'
             : light
-              ? 'border-b border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-canvas)_90%,transparent)] shadow-[0_10px_30px_-26px_rgb(0_0_0/0.35)] backdrop-blur-xl'
-              : 'border-b border-[var(--rule)] shadow-[0_10px_30px_-24px_rgb(0_0_0/0.6)]',
+              ? 'border-b border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-canvas)_90%,transparent)] backdrop-blur-xl'
+              : 'border-b border-[var(--rule)]',
         )}
       >
         {announcement.enabled && announcement.text ? (
@@ -241,6 +287,17 @@ export function SiteHeader({
 
         <div className='container-page grid h-[4.25rem] grid-cols-[1fr_auto] items-center gap-4 lg:h-20 lg:grid-cols-[1fr_auto_1fr]'>
           <div className='flex min-w-0 items-center gap-4 justify-self-start lg:max-xl:gap-2.5 xl:gap-5'>
+            {locationSet ? (
+              <MenuButton
+                open={open}
+                onClick={() => {
+                  setMenuSide('left');
+                  setOpen(true);
+                }}
+                flip
+                className='-ml-2 hidden lg:grid'
+              />
+            ) : null}
             <Link
               href={home}
               className={cn(
@@ -300,6 +357,9 @@ export function SiteHeader({
           </nav>
 
           <div className='flex items-center gap-1.5 justify-self-end sm:gap-2'>
+            {/* desktop, right side: branch → cart → profile (hidden until location + branch are resolved) */}
+            <HeaderBranchPill tone={tone} align='end' className='mr-1 hidden lg:flex' />
+
             {customer?.signedIn ? (
               <HeaderIconLink
                 href={`${home}/orders`}
@@ -311,10 +371,9 @@ export function SiteHeader({
                     ? 'page'
                     : undefined
                 }
-                className='hidden sm:flex'
+                className={cn('hidden sm:flex', locationSet && 'lg:hidden')}
               />
             ) : null}
-
 
             {config.navigation.showCart ? (
               <HeaderIconLink
@@ -346,11 +405,13 @@ export function SiteHeader({
                   aria-haspopup='dialog'
                   aria-expanded={profileOpen}
                   title={accountLabel}
-                  className={cn(headerIconLinkClass, 'hidden sm:flex')}
+                  // the 28px disc sits 6px in from every edge of the 40px control, at rest and opened
+                  className={cn(
+                    headerIconLinkClass,
+                    'hidden px-1.5 hover:pl-1.5 hover:pr-4 focus-visible:pl-1.5 focus-visible:pr-4 sm:flex',
+                  )}
                 >
-                  <span className='relative grid size-5 shrink-0 place-items-center'>
-                    <UserRound className='size-[19px]' aria-hidden />
-                  </span>
+                  <AccountInitial name={customer?.name} />
                   <span
                     aria-hidden
                     className={cn(
@@ -415,21 +476,14 @@ export function SiteHeader({
               </Link>
             )}
 
-            {/* the order's branch, right of the account action (hidden until location + branch are resolved) */}
-            <HeaderBranchPill tone={tone} align='end' className='hidden lg:flex' />
-
-            <button
-              type='button'
-              onClick={() => setOpen(true)}
-              aria-expanded={open}
-              aria-label='Open menu'
-              className='press grid size-10 place-items-center rounded-full text-[var(--color-ink)] transition-colors hover:bg-[var(--tint-strong)] lg:hidden'
-            >
-              <span aria-hidden className='relative block h-2.5 w-5'>
-                <span className='absolute left-0 top-0 h-[1.5px] w-full rounded-full bg-current' />
-                <span className='absolute bottom-0 right-0 h-[1.5px] w-3/5 rounded-full bg-current' />
-              </span>
-            </button>
+            <MenuButton
+              open={open}
+              onClick={() => {
+                setMenuSide('right');
+                setOpen(true);
+              }}
+              className='grid lg:hidden'
+            />
           </div>
         </div>
 
@@ -462,13 +516,14 @@ export function SiteHeader({
         onOpenChange={setOpen}
         title={restaurant.name}
         tone={light ? 'paper' : 'night'}
+        side={menuSide}
       >
         <nav
           aria-label='Mobile'
           className='flex min-h-full flex-col px-5 pb-8 md:px-7'
         >
           <ul>
-            {navItems.map((item, index) => {
+            {menuItems.map((item, index) => {
               const active = isActive(pathname, item.href, home);
               return (
                 <li

@@ -37,6 +37,8 @@ export interface SheetProps {
   footer?: React.ReactNode;
   /** ground of the panel: the page's paper (default) or the dark night surface */
   tone?: "paper" | "night";
+  /** tablet/desktop: the edge the panel slides in from (phones are always a bottom sheet) */
+  side?: "left" | "right";
 }
 
 /**
@@ -56,6 +58,7 @@ export function Sheet({
   children,
   footer,
   tone = "paper",
+  side = "right",
 }: SheetProps) {
   const desktop = useIsDesktop();
   const reduce = useReducedMotion();
@@ -65,7 +68,7 @@ export function Sheet({
   const hidden = reduce
     ? { opacity: 0 }
     : desktop
-      ? { x: "100%" }
+      ? { x: side === "left" ? "-100%" : "100%" }
       : { y: "100%" };
   const shown = reduce ? { opacity: 1 } : { x: 0, y: 0 };
 
@@ -94,7 +97,10 @@ export function Sheet({
                   `tone-${tone}`,
                   "fixed z-50 flex flex-col bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-[var(--shadow-raised)] outline-none",
                   "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[var(--radius-panel)]",
-                  "md:inset-y-0 md:left-auto md:right-0 md:h-dvh md:max-h-none md:rounded-none md:rounded-l-[var(--radius-panel)]",
+                  "md:inset-y-0 md:h-dvh md:max-h-none md:rounded-none",
+                  side === "left"
+                    ? "md:left-0 md:right-auto md:rounded-r-[var(--radius-panel)]"
+                    : "md:left-auto md:right-0 md:rounded-l-[var(--radius-panel)]",
                   size === "xl" ? "md:w-[min(60rem,94vw)]" : size === "lg" ? "md:w-[min(40rem,94vw)]" : "md:w-[min(30rem,94vw)]",
                 )}
                 initial={hidden}
