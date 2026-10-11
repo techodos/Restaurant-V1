@@ -143,12 +143,36 @@ export function SiteHeader({
     return () => cancelAnimationFrame(frame);
   }, [pathname]);
 
+  // Phones: the branch strip tucks away while reading down the page and returns on any scroll back up
+  // (or near the top). A small dead zone keeps it from flickering on momentum and tiny thumb jitter.
+  const [stripHidden, setStripHidden] = useState(false);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
+    let last = window.scrollY;
+    let frame = 0;
+    const onScroll = () => {
+      setScrolled(window.scrollY > 24);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const delta = y - last;
+        if (y < 96) {
+          setStripHidden(false);
+          last = y;
+        } else if (Math.abs(delta) > 8) {
+          setStripHidden(delta > 0);
+          last = y;
+        }
+      });
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+    };
   }, []);
+  // a new page starts at the top: show the strip again
+  useEffect(() => setStripHidden(false), [pathname]);
 
   // Publish the header's height (it grows with the announcement bar / paused notice) so heroes can slide
   // under it and sticky sub-navigation and anchor offsets sit right below it.
@@ -291,8 +315,6 @@ export function SiteHeader({
               />
             ) : null}
 
-            {/* mobile: the branch pill left of the cart (desktop shows it beside the account action) */}
-            <HeaderBranchPill tone={tone} align='end' className='flex lg:hidden' />
 
             {config.navigation.showCart ? (
               <HeaderIconLink
@@ -408,6 +430,22 @@ export function SiteHeader({
                 <span className='absolute bottom-0 right-0 h-[1.5px] w-3/5 rounded-full bg-current' />
               </span>
             </button>
+          </div>
+        </div>
+
+        {/* phones: the order's branch as a full-width strip along the header's bottom edge. It collapses
+            (grid rows 1fr -> 0fr, so the published --header-h follows and sticky rails slide up with it)
+            while scrolling down; `inert` keeps the hidden button out of the tab order. */}
+        <div
+          data-branch-strip
+          inert={stripHidden || undefined}
+          className={cn(
+            'grid transition-[grid-template-rows,opacity] duration-300 ease-[var(--ease-out)] motion-reduce:transition-none lg:hidden',
+            stripHidden ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
+          )}
+        >
+          <div className='min-h-0 overflow-hidden'>
+            <HeaderBranchPill tone={tone} align='end' variant='strip' />
           </div>
         </div>
 

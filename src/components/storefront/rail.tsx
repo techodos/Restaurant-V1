@@ -88,7 +88,7 @@ export function Rail({
         <>
           <div className="absolute left-0 top-[38%] hidden -translate-x-1/2 -translate-y-1/2 xl:block">{button(-1)}</div>
           <div className="absolute right-0 top-[38%] hidden -translate-y-1/2 translate-x-1/2 xl:block">{button(1)}</div>
-          <div className="mt-6 flex justify-end gap-2 xl:hidden">
+          <div className="mt-3 flex justify-end gap-2 xl:hidden">
             {button(-1)}
             {button(1)}
           </div>
