@@ -5,6 +5,7 @@ import { action, errors } from "@/server/errors";
 import type { ApiResult } from "@/shared/contract/api";
 import {
   addPage,
+  customizeLegalPage,
   removePage,
   saveEntitlements,
   savePage,
@@ -15,6 +16,7 @@ import {
 import type { LibraryImage } from "@/shared/contract/models";
 import { entitlementsPatchSchema, newPageSchema, pageInputSchema, websiteInputSchema } from "@/server/validation/platform";
 import { requireSuperAdmin, signOutStaffSession } from "@/web/session";
+import { z } from "zod";
 
 /** Every action re-checks the super admin (cookie + database role); the services check the role again. */
 
@@ -38,6 +40,15 @@ export async function addPageAction(restaurantId: string, payload: unknown): Pro
   return action(async () => {
     const actor = await requireSuperAdmin();
     const page = await addPage(actor, restaurantId, newPageSchema.parse(payload));
+    return { id: page.id };
+  });
+}
+
+/** Creates a draft privacy / terms page pre-filled with the default template text (customizeLegalPage). */
+export async function customizeLegalPageAction(restaurantId: string, kind: unknown): Promise<ApiResult<{ id: string }>> {
+  return action(async () => {
+    const actor = await requireSuperAdmin();
+    const page = await customizeLegalPage(actor, restaurantId, z.enum(["privacy", "terms"]).parse(kind));
     return { id: page.id };
   });
 }

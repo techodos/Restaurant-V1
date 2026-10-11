@@ -4,9 +4,11 @@ import type { RequestContext } from "@/server/context";
 import type { StaffActor } from "@/server/auth/auth-service";
 import { isSuperAdmin } from "@/server/auth/permissions";
 import { getStorefrontCache } from "@/server/cache";
-import { listAllRestaurants, updateRestaurant } from "@/server/repositories/restaurants";
+import { getPrimaryLocation, listAllRestaurants, updateRestaurant } from "@/server/repositories/restaurants";
 import { createPage, deletePage, getPageById, getWebsite, listPages, updatePage, updateWebsite } from "@/server/repositories/websites";
 import { invalidateAdminRestaurants } from "@/server/services/restaurants";
+import { getLegalDocument } from "@/server/services/legal";
+import { legalDocumentSections, type LegalKind } from "@/shared/legal";
 import type { entitlementsPatchSchema, PageInput, WebsiteInput } from "@/server/validation/platform";
 import { parseEntitlements } from "@/shared/feature-access";
 import type { LibraryImage, MediaAsset, Restaurant, Website, WebsitePage } from "@/shared/contract/models";
@@ -91,6 +93,40 @@ export async function addPage(actor: StaffActor, restaurantId: string, input: { 
   const page = await createPage(
     { websiteId: website.id, restaurantId, slug: input.slug, title: input.title, isPublished: false },
     ctxFor(actor, restaurantId),
+  );
+  invalidate();
+  return page;
+}
+
+/**
+ * Starts this restaurant's own Privacy Policy / Terms page from the default template: a DRAFT `privacy` / `terms`
+ * page whose rich-text sections hold exactly the text the storefront shows today, built from THIS restaurant's
+ * rows. The storefront keeps showing the template until the page is published (components/storefront/legal-page.tsx).
+ */
+export async function customizeLegalPage(actor: StaffActor, restaurantId: string, kind: LegalKind): Promise<WebsitePage> {
+  const website = await requireWebsite(actor, restaurantId);
+  const ctx = ctxFor(actor, restaurantId);
+  if ((await listPages(website.id, ctx)).some((page) => page.slug === kind)) {
+    throw errors.conflict("This restaurant already has that page. Edit it from the list.");
+  }
+  const restaurant = (await listAllRestaurants(ctx)).find((r) => r.id === restaurantId);
+  if (!restaurant) throw errors.notFound("Restaurant");
+  const document = getLegalDocument(kind, {
+    restaurant,
+    primaryLocation: await getPrimaryLocation(restaurantId, ctx),
+    contactEmail: website.config.contact.email,
+  });
+  const page = await createPage(
+    {
+      websiteId: website.id,
+      restaurantId,
+      slug: kind,
+      title: document.title,
+      description: document.summary,
+      isPublished: false,
+      sections: legalDocumentSections(document),
+    },
+    ctx,
   );
   invalidate();
   return page;

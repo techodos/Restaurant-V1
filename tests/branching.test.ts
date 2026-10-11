@@ -219,3 +219,30 @@ describe("city is a hard boundary for delivery branches", () => {
     expect(ids(rankBranches(ZAYTOUN, ZAYTOUN_ZONES, destination("Bahria Town", "  islamabad ")).delivery)).toEqual(["greens"]);
   });
 });
+
+describe("deliveryAreas: the location sheet's city / area dropdowns", () => {
+  const lahoreA = branch("lhr-a", "Lahore A", "Lahore", 31.5, 74.3);
+  const lahoreB = branch("lhr-b", "Lahore B", " lahore ", 31.4, 74.4);
+  const karachi = branch("khi", "Karachi", "Karachi", 24.8, 67.0);
+  const off = branch("off", "Closed Lahore", "Lahore", 31.47, 74.4, false);
+  const zones = [
+    zone("lhr-a", ["Gulberg", " DHA Phase 5 ", "Lahore"]),
+    zone("lhr-b", ["dha phase 5", "Bahria Town"]),
+    zone("lhr-b", ["Johar Town"], [], false),
+    zone("off", ["Model Town"]),
+    zone("khi", ["Clifton"]),
+  ];
+
+  it("lists each delivery city's zone areas: de-duplicated, sorted, without the city itself, inactive zones and branches ignored", () => {
+    const { deliveryAreas } = rankBranches([lahoreA, lahoreB, karachi, off], zones, null);
+    expect(deliveryAreas).toEqual([
+      { city: "Lahore", areas: ["Bahria Town", "DHA Phase 5", "Gulberg"] },
+      { city: "Karachi", areas: ["Clifton"] },
+    ]);
+  });
+
+  it("is the same with or without a destination", () => {
+    const withDestination = rankBranches([lahoreA, karachi], zones, destination("Gulberg", "Lahore", 31.5, 74.3));
+    expect(withDestination.deliveryAreas).toEqual(rankBranches([lahoreA, karachi], zones, null).deliveryAreas);
+  });
+});

@@ -79,6 +79,35 @@ export function ReservationFormSkeleton() {
   );
 }
 
+/** Privacy / terms: short hero, then the contents rail beside numbered text sections (components/storefront/legal-page.tsx). */
+export function LegalPageSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading">
+      <PageHeroSkeleton size="sm" />
+      <div className="container-page page-y grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] lg:gap-14">
+        <div>
+          <Skeleton className="h-3.5 w-36" />
+          <div className="mt-5 hidden space-y-2.5 lg:block">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <Skeleton key={index} className="h-3.5 w-40" />
+            ))}
+          </div>
+        </div>
+        <div className="max-w-[46rem] space-y-9">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index}>
+              <Skeleton className="h-6 w-[min(18rem,70%)]" />
+              <Skeleton className="mt-4 h-4 w-full" />
+              <Skeleton className="mt-2 h-4 w-[92%]" />
+              <Skeleton className="mt-2 h-4 w-[70%]" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** A plain column of text blocks (website pages, review lists). */
 export function SectionBlocksSkeleton({ blocks = 3 }: { blocks?: number }) {
   return (

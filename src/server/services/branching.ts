@@ -51,18 +51,33 @@ export function rankBranches(
   locations: readonly RestaurantLocation[],
   zones: readonly DeliveryZone[],
   destination: DeliveryDestination | null,
-): Pick<BranchingState, "delivery" | "all" | "deliveryCities"> {
+): Pick<BranchingState, "delivery" | "all" | "deliveryCities" | "deliveryAreas"> {
   const active = locations.filter((location) => location.isActive);
   const all = active.map((location) => toOption(location, destination)).sort(byDistance);
   // from the data, never a list in code: a new city appears here as soon as a branch there has a zone
-  const deliveryCities = [
-    ...new Map(
-      active
-        .filter((location) => location.city?.trim() && zones.some((zone) => zone.isActive && zone.locationId === location.id))
-        .map((location) => [location.city!.trim().toLowerCase(), location.city!.trim()]),
-    ).values(),
-  ];
-  if (!destination) return { delivery: [], all, deliveryCities };
+  // one entry per city however its branches spell it; the first spelling wins
+  const cityNames = new Map<string, string>();
+  for (const location of active) {
+    const name = location.city?.trim();
+    if (!name || cityNames.has(name.toLowerCase())) continue;
+    if (zones.some((zone) => zone.isActive && zone.locationId === location.id)) cityNames.set(name.toLowerCase(), name);
+  }
+  const deliveryCities = [...cityNames.values()];
+  const deliveryAreas = deliveryCities.map((city) => {
+    const key = city.toLowerCase();
+    const branchIds = new Set(active.filter((location) => location.city?.trim().toLowerCase() === key).map((location) => location.id));
+    const names = new Map<string, string>();
+    for (const zone of zones) {
+      if (!zone.isActive || !zone.locationId || !branchIds.has(zone.locationId)) continue;
+      for (const raw of zone.areas) {
+        const area = raw.trim();
+        // a zone that lists the city itself means "the whole city", not an area to pick
+        if (area && area.toLowerCase() !== key && !names.has(area.toLowerCase())) names.set(area.toLowerCase(), area);
+      }
+    }
+    return { city, areas: [...names.values()].sort((a, b) => a.localeCompare(b)) };
+  });
+  if (!destination) return { delivery: [], all, deliveryCities, deliveryAreas };
 
   // filter FIRST (city, then the branch's own zones), only then is the list ordered by distance: a branch
   // in another city never serves, however close its coordinates — and there is no "first branch" fallback
@@ -81,7 +96,7 @@ export function rankBranches(
       .filter((location) => matchDeliveryZone(zones.filter((zone) => zone.locationId === location.id), address, branchOf) !== null)
       .map((location) => location.id),
   );
-  return { delivery: all.filter((branch) => serves.has(branch.id)), all, deliveryCities };
+  return { delivery: all.filter((branch) => serves.has(branch.id)), all, deliveryCities, deliveryAreas };
 }
 
 export async function resolveBranching(restaurantId: string, destination: DeliveryDestination | null): Promise<BranchingState> {

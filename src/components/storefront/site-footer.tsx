@@ -109,9 +109,20 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
 
       <div className="border-t border-[var(--rule)]">
         <div className="container-page flex flex-col gap-2 py-6 pb-[calc(1.5rem+4.5rem+env(safe-area-inset-bottom))] text-xs text-[var(--color-muted-ink)] sm:flex-row sm:items-center sm:justify-between md:pb-6">
-          <p>
-            © {new Date().getFullYear()} {restaurant.legalName ?? restaurant.name}. All rights reserved.
-          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+            <p>
+              © {new Date().getFullYear()} {restaurant.legalName ?? restaurant.name}. All rights reserved.
+            </p>
+            {/* this restaurant's own legal pages (components/storefront/legal-page.tsx) */}
+            <nav aria-label="Legal" className="flex gap-4">
+              <Link href={`/r/${restaurant.slug}/privacy`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
+                Privacy Policy
+              </Link>
+              <Link href={`/r/${restaurant.slug}/terms`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
+                Terms of Service
+              </Link>
+            </nav>
+          </div>
           <p>{footer.legalNote ?? `${locations.length} location${locations.length === 1 ? "" : "s"} in ${restaurant.country}`}</p>
         </div>
       </div>

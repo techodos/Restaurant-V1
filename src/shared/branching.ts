@@ -45,6 +45,12 @@ export interface BranchingState {
   unavailable: Record<string, string[]>;
   /** cities with an active branch that has an active delivery zone ("we deliver in Lahore and Islamabad") */
   deliveryCities: string[];
+  /**
+   * Per delivery city, the area names its zones list (sorted, de-duplicated, the city's own name left out),
+   * for the location sheet's area dropdown. A city whose zones only use a radius or a drawn shape has no
+   * names here; the sheet then lets the customer type an area.
+   */
+  deliveryAreas: { city: string; areas: string[] }[];
 }
 
 const DESTINATION_COOKIE_PREFIX = "rp_dest_";

@@ -10,7 +10,7 @@ import type { CustomerAddress } from "@/shared/contract/models";
 import { Sheet } from "@/components/motion/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FieldError, Input, Label } from "@/components/ui/input";
+import { FieldError, Input, Label, Select } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
@@ -303,6 +303,7 @@ function EnabledProvider({
             signedIn={signedIn}
             current={state.destination}
             delivery={cart.orderType === "delivery"}
+            deliveryAreas={state.deliveryAreas ?? []}
             onChoose={chooseDestination}
             onDone={() => setLocationOpen(false)}
           />
@@ -330,6 +331,16 @@ function EnabledProvider({
 
 // ─── the location sheet ───────────────────────────────────────────────────────
 
+/** the "not listed, let me type it" choice in the city / area dropdowns */
+const OTHER = "__other__";
+
+/** The dropdown value for a remembered city/area: the listed spelling when it is listed, else "type it". */
+function initialChoice(value: string | null | undefined, options: string[], fallback: string): string {
+  const typed = value?.trim();
+  if (!typed) return fallback;
+  return options.find((option) => option.toLowerCase() === typed.toLowerCase()) ?? OTHER;
+}
+
 function toDestination(address: CustomerAddress): DeliveryDestination {
   return {
     label: [address.area, address.city].filter(Boolean).join(", ") || address.label,
@@ -350,6 +361,7 @@ function LocationChooser({
   signedIn,
   current,
   delivery,
+  deliveryAreas,
   onChoose,
   onDone,
 }: {
@@ -359,13 +371,23 @@ function LocationChooser({
   signedIn: boolean;
   current: DeliveryDestination | null;
   delivery: boolean;
+  /** this restaurant's delivery cities and their zone area names (BranchingState.deliveryAreas) */
+  deliveryAreas: BranchingState["deliveryAreas"];
   onChoose: (destination: DeliveryDestination) => Promise<{ error: string | null; served: boolean }>;
   onDone: () => void;
 }) {
   const [addresses, setAddresses] = useState<CustomerAddress[] | null>(signedIn ? null : []);
   const [picked, setPicked] = useState<ResolvedLocation | null>(null);
-  const [area, setArea] = useState(current?.area ?? "");
-  const [city, setCity] = useState(current?.city ?? "");
+  // City and area are dropdowns of what this restaurant's zones cover, each with "not listed" to type one
+  // (radius / drawn zones have no area names, and pickup may be from anywhere).
+  const cities = deliveryAreas.map((entry) => entry.city);
+  const [cityChoice, setCityChoice] = useState(() => initialChoice(current?.city, cities, cities.length === 1 ? cities[0]! : ""));
+  const [cityText, setCityText] = useState(cityChoice === OTHER ? (current?.city ?? "") : "");
+  const city = cityChoice === OTHER ? cityText : cityChoice;
+  const areaOptions = deliveryAreas.find((entry) => entry.city.toLowerCase() === city.trim().toLowerCase())?.areas ?? [];
+  const [areaChoice, setAreaChoice] = useState(() => initialChoice(current?.area, areaOptions, ""));
+  const [areaText, setAreaText] = useState(areaChoice === OTHER ? (current?.area ?? "") : "");
+  const area = areaOptions.length === 0 || areaChoice === OTHER ? areaText : areaChoice;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** the label of a destination no branch delivers to: stay open and say so */
@@ -396,7 +418,8 @@ function LocationChooser({
     onDone();
   }
 
-  const manualReady = Boolean(area.trim() || city.trim());
+  // a destination needs its city (validation/branching.ts); a city with listed areas needs one picked or typed
+  const manualReady = Boolean(city.trim() && (area.trim() || areaOptions.length === 0));
 
   return (
     <div className="space-y-6 px-5 pb-8 md:px-7">
@@ -525,12 +548,66 @@ function LocationChooser({
         >
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="dest-area">Area</Label>
-              <Input id="dest-area" value={area} onChange={(event) => setArea(event.target.value)} placeholder="e.g. DHA Phase 5" autoComplete="address-level2" />
+              <Label htmlFor="dest-city">City</Label>
+              {cities.length > 0 ? (
+                <Select
+                  id="dest-city"
+                  value={cityChoice}
+                  onChange={(event) => {
+                    setCityChoice(event.target.value);
+                    // a new city has its own areas
+                    setAreaChoice("");
+                    setAreaText("");
+                  }}
+                >
+                  <option value="" disabled>
+                    Select your city
+                  </option>
+                  {cities.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                  <option value={OTHER}>Another city…</option>
+                </Select>
+              ) : null}
+              {cities.length === 0 || cityChoice === OTHER ? (
+                <Input
+                  id={cities.length === 0 ? "dest-city" : "dest-city-other"}
+                  aria-label={cities.length === 0 ? undefined : "Your city"}
+                  value={cityText}
+                  onChange={(event) => setCityText(event.target.value)}
+                  placeholder="e.g. Lahore"
+                  autoComplete="address-level1"
+                />
+              ) : null}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="dest-city">City</Label>
-              <Input id="dest-city" value={city} onChange={(event) => setCity(event.target.value)} placeholder="e.g. Lahore" autoComplete="address-level1" />
+              <Label htmlFor="dest-area">Area</Label>
+              {areaOptions.length > 0 ? (
+                <Select id="dest-area" value={areaChoice} onChange={(event) => setAreaChoice(event.target.value)}>
+                  <option value="" disabled>
+                    Select your area
+                  </option>
+                  {areaOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                  <option value={OTHER}>My area isn&apos;t listed…</option>
+                </Select>
+              ) : null}
+              {areaOptions.length === 0 || areaChoice === OTHER ? (
+                <Input
+                  id={areaOptions.length === 0 ? "dest-area" : "dest-area-other"}
+                  aria-label={areaOptions.length === 0 ? undefined : "Your area"}
+                  value={areaText}
+                  onChange={(event) => setAreaText(event.target.value)}
+                  placeholder="e.g. DHA Phase 5"
+                  autoComplete="address-level2"
+                  disabled={!city.trim()}
+                />
+              ) : null}
             </div>
           </div>
           <Button type="submit" className="w-full" disabled={!manualReady || Boolean(busy)}>

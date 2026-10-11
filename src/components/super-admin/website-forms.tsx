@@ -18,6 +18,7 @@ import {
   Plus,
   Search,
   Share2,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
   Type,
@@ -26,7 +27,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input, Select, Textarea } from "@/components/ui/input";
-import { addPageAction, deletePageAction, listWebsiteLibraryAction, savePageAction, saveWebsiteAction, uploadWebsiteImageAction } from "@/app/super-admin/actions";
+import { addPageAction, customizeLegalPageAction, deletePageAction, listWebsiteLibraryAction, savePageAction, saveWebsiteAction, uploadWebsiteImageAction } from "@/app/super-admin/actions";
 import { Check, ColorField, Field, RowList } from "@/components/super-admin/form-parts";
 import { SectionsEditor } from "@/components/super-admin/section-editor";
 import { ImageUploadProvider } from "@/components/super-admin/image-upload";
@@ -93,6 +94,18 @@ export function PagesManager({ slug, restaurantId, pages }: { slug: string; rest
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
   const published = pages.filter((page) => page.isPublished).length;
+  // privacy / terms show the built-in template until the restaurant has its own page with that address
+  const builtInLegal = LEGAL_PAGES.filter(({ kind }) => !pages.some((page) => page.slug === kind));
+
+  function customize(kind: (typeof LEGAL_PAGES)[number]["kind"]) {
+    startTransition(() => {
+      customizeLegalPageAction(restaurantId, kind).then((result) => {
+        if (!result.success) return void toast.error(result.error.message);
+        toast.success("Draft created from the current text. Edit it, then publish to replace the default.");
+        router.push(`/super-admin/${slug}/website/${result.data.id}`);
+      });
+    });
+  }
 
   function create(event: React.FormEvent) {
     event.preventDefault();
@@ -215,12 +228,46 @@ export function PagesManager({ slug, restaurantId, pages }: { slug: string; rest
           })}
         </ul>
       )}
+      {builtInLegal.length ? (
+        <ul className="divide-y divide-[var(--color-hairline)] border-t border-[var(--color-hairline)]">
+          {builtInLegal.map(({ kind, title }) => (
+            <li key={kind} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 sm:px-6">
+              <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--sa-subtle)] text-[var(--color-muted-ink)]">
+                <ShieldCheck className="size-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--color-ink)]">{title}</p>
+                <p className="truncate text-xs text-[var(--color-muted-ink)]">
+                  <span className="font-mono">/{kind}</span> · default text from this restaurant&apos;s details
+                </p>
+              </div>
+              <StatusBadge tone="neutral" dot={false}>Built-in</StatusBadge>
+              <div className="flex items-center gap-1">
+                <Button asChild variant="ghost" size="sm">
+                  <a href={`/r/${slug}/${kind}`} target="_blank" rel="noreferrer">
+                    <ExternalLink className="size-3.5" aria-hidden /> View
+                  </a>
+                </Button>
+                <Button variant="outline" size="sm" disabled={pending} onClick={() => customize(kind)}>
+                  <Pencil className="size-3.5" aria-hidden /> Customize
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </Panel>
   );
 }
 
+/** Storefront pages that exist without a website_pages row (components/storefront/legal-page.tsx). */
+const LEGAL_PAGES = [
+  { kind: "privacy", title: "Privacy Policy" },
+  { kind: "terms", title: "Terms of Service" },
+] as const;
+
 /* ------------------------------------------------------------------------------------------------------------------ */
-/* Website configuration                                                                                               */
+/* Website configuration                                                                                            */
 /* ------------------------------------------------------------------------------------------------------------------ */
 
 interface WebsiteState {
