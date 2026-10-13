@@ -6,13 +6,19 @@ import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
-import { deleteDeliveryZoneAction, saveDeliveryZoneAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/delivery-zones/actions";
+import {
+  deleteDeliveryZoneAction,
+  saveDeliveryPricingAction,
+  saveDeliveryZoneAction,
+} from "@/app/r/[restaurantSlug]/admin/(dashboard)/delivery-zones/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
 import type { Polygon } from "@/shared/geo";
 import { cn } from "@/shared/utils";
 import { ZoneCoverageMap } from "@/components/admin/zone-coverage-map";
 import { StatusPill } from "@/components/admin/admin-ui";
+import { DeliveryPricingEditor } from "@/components/admin/delivery-pricing-editor";
+import { parseDeliveryPricing, type DeliverySlab } from "@/shared/delivery-pricing";
 
 type Coverage = "areas" | "radius" | "polygon";
 const COVERAGE_LABELS: Record<Coverage, string> = { areas: "Area names", radius: "Radius", polygon: "Draw on map" };
@@ -58,9 +64,19 @@ function ZoneEditForm({
   const [polygon, setPolygon] = useState<Polygon>(zone?.polygon ?? []);
   const branch = locations.find((location) => location.id === locationId);
   const branchPin = branch?.latitude != null && branch.longitude != null ? { latitude: branch.latitude, longitude: branch.longitude } : null;
+  // Distance pricing belongs to the BRANCH, not this zone — editing it here is a convenience (the admin is
+  // already looking at this branch's delivery setup). Re-seeded whenever the chosen branch changes, so it
+  // always reflects that branch's own saved ranges, not leftover edits from a different one.
+  const [deliverySlabs, setDeliverySlabs] = useState<DeliverySlab[]>(() => parseDeliveryPricing(branch?.settings?.deliveryPricing)?.slabs ?? []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+
+  function changeBranch(nextLocationId: string) {
+    setLocationId(nextLocationId);
+    const nextBranch = locations.find((location) => location.id === nextLocationId);
+    setDeliverySlabs(parseDeliveryPricing(nextBranch?.settings?.deliveryPricing)?.slabs ?? []);
+  }
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -81,19 +97,24 @@ function ZoneEditForm({
       ...(coverage === "radius" ? { radiusKm: Number(radiusKm) } : {}),
       ...(coverage === "polygon" ? { polygon } : {}),
     };
-    startTransition(() => {
-      saveDeliveryZoneAction(payload).then((result) => {
-        if (!result.success) {
-          if (result.error.details) {
-            setErrors(Object.fromEntries(Object.entries(result.error.details).map(([key, value]) => [key, String(value)])));
-          }
-          toast.error(result.error.message);
-          return;
+    startTransition(async () => {
+      const result = await saveDeliveryZoneAction(payload);
+      if (!result.success) {
+        if (result.error.details) {
+          setErrors(Object.fromEntries(Object.entries(result.error.details).map(([key, value]) => [key, String(value)])));
         }
-        toast.success(zone ? "Zone updated." : "Zone created.");
-        router.refresh();
-        onCancel();
-      });
+        toast.error(result.error.message);
+        return;
+      }
+      // the branch's distance pricing, saved alongside the zone (same submit, one Save button)
+      const pricing = await saveDeliveryPricingAction(locationId, deliverySlabs.length ? deliverySlabs : null);
+      if (!pricing.success) {
+        toast.error(pricing.error.message, { description: "The zone itself was saved; its branch's distance pricing was not." });
+        return;
+      }
+      toast.success(zone ? "Zone updated." : "Zone created.");
+      router.refresh();
+      onCancel();
     });
   }
 
@@ -110,7 +131,7 @@ function ZoneEditForm({
         </div>
         <div>
           <Label htmlFor="zoneLocation">Location</Label>
-          <Select id="zoneLocation" value={locationId} onChange={(event) => setLocationId(event.target.value)} required>
+          <Select id="zoneLocation" value={locationId} onChange={(event) => changeBranch(event.target.value)} required>
             {locations.map((location) => (
               <option key={location.id} value={location.id}>
                 {location.name}
@@ -185,8 +206,13 @@ function ZoneEditForm({
 
       <div className="grid gap-3 sm:grid-cols-4">
         <div>
-          <Label htmlFor="deliveryFee">Delivery fee</Label>
+          <Label htmlFor="deliveryFee">{deliverySlabs.length > 0 ? "Default fee (no distance match)" : "Delivery fee"}</Label>
           <Input id="deliveryFee" value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} required />
+          {deliverySlabs.length > 0 ? (
+            <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
+              Charged when distance pricing below cannot apply — no pin from the customer, or no pin on this branch.
+            </p>
+          ) : null}
           <FieldError>{errors.deliveryFee}</FieldError>
         </div>
         <div>
@@ -207,6 +233,15 @@ function ZoneEditForm({
             <Input id="etaMaxMinutes" type="number" min={1} value={etaMaxMinutes} onChange={(event) => setEtaMaxMinutes(event.target.value)} />
           </div>
         </div>
+      </div>
+
+      <div>
+        <Label>Distance pricing for this branch (optional)</Label>
+        <p className="mb-2 text-xs text-[var(--color-muted-ink)]">
+          Fixed fees by straight-line distance from {branch?.name ?? "this branch"}'s pin, instead of a zone's own flat fee above — only
+          applies when the customer places a pin at checkout. {!branchPin ? "This branch has no map pin yet; set one on the Locations page first." : ""}
+        </p>
+        <DeliveryPricingEditor slabs={deliverySlabs} onChange={setDeliverySlabs} />
       </div>
 
       <div className="flex items-center justify-between">

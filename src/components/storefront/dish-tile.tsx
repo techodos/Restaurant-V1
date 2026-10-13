@@ -5,6 +5,7 @@ import { resolveMenuImage } from "@/web/media";
 import type { MenuItemSummary } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
 import { BranchReadyQuickAdd, QuickAddButton } from "./quick-add-button";
+import { GridAddBar } from "./grid-add-bar";
 import { SpiceLevel } from "./spice-level";
 
 interface DishTileProps {
@@ -28,6 +29,8 @@ interface DishTileProps {
   browseOnly?: boolean;
   /** switched off at the customer's chosen branch (the item itself is still on the menu elsewhere) */
   offAtBranch?: boolean;
+  /** "card" layout only: a quantity stepper + an explicit "Add to Cart" bar under the price, instead of the floating + over the photo (the grid menu layout) */
+  inlineAdd?: boolean;
 }
 
 /**
@@ -45,6 +48,7 @@ export function DishTile({
   size = "md",
   browseOnly = false,
   offAtBranch = false,
+  inlineAdd = false,
 }: DishTileProps) {
   if (offAtBranch) item = { ...item, isAvailable: false };
   const image = resolveMenuImage(item.imageUrl, item.categorySlug);
@@ -169,7 +173,7 @@ export function DishTile({
           )}
         </Link>
         {badge}
-        <div className="absolute bottom-3 right-3">{add}</div>
+        {inlineAdd ? null : <div className="absolute bottom-3 right-3">{add}</div>}
       </div>
 
       <div className="flex flex-1 flex-col p-4 md:p-5">
@@ -182,10 +186,25 @@ export function DishTile({
           <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
         ) : null}
         {meta}
-        <p className="tabular mt-auto pt-4 text-[15px] font-semibold">
+        <p className={cn("tabular text-[15px] font-semibold", inlineAdd ? "mt-3" : "mt-auto pt-4")}>
           {price}
           {was}
         </p>
+        {inlineAdd ? (
+          <GridAddBar
+            restaurantSlug={restaurantSlug}
+            item={{
+              id: item.id,
+              name: item.name,
+              slug: item.slug,
+              requiresSelection: item.requiresSelection,
+              isAvailable: item.isAvailable,
+              basePrice: item.basePrice,
+              imageUrl: image,
+            }}
+            orderType={orderType}
+          />
+        ) : null}
       </div>
     </article>
   );

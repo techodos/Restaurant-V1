@@ -138,6 +138,9 @@ export default async function StorefrontLayout({
             name: restaurant.name,
             slug: restaurant.slug,
             logoUrl: resolveImage(restaurant.logoUrl),
+            // per-ground logo versions (light lettering for a dark header, dark lettering for a light one)
+            logoOnLight: resolveImage(config.navigation.logoOnLight),
+            logoOnDark: resolveImage(config.navigation.logoOnDark),
             phone: restaurant.phone,
             country: restaurant.country,
           }}
@@ -156,6 +159,16 @@ export default async function StorefrontLayout({
           ]}
           googleEnabled={googleAuthAvailable()}
           googleMapsApiKey={serverConfig.maps?.apiKey ?? null}
+          // the tiered header's service strip reads the primary location's real hours
+          service={
+            primaryLocation
+              ? {
+                  hours: primaryLocation.hours,
+                  timeZone: restaurant.timezone,
+                  place: [primaryLocation.addressLine1 ?? primaryLocation.name, primaryLocation.city].filter(Boolean).join(', ') || null,
+                }
+              : null
+          }
         />
 
         <main id='main' className='flex-1'>

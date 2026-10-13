@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { adminPath } from "@/shared/utils";
 import type { ApiResult } from "@/shared/contract/api";
-import type { DeliveryZone } from "@/shared/contract/models";
+import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
 import { action } from "@/server/errors";
-import { removeDeliveryZone, saveDeliveryZone } from "@/server/services/delivery-zones";
+import { removeDeliveryZone, saveDeliveryZone, saveLocationDeliveryPricing } from "@/server/services/delivery-zones";
 import { deliveryZoneSchema } from "@/server/validation/delivery-zones";
+import { deliveryPricingSchema } from "@/shared/delivery-pricing";
 import { requirePermission } from "@/web/session";
 
 export async function saveDeliveryZoneAction(payload: unknown): Promise<ApiResult<DeliveryZone>> {
@@ -17,6 +18,18 @@ export async function saveDeliveryZoneAction(payload: unknown): Promise<ApiResul
     const zone = await saveDeliveryZone(actor.restaurantId, input, ctx, actor);
     revalidatePath(adminPath(actor.restaurantSlug, "/delivery-zones"));
     return zone;
+  });
+}
+
+/** `slabs: null` clears distance pricing for this branch (its zones go back to their own flat fee). */
+export async function saveDeliveryPricingAction(locationId: string, slabs: unknown[] | null): Promise<ApiResult<RestaurantLocation>> {
+  return action(async () => {
+    const actor = await requirePermission("delivery.manage");
+    const pricing = slabs === null ? null : deliveryPricingSchema.parse({ slabs });
+    const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
+    const location = await saveLocationDeliveryPricing(actor.restaurantId, locationId, pricing, ctx, actor);
+    revalidatePath(adminPath(actor.restaurantSlug, "/delivery-zones"));
+    return location;
   });
 }
 

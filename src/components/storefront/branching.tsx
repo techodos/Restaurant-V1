@@ -503,7 +503,8 @@ function LocationChooser({
           />
           <Button
             className="w-full"
-            disabled={!picked || Boolean(busy)}
+            // a pin the map could not turn into an address (no city) is completed by "type your area" below
+            disabled={!picked?.city || Boolean(busy)}
             onClick={() =>
               picked &&
               submit("picked", {
@@ -519,7 +520,7 @@ function LocationChooser({
             }
           >
             {busy === "picked" ? <Loader2 className="animate-spin" aria-hidden /> : <Navigation aria-hidden />}
-            {picked ? (delivery ? "Deliver here" : "Use this location") : "Pick a point to continue"}
+            {picked && !picked.city ? "Add your area and city below" : picked ? (delivery ? "Deliver here" : "Use this location") : "Pick a point to continue"}
           </Button>
         </section>
       ) : null}
@@ -540,8 +541,9 @@ function LocationChooser({
               area: area.trim(),
               city: city.trim(),
               postalCode: "",
-              latitude: null,
-              longitude: null,
+              // the map's pin when it could not be looked up as an address: the typed area/city complete it
+              latitude: picked && !picked.city ? picked.latitude : null,
+              longitude: picked && !picked.city ? picked.longitude : null,
               addressId: null,
             });
           }}

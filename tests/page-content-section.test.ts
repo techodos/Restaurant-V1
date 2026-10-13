@@ -15,7 +15,7 @@ const render = (sections: unknown) => renderToStaticMarkup(createElement(Section
 describe("page_content section (menu / reservation / reviews / locations pages)", () => {
   it("parses with optional heading overrides and defaults to enabled", () => {
     expect(parseSections([{ type: "page_content", title: "Our menu", subtitle: "Fresh daily" }])).toEqual([
-      { type: "page_content", enabled: true, title: "Our menu", subtitle: "Fresh daily" },
+      { type: "page_content", enabled: true, title: "Our menu", subtitle: "Fresh daily", menuLayout: "editorial" },
     ]);
   });
 

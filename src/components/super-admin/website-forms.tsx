@@ -30,7 +30,7 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { addPageAction, customizeLegalPageAction, deletePageAction, listWebsiteLibraryAction, savePageAction, saveWebsiteAction, uploadWebsiteImageAction } from "@/app/super-admin/actions";
 import { Check, ColorField, Field, RowList } from "@/components/super-admin/form-parts";
 import { SectionsEditor } from "@/components/super-admin/section-editor";
-import { ImageUploadProvider } from "@/components/super-admin/image-upload";
+import { ImageUploadProvider, ImageUploadTile } from "@/components/super-admin/image-upload";
 import { EmptyState, Panel, SaveBar, SettingRow, StatusBadge } from "@/components/super-admin/ui";
 import { websiteStatusTone } from "@/components/super-admin/status";
 import { ORDER_TYPES, ORDER_TYPE_LABELS, WEBSITE_STATUSES } from "@/shared/contract/enums";
@@ -291,7 +291,32 @@ function initialWebsiteState(website: Website): WebsiteState {
   };
 }
 
+/** The website media library for the image fields: upload stores the file + its media row now; the URL lands in the form and is saved with it. */
+function websiteMedia(restaurantId: string) {
+  return {
+    async uploadImage(file: File): Promise<string | null> {
+      const data = new FormData();
+      data.append("file", file);
+      const result = await uploadWebsiteImageAction(restaurantId, data);
+      if (!result.success) {
+        toast.error(result.error.message);
+        return null;
+      }
+      return result.data.url;
+    },
+    async browseLibrary() {
+      const result = await listWebsiteLibraryAction(restaurantId);
+      if (!result.success) {
+        toast.error(result.error.message);
+        return null;
+      }
+      return result.data;
+    },
+  };
+}
+
 export function WebsiteForm({ restaurantId, website }: { restaurantId: string; website: Website }) {
+  const { uploadImage, browseLibrary } = websiteMedia(restaurantId);
   const [saved, setSaved] = useState(() => initialWebsiteState(website));
   const [form, setForm] = useState(saved);
   const [pending, startTransition] = useTransition();
@@ -433,17 +458,50 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
                   </>
                 )}
               />
+              <ImageUploadProvider upload={uploadImage} browse={browseLibrary}>
+                <div className="grid gap-4 border-t border-[var(--color-hairline)] pt-4 sm:grid-cols-2">
+                  {(
+                    [
+                      ["logoOnLight", "Logo on light backgrounds", "Dark lettering. Used when the header is light."],
+                      ["logoOnDark", "Logo on dark backgrounds", "Light lettering. Used when the header is dark or over a photo."],
+                    ] as const
+                  ).map(([key, label, hint]) => (
+                    <Field key={key} label={label} hint={`${hint} Empty = the main logo.`}>
+                      <div className="flex items-end gap-3">
+                        <ImageUploadTile
+                          // a light-lettered logo is previewed on a dark tile, or it would be invisible here too
+                          className={key === "logoOnDark" ? "w-40 shrink-0 [&_img]:bg-neutral-900" : "w-40 shrink-0"}
+                          label={label}
+                          url={(nav[key] as string | undefined) ?? ""}
+                          onChange={(next) => setC("navigation", { [key]: next?.url || undefined })}
+                        />
+                      </div>
+                    </Field>
+                  ))}
+                </div>
+              </ImageUploadProvider>
               <div className="grid gap-4 border-t border-[var(--color-hairline)] pt-4 sm:grid-cols-[1fr_12rem]">
                 <div className="divide-y divide-[var(--color-hairline)]">
                   <SettingRow id="nav-cart" title="Cart button" description="Show the cart in the header." checked={Boolean(nav.showCart)} onChange={(value) => setC("navigation", { showCart: value })} />
                   <SettingRow id="nav-sticky" title="Sticky header" description="Keep the header visible while scrolling." checked={Boolean(nav.sticky)} onChange={(value) => setC("navigation", { sticky: value })} />
                 </div>
-                <Field label="Header tone" hint="Ground once the header leaves the hero photo.">
-                  <Select value={nav.tone} onChange={(event) => setC("navigation", { tone: event.target.value })}>
-                    <option value="dark">Dark</option>
-                    <option value="light">Light</option>
-                  </Select>
-                </Field>
+                <div className="grid gap-4">
+                  <Field label="Header style">
+                    <Select value={nav.style ?? "classic"} onChange={(event) => setC("navigation", { style: event.target.value })}>
+                      <option value="classic">Classic — full-width bar, centred links</option>
+                      <option value="floating">Floating — rounded inset bar, round buttons</option>
+                      <option value="centered">Centred logo — links split either side of the logo</option>
+                      <option value="minimal">Minimal — logo, cart and a Menu button</option>
+                      <option value="tiered">Two-tier — live hours strip above the bar</option>
+                    </Select>
+                  </Field>
+                  <Field label="Header tone" hint="Ground once the header leaves the hero photo.">
+                    <Select value={nav.tone} onChange={(event) => setC("navigation", { tone: event.target.value })}>
+                      <option value="dark">Dark</option>
+                      <option value="light">Light</option>
+                    </Select>
+                  </Field>
+                </div>
               </div>
             </div>
           </Panel>
@@ -657,26 +715,7 @@ export function PageEditor({ restaurantId, slug, page }: { restaurantId: string;
   const set = (patch: Partial<PageState>) => setForm((current) => ({ ...current, ...patch }));
   const storefrontHref = `/r/${slug}${page.isHome ? "" : `/${page.slug}`}`;
 
-  // stores the file + its media row now; the URL lands in the section and is saved with the page
-  async function uploadImage(file: File): Promise<string | null> {
-    const data = new FormData();
-    data.append("file", file);
-    const result = await uploadWebsiteImageAction(restaurantId, data);
-    if (!result.success) {
-      toast.error(result.error.message);
-      return null;
-    }
-    return result.data.url;
-  }
-
-  async function browseLibrary() {
-    const result = await listWebsiteLibraryAction(restaurantId);
-    if (!result.success) {
-      toast.error(result.error.message);
-      return null;
-    }
-    return result.data;
-  }
+  const { uploadImage, browseLibrary } = websiteMedia(restaurantId);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -745,7 +784,7 @@ export function PageEditor({ restaurantId, slug, page }: { restaurantId: string;
           meta={<span className="text-[13px] text-[var(--color-muted-ink)]">{form.sections.length}</span>}
         >
           <ImageUploadProvider upload={uploadImage} browse={browseLibrary}>
-            <SectionsEditor key={revision} initial={form.sections} onChange={(sections) => set({ sections })} />
+            <SectionsEditor key={revision} initial={form.sections} pageSlug={page.slug} onChange={(sections) => set({ sections })} />
           </ImageUploadProvider>
         </Panel>
       </fieldset>

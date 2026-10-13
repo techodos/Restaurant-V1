@@ -112,3 +112,13 @@ export function formatDistance(distanceKm: number | null): string {
   if (distanceKm === null) return "";
   return distanceKm < 1 ? `${Math.max(50, Math.round(distanceKm * 20) * 50)} m` : `${distanceKm.toFixed(1)} km`;
 }
+
+/**
+ * The branch an order belongs to. Multi-branch ordering on: the one the customer chose (the tray's).
+ * Off (single-branch mode): always the restaurant's primary branch, so a branch id left in the cookie
+ * (picked while the flag was on, or edited by hand) can never move the order to another kitchen or its
+ * delivery zones. No locations at all: null, and `createOrder` records the serving zone's branch.
+ */
+export function orderBranchId(branchingEnabled: boolean, trayLocationId: string | null, primaryLocationId: string | null): string | null {
+  return branchingEnabled ? trayLocationId : primaryLocationId;
+}

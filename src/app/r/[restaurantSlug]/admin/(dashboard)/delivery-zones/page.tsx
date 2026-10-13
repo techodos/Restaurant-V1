@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { listDeliveryZonesForAdmin } from "@/server/services/delivery-zones";
-import { getLocations } from "@/server/services/restaurants";
+import { getLocationsForAdmin } from "@/server/services/restaurants";
 import { getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { getAdminBranchScope, getAdminMaps } from "@/web/admin";
@@ -18,9 +18,11 @@ export default async function AdminDeliveryZonesPage({ params }: { params: Promi
 
   // the zones of the branch in scope (a manager: their own; owner/admin: the header's choice, or all)
   const scope = await getAdminBranchScope(restaurantSlug);
+  // the DB-fresh read (not getLocations/the storefront snapshot, which only reloads in the background
+  // after a write): this page must show a branch's just-saved distance pricing without a manual reload
   const [zones, locations] = await Promise.all([
     listDeliveryZonesForAdmin(restaurant.id, ctx, scope.locationId),
-    getLocations(restaurant.id),
+    getLocationsForAdmin(restaurant.id, ctx),
   ]);
   // where new zones may go: a branch manager only into their own branch
   const zoneBranches = scope.locked ? locations.filter((location) => location.id === scope.locationId) : locations;

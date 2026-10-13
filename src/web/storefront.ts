@@ -8,6 +8,7 @@ import {
   decodeDestination,
   destinationCookieName,
   encodeDestination,
+  orderBranchId,
   type BranchingState,
   type DeliveryDestination,
 } from "@/shared/branching";
@@ -58,7 +59,11 @@ async function rawTrayCookie(slug: string): Promise<string | null> {
 
 /** The visitor's tray, straight from its cookie (no database). */
 export const readTray = cache(async (context: StorefrontContext): Promise<Tray> => {
-  return decodeTray(await rawTrayCookie(context.restaurant.slug), context.config.ordering.defaultOrderType);
+  const tray = decodeTray(await rawTrayCookie(context.restaurant.slug), context.config.ordering.defaultOrderType);
+  // every reader (cart, checkout, placeOrder) sees the branch the order belongs to: the primary one in
+  // single-branch mode, whatever the cookie says (shared/branching.ts#orderBranchId)
+  const locationId = orderBranchId(Boolean(context.restaurant.features.BranchingFeature), tray.locationId, context.primaryLocation?.id ?? null);
+  return locationId === tray.locationId ? tray : { ...tray, locationId };
 });
 
 /** The tray priced against the current in-memory menu (no database). Cached per request. */

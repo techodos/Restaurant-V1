@@ -6,6 +6,7 @@ import { Loader2, LocateFixed, MapPin, Search } from "lucide-react";
 import { cn } from "@/shared/utils";
 
 export interface ResolvedLocation {
+  /** empty when the point could not be turned into an address (the coordinates are still real) */
   formattedAddress: string;
   addressLine1: string;
   area: string;
@@ -97,8 +98,16 @@ function componentsToAddress(
  * hooks than during the previous render" on the very next render. Any loading/status UI for either
  * element is rendered as an absolutely-positioned *sibling* overlay instead, never a child.
  */
+const BLOCKED_MESSAGE =
+  "Location is blocked for this site. Tap the lock or settings icon next to the address bar, set Location to Allow, then tap Try again.";
+// iOS (Location Services → Safari Websites) and desktop OSes can refuse the browser itself; the site's own
+// permission then still reads "prompt", and the browser answers "denied" without ever asking.
+const SYSTEM_BLOCKED_MESSAGE =
+  "Your device isn't sharing location with this browser. Turn on Location Services for your browser in your device settings, then tap Try again.";
+
 export function LocationPicker({ apiKey, country, initialCenter, onResolve }: LocationPickerProps) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
+  const mapFrameRef = useRef<HTMLDivElement | null>(null);
   const autocompleteContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
@@ -118,6 +127,8 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
   const [locating, setLocating] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // a location error the customer can act on (allow the site, switch device location on) and then retry
+  const [locationProblem, setLocationProblem] = useState(false);
   const [resolved, setResolved] = useState<ResolvedLocation | null>(null);
 
   const reverseGeocode = useCallback((latitude: number, longitude: number) => {
@@ -131,7 +142,11 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
       if (geoStatus !== "OK" || !results?.[0]) {
         // REQUEST_DENIED = key/project problem (billing off, Geocoding API not enabled, key restrictions), not the user's point
         if (geoStatus !== "ZERO_RESULTS") console.warn(`[LocationPicker] reverse geocode failed: ${geoStatus}`);
-        setError("Could not resolve an address for that point. You can still drag the pin or type it manually below.");
+        // The point itself is right (GPS / search / pin): keep it. Callers merge field by field, so the
+        // customer's typed area and city stay and the order still gets the exact delivery coordinates.
+        setResolved(null);
+        onResolve({ formattedAddress: "", addressLine1: "", area: "", city: "", postalCode: "", latitude, longitude });
+        setError("Pin placed, but we couldn't look up the street address for it. Please type your area and city below.");
         return;
       }
       const best = results[0];
@@ -209,6 +224,7 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
               noInputIcon: true, // our own Search icon is overlaid instead (see the wrapping div below)
             });
             element.style.width = "100%";
+            if (window.matchMedia("(pointer: coarse)").matches) element.style.fontSize = "16px"; // no iOS focus zoom
             // The widget themes itself from the OS (a black box on a light page in OS dark mode). Match the
             // page's scheme instead (light, or dark inside a .tone-night section) and let our container's
             // border/background show through.
@@ -275,29 +291,112 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
-  function useCurrentLocation() {
+  /** The browser's own answer about location access, without prompting ("prompt" when it cannot tell). */
+  async function locationPermission(): Promise<PermissionState> {
+    try {
+      return (await navigator.permissions.query({ name: "geolocation" })).state;
+    } catch {
+      return "prompt"; // Permissions API missing (older Safari): asking is the only way to find out
+    }
+  }
+
+  function showLocationProblem(message: string) {
+    setLocating(false);
+    setLocationProblem(true);
+    setError(message);
+  }
+
+  // After "blocked", retry by itself once the customer allows location: the permission's change event where
+  // the browser fires it, and a re-check whenever they come back to the tab (from browser / phone settings).
+  const stopWatchingRef = useRef<(() => void) | null>(null);
+  function watchForPermission() {
+    if (stopWatchingRef.current) return;
+    const retryIfAllowed = async () => {
+      if (!mountedRef.current || (await locationPermission()) !== "granted") return;
+      stopWatchingRef.current?.();
+      locateCustomer();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void retryIfAllowed();
+    };
+    let permission: PermissionStatus | null = null;
+    navigator.permissions
+      ?.query({ name: "geolocation" })
+      .then((status) => {
+        permission = status;
+        status.onchange = () => void retryIfAllowed();
+      })
+      .catch(() => {});
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    stopWatchingRef.current = () => {
+      if (permission) permission.onchange = null;
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      stopWatchingRef.current = null;
+    };
+  }
+  useEffect(() => () => stopWatchingRef.current?.(), []);
+
+  // Synchronous on purpose: getCurrentPosition must run inside the tap itself. Safari only shows its
+  // "wants to use your location" prompt for a call made directly from the user gesture; awaiting anything
+  // first (e.g. the Permissions API) loses the gesture and the request is denied without a prompt.
+  function locateCustomer() {
+    setError(null);
+    setLocationProblem(false);
     if (!navigator.geolocation) {
       setError("Your browser does not support location. Please search or enter the address manually.");
       return;
     }
+    // Browsers only share location with https pages (and localhost): e.g. a phone opening the site by
+    // its LAN IP over http gets a silent "denied" that no setting can fix.
+    if (!window.isSecureContext) {
+      setError("Location needs a secure (https) connection. Please search or enter the address manually.");
+      return;
+    }
     setLocating(true);
-    setError(null);
+
+    const succeed = (position: GeolocationPosition) => {
+      if (!mountedRef.current) return;
+      setLocating(false);
+      placeMarker(position.coords.latitude, position.coords.longitude);
+    };
+    const fail = (geoError: GeolocationPositionError) => {
+      if (!mountedRef.current) return;
+      if (geoError.code === geoError.PERMISSION_DENIED) {
+        // the site's own setting says which: blocked for this site, or the device refusing the browser
+        void locationPermission().then((state) => {
+          if (!mountedRef.current) return;
+          showLocationProblem(state === "denied" ? BLOCKED_MESSAGE : SYSTEM_BLOCKED_MESSAGE);
+          watchForPermission();
+        });
+      } else if (geoError.code === geoError.POSITION_UNAVAILABLE) {
+        showLocationProblem("We couldn't find your location. Turn on Location (GPS) in your device settings, then tap Try again.");
+      } else {
+        showLocationProblem("Finding your location took too long. Tap Try again, or search for your address above.");
+      }
+    };
+    // Precise GPS first; laptops and indoor phones often have no fix in time, so fall back to the
+    // network-based position (Wi-Fi / cell) rather than giving up.
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false);
-        placeMarker(position.coords.latitude, position.coords.longitude);
+      succeed,
+      (precise) => {
+        if (precise.code === precise.PERMISSION_DENIED) return fail(precise);
+        navigator.geolocation.getCurrentPosition(succeed, fail, { enableHighAccuracy: false, timeout: 15_000, maximumAge: 300_000 });
       },
-      (geoError) => {
-        setLocating(false);
-        setError(
-          geoError.code === geoError.PERMISSION_DENIED
-            ? "Location permission was denied. You can search above or enter the address manually."
-            : "Could not get your location. You can search above or enter the address manually.",
-        );
-      },
-      { enableHighAccuracy: true, timeout: 10_000 },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
     );
   }
+
+  // A drag that starts on the map belongs to the map: keep it from reaching a parent drag-to-dismiss sheet
+  // (motion listens natively on the sheet, so a React handler would be too late).
+  useEffect(() => {
+    const frame = mapFrameRef.current;
+    if (!frame) return;
+    const keep = (event: Event) => event.stopPropagation();
+    frame.addEventListener("pointerdown", keep);
+    return () => frame.removeEventListener("pointerdown", keep);
+  }, []);
 
   if (status === "unavailable") return null;
 
@@ -306,7 +405,7 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={useCurrentLocation}
+          onClick={locateCustomer}
           disabled={status !== "ready" || locating}
           className="press flex h-10 items-center gap-1.5 rounded-[var(--radius-control)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 text-sm font-medium transition-colors hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))] disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -329,7 +428,7 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
         </div>
       </div>
 
-      <div className="relative h-56 w-full overflow-hidden rounded-[var(--radius-brand)] bg-[var(--steel-2)]">
+      <div ref={mapFrameRef} className="relative h-56 w-full overflow-hidden rounded-[var(--radius-brand)] bg-[var(--steel-2)]">
         {/* Bare container: Google's Map takes ownership of this node's contents entirely (see the effect
             above) — no JSX children are ever rendered here, only this loading state as a sibling overlay. */}
         <div ref={mapDivRef} role="application" aria-label="Delivery location map. Drag the pin to correct your address." className="h-full w-full" />
@@ -349,12 +448,26 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
           <MapPin className="mt-0.5 size-3.5 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
           {resolved.formattedAddress}
         </p>
-      ) : (
+      ) : error ? null : (
         <p className="text-xs text-[var(--color-muted-ink)]">
           Use current location or search above, then drag the pin to fine-tune it.
         </p>
       )}
-      {error ? <p className="text-xs text-[var(--color-danger)]">{error}</p> : null}
+      {error ? (
+        <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[var(--color-danger)]">
+          <p className="min-w-0 flex-1">{error}</p>
+          {locationProblem ? (
+            <button
+              type="button"
+              onClick={locateCustomer}
+              disabled={locating}
+              className="shrink-0 font-semibold text-[var(--color-ink)] underline underline-offset-2 disabled:opacity-60"
+            >
+              Try again
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

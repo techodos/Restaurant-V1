@@ -4,6 +4,7 @@ import { type RequestContext } from "@/server/context";
 import { mapDelivery, mapDeliveryZone, str, type Row } from "@/server/db/mappers";
 import type { Delivery, DeliveryZone } from "@/shared/contract/models";
 import { haversineKm, pointInPolygon, type GeoPoint } from "@/shared/geo";
+import { matchDeliverySlab, parseDeliveryPricing } from "@/shared/delivery-pricing";
 import type { DeliveryStatus } from "@/shared/contract/enums";
 import type { Paginated } from "@/shared/contract/api";
 import { paginate } from "@/shared/contract/api";
@@ -62,6 +63,8 @@ export interface ZoneBranch {
   city: string | null | undefined;
   latitude?: number | null;
   longitude?: number | null;
+  /** the branch row's JSONB settings bag — read for `deliveryPricing` (distance-based fee slabs) */
+  settings?: unknown;
 }
 
 const normalizeCity = (value: string | null | undefined): string => (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
@@ -112,6 +115,46 @@ export function servingZones(
     }
     return coversByName(zone, haystack, postal);
   });
+}
+
+export interface DeliveryFeeResolution {
+  /** the fee to charge: the matching slab's fee when distance pricing applies, else the zone's own flat fee (unchanged) */
+  fee: string;
+  /** straight-line km from the branch, when it could be measured (both pins known and distance pricing is configured) */
+  distanceKm: number | null;
+  /** distance pricing is configured and a distance was measured, but it is beyond every slab: the zone
+   * matched by name/area/polygon, but the branch does not deliver this far — the caller must refuse the order */
+  tooFar: boolean;
+}
+
+/**
+ * The delivery fee for an already-matched zone (availability is decided separately — this never widens or
+ * narrows which addresses are served, see `servingZones`). Distance-based pricing, configured per branch
+ * (`settings.deliveryPricing`), overrides the zone's flat `deliveryFee` ONLY when the branch has a pin, the
+ * customer gave a map pin (not just a typed address) and pricing is configured; any one of those missing
+ * falls back to the zone's flat fee exactly as before unconfigured branches ever existed.
+ *
+ * Distance is straight-line (haversine) — the same measure a zone's own `radiusKm` coverage already uses.
+ * There is no road-distance/Directions API wired into this project to prefer instead (SKILL.md §34);
+ * straight-line slightly under-estimates real road distance, which is why slab boundaries are an admin
+ * choice, not a promise of exact kilometres.
+ */
+export function resolveDeliveryFee(
+  flatFee: string,
+  branch: Pick<ZoneBranch, "latitude" | "longitude" | "settings">,
+  customerPin: { latitude?: number | null; longitude?: number | null } | null | undefined,
+): DeliveryFeeResolution {
+  const pricing = parseDeliveryPricing((branch.settings as { deliveryPricing?: unknown } | null | undefined)?.deliveryPricing);
+  const branchKnown = typeof branch.latitude === "number" && typeof branch.longitude === "number";
+  const customerKnown = typeof customerPin?.latitude === "number" && typeof customerPin.longitude === "number";
+  if (!pricing || !branchKnown || !customerKnown) return { fee: flatFee, distanceKm: null, tooFar: false };
+  const distanceKm = haversineKm(
+    { latitude: branch.latitude!, longitude: branch.longitude! },
+    { latitude: customerPin!.latitude!, longitude: customerPin!.longitude! },
+  );
+  const slab = matchDeliverySlab(pricing, distanceKm);
+  if (!slab) return { fee: flatFee, distanceKm, tooFar: true };
+  return { fee: slab.fee.toFixed(2), distanceKm, tooFar: false };
 }
 
 export interface DeliveryZoneInput {

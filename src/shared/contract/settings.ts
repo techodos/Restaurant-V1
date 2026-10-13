@@ -257,6 +257,21 @@ export const websiteConfigSchema = z.object({
        * restaurants keep today's look. Over a hero the header is always transparent with light type.
        */
       tone: z.enum(["dark", "light"]).catch("dark"),
+      /**
+       * "classic" (default): today's full-width bar. "floating": an inset rounded panel with the nav beside
+       * the logo and round search / account / cart controls (the cart filled in the brand colour). Same links,
+       * cart, drawers and branch pill either way; only the presentation changes. Unknown means "classic".
+       */
+      // "centered": nav split around a centred logo. "minimal": logo + branch, cart and a Menu button (links
+      // live in the sheet). "tiered": a thin service strip (open now, address, phone) above the bar.
+      style: z.enum(["classic", "floating", "centered", "minimal", "tiered"]).catch("classic"),
+      /**
+       * Optional logo versions per ground. A logo drawn for a dark header (light lettering) disappears on a
+       * light one, and the reverse; the header shows `logoOnLight` on a light ground and `logoOnDark` on a
+       * dark ground, each falling back to the restaurant's main logo. Empty = the main logo everywhere.
+       */
+      logoOnLight: z.string().trim().max(600).optional().catch(undefined),
+      logoOnDark: z.string().trim().max(600).optional().catch(undefined),
     })
     .default({}),
   footer: z

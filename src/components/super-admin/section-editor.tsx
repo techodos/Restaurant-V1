@@ -21,11 +21,13 @@ type Obj = Record<string, any>;
  * stored object, so keys this editor does not show survive a save, and the server re-validates everything.
  */
 
-type Spec = { k: string; label: string; wide?: boolean; hint?: string };
+/** `page`: show the field only when editing that page (e.g. the menu layout on the menu page's page_content) */
+type Spec = { k: string; label: string; wide?: boolean; hint?: string; page?: string };
 type Field =
   | (Spec & { t: "text" | "textarea" | "bool" })
   | (Spec & { t: "number"; min?: number; max?: number; step?: number })
-  | (Spec & { t: "select"; options: readonly string[] })
+  /** `labels`: what each option reads as in the dropdown (name + short description); default = the capitalised value */
+  | (Spec & { t: "select"; options: readonly string[]; labels?: Record<string, string> })
   | (Spec & { t: "image" })
   | (Spec & { t: "upload" })
   | (Spec & { t: "cta" })
@@ -53,14 +55,52 @@ export const FIELDS: Record<SectionType, Field[]> = {
     { k: "subtitle", label: "Subtitle", t: "textarea", wide: true },
     { k: "image", label: "Background photo", t: "image", wide: true },
     {
+      k: "layout",
+      label: "Layout",
+      t: "select",
+      options: ["cinematic", "split", "framed", "collage", "dishes"],
+      labels: {
+        cinematic: "Cinematic — full photo, dark overlay",
+        split: "Split — light background, text beside a cutout photo",
+        framed: "Framed — photo in a rounded frame, headline beneath",
+        collage: "Collage — headline beside a mosaic of up to three photos",
+        dishes: "Signature dishes — headline above three dishes with add buttons",
+      },
+    },
+    {
+      k: "galleryImages",
+      label: "More photos (Collage layout only, up to 3)",
+      t: "rows",
+      add: "Add photo",
+      blank: { url: "", alt: "" },
+      wide: true,
+      fields: [
+        { k: "url", label: "Photo", t: "upload", wide: true },
+        { k: "alt", label: "Description (for screen readers)", t: "text" },
+      ],
+    },
+    {
+      k: "dishSlugs",
+      label: "Dishes by slug (Signature dishes layout only, up to 3; empty = the ones marked featured)",
+      t: "strings",
+      add: "Add dish",
+      wide: true,
+    },
+    {
+      k: "cutoutImage",
+      label: "Cutout photo (Split layout only — needs a transparent background, not the regular photo above)",
+      t: "image",
+      wide: true,
+    },
+    {
       k: "alignment",
-      label: "Text alignment",
+      label: "Text alignment (Cinematic layout only)",
       t: "select",
       options: ["left", "center"],
     },
     {
       k: "height",
-      label: "Height",
+      label: "Height (Cinematic layout only)",
       t: "select",
       options: ["sm", "md", "lg", "full"],
     },
@@ -252,7 +292,39 @@ export const FIELDS: Record<SectionType, Field[]> = {
       wide: true,
     },
   ],
+  stats_band: [
+    { k: "image", label: "Background photo (optional, else the cover photo)", t: "image", wide: true },
+    { k: "caption", label: "Caption", t: "textarea", wide: true },
+    { k: "exploreCta", label: "Centre button (e.g. Explore Dishes)", t: "cta" },
+    {
+      k: "stats",
+      label: "Numbers (up to 4)",
+      t: "rows",
+      add: "Add number",
+      blank: { value: "", label: "" },
+      wide: true,
+      fields: [
+        { k: "value", label: "Value (e.g. 400+)", t: "text" },
+        { k: "label", label: "Label", t: "text" },
+      ],
+    },
+  ],
   page_content: [
+    {
+      k: "menuLayout",
+      label: "Menu layout",
+      t: "select",
+      options: ["editorial", "grid", "list", "sidebar", "rows"],
+      labels: {
+        editorial: "Editorial — photo chapters, alternating dark / light",
+        grid: "Grid — every category a light card grid",
+        list: "Printed list — two columns of dish lines, no photos",
+        sidebar: "Category sidebar — a standing category index beside the dishes",
+        rows: "Category rows — each category a swipeable row of cards",
+      },
+      wide: true,
+      page: "menu",
+    },
     { k: "title", label: "Heading override (optional)", t: "text" },
     { k: "subtitle", label: "Subtitle override (optional)", t: "text" },
     { k: "image", label: "Top background photo (optional, else the cover photo)", t: "image", wide: true },
@@ -275,6 +347,7 @@ const HINTS: Record<SectionType, string> = {
   cta: "Banner with one or two buttons",
   rich_text: "Free text block",
   order_type_switch: "Delivery / pickup / dine-in chooser",
+  stats_band: "Full-width photo with a centre button and a row of numbers",
   page_content: "Where the page's built-in body appears",
 };
 
@@ -334,7 +407,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
           <Select value={(value as string) ?? field.options[0]} onChange={(event) => onChange(event.target.value)}>
             {field.options.map((option) => (
               <option key={option} value={option}>
-                {option.charAt(0).toUpperCase() + option.slice(1)}
+                {field.labels?.[option] ?? option.charAt(0).toUpperCase() + option.slice(1)}
               </option>
             ))}
           </Select>
@@ -524,7 +597,16 @@ type Item = { id: number; data: Obj };
 const iconButton =
   "grid size-8 place-items-center rounded-md text-[var(--color-muted-ink)] transition-colors hover:bg-[var(--sa-subtle)] hover:text-[var(--color-ink)] disabled:pointer-events-none disabled:opacity-30";
 
-export function SectionsEditor({ initial, onChange }: { initial: Obj[]; onChange: (sections: Obj[]) => void }) {
+export function SectionsEditor({
+  initial,
+  onChange,
+  pageSlug,
+}: {
+  initial: Obj[];
+  onChange: (sections: Obj[]) => void;
+  /** the page being edited; fields marked with `page` only show on that page */
+  pageSlug?: string;
+}) {
   const nextId = useRef(initial.length);
   const [items, setItems] = useState<Item[]>(() => initial.map((data, id) => ({ id, data })));
   const [open, setOpen] = useState<Set<number>>(() => new Set(initial.length <= 2 ? initial.map((_, id) => id) : []));
@@ -583,7 +665,7 @@ export function SectionsEditor({ initial, onChange }: { initial: Obj[]; onChange
       <ol className="space-y-2.5">
         {items.map((item, index) => {
           const type = item.data.type as SectionType;
-          const fields = FIELDS[type] ?? [];
+          const fields = (FIELDS[type] ?? []).filter((field) => !field.page || field.page === pageSlug);
           const isOpen = open.has(item.id);
           const hidden = item.data.enabled === false;
           const bodyId = `section-body-${item.id}`;

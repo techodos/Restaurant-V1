@@ -14,6 +14,7 @@ import { OrderTypeSwitchSection } from "@/components/storefront/sections/order-t
 import { ReservationCtaSection } from "@/components/storefront/sections/reservation-cta-section";
 import { ReviewsSection } from "@/components/storefront/sections/reviews-section";
 import { RichTextSection } from "@/components/storefront/sections/rich-text-section";
+import { StatsBandSection } from "@/components/storefront/sections/stats-band-section";
 import { WhyChooseUsSection } from "@/components/storefront/sections/why-choose-us-section";
 import { sectionTones } from "@/components/storefront/section-rhythm";
 import type { SectionTone } from "@/components/storefront/section-shell";
@@ -46,6 +47,7 @@ const RENDERERS: Record<Section["type"], (props: { section: never; context: Stor
   cta: CtaSection as never,
   rich_text: RichTextSection as never,
   order_type_switch: OrderTypeSwitchSection as never,
+  stats_band: StatsBandSection as never,
   page_content: (() => null) as never, // replaced by the page's `body` in SectionRenderer
 };
 

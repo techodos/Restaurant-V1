@@ -215,6 +215,8 @@ export interface LocationInput {
   latitude?: number | null;
   longitude?: number | null;
   hours?: unknown;
+  /** free-form per-branch config bag (dine-in tables, distance-based delivery pricing, …) */
+  settings?: unknown;
   sortOrder?: number;
 }
 
@@ -234,11 +236,11 @@ export async function createLocation(
     const row = await tx.queryOne<Row>(
       `insert into restaurant1s
          (restaurant_id, name, slug, is_primary, is_active, address_line1, address_line2, area, city, state,
-          postal_code, country, phone, email, latitude, longitude, hours, sort_order)
+          postal_code, country, phone, email, latitude, longitude, hours, settings, sort_order)
        values ($1, $2, coalesce($3, app.slugify($2)), coalesce($4, not exists (
                  select 1 from restaurant1s where restaurant_id = $1)), coalesce($5, true),
                $6, $7, $8, $9, $10, $11, coalesce($12, 'PK'), $13, $14, $15, $16, coalesce($17::jsonb, '{}'::jsonb),
-               coalesce($18, 0))
+               coalesce($18::jsonb, '{}'::jsonb), coalesce($19, 0))
        returning *`,
       [
         restaurantId,
@@ -258,6 +260,7 @@ export async function createLocation(
         input.latitude ?? null,
         input.longitude ?? null,
         input.hours === undefined ? null : JSON.stringify(input.hours),
+        input.settings === undefined ? null : JSON.stringify(input.settings),
         input.sortOrder ?? null,
       ],
     );
@@ -301,7 +304,8 @@ export async function updateLocation(
          latitude = coalesce($14, latitude),
          longitude = coalesce($15, longitude),
          hours = coalesce($16::jsonb, hours),
-         sort_order = coalesce($17, sort_order)
+         settings = coalesce($17::jsonb, settings),
+         sort_order = coalesce($18, sort_order)
        where id = $1
        returning *`,
       [
@@ -321,6 +325,7 @@ export async function updateLocation(
         patch.latitude ?? null,
         patch.longitude ?? null,
         patch.hours === undefined ? null : JSON.stringify(patch.hours),
+        patch.settings === undefined ? null : JSON.stringify(patch.settings),
         patch.sortOrder ?? null,
       ],
     );

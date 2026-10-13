@@ -10,6 +10,8 @@ interface PageHeroProps {
   /** the hero opens the page: it runs under the header, which floats transparent over it */
   overlay: boolean;
   size?: "lg" | "md" | "sm";
+  /** "accent" (default): the site's usual single leading dash. "double": a dash on both sides, for a centred-feeling opener like the menu page. */
+  eyebrowRule?: "accent" | "double";
   /** controls set under the heading (search, filters, a summary line) */
   children?: React.ReactNode;
   /** content placed at the right on wide screens (e.g. a rating figure) */
@@ -28,7 +30,7 @@ const HEIGHT = {
   sm: "min-h-[min(34svh,320px)]",
 } as const;
 
-export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md", children, aside, className }: PageHeroProps) {
+export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md", eyebrowRule = "accent", children, aside, className }: PageHeroProps) {
   return (
     <div data-hero-overlay={overlay || undefined} className={cn(overlay && "-mt-[var(--header-h,4.25rem)]")}>
       <section className={cn("tone-night relative isolate overflow-hidden", HEIGHT[size], className)}>
@@ -55,7 +57,13 @@ export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md"
         >
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl text-white">
-              {eyebrow ? <p className="eyebrow animate-rise mb-3 text-white/80">{eyebrow}</p> : null}
+              {eyebrow ? (
+                <p className={cn("eyebrow animate-rise mb-3 text-white/80", eyebrowRule === "double" && "[&::before]:hidden")}>
+                  {eyebrowRule === "double" ? <span aria-hidden className="h-px w-6 bg-[var(--color-brand-accent)]" /> : null}
+                  {eyebrow}
+                  {eyebrowRule === "double" ? <span aria-hidden className="h-px w-6 bg-[var(--color-brand-accent)]" /> : null}
+                </p>
+              ) : null}
               {/* the short hero heads a working page (orders, reviews, locations): one step quieter than the menu's */}
               <h1
                 className={cn(

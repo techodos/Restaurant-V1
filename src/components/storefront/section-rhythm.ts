@@ -18,6 +18,7 @@ const FIXED: Partial<Record<Section["type"], SectionTone>> = {
   menu_categories: "muted",
   locations: "paper",
   contact: "muted",
+  stats_band: "night",
   page_content: "paper",
 };
 
