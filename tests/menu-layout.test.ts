@@ -45,7 +45,8 @@ describe("website config navigation.style", () => {
     expect(websiteConfigSchema.parse({}).navigation.style).toBe("classic");
     expect(websiteConfigSchema.parse({ navigation: { style: "floating" } }).navigation.style).toBe("floating");
     expect(websiteConfigSchema.parse({ navigation: { style: "bogus" } }).navigation.style).toBe("classic");
-    for (const style of ["centered", "minimal", "tiered"]) {
+    expect(websiteConfigSchema.parse({ navigation: { style: "tiered" } }).navigation.style).toBe("classic"); // removed style
+    for (const style of ["centered", "minimal"]) {
       expect(websiteConfigSchema.parse({ navigation: { style } }).navigation.style).toBe(style);
     }
   });

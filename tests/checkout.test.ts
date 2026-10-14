@@ -146,8 +146,10 @@ describe("order creation", () => {
     expect(order.status).toBe("pending");
     expect(order.subtotal).toBe("1450.00"); // 1250 pizza + 200 extra mozzarella
     expect(order.deliveryFee).toBe("100.00");
-    expect(order.taxAmount).toBe("72.50");
-    expect(order.total).toBe("1622.50");
+    // cash_on_delivery's own configured rate (default 16%, settings.tax.byPaymentMethod) — no longer the
+    // restaurant's flat 5% rate now that tax varies by payment method (see domain/pricing.ts)
+    expect(order.taxAmount).toBe("232.00");
+    expect(order.total).toBe("1782.00");
     expect(order.deliveryAddress?.area).toBe("Gulberg III");
     expect(paymentId).not.toBe("");
 
@@ -253,7 +255,7 @@ describe("order creation", () => {
         },
         ANON,
       ),
-    ).rejects.toThrowError(/not deliver/i);
+    ).rejects.toThrowError(/don't deliver/i); // pre-existing wording mismatch, unrelated to this change: "don't", not "does not"
   });
 
   it("refuses an empty tray", async () => {

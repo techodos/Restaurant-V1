@@ -183,12 +183,39 @@ export function TaxSection({ tax, readOnly }: { tax: RestaurantSettings["tax"]; 
       <Checkbox label="Enabled" checked={state.enabled} onChange={(value) => setState((s) => ({ ...s, enabled: value }))} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label htmlFor="taxRate">Rate (%)</Label>
+          <Label htmlFor="taxRate">Other payment methods rate (%)</Label>
           <Input id="taxRate" type="number" min={0} max={50} step="0.01" value={state.rate} onChange={(e) => setState((s) => ({ ...s, rate: Number(e.target.value) }))} />
+          <p className="mt-1 text-xs text-[var(--color-muted-ink)]">Cash, wallet, bank transfer — card and cash on delivery use the rates below.</p>
         </div>
         <div>
           <Label htmlFor="taxLabel">Label</Label>
           <Input id="taxLabel" value={state.label} onChange={(e) => setState((s) => ({ ...s, label: e.target.value }))} />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="taxRateCard">Card payment rate (%)</Label>
+          <Input
+            id="taxRateCard"
+            type="number"
+            min={0}
+            max={50}
+            step="0.01"
+            value={state.byPaymentMethod.card.rate}
+            onChange={(e) => setState((s) => ({ ...s, byPaymentMethod: { ...s.byPaymentMethod, card: { rate: Number(e.target.value) } } }))}
+          />
+        </div>
+        <div>
+          <Label htmlFor="taxRateCod">Cash on delivery rate (%)</Label>
+          <Input
+            id="taxRateCod"
+            type="number"
+            min={0}
+            max={50}
+            step="0.01"
+            value={state.byPaymentMethod.cashOnDelivery.rate}
+            onChange={(e) => setState((s) => ({ ...s, byPaymentMethod: { ...s.byPaymentMethod, cashOnDelivery: { rate: Number(e.target.value) } } }))}
+          />
         </div>
       </div>
       <Checkbox

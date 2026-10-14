@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { cartSubtotal, calculatePricing, computeCouponDiscount, effectiveMinimumOrder, lineTotal, PricingError, tryCalculatePricing, validateCouponOrThrow, type CouponPricing } from "@/server/domain/pricing";
+import {
+  cartSubtotal,
+  calculatePricing,
+  computeCouponDiscount,
+  effectiveMinimumOrder,
+  lineTotal,
+  PricingError,
+  taxRateForPaymentMethod,
+  tryCalculatePricing,
+  validateCouponOrThrow,
+  type CouponPricing,
+} from "@/server/domain/pricing";
 import { restaurantSettingsSchema } from "@/shared/contract/settings";
 import { formatMoney, toMoney } from "@/shared/money";
 
@@ -256,6 +267,53 @@ describe("coupon validation", () => {
   it("caps fixed discounts at the eligible amount", () => {
     const fixed = { ...welcomeCoupon, discountType: "fixed" as const, discountValue: "5000.00", maxDiscountAmount: null };
     expect(computeCouponDiscount(fixed, new (require("decimal.js"))(subtotal), new (require("decimal.js"))(0)).toFixed(2)).toBe("1500.00");
+  });
+});
+
+describe("tax by payment method", () => {
+  const taxSettings = restaurantSettingsSchema.parse({
+    tax: { enabled: true, rate: 5, included: false, applyOnDeliveryFee: false, label: "GST", byPaymentMethod: { card: { rate: 8 }, cashOnDelivery: { rate: 16 } } },
+    ordering: { minimumOrderAmount: 0, preparationTimeMinutes: 20 },
+    delivery: { enabled: true, defaultEtaMinutes: 40 },
+    serviceFee: { delivery: { enabled: false, rate: 0 }, pickup: { enabled: false, rate: 0 }, dine_in: { enabled: false, rate: 0 } },
+  });
+  const lines = [{ unitPrice: "1000.00", addonsTotal: "0", quantity: 1 }];
+
+  it("applies the configured card rate for card_online and card_terminal", () => {
+    expect(calculatePricing({ lines, orderType: "pickup", settings: taxSettings, paymentMethod: "card_online" }).tax).toBe("80.00");
+    expect(calculatePricing({ lines, orderType: "pickup", settings: taxSettings, paymentMethod: "card_terminal" }).tax).toBe("80.00");
+  });
+
+  it("applies the configured cash-on-delivery rate", () => {
+    const pricing = calculatePricing({ lines, orderType: "pickup", settings: taxSettings, paymentMethod: "cash_on_delivery" });
+    expect(pricing.tax).toBe("160.00");
+    expect(pricing.taxRate).toBe("16.0000");
+  });
+
+  it("falls back to the flat rate for other payment methods and when no method is known yet", () => {
+    expect(calculatePricing({ lines, orderType: "pickup", settings: taxSettings, paymentMethod: "cash" }).tax).toBe("50.00");
+    expect(calculatePricing({ lines, orderType: "pickup", settings: taxSettings }).tax).toBe("50.00");
+  });
+
+  it("switching the payment method recalculates tax and total, without double-taxing or leaving a stale amount", () => {
+    const card = calculatePricing({ lines, orderType: "pickup", settings: taxSettings, paymentMethod: "card_online" });
+    const cod = calculatePricing({ lines, orderType: "pickup", settings: taxSettings, paymentMethod: "cash_on_delivery" });
+    expect(card.tax).not.toBe(cod.tax);
+    expect(card.total).toBe("1080.00");
+    expect(cod.total).toBe("1160.00");
+  });
+
+  it("disabling tax zeroes it out regardless of payment method", () => {
+    const disabled = restaurantSettingsSchema.parse({ tax: { enabled: false } });
+    expect(calculatePricing({ lines, orderType: "pickup", settings: disabled, paymentMethod: "card_online" }).tax).toBe("0.00");
+  });
+
+  it("taxRateForPaymentMethod resolves the same way calculatePricing does", () => {
+    expect(taxRateForPaymentMethod(taxSettings.tax, "card_online").toString()).toBe("8");
+    expect(taxRateForPaymentMethod(taxSettings.tax, "card_terminal").toString()).toBe("8");
+    expect(taxRateForPaymentMethod(taxSettings.tax, "cash_on_delivery").toString()).toBe("16");
+    expect(taxRateForPaymentMethod(taxSettings.tax, "wallet").toString()).toBe("5");
+    expect(taxRateForPaymentMethod(taxSettings.tax, null).toString()).toBe("5");
   });
 });
 

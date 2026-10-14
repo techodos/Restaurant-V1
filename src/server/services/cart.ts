@@ -1,5 +1,5 @@
 import type { Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
-import { DAY_KEYS, type OrderType } from "@/shared/contract/enums";
+import { DAY_KEYS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { acceptsOrdersAt, timeToMinutes, to12Hour, zonedNow } from "@/shared/hours";
 import { dec, toMoney, ZERO } from "@/shared/money";
@@ -138,6 +138,8 @@ export async function priceTray(
     branchOf?: (locationId: string) => ZoneBranch | null | undefined;
     /** the signed-in customer's own email/mobile, for a coupon restricted to specific customers */
     customer?: CouponCustomer | null;
+    /** picks the tax rate (settings.tax.byPaymentMethod); omitted falls back to the flat settings.tax.rate */
+    paymentMethod?: PaymentMethod | null;
   },
 ): Promise<TrayPricingResult> {
   const orderType = options.orderType ?? tray.orderType;
@@ -183,6 +185,7 @@ export async function priceTray(
       coupon: withCoupon ? toCouponPricing(withCoupon) : null,
       customerEmail: options.customer?.email ?? null,
       customerPhone: options.customer?.phone ?? null,
+      paymentMethod: options.paymentMethod,
     });
 
   let couponNotice: string | null =

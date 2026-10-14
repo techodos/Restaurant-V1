@@ -492,7 +492,6 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
                       <option value="floating">Floating — rounded inset bar, round buttons</option>
                       <option value="centered">Centred logo — links split either side of the logo</option>
                       <option value="minimal">Minimal — logo, cart and a Menu button</option>
-                      <option value="tiered">Two-tier — live hours strip above the bar</option>
                     </Select>
                   </Field>
                   <Field label="Header tone" hint="Ground once the header leaves the hero photo.">

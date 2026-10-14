@@ -11,8 +11,13 @@ import {
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { FieldError, FieldHint, Input, inputStyles, Label, Select, Textarea } from "@/components/ui/input";
-import { checkGuestContactAction, placeOrderAction, sendGuestVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
+import { FieldError, Input, inputStyles, Label, Textarea } from "@/components/ui/input";
+import {
+  checkGuestContactAction,
+  placeOrderAction,
+  repriceCheckoutAction,
+  sendGuestVerificationCodeAction,
+} from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
 import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 import { GuestVerifyDialog } from "@/components/storefront/guest-verify-dialog";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
@@ -36,6 +41,8 @@ export interface CheckoutPricing {
   tax: string;
   taxLabel: string;
   taxIncluded: boolean;
+  /** percentage, e.g. "8.0000" — varies by payment method (card vs. cash on delivery); shown next to the tax line */
+  taxRate: string;
   total: string;
 }
 
@@ -193,7 +200,7 @@ export function CheckoutForm({
   orderType,
   orderTypeOptions,
   items,
-  pricing,
+  pricing: initialPricing,
   couponCode,
   zones,
   paymentMethods,
@@ -242,6 +249,31 @@ export function CheckoutForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availablePaymentMethods]);
+
+  // Tax can depend on the chosen payment method (card vs. cash on delivery, domain/pricing.ts). The
+  // page's first render already prices with the method the form defaults to (see checkout/page.tsx), so
+  // this only re-prices on an actual change — never on mount, and never piling up a stale response on
+  // top of a newer one (requestId guard, same pattern as location-picker.tsx's reverse geocode).
+  const [pricing, setPricing] = useState<CheckoutPricing>(initialPricing);
+  const [repricing, setRepricing] = useState(false);
+  const repriceRequestId = useRef(0);
+  const mountedForRepriceRef = useRef(false);
+  useEffect(() => {
+    if (!mountedForRepriceRef.current) {
+      mountedForRepriceRef.current = true;
+      return;
+    }
+    const requestId = ++repriceRequestId.current;
+    setRepricing(true);
+    repriceCheckoutAction(restaurantSlug, { paymentMethod }).then((result) => {
+      if (requestId !== repriceRequestId.current) return; // superseded by a later payment-method change
+      setRepricing(false);
+      if (result.success) setPricing(result.data);
+      // a repricing failure (e.g. the cart changed underneath) leaves the last good totals on screen;
+      // "Place order" still recomputes authoritatively and will surface any real problem then
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod, restaurantSlug]);
   const [tip, setTip] = useState("");
   const [customTip, setCustomTip] = useState(false);
   const customTipInput = useRef<HTMLInputElement>(null);
@@ -278,7 +310,7 @@ export function CheckoutForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destinationKey]);
   const router = useRouter();
-  const { clear: clearLocalCart, setLocationId } = useLocalCart();
+  const { clear: clearLocalCart, setLocationId, setOrderType: setCartOrderType } = useLocalCart();
 
   // "new address" fields are controlled so the map/search picker can fill them in; still hand-editable.
   const [newAddress, setNewAddress] = useState({
@@ -679,7 +711,12 @@ export function CheckoutForm({
                       name="orderType"
                       value={type}
                       checked={on}
-                      onChange={() => setOrderTypeState(type)}
+                      onChange={() => {
+                        setOrderTypeState(type);
+                        // the tray's order type drives the header's branch bar ("Pick up at…" / "Serving from…") and
+                        // everything else that reads it, so it must follow the choice made here
+                        setCartOrderType(type);
+                      }}
                       className="sr-only"
                     />
                     <span
@@ -928,21 +965,8 @@ export function CheckoutForm({
                   </div>
                 </>
               )}
-              {zones.length && !locationLocked ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="deliveryZoneId">Delivery area</Label>
-                  <Select id="deliveryZoneId" name="deliveryZoneId" defaultValue={zones[0]?.id ?? ""} className={field}>
-                    {zones.map((zone) => (
-                      <option key={zone.id} value={zone.id}>
-                        {zone.name} · {money(zone.deliveryFee)}
-                      </option>
-                    ))}
-                  </Select>
-                  <FieldHint>We match your address to a zone automatically; pick one if you know it.</FieldHint>
-                </div>
-              ) : null}
               {chosenAddress || locationLocked ? null : (
-                <>
+                <div className="grid gap-5 sm:col-span-2 sm:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="area">
                       Area <span aria-hidden className="text-[var(--color-danger)]">*</span>
@@ -985,7 +1009,7 @@ export function CheckoutForm({
                       className={field}
                     />
                   </div>
-                </>
+                </div>
               )}
               {/* a new (not saved) address, locked or typed: offer to keep it */}
               {!chosenAddress && isSignedIn ? (
@@ -1293,8 +1317,9 @@ export function CheckoutForm({
               ) : null}
               <div className="flex justify-between gap-4">
                 <dt className="text-[var(--color-muted-ink)]">
-                  {pricing.taxLabel}
+                  {pricing.taxLabel} ({Number(pricing.taxRate)}%)
                   {pricing.taxIncluded ? " (included)" : ""}
+                  {repricing ? <Loader2 className="ml-1 inline size-3 animate-spin align-[-2px]" aria-hidden /> : null}
                 </dt>
                 <dd>{money(pricing.tax)}</dd>
               </div>

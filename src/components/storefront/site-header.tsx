@@ -23,8 +23,6 @@ import { useLocalCart } from './local-cart';
 import { useBranching } from './branching';
 import { HeaderBranchPill } from './header-branch-pill';
 import { isSupportedCountry } from 'libphonenumber-js';
-import type { OpeningHours } from '@/shared/contract/models';
-import { serviceStatus, type ServiceStatus } from './service-status';
 
 interface SiteHeaderProps {
   restaurant: {
@@ -45,15 +43,7 @@ interface SiteHeaderProps {
   extraLinks?: { label: string; href: string }[];
   googleEnabled: boolean;
   googleMapsApiKey: string | null;
-  /** the primary location's real hours, for the tiered header's service strip (open now / closes at) */
-  service?: { hours: OpeningHours; timeZone: string; place: string | null } | null;
 }
-
-const STRIP_DOT = {
-  open: 'bg-[var(--color-success)]',
-  closing: 'bg-[var(--color-warning)]',
-  closed: 'bg-[var(--color-muted-ink)]',
-} as const;
 
 /** A nav link is active on its own page and on its sub-pages (menu -> menu/<item>), home only on itself. */
 function isActive(pathname: string, href: string, home: string): boolean {
@@ -73,8 +63,21 @@ const headerIconLabelClass =
   'max-w-0 overflow-hidden whitespace-nowrap text-[13px] font-semibold opacity-0 transition-[max-width,opacity,margin] duration-300 ease-[var(--ease-out)] group-hover/action:max-w-28 group-hover/action:opacity-100 group-focus-visible/action:max-w-28 group-focus-visible/action:opacity-100';
 
 /** The signed-in account mark: the name's capital first letter in a soft disc (an icon when there is no name). */
-function AccountInitial({ name }: { name?: string | null }) {
+function AccountInitial({ name, variant = 'default' }: { name?: string | null; variant?: 'default' | 'medallion' }) {
   const initial = name?.trim().charAt(0).toLocaleUpperCase();
+  if (variant === 'medallion') {
+    // "Ink-glass medallion": a near-black glass disc, inset shadow for depth, a fine accent-colour
+    // hairline ring and a serif monogram — reads as a quiet signet rather than a second brand-green
+    // chip, so it no longer blends into the cart button beside it (both were the same hue before this).
+    return (
+      <span
+        aria-hidden
+        className='grid size-7 shrink-0 place-items-center rounded-full border border-[color-mix(in_srgb,var(--color-brand-accent)_45%,transparent)] bg-[radial-gradient(circle_at_32%_28%,color-mix(in_srgb,white_8%,var(--color-ink)_6%,black),black_72%)] font-serif text-[12px] font-semibold leading-none text-[var(--color-brand-accent)] shadow-[inset_0_1px_1px_color-mix(in_srgb,white_10%,transparent),inset_0_-2px_4px_rgba(0,0,0,0.5)]'
+      >
+        {initial || <UserRound className='size-4' />}
+      </span>
+    );
+  }
   return (
     <span
       aria-hidden
@@ -168,7 +171,6 @@ export function SiteHeader({
   customer,
   extraLinks = [],
   googleMapsApiKey,
-  service = null,
 }: SiteHeaderProps) {
   const { itemCount } = useLocalCart();
   const branching = useBranching();
@@ -204,17 +206,6 @@ export function SiteHeader({
   useEffect(() => setOpen(false), [pathname]);
 
   const headerStyle = config.navigation.style;
-  // tiered header: the hour is read after mount (server and browser clocks may sit either side of a
-  // minute, which would mismatch the hydrated text), then once a minute
-  const [status, setStatus] = useState<ServiceStatus | null>(null);
-  useEffect(() => {
-    if (headerStyle !== 'tiered' || !service) return;
-    const update = () => setStatus(serviceStatus(service.hours, new Date(), service.timeZone));
-    update();
-    const timer = window.setInterval(update, 60_000);
-    return () => window.clearInterval(timer);
-  }, [headerStyle, service]);
-
   // Is there a hero under us on this page? Re-checked on every navigation.
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -227,20 +218,41 @@ export function SiteHeader({
   // Phones: the branch strip tucks away while reading down the page and returns on any scroll back up
   // (or near the top). A small dead zone keeps it from flickering on momentum and tiny thumb jitter.
   const [stripHidden, setStripHidden] = useState(false);
+  const stripHiddenRef = useRef(false);
   useEffect(() => {
     let last = window.scrollY;
     let frame = 0;
+    let settleTimer = 0;
+    let lockedUntil = 0;
+    // Collapsing/expanding the strip changes the header's height, which moves the page under the finger
+    // (and the browser's scroll anchoring nudges scrollY by the same amount). Read as a scroll, that nudge
+    // flips the strip straight back, and it blinks for as long as the page sits at that point. So a toggle
+    // locks the strip for the length of its transition and re-baselines afterwards.
+    const toggle = (next: boolean) => {
+      if (next === stripHiddenRef.current) return;
+      stripHiddenRef.current = next;
+      setStripHidden(next);
+      lockedUntil = performance.now() + 450;
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        last = window.scrollY;
+      }, 480);
+    };
     const onScroll = () => {
       setScrolled(window.scrollY > 24);
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const y = window.scrollY;
+        if (performance.now() < lockedUntil) {
+          last = y;
+          return;
+        }
         const delta = y - last;
         if (y < 96) {
-          setStripHidden(false);
+          toggle(false);
           last = y;
         } else if (Math.abs(delta) > 8) {
-          setStripHidden(delta > 0);
+          toggle(delta > 0);
           last = y;
         }
       });
@@ -249,11 +261,15 @@ export function SiteHeader({
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
       window.removeEventListener('scroll', onScroll);
     };
   }, []);
   // a new page starts at the top: show the strip again
-  useEffect(() => setStripHidden(false), [pathname]);
+  useEffect(() => {
+    stripHiddenRef.current = false;
+    setStripHidden(false);
+  }, [pathname]);
 
   // Publish the header's height (it grows with the announcement bar / paused notice) so heroes can slide
   // under it and sticky sub-navigation and anchor offsets sit right below it.
@@ -285,8 +301,8 @@ export function SiteHeader({
   const logo =
     tone === 'paper' ? (restaurant.logoOnLight ?? restaurant.logoUrl) : (restaurant.logoOnDark ?? restaurant.logoUrl);
 
-  // ---- centered / minimal / tiered: the same controls as the classic bar, composed differently ----
-  const tailored = headerStyle === 'centered' || headerStyle === 'minimal' || headerStyle === 'tiered';
+  // ---- centered / minimal: the same controls as the classic bar, composed differently ----
+  const tailored = headerStyle === 'centered' || headerStyle === 'minimal';
   const openSheet = (side: 'left' | 'right') => () => {
     setMenuSide(side);
     setOpen(true);
@@ -384,19 +400,20 @@ export function SiteHeader({
   if (headerStyle === 'centered') {
     const half = Math.ceil(navItems.length / 2);
     tailoredBar = (
-      <div className='container-page grid h-[4.25rem] grid-cols-[1fr_auto_1fr] items-center gap-3 lg:h-[5.5rem] lg:gap-6'>
+      <div className='container-page grid h-[4.25rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 lg:h-[5.5rem] lg:gap-6'>
         <div className='flex min-w-0 items-center justify-self-start'>
-          <MenuButton open={open} onClick={openSheet('left')} flip className='-ml-2 grid lg:hidden' />
-          <nav aria-label='Main' className='hidden items-center gap-5 lg:flex xl:gap-7'>
+          {/* below xl the links live in this sheet; a signed-in visitor keeps the button on desktop too, opening the same sheet */}
+          <MenuButton open={open} onClick={openSheet('left')} flip className={cn('-ml-2 grid', signedIn ? 'xl:mr-[1.125rem]' : 'xl:hidden')} />
+          <nav aria-label='Main' className='hidden items-center gap-7 xl:flex'>
             {navItems.slice(0, half).map(trackedLink)}
           </nav>
         </div>
         <div className='justify-self-center'>{brandMark('lg')}</div>
-        <div className='flex items-center gap-1.5 justify-self-end lg:gap-5'>
-          <nav aria-label='More' className='hidden items-center gap-5 lg:flex xl:gap-7'>
+        <div className='flex min-w-0 items-center gap-1.5 justify-self-end lg:gap-3 xl:gap-5'>
+          <nav aria-label='More' className='hidden items-center gap-7 xl:flex'>
             {navItems.slice(half).map(trackedLink)}
           </nav>
-          <HeaderBranchPill tone={tone} align='end' className='hidden lg:flex' />
+          {/* no inline branch pill here: the centered style shows it as the bar's own second row (data-branch-strip below) */}
           <span className='flex items-center gap-1.5'>
             {accountControl}
             {config.navigation.showCart ? (
@@ -466,68 +483,6 @@ export function SiteHeader({
           </button>
         </div>
       </div>
-    );
-  } else if (headerStyle === 'tiered') {
-    const phone = restaurant.phone;
-    tailoredBar = (
-      <>
-        {service || phone ? (
-          // the service strip stays dark over any ground: it is a line of facts, not part of the page
-          <div className='tone-night border-b border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-night)_86%,black)]'>
-            <div className='container-page flex h-9 items-center justify-between gap-4 text-[11.5px] text-[var(--color-muted-ink)]'>
-              <div className='flex min-w-0 items-center gap-4'>
-                {status ? (
-                  <span className='flex shrink-0 items-center gap-2 font-semibold text-[var(--color-ink)]'>
-                    <span aria-hidden className={cn('size-1.5 rounded-full', STRIP_DOT[status.state])} />
-                    {status.headline}
-                    {status.detail ? <span className='font-normal text-[var(--color-muted-ink)]'>· {status.detail}</span> : null}
-                  </span>
-                ) : null}
-                {service?.place ? (
-                  <>
-                    {status ? <span aria-hidden className='hidden h-3 w-px bg-[var(--rule-strong)] sm:block' /> : null}
-                    <span className='hidden truncate sm:inline'>{service.place}</span>
-                  </>
-                ) : null}
-              </div>
-              {phone ? (
-                <a href={`tel:${phone.replace(/\s+/g, '')}`} className='tabular flex shrink-0 items-center gap-1.5 transition-colors hover:text-[var(--color-ink)]'>
-                  <Phone className='size-3' aria-hidden />
-                  {phone}
-                </a>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-        <div className='container-page grid h-[4.25rem] grid-cols-[1fr_auto] items-center gap-4 lg:h-[5rem] lg:grid-cols-[1fr_auto_1fr]'>
-          <div className='min-w-0 justify-self-start'>{brandMark('md')}</div>
-          <nav aria-label='Main' className='hidden items-center gap-7 lg:flex xl:gap-9'>
-            {navItems.map(trackedLink)}
-          </nav>
-          <div className='flex items-center gap-1.5 justify-self-end sm:gap-2'>
-            <HeaderBranchPill tone={tone} align='end' className='mr-1 hidden lg:flex' />
-            {ordersControl}
-            {accountControl}
-            {config.navigation.showCart ? (
-              <Link
-                href={`${home}/cart`}
-                data-tray-target
-                aria-label={cartLabel}
-                title='My Cart'
-                className={cn(
-                  'press flex h-10 shrink-0 items-center gap-2.5 rounded-[var(--radius-control)] bg-[var(--color-brand)] pl-4 pr-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[var(--color-brand-foreground)] shadow-[var(--shadow-brand)] transition-[background-color] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)]',
-                  cartFocus,
-                )}
-              >
-                <ShoppingBag className='size-4' aria-hidden />
-                <span className='hidden sm:inline'>Cart</span>
-                {countChip('bg-[color-mix(in_srgb,var(--color-brand-foreground)_18%,transparent)]')}
-              </Link>
-            ) : null}
-            <MenuButton open={open} onClick={openSheet('right')} className='grid lg:hidden' />
-          </div>
-        </div>
-      </>
     );
   }
 
@@ -706,17 +661,6 @@ export function SiteHeader({
               <Link href={`${home}/menu`} aria-label='Search the menu' title='Search the menu' className={floatingIconClass}>
                 <Search className='size-[19px]' aria-hidden />
               </Link>
-              {customer?.signedIn ? (
-                <Link
-                  href={`${home}/orders`}
-                  aria-label='My Orders'
-                  title='My Orders'
-                  aria-current={isActive(pathname, `${home}/orders`, home) ? 'page' : undefined}
-                  className={cn(floatingIconClass, 'hidden sm:grid')}
-                >
-                  <ClipboardList className='size-[19px]' aria-hidden />
-                </Link>
-              ) : null}
               {signedIn ? (
                 <button
                   type='button'
@@ -727,7 +671,7 @@ export function SiteHeader({
                   title={accountLabel}
                   className={cn(floatingIconClass, 'hidden sm:grid')}
                 >
-                  <AccountInitial name={customer?.name} />
+                  <AccountInitial name={customer?.name} variant='medallion' />
                 </button>
               ) : (
                 <Link href={accountHref} aria-label={accountLabel} title={accountLabel} className={cn(floatingIconClass, 'hidden sm:grid')}>
@@ -903,7 +847,9 @@ export function SiteHeader({
           data-branch-strip
           inert={stripHidden || undefined}
           className={cn(
-            'grid transition-[grid-template-rows,opacity] duration-300 ease-[var(--ease-out)] motion-reduce:transition-none lg:hidden',
+            'grid transition-[grid-template-rows,opacity] duration-300 ease-[var(--ease-out)] motion-reduce:transition-none',
+            // the centered style keeps this as its second row at every width; other styles show their branch pill inline on desktop
+            headerStyle !== 'centered' && 'lg:hidden',
             stripHidden ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
           )}
         >

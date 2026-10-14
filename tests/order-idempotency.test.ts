@@ -94,6 +94,33 @@ describe("order idempotency", () => {
     expect(await ordersOf(customer.id)).toBe(3);
   });
 
+  it("a resubmit after a failed payment creates a fresh order with the new payment method, not a stale replay (0039)", async () => {
+    const customer = await newCustomer();
+    const key = randomUUID();
+    const first = await createOrder(pickupOrder(customer, { idempotencyKey: key, paymentMethod: "card_terminal" }), { customerId: customer.id });
+    expect(first.replayed).toBe(false);
+    expect(first.order.paymentMethod).toBe("card_terminal");
+    // simulate services/checkout.ts#placeOrder's catch branch: the gateway never charged anything
+    await testDatabase.write({}, (tx) => tx.query("update orders set payment_status = 'failed' where id = $1", [first.order.id]));
+
+    const retry = await createOrder(pickupOrder(customer, { idempotencyKey: key, paymentMethod: "cash" }), { customerId: customer.id });
+    expect(retry.replayed).toBe(false);
+    expect(retry.order.id).not.toBe(first.order.id);
+    expect(retry.order.paymentMethod).toBe("cash");
+    expect(await ordersOf(customer.id)).toBe(2);
+  });
+
+  it("a non-failed order (paid, or still pending) still replays even after a method change is attempted", async () => {
+    const customer = await newCustomer();
+    const key = randomUUID();
+    const first = await createOrder(pickupOrder(customer, { idempotencyKey: key, paymentMethod: "cash" }), { customerId: customer.id });
+    const retry = await createOrder(pickupOrder(customer, { idempotencyKey: key, paymentMethod: "card_terminal" }), { customerId: customer.id });
+    expect(retry.replayed).toBe(true);
+    expect(retry.order.id).toBe(first.order.id);
+    expect(retry.order.paymentMethod).toBe("cash"); // unchanged — the original, still-pending order wins
+    expect(await ordersOf(customer.id)).toBe(1);
+  });
+
   it("one customer's key never returns another customer's order", async () => {
     const [a, b] = [await newCustomer(), await newCustomer()];
     const key = randomUUID();

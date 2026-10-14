@@ -34,8 +34,20 @@ export const restaurantSettingsSchema = z.object({
   tax: z
     .object({
       enabled: z.boolean().default(true),
-      /** percentage, e.g. 5 = 5% */
+      /** percentage, e.g. 5 = 5%. Fallback rate for payment methods that aren't card or COD (cash, wallet, bank transfer). */
       rate: z.coerce.number().min(0).max(50).default(0),
+      /**
+       * Payment-method-specific rates (`server/domain/pricing.ts#taxRateForPaymentMethod` is the one place
+       * that reads this): `card` covers card_online + card_terminal, `cashOnDelivery` covers
+       * cash_on_delivery. Any other method (cash, wallet, bank_transfer) still uses the flat `rate`
+       * above — this feature only asked for card vs. COD to differ.
+       */
+      byPaymentMethod: z
+        .object({
+          card: z.object({ rate: z.coerce.number().min(0).max(50).default(8) }).default({}),
+          cashOnDelivery: z.object({ rate: z.coerce.number().min(0).max(50).default(16) }).default({}),
+        })
+        .default({}),
       /** true => prices already include tax (tax is extracted, not added) */
       included: z.boolean().default(false),
       applyOnDeliveryFee: z.boolean().default(false),
@@ -263,8 +275,8 @@ export const websiteConfigSchema = z.object({
        * cart, drawers and branch pill either way; only the presentation changes. Unknown means "classic".
        */
       // "centered": nav split around a centred logo. "minimal": logo + branch, cart and a Menu button (links
-      // live in the sheet). "tiered": a thin service strip (open now, address, phone) above the bar.
-      style: z.enum(["classic", "floating", "centered", "minimal", "tiered"]).catch("classic"),
+      // live in the sheet).
+      style: z.enum(["classic", "floating", "centered", "minimal"]).catch("classic"),
       /**
        * Optional logo versions per ground. A logo drawn for a dark header (light lettering) disappears on a
        * light one, and the reverse; the header shows `logoOnLight` on a light ground and `logoOnDark` on a

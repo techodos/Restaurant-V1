@@ -64,14 +64,17 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const profile: CustomerProfile = customer
     ? await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id))
     : { fullName: "", email: null, phone: null, gender: null, dateOfBirth: null, authProvider: "password", emailVerified: false, addresses: [] };
+  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant, tray.orderType);
+  // Tax can vary by payment method (card vs. cash on delivery) — price with whichever method the form
+  // will default to (its own default picks the same first available method) so the first paint already
+  // shows the right rate; switching methods on the page re-prices via `repriceCheckoutAction`.
   const pricingResult = await priceTray(restaurant, tray, view, {
     zones,
     customer: { email: profile.email, phone: profile.phone },
+    paymentMethod: paymentMethods[0] ?? null,
   });
   const emailVerified = profile.emailVerified;
   const couponCode = pricingResult.coupon?.code ?? null;
-
-  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant, tray.orderType);
 
   if (!pricingResult.pricing || pricingResult.blockers.length > 0 || (!availability.acceptsOrders && !closedLabel)) {
     // no delivery zone at all for this branch is a real "no", not a missing choice: say what to do instead
@@ -180,6 +183,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
             tax: pricing.tax,
             taxLabel: pricing.taxLabel,
             taxIncluded: pricing.taxIncluded,
+            taxRate: pricing.taxRate,
             total: pricing.total,
           }}
           couponCode={couponCode}

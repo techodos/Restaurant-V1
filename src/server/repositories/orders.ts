@@ -188,9 +188,13 @@ async function placeInTransaction(
                           )::int as phone_usage
                 from coupons c where c.restaurant_id = $1 and c.code = upper(trim($6))) x)
          end as coupon,
-         -- this checkout already produced an order (a retry / double submit): it is returned, not repeated
+         -- this checkout already produced an order (a retry / double submit): it is returned, not
+         -- repeated. Excludes an order whose payment definitively failed (0039) — nothing was charged,
+         -- so a resubmit (e.g. switching payment method after a declined card) must re-price and
+         -- re-create, not replay the failed attempt's stale payment method/tax.
          case when $8::uuid is not null and $2::uuid is not null then
-           (select id from orders where restaurant_id = $1 and customer_id = $2 and idempotency_key = $8::uuid)
+           (select id from orders
+             where restaurant_id = $1 and customer_id = $2 and idempotency_key = $8::uuid and payment_status <> 'failed')
          end as replay_order_id`,
       [
         input.restaurantId,
@@ -434,6 +438,7 @@ async function placeInTransaction(
       zone,
       coupon,
       tipAmount: input.tipAmount ?? "0",
+      paymentMethod: input.paymentMethod,
       couponUsageByCustomer,
       // a coupon restricted to specific customers (eligibleEmails/eligiblePhones) is checked against the
       // account's own email/mobile, not what the form sent
