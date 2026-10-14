@@ -609,7 +609,8 @@ export const WEBSITE_CONFIG = {
     linkLabel: "Order now",
     linkHref: `${BASE}/menu`,
   },
-  navigation: { items: NAV, showCart: true, sticky: true, tone: "dark" },
+  // the main logo has cream lettering (drawn for the dark header); a light header shows the dark-lettered version
+  navigation: { items: NAV, showCart: true, sticky: true, tone: "dark", logoOnLight: "/images/zaytoun/logo-on-light.svg" },
   footer: {
     tagline: "Charcoal, olive oil and a table full of sharing plates — Levantine cooking in Islamabad.",
     columns: [

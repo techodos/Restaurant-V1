@@ -22,6 +22,8 @@ export interface PageHeading {
   image: string | undefined;
   /** true when the body opens the page (no configured section above it), so it may run under the header */
   leading: boolean;
+  /** menu page only: the `page_content` section's layout choice; no marker => "editorial" */
+  menuLayout: "editorial" | "grid" | "list" | "sidebar" | "rows";
 }
 
 export type FunctionalPageSlug = "menu" | "reservation" | "reviews" | "locations" | "privacy" | "terms";
@@ -52,6 +54,7 @@ export async function ConfiguredPage({ restaurantSlug, pageSlug, render, ownCont
     subtitle: marker?.subtitle,
     image: resolveImage(marker?.image?.url) ?? undefined,
     leading: visible.length === 0 || visible[0]?.type === "page_content",
+    menuLayout: marker?.menuLayout ?? "editorial",
   });
   return <SectionRenderer context={context} sections={page?.sections ?? []} body={body} />;
 }

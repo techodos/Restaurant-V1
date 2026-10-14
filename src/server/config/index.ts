@@ -116,8 +116,16 @@ const googleAuthSchema = z.object({
 const mapsSchema = z.object({
   // public browser key (safe for the client; handed over by a server component, never read via
   // process.env in client code). Restrict it in Google Cloud Console to HTTP referrers for this
-  // site and to the Maps JavaScript API, Places API and Geocoding API only.
+  // site and to the Maps JavaScript API and Places API only (reverse geocoding no longer uses Google).
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: optionalText,
+});
+
+const geocodingSchema = z.object({
+  // Swap for a self-hosted Nominatim instance's base URL when one exists; no code change needed.
+  NOMINATIM_BASE_URL: z.preprocess(emptyToUndefined, z.string().trim().url().default("https://nominatim.openstreetmap.org")),
+  // Nominatim's usage policy requires a way to identify/contact the app operator (a User-Agent naming
+  // an app and a contact, not a generic browser UA). Defaults to the site URL, which satisfies that.
+  NOMINATIM_CONTACT: optionalText,
 });
 
 function parse<T extends z.ZodTypeAny>(section: string, schema: T): z.infer<T> {
@@ -267,6 +275,14 @@ const maps = lazy(() => {
   return env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? { apiKey: env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY } : null;
 });
 
+const geocoding = lazy(() => {
+  const env = parse("geocoding", geocodingSchema);
+  return {
+    baseUrl: env.NOMINATIM_BASE_URL.replace(/\/$/, ""),
+    userAgent: `restaurant-platform (${env.NOMINATIM_CONTACT ?? app().siteUrl})`,
+  };
+});
+
 // TEMPLATE_ID (1 = Classic 2D, the default; 2 = 3D; 3 = placeholder slot). Never fails: an unset or
 // unknown value falls back to 1 and is logged once per process.
 const template = lazy(() => {
@@ -311,6 +327,9 @@ export const config = {
   },
   get maps() {
     return maps();
+  },
+  get geocoding() {
+    return geocoding();
   },
   get template() {
     return template();

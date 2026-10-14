@@ -1,11 +1,12 @@
 /// <reference types="google.maps" />
-"use client";
+'use client';
 
-import { useEffect, useId, useRef, useState, useCallback } from "react";
-import { Loader2, LocateFixed, MapPin, Search } from "lucide-react";
-import { cn } from "@/shared/utils";
+import { useEffect, useId, useRef, useState, useCallback } from 'react';
+import { Loader2, LocateFixed, MapPin, Search } from 'lucide-react';
+import { cn } from '@/shared/utils';
 
 export interface ResolvedLocation {
+  /** empty when the point could not be turned into an address (the coordinates are still real) */
   formattedAddress: string;
   addressLine1: string;
   area: string;
@@ -31,30 +32,38 @@ interface LocationPickerProps {
 // lack `Map`/`Geocoder`/`Marker` ("e.maps.Map is not a constructor") or even `importLibrary` itself
 // ("e is not a function"). Only Google's `callback` URL param signals readiness, and the classes then
 // still come from `google.maps.importLibrary()`.
-const MAPS_READY_CALLBACK = "__locationPickerMapsReady";
+const MAPS_READY_CALLBACK = '__locationPickerMapsReady';
 let mapsLoader: Promise<typeof google> | null = null;
 export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
   if (!mapsLoader) {
     mapsLoader = new Promise<void>((resolve, reject) => {
-      if (typeof window.google?.maps?.importLibrary === "function") return resolve();
-      (window as unknown as Record<string, () => void>)[MAPS_READY_CALLBACK] = () => resolve();
-      const script = document.createElement("script");
+      if (typeof window.google?.maps?.importLibrary === 'function')
+        return resolve();
+      (window as unknown as Record<string, () => void>)[MAPS_READY_CALLBACK] =
+        () => resolve();
+      const script = document.createElement('script');
       script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&loading=async&callback=${MAPS_READY_CALLBACK}`;
       script.async = true;
       script.onerror = () => {
         script.remove();
-        reject(new Error("Could not load Google Maps."));
+        reject(new Error('Could not load Google Maps.'));
       };
       document.head.appendChild(script);
     })
       .then(async () => {
         const maps = window.google.maps; // call as maps.importLibrary(...) — don't detach it from `maps`
         await Promise.all([
-          maps.importLibrary("maps"),
-          maps.importLibrary("geocoding"),
-          maps.importLibrary("marker"),
+          maps.importLibrary('maps'),
+          maps.importLibrary('marker'),
           // search is optional (see the effect below) — a places failure must not take the map down
-          maps.importLibrary("places").catch((placesError) => console.warn("[LocationPicker] places library failed to load:", placesError)),
+          maps
+            .importLibrary('places')
+            .catch((placesError) =>
+              console.warn(
+                '[LocationPicker] places library failed to load:',
+                placesError,
+              ),
+            ),
         ]);
         return window.google;
       })
@@ -64,22 +73,6 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
       });
   }
   return mapsLoader;
-}
-
-/** Legacy `Geocoder` result shape (`address_components`/`long_name`) — reverse-geocoding (drag pin,
- * current location) still uses this API; it is not deprecated, only the `Autocomplete` search widget is. */
-function componentsToAddress(
-  components: google.maps.GeocoderAddressComponent[] | undefined,
-): { streetLine: string; area: string; city: string; postalCode: string } {
-  const find = (type: string) => components?.find((c) => c.types.includes(type))?.long_name ?? "";
-  const streetNumber = find("street_number");
-  const route = find("route");
-  return {
-    streetLine: [streetNumber, route].filter(Boolean).join(" "),
-    area: find("sublocality") || find("sublocality_level_1") || find("neighborhood") || "",
-    city: find("locality") || find("administrative_area_level_2") || "",
-    postalCode: find("postal_code"),
-  };
 }
 
 /**
@@ -97,13 +90,30 @@ function componentsToAddress(
  * hooks than during the previous render" on the very next render. Any loading/status UI for either
  * element is rendered as an absolutely-positioned *sibling* overlay instead, never a child.
  */
-export function LocationPicker({ apiKey, country, initialCenter, onResolve }: LocationPickerProps) {
+const BLOCKED_MESSAGE =
+  'Location is blocked for this site. Tap the lock or settings icon next to the address bar, set Location to Allow, then tap Try again.';
+// iOS (Location Services → Safari Websites) and desktop OSes can refuse the browser itself; the site's own
+// permission then still reads "prompt", and the browser answers "denied" without ever asking.
+const SYSTEM_BLOCKED_MESSAGE =
+  "Your device isn't sharing location with this browser. Turn on Location Services for your browser in your device settings, then tap Try again.";
+
+export function LocationPicker({
+  apiKey,
+  country,
+  initialCenter,
+  onResolve,
+}: LocationPickerProps) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
+  const mapFrameRef = useRef<HTMLDivElement | null>(null);
   const autocompleteContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
-  const geocoderRef = useRef<google.maps.Geocoder | null>(null);
-  const autocompleteElRef = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
+  const autocompleteElRef =
+    useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
+  // Guards against a stale reverse-geocode response (from an earlier drag/search/current-location call)
+  // landing after a newer one and overwriting it — only the response matching the latest request id wins.
+  const geocodeRequestIdRef = useRef(0);
+  const geocodeAbortRef = useRef<AbortController | null>(null);
   // The checkout form mounts/unmounts this component every time the customer toggles between a saved
   // address and "new address" (or picks another saved address). Google's own async callbacks (geocode
   // results, marker drag, place selection) can still land after that unmount and touch DOM nodes React
@@ -112,44 +122,100 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
   const mountedRef = useRef(true);
   const inputId = useId();
 
-  const [status, setStatus] = useState<"idle" | "loading-script" | "ready" | "unavailable">(
-    apiKey ? "loading-script" : "unavailable",
-  );
+  const [status, setStatus] = useState<
+    'idle' | 'loading-script' | 'ready' | 'unavailable'
+  >(apiKey ? 'loading-script' : 'unavailable');
   const [locating, setLocating] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // a location error the customer can act on (allow the site, switch device location on) and then retry
+  const [locationProblem, setLocationProblem] = useState(false);
   const [resolved, setResolved] = useState<ResolvedLocation | null>(null);
 
+  // Debounced so a fast marker drag (many `dragend`s in a row if the customer redrags) doesn't fire a
+  // request per move — only the position it settles on for DEBOUNCE_MS gets looked up. Reverse geocoding
+  // is via OpenStreetMap Nominatim (`/api/geocode/reverse`), not Google's Geocoding Service.
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reverseGeocode = useCallback((latitude: number, longitude: number) => {
-    const geocoder = geocoderRef.current;
-    if (!geocoder) return;
-    setResolving(true);
     setError(null);
-    geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, geoStatus) => {
-      if (!mountedRef.current) return; // the picker was unmounted while the geocode request was in flight
-      setResolving(false);
-      if (geoStatus !== "OK" || !results?.[0]) {
-        // REQUEST_DENIED = key/project problem (billing off, Geocoding API not enabled, key restrictions), not the user's point
-        if (geoStatus !== "ZERO_RESULTS") console.warn(`[LocationPicker] reverse geocode failed: ${geoStatus}`);
-        setError("Could not resolve an address for that point. You can still drag the pin or type it manually below.");
-        return;
-      }
-      const best = results[0];
-      const { streetLine, area, city, postalCode } = componentsToAddress(best.address_components);
-      const next: ResolvedLocation = {
-        formattedAddress: best.formatted_address,
-        addressLine1: streetLine || best.formatted_address,
-        area,
-        city,
-        postalCode,
-        latitude,
-        longitude,
-      };
-      setResolved(next);
-      onResolve(next);
-    });
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      void doReverseGeocode(latitude, longitude);
+    }, 400);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const doReverseGeocode = useCallback(
+    async (latitude: number, longitude: number) => {
+      const requestId = ++geocodeRequestIdRef.current;
+      geocodeAbortRef.current?.abort();
+      const controller = new AbortController();
+      geocodeAbortRef.current = controller;
+      setResolving(true);
+      try {
+        const response = await fetch(
+          `/api/geocode/reverse?lat=${latitude}&lng=${longitude}`,
+          { signal: controller.signal },
+        );
+        if (!mountedRef.current || requestId !== geocodeRequestIdRef.current)
+          return; // superseded by a later pick
+        if (!response.ok)
+          throw new Error(`geocode proxy returned ${response.status}`);
+        const body = (await response.json()) as {
+          result: {
+            formattedAddress: string;
+            addressLine1: string;
+            area: string;
+            city: string;
+            postalCode: string;
+          } | null;
+        };
+        setResolving(false);
+        if (!body.result) {
+          // The point itself is right (GPS / search / pin): keep it. Callers merge field by field, so the
+          // customer's typed area and city stay and the order still gets the exact delivery coordinates.
+          setResolved(null);
+          onResolve({
+            formattedAddress: '',
+            addressLine1: '',
+            area: '',
+            city: '',
+            postalCode: '',
+            latitude,
+            longitude,
+          });
+          setError(
+            "Pin placed, but we couldn't look up the street address for it. Please type your area and city below.",
+          );
+          return;
+        }
+        const next: ResolvedLocation = { ...body.result, latitude, longitude };
+        setResolved(next);
+        onResolve(next);
+      } catch (geocodeError) {
+        if ((geocodeError as Error).name === 'AbortError') return; // superseded by a later request, not a real failure
+        if (!mountedRef.current || requestId !== geocodeRequestIdRef.current)
+          return;
+        console.warn('[LocationPicker] reverse geocode failed:', geocodeError);
+        setResolving(false);
+        setResolved(null);
+        onResolve({
+          formattedAddress: '',
+          addressLine1: '',
+          area: '',
+          city: '',
+          postalCode: '',
+          latitude,
+          longitude,
+        });
+        setError(
+          "Pin placed, but we couldn't look up the street address for it. Please type your area and city below.",
+        );
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [],
+  );
 
   const placeMarker = useCallback(
     (latitude: number, longitude: number) => {
@@ -160,8 +226,12 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
       map.panTo(position);
       map.setZoom(Math.max(map.getZoom() ?? 15, 16));
       if (!markerRef.current) {
-        markerRef.current = new google.maps.Marker({ map, position, draggable: true });
-        markerRef.current.addListener("dragend", () => {
+        markerRef.current = new google.maps.Marker({
+          map,
+          position,
+          draggable: true,
+        });
+        markerRef.current.addListener('dragend', () => {
           const pos = markerRef.current?.getPosition();
           if (pos) reverseGeocode(pos.lat(), pos.lng());
         });
@@ -189,10 +259,8 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
           zoom: initialCenter ? 16 : 5,
           disableDefaultUI: true,
           zoomControl: true,
-          gestureHandling: "greedy",
+          gestureHandling: 'greedy',
         });
-        geocoderRef.current = new maps.maps.Geocoder();
-
         // `google.maps.places.Autocomplete` is deprecated (closed to new customers as of March 2025);
         // `PlaceAutocompleteElement` is Google's current recommended replacement — a custom element we
         // mount ourselves into `autocompleteContainerRef`, again as its only (non-React-managed) child.
@@ -201,59 +269,76 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
         // project has "Places API (New)" not yet fully propagated) must not take the whole picker down
         // with it, and must be visible in the console instead of silently swallowed.
         try {
-          const PlaceAutocompleteElement = maps.maps.places?.PlaceAutocompleteElement;
+          const PlaceAutocompleteElement =
+            maps.maps.places?.PlaceAutocompleteElement;
           if (autocompleteContainerRef.current && PlaceAutocompleteElement) {
             const element = new PlaceAutocompleteElement({
               includedRegionCodes: country ? [country.toLowerCase()] : null,
-              placeholder: "Search for your address",
+              placeholder: 'Search for your address',
               noInputIcon: true, // our own Search icon is overlaid instead (see the wrapping div below)
             });
-            element.style.width = "100%";
+            element.style.width = '100%';
+            if (window.matchMedia('(pointer: coarse)').matches)
+              element.style.fontSize = '16px'; // no iOS focus zoom
             // The widget themes itself from the OS (a black box on a light page in OS dark mode). Match the
             // page's scheme instead (light, or dark inside a .tone-night section) and let our container's
             // border/background show through.
-            element.style.colorScheme = getComputedStyle(autocompleteContainerRef.current).colorScheme || "light";
-            element.style.backgroundColor = "transparent";
-            element.style.border = "none";
+            element.style.colorScheme =
+              getComputedStyle(autocompleteContainerRef.current).colorScheme ||
+              'light';
+            element.style.backgroundColor = 'transparent';
+            element.style.border = 'none';
             autocompleteContainerRef.current.replaceChildren(element);
             autocompleteElRef.current = element;
             element.addEventListener(
-              "gmp-select",
+              'gmp-select',
               async (event: google.maps.places.PlacePredictionSelectEvent) => {
                 if (!mountedRef.current) return;
                 try {
                   const place = event.placePrediction.toPlace();
-                  await place.fetchFields({ fields: ["location"] });
+                  await place.fetchFields({ fields: ['location'] });
                   if (!mountedRef.current) return;
                   const location = place.location;
                   if (!location) {
-                    setError("Please choose an address from the list.");
+                    setError('Please choose an address from the list.');
                     return;
                   }
                   // Reuses the same pan/marker/reverse-geocode pipeline as dragging the pin or "current
-                  // location" (via the still-current, non-deprecated Geocoder), so every entry point
-                  // resolves an address the exact same way.
+                  // location" (Nominatim via `/api/geocode/reverse`), so every entry point resolves an
+                  // address the exact same way.
                   placeMarker(location.lat(), location.lng());
                 } catch (fetchError) {
-                  if (mountedRef.current) setError("Could not load that address. Please try again or drag the pin.");
-                  console.error("[LocationPicker] fetching the selected place failed:", fetchError);
+                  if (mountedRef.current)
+                    setError(
+                      'Could not load that address. Please try again or drag the pin.',
+                    );
+                  console.error(
+                    '[LocationPicker] fetching the selected place failed:',
+                    fetchError,
+                  );
                 }
               },
               { signal: listenerController.signal },
             );
           } else if (!PlaceAutocompleteElement) {
             console.warn(
-              "[LocationPicker] google.maps.places.PlaceAutocompleteElement is unavailable — enable \"Places API (New)\" for this key. Address search is disabled; the map, current-location and draggable pin still work.",
+              '[LocationPicker] google.maps.places.PlaceAutocompleteElement is unavailable — enable "Places API (New)" for this key. Address search is disabled; the map, current-location and draggable pin still work.',
             );
           }
         } catch (autocompleteError) {
-          console.error("[LocationPicker] could not set up address search; continuing without it:", autocompleteError);
+          console.error(
+            '[LocationPicker] could not set up address search; continuing without it:',
+            autocompleteError,
+          );
         }
-        setStatus("ready");
+        setStatus('ready');
       })
       .catch((mapsError) => {
-        console.error("[LocationPicker] Google Maps failed to load or initialise:", mapsError);
-        if (!cancelled) setStatus("unavailable");
+        console.error(
+          '[LocationPicker] Google Maps failed to load or initialise:',
+          mapsError,
+        );
+        if (!cancelled) setStatus('unavailable');
       });
     return () => {
       cancelled = true;
@@ -270,92 +355,233 @@ export function LocationPicker({ apiKey, country, initialCenter, onResolve }: Lo
       autocompleteElRef.current?.remove();
       autocompleteElRef.current = null;
       mapRef.current = null;
-      geocoderRef.current = null;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      geocodeAbortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
-  function useCurrentLocation() {
+  /** The browser's own answer about location access, without prompting ("prompt" when it cannot tell). */
+  async function locationPermission(): Promise<PermissionState> {
+    try {
+      return (await navigator.permissions.query({ name: 'geolocation' })).state;
+    } catch {
+      return 'prompt'; // Permissions API missing (older Safari): asking is the only way to find out
+    }
+  }
+
+  function showLocationProblem(message: string) {
+    setLocating(false);
+    setLocationProblem(true);
+    setError(message);
+  }
+
+  // After "blocked", retry by itself once the customer allows location: the permission's change event where
+  // the browser fires it, and a re-check whenever they come back to the tab (from browser / phone settings).
+  const stopWatchingRef = useRef<(() => void) | null>(null);
+  function watchForPermission() {
+    if (stopWatchingRef.current) return;
+    const retryIfAllowed = async () => {
+      if (!mountedRef.current || (await locationPermission()) !== 'granted')
+        return;
+      stopWatchingRef.current?.();
+      locateCustomer();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void retryIfAllowed();
+    };
+    let permission: PermissionStatus | null = null;
+    navigator.permissions
+      ?.query({ name: 'geolocation' })
+      .then((status) => {
+        permission = status;
+        status.onchange = () => void retryIfAllowed();
+      })
+      .catch(() => {});
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    stopWatchingRef.current = () => {
+      if (permission) permission.onchange = null;
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+      stopWatchingRef.current = null;
+    };
+  }
+  useEffect(() => () => stopWatchingRef.current?.(), []);
+
+  // Synchronous on purpose: getCurrentPosition must run inside the tap itself. Safari only shows its
+  // "wants to use your location" prompt for a call made directly from the user gesture; awaiting anything
+  // first (e.g. the Permissions API) loses the gesture and the request is denied without a prompt.
+  function locateCustomer() {
+    setError(null);
+    setLocationProblem(false);
     if (!navigator.geolocation) {
-      setError("Your browser does not support location. Please search or enter the address manually.");
+      setError(
+        'Your browser does not support location. Please search or enter the address manually.',
+      );
+      return;
+    }
+    // Browsers only share location with https pages (and localhost): e.g. a phone opening the site by
+    // its LAN IP over http gets a silent "denied" that no setting can fix.
+    if (!window.isSecureContext) {
+      setError(
+        'Location needs a secure (https) connection. Please search or enter the address manually.',
+      );
       return;
     }
     setLocating(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false);
-        placeMarker(position.coords.latitude, position.coords.longitude);
-      },
-      (geoError) => {
-        setLocating(false);
-        setError(
-          geoError.code === geoError.PERMISSION_DENIED
-            ? "Location permission was denied. You can search above or enter the address manually."
-            : "Could not get your location. You can search above or enter the address manually.",
+
+    const succeed = (position: GeolocationPosition) => {
+      if (!mountedRef.current) return;
+      setLocating(false);
+      placeMarker(position.coords.latitude, position.coords.longitude);
+    };
+    const fail = (geoError: GeolocationPositionError) => {
+      if (!mountedRef.current) return;
+      if (geoError.code === geoError.PERMISSION_DENIED) {
+        // the site's own setting says which: blocked for this site, or the device refusing the browser
+        void locationPermission().then((state) => {
+          if (!mountedRef.current) return;
+          showLocationProblem(
+            state === 'denied' ? BLOCKED_MESSAGE : SYSTEM_BLOCKED_MESSAGE,
+          );
+          watchForPermission();
+        });
+      } else if (geoError.code === geoError.POSITION_UNAVAILABLE) {
+        showLocationProblem(
+          "We couldn't find your location. Turn on Location (GPS) in your device settings, then tap Try again.",
         );
+      } else {
+        showLocationProblem(
+          'Finding your location took too long. Tap Try again, or search for your address above.',
+        );
+      }
+    };
+    // Precise GPS first; laptops and indoor phones often have no fix in time, so fall back to the
+    // network-based position (Wi-Fi / cell) rather than giving up.
+    navigator.geolocation.getCurrentPosition(
+      succeed,
+      (precise) => {
+        if (precise.code === precise.PERMISSION_DENIED) return fail(precise);
+        navigator.geolocation.getCurrentPosition(succeed, fail, {
+          enableHighAccuracy: false,
+          timeout: 15_000,
+          maximumAge: 300_000,
+        });
       },
-      { enableHighAccuracy: true, timeout: 10_000 },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
     );
   }
 
-  if (status === "unavailable") return null;
+  // A drag that starts on the map belongs to the map: keep it from reaching a parent drag-to-dismiss sheet
+  // (motion listens natively on the sheet, so a React handler would be too late).
+  useEffect(() => {
+    const frame = mapFrameRef.current;
+    if (!frame) return;
+    const keep = (event: Event) => event.stopPropagation();
+    frame.addEventListener('pointerdown', keep);
+    return () => frame.removeEventListener('pointerdown', keep);
+  }, []);
+
+  if (status === 'unavailable') return null;
 
   return (
-    <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className='space-y-3 rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4'>
+      <div className='flex flex-wrap items-center gap-2'>
         <button
-          type="button"
-          onClick={useCurrentLocation}
-          disabled={status !== "ready" || locating}
-          className="press flex h-10 items-center gap-1.5 rounded-[var(--radius-control)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 text-sm font-medium transition-colors hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))] disabled:cursor-not-allowed disabled:opacity-60"
+          type='button'
+          onClick={locateCustomer}
+          disabled={status !== 'ready' || locating}
+          className='press flex h-10 items-center gap-1.5 rounded-[var(--radius-control)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 text-sm font-medium transition-colors hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))] disabled:cursor-not-allowed disabled:opacity-60'
         >
-          {locating ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <LocateFixed className="size-4 text-[var(--color-brand-accent)]" aria-hidden />}
+          {locating ? (
+            <Loader2 className='size-4 animate-spin' aria-hidden />
+          ) : (
+            <LocateFixed
+              className='size-4 text-[var(--color-brand-accent)]'
+              aria-hidden
+            />
+          )}
           Use current location
         </button>
-        <div className="relative min-w-[14rem] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
+        <div className='relative min-w-[14rem] flex-1'>
+          <Search
+            className='pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]'
+            aria-hidden
+          />
           {/* Bare container: Google's PlaceAutocompleteElement is mounted into this imperatively (see the
               effect above) and owns its own contents entirely — no JSX children are ever rendered here. */}
           <div
             id={inputId}
             ref={autocompleteContainerRef}
-            aria-label="Search for your address"
+            aria-label='Search for your address'
             className={cn(
-              "h-10 w-full rounded-[var(--radius-control)] border border-[var(--rule)] bg-[var(--color-surface)] pl-9 [&>*]:h-full [&>*]:w-full",
-              status !== "ready" && "opacity-60",
+              'h-10 w-full rounded-[var(--radius-control)] border border-[var(--rule)] bg-[var(--color-surface)] pl-9 [&>*]:h-full [&>*]:w-full',
+              status !== 'ready' && 'opacity-60',
             )}
           />
         </div>
       </div>
 
-      <div className="relative h-56 w-full overflow-hidden rounded-[var(--radius-brand)] bg-[var(--steel-2)]">
+      <div
+        ref={mapFrameRef}
+        className='relative h-56 w-full overflow-hidden rounded-[var(--radius-brand)] bg-[var(--steel-2)]'
+      >
         {/* Bare container: Google's Map takes ownership of this node's contents entirely (see the effect
             above) — no JSX children are ever rendered here, only this loading state as a sibling overlay. */}
-        <div ref={mapDivRef} role="application" aria-label="Delivery location map. Drag the pin to correct your address." className="h-full w-full" />
-        {status === "loading-script" ? (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <Loader2 className="size-5 animate-spin text-[var(--color-muted-ink)]" aria-hidden />
+        <div
+          ref={mapDivRef}
+          role='application'
+          aria-label='Delivery location map. Drag the pin to correct your address.'
+          className='h-full w-full'
+        />
+        {status === 'loading-script' ? (
+          <div className='pointer-events-none absolute inset-0 grid place-items-center'>
+            <Loader2
+              className='size-5 animate-spin text-[var(--color-muted-ink)]'
+              aria-hidden
+            />
           </div>
         ) : null}
       </div>
 
       {resolving ? (
-        <p className="flex items-center gap-1.5 text-xs text-[var(--color-muted-ink)]">
-          <Loader2 className="size-3.5 animate-spin" aria-hidden /> Looking up that address…
+        <p className='flex items-center gap-1.5 text-xs text-[var(--color-muted-ink)]'>
+          <Loader2 className='size-3.5 animate-spin' aria-hidden /> Looking up
+          that address…
         </p>
       ) : resolved ? (
-        <p className="flex items-start gap-1.5 text-xs text-[var(--color-muted-ink)]">
-          <MapPin className="mt-0.5 size-3.5 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+        <p className='flex items-start gap-1.5 text-xs text-[var(--color-muted-ink)]'>
+          <MapPin
+            className='mt-0.5 size-3.5 shrink-0 text-[var(--color-brand-accent)]'
+            aria-hidden
+          />
           {resolved.formattedAddress}
         </p>
-      ) : (
-        <p className="text-xs text-[var(--color-muted-ink)]">
-          Use current location or search above, then drag the pin to fine-tune it.
+      ) : error ? null : (
+        <p className='text-xs text-[var(--color-muted-ink)]'>
+          Use current location or search above, then drag the pin to fine-tune
+          it.
         </p>
       )}
-      {error ? <p className="text-xs text-[var(--color-danger)]">{error}</p> : null}
+      {error ? (
+        <div
+          role='alert'
+          className='flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[var(--color-danger)]'
+        >
+          <p className='min-w-0 flex-1'>{error}</p>
+          {locationProblem ? (
+            <button
+              type='button'
+              onClick={locateCustomer}
+              disabled={locating}
+              className='shrink-0 font-semibold text-[var(--color-ink)] underline underline-offset-2 disabled:opacity-60'
+            >
+              Try again
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
-

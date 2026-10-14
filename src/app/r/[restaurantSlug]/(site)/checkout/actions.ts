@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import type { ApiResult } from "@/shared/contract/api";
-import { action } from "@/server/errors";
+import { action, errors } from "@/server/errors";
 import { placeOrder, type PlaceOrderResult } from "@/server/services/checkout";
+import { priceTray } from "@/server/services/cart";
+import { getDeliveryZones } from "@/server/services/restaurants";
+import { getCustomerProfile } from "@/server/services/customer-profile";
 import { dispatchDueNotifications } from "@/server/services/notifications";
 import {
   checkGuestContact,
@@ -14,10 +17,11 @@ import {
   verifyGuestCode,
 } from "@/server/services/customer-auth";
 import { rememberCheckoutAddress } from "@/server/services/customer-profile";
-import { guestContactCheckSchema, guestContactSchema, guestVerifyCodeSchema, placeOrderSchema } from "@/server/validation/checkout";
+import { guestContactCheckSchema, guestContactSchema, guestVerifyCodeSchema, placeOrderSchema, repriceCheckoutSchema } from "@/server/validation/checkout";
 import { signUpSchema } from "@/server/validation/customer-auth";
-import { callerIdentifier, getVisitorContext, refreshCustomerSession, rememberGuestOrder, setCustomerSession } from "@/web/session";
-import { clearTray, readTray, requireStorefront, requireStorefrontRestaurant } from "@/web/storefront";
+import { callerIdentifier, getStorefrontCustomer, getVisitorContext, refreshCustomerSession, rememberGuestOrder, setCustomerSession } from "@/web/session";
+import { clearTray, readTray, readTrayView, requireStorefront, requireStorefrontRestaurant } from "@/web/storefront";
+import type { CheckoutPricing } from "@/components/storefront/checkout-form";
 
 export type { PlaceOrderResult };
 
@@ -48,6 +52,49 @@ export async function placeOrderAction(slug: string, payload: unknown): Promise<
     // "Save this address for next time": after the response, outside the order transaction; never fails the order
     if (input.saveAddressAs) after(() => rememberCheckoutAddress(restaurant, visitor, input));
     return result;
+  });
+}
+
+/**
+ * Re-prices the checkout ticket when the customer switches payment method: tax now varies by method
+ * (card vs. cash on delivery, `domain/pricing.ts#taxRateForPaymentMethod`), so the displayed tax/total
+ * must update immediately instead of staying pinned to whatever method the page first rendered with.
+ * Reuses the exact same `priceTray` call the page itself makes on load — one pricing engine, no
+ * duplicated tax math in the browser. This is a preview only: `placeOrderAction` → `createOrder`
+ * recomputes and is the only authoritative figure actually charged/stored.
+ */
+export async function repriceCheckoutAction(slug: string, payload: unknown): Promise<ApiResult<CheckoutPricing>> {
+  return action(async () => {
+    const input = repriceCheckoutSchema.parse(payload);
+    const context = await requireStorefront(slug);
+    const { restaurant } = context;
+    const customer = await getStorefrontCustomer(restaurant.id);
+    const { tray, view } = await readTrayView(context);
+    const zones =
+      tray.orderType === "delivery"
+        ? await getDeliveryZones(restaurant.id, { locationId: tray.locationId ?? undefined, activeOnly: true })
+        : [];
+    const profile = customer
+      ? await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id))
+      : { email: null, phone: null };
+    const result = await priceTray(restaurant, tray, view, {
+      zones,
+      customer: { email: profile.email, phone: profile.phone },
+      paymentMethod: input.paymentMethod,
+    });
+    if (!result.pricing) throw errors.validation(result.blockers[0] ?? "Could not price this order.");
+    const { pricing } = result;
+    return {
+      subtotal: pricing.subtotal,
+      discount: pricing.discount,
+      deliveryFee: pricing.deliveryFee,
+      serviceFee: pricing.serviceFee,
+      tax: pricing.tax,
+      taxLabel: pricing.taxLabel,
+      taxIncluded: pricing.taxIncluded,
+      taxRate: pricing.taxRate,
+      total: pricing.total,
+    };
   });
 }
 

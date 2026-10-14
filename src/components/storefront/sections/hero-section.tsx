@@ -7,6 +7,7 @@ import { resolveImage } from "@/web/media";
 import { cn } from "@/shared/utils";
 import { CtaLink } from "@/components/storefront/cta-link";
 import { serviceStatus } from "@/components/storefront/service-status";
+import { CollageHero, DishesHero, FramedHero } from "@/components/storefront/sections/hero-variants";
 
 const HEIGHTS: Record<string, string> = {
   sm: "min-h-[min(48svh,420px)] md:min-h-[min(58svh,560px)]",
@@ -29,6 +30,11 @@ const STATUS_DOT = {
  * Everything shown comes from the database.
  */
 export function HeroSection({ section, context }: { section: HeroSectionConfig; context: StorefrontContext }) {
+  if (section.layout === "split") return <SplitHeroSection section={section} />;
+  if (section.layout === "framed") return <FramedHero section={section} context={context} />;
+  if (section.layout === "collage") return <CollageHero section={section} context={context} />;
+  if (section.layout === "dishes") return <DishesHero section={section} context={context} />;
+
   const image = resolveImage(section.image?.url) ?? resolveImage(context.restaurant.coverUrl);
   const overlay = section.overlay;
   const centered = section.alignment === "center";
@@ -161,6 +167,60 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
           </div>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * The light, left-text / right-photo hero (`layout: "split"`): no scrim, no overlay math — just the
+ * theme's own paper ground, a serif headline and a floating cutout photo. `cutoutImage` is a
+ * transparent-background product shot, a different asset than the regular full-bleed `image`; with none
+ * set the text column takes the full width instead of leaving an empty gap. Button styles are fixed
+ * (filled ink pill + outline) regardless of what's stored in `primaryCta.style` / `secondaryCta.style` —
+ * that is what makes this layout read as this layout.
+ */
+function SplitHeroSection({ section }: { section: HeroSectionConfig }) {
+  const cutout = resolveImage(section.cutoutImage?.url);
+  return (
+    // data-hero-light: the header floating over this hero switches to dark type instead of its photo scrim
+    <section data-hero-light className="tone-paper relative isolate overflow-hidden">
+      <div
+        className={cn(
+          "container-page grid items-center gap-10 py-14 md:py-20 [[data-hero-overlay]_&]:pt-[calc(var(--header-h,4.25rem)+3rem)] md:[[data-hero-overlay]_&]:pt-[calc(var(--header-h,4.25rem)+3.5rem)]",
+          cutout ? "grid-cols-1 md:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]" : "grid-cols-1",
+        )}
+      >
+        <div className={cn("max-w-xl", !cutout && "mx-auto text-center")}>
+          {section.eyebrow ? (
+            <p className={cn("eyebrow animate-rise mb-4", !cutout && "justify-center")}>{section.eyebrow}</p>
+          ) : null}
+          <h1 className="display-hero animate-rise [animation-delay:80ms]">{section.title}</h1>
+          {section.subtitle ? (
+            <p className="animate-rise mt-5 max-w-[34rem] text-pretty text-[15px] leading-[1.75] text-[var(--color-muted-ink)] [animation-delay:160ms] md:text-[17px]">
+              {section.subtitle}
+            </p>
+          ) : null}
+          {section.primaryCta || section.secondaryCta ? (
+            <div className={cn("animate-rise mt-8 flex flex-wrap items-center gap-4 [animation-delay:240ms]", !cutout && "justify-center")}>
+              {section.primaryCta ? <CtaLink cta={{ ...section.primaryCta, style: "secondary" }} size="lg" /> : null}
+              {section.secondaryCta ? <CtaLink cta={{ ...section.secondaryCta, style: "outline" }} size="lg" /> : null}
+            </div>
+          ) : null}
+        </div>
+
+        {cutout ? (
+          <div className="relative mx-auto aspect-square w-full max-w-md md:max-w-none">
+            <Image
+              src={cutout}
+              alt={section.cutoutImage?.alt ?? ""}
+              fill
+              priority
+              sizes="(min-width: 768px) 42vw, 80vw"
+              className="animate-rise object-contain [animation-delay:160ms]"
+            />
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

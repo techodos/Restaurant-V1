@@ -138,6 +138,9 @@ export default async function StorefrontLayout({
             name: restaurant.name,
             slug: restaurant.slug,
             logoUrl: resolveImage(restaurant.logoUrl),
+            // per-ground logo versions (light lettering for a dark header, dark lettering for a light one)
+            logoOnLight: resolveImage(config.navigation.logoOnLight),
+            logoOnDark: resolveImage(config.navigation.logoOnDark),
             phone: restaurant.phone,
             country: restaurant.country,
           }}

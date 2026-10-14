@@ -23,6 +23,25 @@ const imageSchema = z.object({
   caption: z.string().trim().max(200).optional(),
 });
 
+/**
+ * An admin-edited list that must never take the section down: entries that fail `item` (a blank row the
+ * editor just added, an image with no address) are dropped one by one and anything past `max` is cut,
+ * instead of one bad entry discarding the whole list.
+ */
+function lenientList<T extends z.ZodTypeAny>(item: T, max: number) {
+  return z.preprocess(
+    (raw) =>
+      Array.isArray(raw)
+        ? raw
+            .map((entry) => item.safeParse(entry))
+            .filter((result) => result.success)
+            .map((result) => result.data)
+            .slice(0, max)
+        : [],
+    z.array(item),
+  );
+}
+
 export const heroSectionSchema = z.object({
   type: z.literal("hero"),
   enabled: z.boolean().default(true),
@@ -30,6 +49,15 @@ export const heroSectionSchema = z.object({
   title: z.string().trim().max(140).default(""),
   subtitle: z.string().trim().max(400).optional(),
   image: imageSchema.optional(),
+  /** "cinematic" (default): full-bleed photo under a dark scrim, as today. "split": a light ground, text on one
+   * side and a floating cutout photo on the other — needs `cutoutImage` (a transparent-background product
+   * shot), not the regular background photo, to look right. */
+  layout: z.enum(["cinematic", "split", "framed", "collage", "dishes"]).catch("cinematic").default("cinematic"),
+  cutoutImage: imageSchema.optional(),
+  /** "collage" layout: up to three more photos beside the main `image` (none = the main photo alone) */
+  galleryImages: lenientList(imageSchema, 3),
+  /** "dishes" layout: up to three dish slugs; empty = the dishes the restaurant marked as featured */
+  dishSlugs: lenientList(z.string().trim().min(1).max(120), 3),
   alignment: z.enum(["left", "center"]).default("left"),
   overlay: z.coerce.number().min(0).max(1).default(0.45),
   height: z.enum(["sm", "md", "lg", "full"]).default("lg"),
@@ -191,6 +219,20 @@ export const orderTypeSwitchSectionSchema = z.object({
   orderTypes: z.array(z.enum(ORDER_TYPES)).min(1).default(["delivery", "pickup"]),
 });
 
+/** A full-bleed photo band: a scroll/explore action, a short caption and a row of admin-entered numbers
+ * (not computed from real data — the restaurant types them in, same as `about.stats`). */
+export const statsBandSectionSchema = z.object({
+  type: z.literal("stats_band"),
+  enabled: z.boolean().default(true),
+  image: imageSchema.optional(),
+  caption: z.string().trim().max(300).optional(),
+  exploreCta: ctaSchema.optional(),
+  stats: z
+    .array(z.object({ value: z.string().trim().max(20), label: z.string().trim().max(40) }))
+    .max(4)
+    .default([]),
+});
+
 /**
  * Marks where a functional page's built-in body (the menu list, the booking form, the reviews list, the
  * location cards) sits among the other sections of its website page. `title` / `subtitle` override the body's
@@ -203,6 +245,11 @@ export const pageContentSectionSchema = z.object({
   subtitle: z.string().trim().max(400).optional(),
   /** the body's own hero photo (menu, reviews, locations, reservation); absent => the restaurant's cover photo */
   image: imageSchema.optional(),
+  /**
+   * Menu page only: "editorial" (default) = alternating photo/rows and dark/light chapters; "grid" = every
+   * category a light card grid with the stepper + Add to Cart bar. Ignored on the other pages.
+   */
+  menuLayout: z.enum(["editorial", "grid", "list", "sidebar", "rows"]).catch("editorial").default("editorial"),
 });
 
 export const sectionSchema = z.discriminatedUnion("type", [
@@ -221,6 +268,7 @@ export const sectionSchema = z.discriminatedUnion("type", [
   ctaSectionSchema,
   richTextSectionSchema,
   orderTypeSwitchSectionSchema,
+  statsBandSectionSchema,
   pageContentSectionSchema,
 ]);
 
@@ -241,12 +289,13 @@ export type RichTextSection = z.infer<typeof richTextSectionSchema>;
 export type MenuPreviewSection = z.infer<typeof menuPreviewSectionSchema>;
 export type MenuCategoriesSection = z.infer<typeof menuCategoriesSectionSchema>;
 export type OrderTypeSwitchSection = z.infer<typeof orderTypeSwitchSectionSchema>;
+export type StatsBandSection = z.infer<typeof statsBandSectionSchema>;
 export type PageContentSection = z.infer<typeof pageContentSectionSchema>;
 
 export const SECTION_TYPES = [
   "hero", "announcement", "featured_items", "menu_categories", "menu_preview", "about",
   "gallery", "why_choose_us", "reviews", "reservation_cta", "locations", "contact",
-  "cta", "rich_text", "order_type_switch", "page_content",
+  "cta", "rich_text", "order_type_switch", "stats_band", "page_content",
 ] as const satisfies readonly SectionType[];
 
 export const SECTION_LABELS: Record<SectionType, string> = {
@@ -265,6 +314,7 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   cta: "Call-to-action banner",
   rich_text: "Rich text",
   order_type_switch: "Order type switch",
+  stats_band: "Photo band with numbers",
   page_content: "Page content (menu, booking form, reviews, locations)",
 };
 

@@ -2,8 +2,9 @@ import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { assertBranchAccess, type ScopedActor } from "@/server/auth/branch-scope";
 import { getStorefrontCache } from "@/server/cache";
-import type { DeliveryZone } from "@/shared/contract/models";
-import { listLocations } from "@/server/repositories/restaurants";
+import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
+import type { DeliveryPricing } from "@/shared/delivery-pricing";
+import { listLocations, updateLocation } from "@/server/repositories/restaurants";
 import {
   createDeliveryZone,
   deleteDeliveryZone,
@@ -74,4 +75,31 @@ export async function removeDeliveryZone(restaurantId: string, zoneId: string, c
   await requireZoneInScope(restaurantId, zoneId, actor, ctx);
   await deleteDeliveryZone(zoneId, ctx);
   getStorefrontCache().invalidate();
+}
+
+/**
+ * Distance-based delivery pricing (section 34): one branch's fixed-fee-by-distance slabs, lives in that
+ * branch's `settings.deliveryPricing` — same branch-scoping as its zones (a manager only their own branch),
+ * same permission (`delivery.manage`, this page), not `locations.manage` (editing the branch itself).
+ * `slabs: null` clears it (the branch's zones go back to their own flat fee); other `settings` keys this
+ * form knows nothing about (e.g. dine-in tables) are preserved, never overwritten.
+ */
+export async function saveLocationDeliveryPricing(
+  restaurantId: string,
+  locationId: string,
+  slabs: DeliveryPricing | null,
+  ctx: RequestContext,
+  actor: ScopedActor,
+): Promise<RestaurantLocation> {
+  assertBranchAccess(actor, locationId);
+  const branch = (await listLocations(restaurantId, ctx)).find((location) => location.id === locationId);
+  if (!branch) throw errors.notFound("Branch");
+  const settings: Record<string, unknown> = { ...branch.settings };
+  if (slabs) settings.deliveryPricing = slabs;
+  else delete settings.deliveryPricing;
+  // `name` is required by LocationInput's type even though the SQL coalesces every field — pass the
+  // branch's own unchanged name rather than widen the shared type for this one caller
+  const location = await updateLocation(locationId, { name: branch.name, settings }, ctx);
+  getStorefrontCache().invalidate();
+  return location;
 }

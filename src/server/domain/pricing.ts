@@ -2,8 +2,21 @@ import Decimal from "decimal.js";
 import { dec, extractIncludedTax, percentageOf, round2, sumMoney, toMoney, ZERO } from "@/shared/money";
 import type { ErrorCode } from "@/shared/contract/api";
 import { AppError } from "@/server/errors";
-import type { OrderType } from "@/shared/contract/enums";
+import type { OrderType, PaymentMethod } from "@/shared/contract/enums";
 import type { RestaurantSettings } from "@/shared/contract/settings";
+
+/**
+ * The configured tax rate for a payment method. Card (`card_online`, `card_terminal`) and
+ * `cash_on_delivery` each have their own configured rate (`settings.tax.byPaymentMethod`); every other
+ * method (cash, wallet, bank transfer — not asked for by this feature) keeps the flat `settings.tax.rate`.
+ * The one place that reads `byPaymentMethod` — `calculatePricing` below is the only caller, so checkout
+ * preview, order creation and the receipt can never disagree about which rate applied.
+ */
+export function taxRateForPaymentMethod(tax: RestaurantSettings["tax"], method: PaymentMethod | null | undefined): Decimal {
+  if (method === "card_online" || method === "card_terminal") return dec(tax.byPaymentMethod.card.rate);
+  if (method === "cash_on_delivery") return dec(tax.byPaymentMethod.cashOnDelivery.rate);
+  return dec(tax.rate);
+}
 
 /**
  * THE pricing engine. Every money calculation in the platform — cart totals,
@@ -80,6 +93,8 @@ export interface PricingInput {
   customerPhone?: string | null;
   /** injectable clock so promotions can be unit tested deterministically */
   now?: Date;
+  /** picks the tax rate (settings.tax.byPaymentMethod) — omitted (cart preview, before a method is chosen) falls back to settings.tax.rate */
+  paymentMethod?: PaymentMethod | null;
 }
 
 export interface PricingBreakdown {
@@ -293,7 +308,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
 
   // ---- tax ---------------------------------------------------------------
   const taxEnabled = settings.tax.enabled;
-  const taxRate = taxEnabled ? dec(settings.tax.rate) : ZERO;
+  const taxRate = taxEnabled ? taxRateForPaymentMethod(settings.tax, input.paymentMethod) : ZERO;
   const taxIncluded = taxEnabled && settings.tax.included;
 
   const taxableBase = subtotal

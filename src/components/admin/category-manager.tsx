@@ -11,6 +11,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { MenuCategory } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
 import { StatusPill } from "@/components/admin/admin-ui";
+import { IconPicker } from "@/components/admin/icon-picker";
 
 function slugify(value: string): string {
   return value
@@ -24,6 +25,7 @@ function CategoryEditForm({ category, onCancel }: { category?: MenuCategory; onC
   const [name, setName] = useState(category?.name ?? "");
   const [slug, setSlug] = useState(category?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(category));
+  const [icon, setIcon] = useState(category?.icon ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
 
@@ -31,7 +33,7 @@ function CategoryEditForm({ category, onCancel }: { category?: MenuCategory; onC
     event.preventDefault();
     setErrors({});
     startTransition(() => {
-      saveCategoryAction({ id: category?.id, name, slug, isActive: category?.isActive ?? true }).then((result) => {
+      saveCategoryAction({ id: category?.id, name, slug, icon: icon || undefined, isActive: category?.isActive ?? true }).then((result) => {
         if (!result.success) {
           if (result.error.details) {
             setErrors(Object.fromEntries(Object.entries(result.error.details).map(([key, value]) => [key, String(value)])));
@@ -75,6 +77,10 @@ function CategoryEditForm({ category, onCancel }: { category?: MenuCategory; onC
           required
         />
         <FieldError>{errors.slug}</FieldError>
+      </div>
+      <div>
+        <IconPicker value={icon} onChange={setIcon} label="Category icon" />
+        <FieldError>{errors.icon}</FieldError>
       </div>
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>

@@ -9,6 +9,8 @@ import { getBranching, getStorefrontContext, readTray } from "@/web/storefront";
 import { resolveImage, resolveMenuImage } from "@/web/media";
 import { MenuOrderTypeSync } from "@/components/storefront/branch-bar";
 import { DishTile } from "@/components/storefront/dish-tile";
+import { MenuListItem } from "@/components/storefront/menu-list-item";
+import { Rail } from "@/components/storefront/rail";
 import { PageHero } from "@/components/storefront/page-hero";
 import { StationNav } from "@/components/storefront/station-nav";
 import { Button } from "@/components/ui/button";
@@ -92,7 +94,7 @@ async function renderMenu(
   const grouped = categories
     .map((entry) => ({ category: entry, items: items.filter((item) => item.categoryId === entry.id) }))
     .filter((group) => group.items.length > 0);
-  const stations = grouped.map((group) => ({ slug: group.category.slug, name: group.category.name, count: group.items.length }));
+  const stations = grouped.map((group) => ({ slug: group.category.slug, name: group.category.name, count: group.items.length, icon: group.category.icon }));
   const keep = (extra: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
     const merged = { orderType: activeOrderType, q: search || undefined, sort: sort && sort !== "menu" ? sort : undefined, category, ...extra };
@@ -115,6 +117,24 @@ async function renderMenu(
   // the whole page IS the buffet, so it earns a taller hero and its own "how this works" band.
   const isBuffetOnly = !restaurant.features.alaCarteEnabled;
   const reservations = restaurant.settings.reservations;
+  // set in super admin on the menu page's "Page content" section
+  const layout = heading.menuLayout;
+  const isGrid = layout === "grid";
+  const chapterProps = (group: (typeof grouped)[number]) => ({
+    id: group.category.slug,
+    "aria-labelledby": `${group.category.slug}-title`,
+  });
+  const listItem = (item: (typeof items)[number]) => (
+    <MenuListItem
+      item={item}
+      restaurantSlug={restaurant.slug}
+      currencySymbol={restaurant.currencySymbol}
+      locale={restaurant.locale}
+      showPrepTime={context.config.ordering.showPrepTime}
+      orderType={activeOrderType}
+      offAtBranch={offHere.has(item.id)}
+    />
+  );
   const tile = (item: (typeof items)[number], layout: "card" | "row") => (
     <DishTile
       item={item}
@@ -125,6 +145,7 @@ async function renderMenu(
       showPrepTime={context.config.ordering.showPrepTime}
       orderType={activeOrderType}
       offAtBranch={offHere.has(item.id)}
+      inlineAdd={isGrid && layout === "card"}
     />
   );
   const dishes = (count: number) => `${count} dish${count === 1 ? "" : "es"}`;
@@ -142,6 +163,7 @@ async function renderMenu(
         overlay={heading.leading}
         image={heroImage}
         size={isBuffetOnly ? "lg" : "md"}
+        eyebrowRule="double"
         eyebrow={
           isBuffetOnly
             ? "Buffet dining"
@@ -162,30 +184,33 @@ async function renderMenu(
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <form
             action={base}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] border border-white/20 bg-black/30 py-1.5 pl-5 pr-1.5 backdrop-blur-md transition-colors focus-within:border-white/60 lg:max-w-xl"
+            className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-white/20 bg-black/30 p-2 backdrop-blur-md transition-colors focus-within:border-white/60 sm:flex-nowrap sm:gap-1 sm:py-2 sm:pl-5 sm:pr-2 lg:max-w-2xl"
           >
             <input type="hidden" name="orderType" value={activeOrderType} />
             {category ? <input type="hidden" name="category" value={category} /> : null}
-            <Search className="size-[18px] shrink-0 text-white/70" aria-hidden />
-            <input
-              name="q"
-              type="search"
-              defaultValue={search}
-              placeholder="Search dishes or ingredients"
-              aria-label="Search the menu"
-              className="h-10 min-w-0 flex-1 bg-transparent text-[16px] text-white outline-none placeholder:text-white/55"
-            />
+            <div className="flex min-w-0 basis-full items-center gap-2 pl-2 sm:basis-auto sm:flex-1 sm:pl-0">
+              <Search className="size-[18px] shrink-0 text-white/70" aria-hidden />
+              <input
+                name="q"
+                type="search"
+                defaultValue={search}
+                placeholder="Search dishes or ingredients…"
+                aria-label="Search the menu"
+                className="h-11 min-w-0 flex-1 bg-transparent px-1 text-[16px] text-white outline-none placeholder:text-white/55 sm:px-3"
+              />
+            </div>
+            <span aria-hidden className="hidden h-6 w-px shrink-0 bg-white/20 sm:block" />
             <select
               name="sort"
               defaultValue={sort ?? "menu"}
               aria-label="Sort"
-              className="hidden h-10 cursor-pointer rounded-[var(--radius-control)] bg-white/10 px-3 text-xs font-medium text-white outline-none sm:block [&>option]:text-black"
+              className="hidden h-11 cursor-pointer rounded-[var(--radius-control)] bg-transparent px-3 text-sm font-medium text-white outline-none sm:block [&>option]:text-black"
             >
               <option value="menu">Menu order</option>
               <option value="price_asc">Price, low first</option>
               <option value="price_desc">Price, high first</option>
             </select>
-            <Button type="submit" size="sm" className="h-10">
+            <Button type="submit" size="md" className="h-11 flex-1 px-7 sm:flex-none">
               Search
             </Button>
           </form>
@@ -267,13 +292,167 @@ async function renderMenu(
         </section>
       ) : (
         <>
-          <div className="tone-paper sticky top-[var(--header-h,4.25rem)] z-30 border-b border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-canvas)_92%,transparent)] backdrop-blur-lg">
+          {/* the sidebar layout carries its own category index on wide screens; the rail stays for phones */}
+          <div
+            className={cn(
+              "tone-paper sticky top-[var(--header-h,4.25rem)] z-30 border-b border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-canvas)_92%,transparent)] backdrop-blur-lg",
+              layout === "sidebar" && "lg:hidden",
+            )}
+          >
             <div className="container-page">
               <StationNav stations={stations} variant="rail" />
             </div>
           </div>
 
-          {grouped.map((group, index) => {
+          {layout === "list" ? (
+            // a printed menu: two columns of chapters, each a run of lines; no photographs
+            <section className="tone-paper section-y">
+              <div className="container-page lg:columns-2 lg:gap-16 xl:gap-24">
+                {grouped.map((group) => (
+                  <section
+                    key={group.category.id}
+                    {...chapterProps(group)}
+                    className="mb-14 break-inside-avoid scroll-mt-[calc(var(--header-h,4.25rem)+3.5rem)] last:mb-0 md:mb-16"
+                  >
+                    <h2 id={`${group.category.slug}-title`} className="display-2">
+                      {group.category.name}
+                    </h2>
+                    {group.category.description ? (
+                      <p className="mt-2.5 flex items-center gap-3 font-[family-name:var(--font-display)] text-[15px] italic text-[var(--color-muted-ink)]">
+                        <span aria-hidden className="h-px w-7 shrink-0 bg-[var(--color-brand-accent)]" />
+                        {group.category.description}
+                      </p>
+                    ) : null}
+                    <ul className="mt-5 divide-y divide-[var(--rule)] border-t border-[var(--rule-strong)]">
+                      {group.items.map((item) => (
+                        <li key={item.id}>{listItem(item)}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            </section>
+          ) : layout === "sidebar" ? (
+            // a standing category index beside the dishes; each chapter opens on its own photograph
+            <section className="tone-paper section-y">
+              <div className="container-page grid gap-10 lg:grid-cols-[13.5rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)] xl:gap-16">
+                <aside className="hidden lg:block">
+                  <div className="sticky top-[calc(var(--header-h,4.25rem)+2rem)] border-l border-[var(--rule)]">
+                    <StationNav stations={stations} variant="index" />
+                  </div>
+                </aside>
+                <div className="min-w-0 space-y-14 md:space-y-16">
+                  {grouped.map((group) => {
+                    const photo = chapterPhoto(group);
+                    return (
+                      <section
+                        key={group.category.id}
+                        {...chapterProps(group)}
+                        className="scroll-mt-[calc(var(--header-h,4.25rem)+3.5rem)] lg:scroll-mt-[calc(var(--header-h,4.25rem)+2rem)]"
+                      >
+                        {photo ? (
+                          <header className="tone-night relative isolate flex h-40 items-end overflow-hidden rounded-[var(--radius-panel)] md:h-48">
+                            <Image src={photo} alt="" fill sizes="(min-width: 1024px) 60vw, 100vw" className="reveal-plate -z-20 object-cover" />
+                            <span
+                              aria-hidden
+                              className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgb(0_0_0/0.72)_0%,rgb(0_0_0/0.35)_55%,rgb(0_0_0/0.1)_100%)]"
+                            />
+                            <div className="p-5 md:p-7">
+                              <h2 id={`${group.category.slug}-title`} className="display-2">
+                                {group.category.name}
+                              </h2>
+                              {group.category.description ? (
+                                <p className="mt-1.5 font-[family-name:var(--font-display)] text-[15px] italic text-[var(--color-muted-ink)]">
+                                  {group.category.description}
+                                </p>
+                              ) : null}
+                            </div>
+                          </header>
+                        ) : (
+                          <header className="border-b border-[var(--rule-strong)] pb-5">
+                            <h2 id={`${group.category.slug}-title`} className="display-2">
+                              {group.category.name}
+                            </h2>
+                            {group.category.description ? <p className="lede mt-2">{group.category.description}</p> : null}
+                          </header>
+                        )}
+                        <ul className="divide-y divide-[var(--rule)]">
+                          {group.items.map((item) => (
+                            <li key={item.id}>{tile(item, "row")}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          ) : layout === "rows" ? (
+            // every category one horizontal shelf of cards (swipe, trackpad or the arrows)
+            <section className="tone-paper section-y overflow-hidden">
+              <div className="container-page space-y-14 md:space-y-16">
+                {grouped.map((group) => (
+                  <section
+                    key={group.category.id}
+                    {...chapterProps(group)}
+                    className="scroll-mt-[calc(var(--header-h,4.25rem)+3.5rem)]"
+                  >
+                    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2 border-b border-[var(--rule)] pb-4">
+                      <div className="min-w-0">
+                        <h2 id={`${group.category.slug}-title`} className="display-2">
+                          {group.category.name}
+                        </h2>
+                        {group.category.description ? (
+                          <p className="mt-1.5 max-w-xl text-[14.5px] leading-relaxed text-[var(--color-muted-ink)]">{group.category.description}</p>
+                        ) : null}
+                      </div>
+                      <p className="tabular text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">
+                        {dishes(group.items.length)}
+                      </p>
+                    </header>
+                    <Rail
+                      label={`${group.category.name} dishes`}
+                      className="mt-6"
+                      itemClassName="w-[72%] sm:w-[calc((100%-1.5rem)/2.35)] lg:w-[calc((100%-3rem)/3.3)] xl:w-[calc((100%-4.5rem)/4.25)]"
+                    >
+                      {group.items.map((item) => (
+                        <div key={item.id} className="h-full">
+                          {tile(item, "card")}
+                        </div>
+                      ))}
+                    </Rail>
+                  </section>
+                ))}
+              </div>
+            </section>
+          ) : isGrid ? (
+            <section className="tone-paper section-y">
+              <div className="container-page">
+                {grouped.map((group, index) => (
+                  <div
+                    key={group.category.id}
+                    id={group.category.slug}
+                    aria-labelledby={`${group.category.slug}-title`}
+                    className={cn("scroll-mt-[calc(var(--header-h,4.25rem)+3rem)]", index > 0 && "mt-10 md:mt-12")}
+                  >
+                    <div className="flex items-end justify-between gap-4">
+                      <h2 id={`${group.category.slug}-title`} className="display-3 flex items-center gap-3 uppercase">
+                        <span aria-hidden className="block h-px w-6 shrink-0 bg-[var(--color-brand-accent)]" />
+                        {group.category.name}
+                      </h2>
+                      <p className="text-xs text-[var(--color-muted-ink)]">{group.items.length} item{group.items.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <ul className="mt-5 grid grid-cols-2 gap-3 md:mt-6 md:grid-cols-3 md:gap-5 xl:grid-cols-4">
+                      {group.items.map((item) => (
+                        <li key={item.id}>{tile(item, "card")}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
+            grouped.map((group, index) => {
             const night = index % 2 === 1;
             const photo = chapterPhoto(group);
             // every other paper chapter puts its photograph on the right
@@ -327,7 +506,8 @@ async function renderMenu(
                 </div>
               </section>
             );
-          })}
+          })
+          )}
         </>
       )}
     </>

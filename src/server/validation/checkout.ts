@@ -19,6 +19,11 @@ export const guestVerifyCodeSchema = guestContactSchema.extend({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code."),
 });
 
+/** Re-prices the checkout ticket for a newly chosen payment method (tax varies by method — see domain/pricing.ts). */
+export const repriceCheckoutSchema = z.object({
+  paymentMethod: z.enum(PAYMENT_METHODS),
+});
+
 export const placeOrderSchema = z.object({
   orderType: z.enum(ORDER_TYPES),
   fullName: z.string().trim().min(2, "Please enter your name.").max(120),

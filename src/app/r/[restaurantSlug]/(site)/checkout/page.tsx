@@ -46,6 +46,9 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const branch = branching ? (branchesFor(branching, tray.orderType).find((option) => option.id === tray.locationId) ?? null) : null;
   if (branching && !branch) redirect(`/r/${restaurant.slug}/menu`);
 
+  // Single-branch mode (flag off): `readTray` already pinned the tray to the primary branch, so its zones,
+  // hours and menu availability decide this order and the form offers no branch choice.
+  const formLocations = branching ? locations : primaryLocation ? [primaryLocation] : [];
   // the kitchen that will cook it (the cart's branch, else the primary one): the same one createOrder checks
   const orderLocation = locations.find((location) => location.id === tray.locationId) ?? primaryLocation;
   const availability = serviceAvailability(restaurant, orderLocation, tray.orderType);
@@ -61,17 +64,24 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const profile: CustomerProfile = customer
     ? await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id))
     : { fullName: "", email: null, phone: null, gender: null, dateOfBirth: null, authProvider: "password", emailVerified: false, addresses: [] };
+  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant, tray.orderType);
+  // Tax can vary by payment method (card vs. cash on delivery) — price with whichever method the form
+  // will default to (its own default picks the same first available method) so the first paint already
+  // shows the right rate; switching methods on the page re-prices via `repriceCheckoutAction`.
   const pricingResult = await priceTray(restaurant, tray, view, {
     zones,
     customer: { email: profile.email, phone: profile.phone },
+    paymentMethod: paymentMethods[0] ?? null,
   });
   const emailVerified = profile.emailVerified;
   const couponCode = pricingResult.coupon?.code ?? null;
 
-  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant, tray.orderType);
-
   if (!pricingResult.pricing || pricingResult.blockers.length > 0 || (!availability.acceptsOrders && !closedLabel)) {
-    const reason = pricingResult.blockers[0] ?? availability.message;
+    // no delivery zone at all for this branch is a real "no", not a missing choice: say what to do instead
+    const noDeliveryZones = tray.orderType === "delivery" && zones.length === 0 && restaurant.settings.delivery.enabled;
+    const reason = noDeliveryZones
+      ? `${orderLocation?.name ?? restaurant.name} isn't delivering online right now. Switch your order to pickup in the cart to continue.`
+      : (pricingResult.blockers[0] ?? availability.message);
     return (
       <div>
       <div className="container-page py-16">
@@ -173,6 +183,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
             tax: pricing.tax,
             taxLabel: pricing.taxLabel,
             taxIncluded: pricing.taxIncluded,
+            taxRate: pricing.taxRate,
             total: pricing.total,
           }}
           couponCode={couponCode}
@@ -197,7 +208,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           savedPhone={profile.phone}
           savedAddresses={profile.addresses}
           phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
-          locations={locations}
+          locations={formLocations}
           initialLocationId={tray.locationId}
           branch={branch ? { name: branch.name, menuHref: `/r/${restaurant.slug}/menu`, destination: branching?.destination ?? null } : null}
           googleMapsApiKey={config.maps?.apiKey ?? null}

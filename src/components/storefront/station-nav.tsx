@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/shared/utils";
+import { SectionIcon } from "./icon";
 
 export interface Station {
   slug: string;
   name: string;
   count: number;
+  icon?: string | null;
 }
 
 /**
@@ -82,7 +84,10 @@ export function StationNav({ stations, variant }: { stations: Station[]; variant
                       transition={{ type: "spring", duration: 0.35, bounce: 0.12 }}
                     />
                   ) : null}
-                  <span>{station.name}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    {station.icon ? <SectionIcon name={station.icon} className="size-4 shrink-0" /> : null}
+                    {station.name}
+                  </span>
                   <span className="tabular text-xs opacity-60">{station.count}</span>
                 </a>
               </li>
@@ -95,7 +100,7 @@ export function StationNav({ stations, variant }: { stations: Station[]; variant
 
   return (
     <nav aria-label="Menu stations">
-      <div ref={railRef} className="scrollbar-none flex gap-1 overflow-x-auto">
+      <div ref={railRef} className="scrollbar-none flex gap-1 overflow-x-auto sm:justify-between">
         {stations.map((station) => {
           const current = station.slug === active;
           return (
@@ -106,10 +111,11 @@ export function StationNav({ stations, variant }: { stations: Station[]; variant
               onClick={go(station.slug)}
               aria-current={current ? "location" : undefined}
               className={cn(
-                "relative shrink-0 whitespace-nowrap px-3 py-3 text-sm transition-colors duration-200",
+                "relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-3 text-sm transition-colors duration-200",
                 current ? "font-semibold text-[var(--color-ink)]" : "text-[var(--color-muted-ink)]",
               )}
             >
+              {station.icon ? <SectionIcon name={station.icon} className="size-4 shrink-0" /> : null}
               {station.name}
               {current ? (
                 <motion.span

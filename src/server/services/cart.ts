@@ -1,12 +1,12 @@
 import type { Coupon, DeliveryZone, OpeningHours, Restaurant, RestaurantLocation } from "@/shared/contract/models";
-import { DAY_KEYS, type OrderType } from "@/shared/contract/enums";
+import { DAY_KEYS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { acceptsOrdersAt, timeToMinutes, to12Hour, zonedNow } from "@/shared/hours";
 import { dec, toMoney, ZERO } from "@/shared/money";
 import { trayItemCount, type Tray, type TrayLine } from "@/shared/tray";
 import { errors } from "@/server/errors";
 import { toCouponPricing } from "@/server/repositories/coupons";
-import { matchDeliveryZone, type DeliveryAddressFields, type ZoneBranch } from "@/server/repositories/deliveries";
+import { matchDeliveryZone, resolveDeliveryFee, type DeliveryAddressFields, type ZoneBranch } from "@/server/repositories/deliveries";
 import { resolveMenuSelection } from "@/server/domain/menu-selection";
 import {
   computeCouponDiscount,
@@ -138,6 +138,8 @@ export async function priceTray(
     branchOf?: (locationId: string) => ZoneBranch | null | undefined;
     /** the signed-in customer's own email/mobile, for a coupon restricted to specific customers */
     customer?: CouponCustomer | null;
+    /** picks the tax rate (settings.tax.byPaymentMethod); omitted falls back to the flat settings.tax.rate */
+    paymentMethod?: PaymentMethod | null;
   },
 ): Promise<TrayPricingResult> {
   const orderType = options.orderType ?? tray.orderType;
@@ -153,7 +155,22 @@ export async function priceTray(
         ? matchDeliveryZone(options.zones, options.address, (locationId) => options.branchOf?.(locationId))
         : (options.zones.find((candidate) => candidate.locationId === tray.locationId) ?? (singleBranch ? options.zones[0] : null) ?? null)
       : null;
-  const zone = matched ? toZonePricing(matched) : null;
+  // Distance-based pricing (admin-configured per branch): same rule as the order itself
+  // (resolveDeliveryFee) — only kicks in when the caller supplies the branch's pin (branchOf) and the
+  // customer's own pin (address.latitude/longitude, not just a typed address); otherwise the zone's flat
+  // fee is shown exactly as before.
+  let zone: ZonePricing | null = null;
+  let deliveryBlocker: string | null = null;
+  if (matched) {
+    const branch = options.branchOf?.(matched.locationId);
+    const feeResolution = resolveDeliveryFee(matched.deliveryFee, branch ?? {}, options.address ?? null);
+    if (feeResolution.tooFar) {
+      deliveryBlocker = `That address is about ${feeResolution.distanceKm!.toFixed(1)} km away — outside this branch's delivery range.`;
+    } else {
+      zone = { ...toZonePricing(matched), deliveryFee: feeResolution.fee };
+    }
+  }
+  if (deliveryBlocker) blockers.push(deliveryBlocker);
   const coupon = tray.couponCode ? await findPreviewCoupon(restaurant.id, tray.couponCode) : null;
 
   const orderable = view.lines.filter((line) => !line.problem);
@@ -168,6 +185,7 @@ export async function priceTray(
       coupon: withCoupon ? toCouponPricing(withCoupon) : null,
       customerEmail: options.customer?.email ?? null,
       customerPhone: options.customer?.phone ?? null,
+      paymentMethod: options.paymentMethod,
     });
 
   let couponNotice: string | null =

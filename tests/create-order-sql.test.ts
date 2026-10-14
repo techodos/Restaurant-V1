@@ -304,6 +304,31 @@ describe("createOrder — the order always has the branch that cooks it", () => 
     await createOrder(input(1, { locationId: null }), { restaurantId: RESTAURANT });
     expect(orderInsert()!.params[1]).toBeNull();
   });
+
+  it("single-branch mode: a delivery to the primary branch's area is that branch's order", async () => {
+    // placeOrder passes the primary branch (web/storefront.ts#readTray pins the tray to it with the flag off)
+    await createOrder(input(1, { ...delivery, locationId: "branch-1" }), { restaurantId: RESTAURANT });
+    expect(orderInsert()!.params[1]).toBe("branch-1");
+  });
+
+  it("single-branch mode: an address the primary branch does not deliver to is refused, plainly, before any write", async () => {
+    const outside = { ...delivery, address: { line1: "House 1", area: "Gulberg", city: "Lahore" }, locationId: "branch-1" };
+    await expect(createOrder(input(1, outside), { restaurantId: RESTAURANT })).rejects.toMatchObject({
+      code: "DELIVERY_UNAVAILABLE",
+      message: expect.stringMatching(/we don't deliver to that address/i),
+    });
+    expect(orderInsert()).toBeUndefined();
+  });
+
+  it("multi-branch ordering: an address the chosen branch does not deliver to keeps the branch wording", async () => {
+    db.branching = true;
+    const outside = { ...delivery, address: { line1: "House 1", area: "Gulberg", city: "Lahore" }, locationId: "branch-1" };
+    await expect(createOrder(input(1, outside), { restaurantId: RESTAURANT })).rejects.toMatchObject({
+      code: "DELIVERY_UNAVAILABLE",
+      message: expect.stringMatching(/this branch does not deliver/i),
+    });
+    expect(orderInsert()).toBeUndefined();
+  });
 });
 
 describe("createOrder — never into a closed kitchen", () => {

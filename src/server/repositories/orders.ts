@@ -8,7 +8,7 @@ import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, ty
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary, SalesAnalytics } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
-import { servingZones } from "./deliveries";
+import { resolveDeliveryFee, servingZones } from "./deliveries";
 import { toCouponPricing } from "./coupons";
 import { saveFirstAccountPhone, upsertCustomer } from "./customers";
 import { mapOrderableItems, orderableItemsSql } from "./menu";
@@ -168,7 +168,7 @@ async function placeInTransaction(
            (select coalesce(json_agg(zs order by zs.sort_order, zs.name), '[]') from (
               -- each zone with its branch's city: delivery coverage never crosses a city (deliveries.ts#servingZones)
               select z.*, l.city as branch_city, l.latitude as branch_latitude, l.longitude as branch_longitude,
-                     l.hours as branch_hours
+                     l.hours as branch_hours, l.settings as branch_settings
                 from delivery_zones z
                 join restaurant1s l on l.id = z.location_id and l.is_active
                where z.restaurant_id = $1 and z.is_active and ($5::uuid is null or z.location_id = $5)) zs)
@@ -188,9 +188,13 @@ async function placeInTransaction(
                           )::int as phone_usage
                 from coupons c where c.restaurant_id = $1 and c.code = upper(trim($6))) x)
          end as coupon,
-         -- this checkout already produced an order (a retry / double submit): it is returned, not repeated
+         -- this checkout already produced an order (a retry / double submit): it is returned, not
+         -- repeated. Excludes an order whose payment definitively failed (0039) — nothing was charged,
+         -- so a resubmit (e.g. switching payment method after a declined card) must re-price and
+         -- re-create, not replay the failed attempt's stale payment method/tax.
          case when $8::uuid is not null and $2::uuid is not null then
-           (select id from orders where restaurant_id = $1 and customer_id = $2 and idempotency_key = $8::uuid)
+           (select id from orders
+             where restaurant_id = $1 and customer_id = $2 and idempotency_key = $8::uuid and payment_status <> 'failed')
          end as replay_order_id`,
       [
         input.restaurantId,
@@ -346,6 +350,7 @@ async function placeInTransaction(
             city: row.branch_city ? str(row.branch_city) : null,
             latitude: row.branch_latitude == null ? null : Number(row.branch_latitude),
             longitude: row.branch_longitude == null ? null : Number(row.branch_longitude),
+            settings: row.branch_settings,
           },
         ]),
       );
@@ -369,15 +374,35 @@ async function placeInTransaction(
       );
       zoneRecord = serving.find((candidate) => candidate.id === input.deliveryZoneId) ?? serving[0] ?? null;
       if (!zoneRecord) {
-        throw new PricingError("DELIVERY_UNAVAILABLE", "Sorry, this branch does not deliver to that address.");
+        throw new PricingError(
+          "DELIVERY_UNAVAILABLE",
+          restaurant.features.BranchingFeature
+            ? "Sorry, this branch does not deliver to that address."
+            : "Sorry, we don't deliver to that address yet. Check the area and city, or choose pickup.",
+        );
       }
       // no branch named (single-location / feature-off restaurants): the branch whose zone delivers it is
       // the one that cooks it — record that instead of leaving the order unowned
       locationId ??= zoneRecord.locationId;
+
+      // Distance-based pricing (admin-configured per branch): the zone above already decided the address
+      // IS served; this only decides what it costs, and — when distance pricing is configured and the
+      // customer gave a map pin that is beyond every slab — refuses an order the zone would otherwise
+      // have allowed, exactly as a zone's own radius/polygon already can (see resolveDeliveryFee).
+      const feeResolution = resolveDeliveryFee(zoneRecord.deliveryFee, branches.get(zoneRecord.locationId) ?? {}, {
+        latitude: input.address.latitude,
+        longitude: input.address.longitude,
+      });
+      if (feeResolution.tooFar) {
+        throw new PricingError(
+          "DELIVERY_UNAVAILABLE",
+          `Sorry, that address is about ${feeResolution.distanceKm!.toFixed(1)} km away — outside this branch's delivery range.`,
+        );
+      }
       zone = {
         id: zoneRecord.id,
         name: zoneRecord.name,
-        deliveryFee: zoneRecord.deliveryFee,
+        deliveryFee: feeResolution.fee,
         minOrderAmount: zoneRecord.minOrderAmount,
         freeDeliveryOver: zoneRecord.freeDeliveryOver,
       };
@@ -413,6 +438,7 @@ async function placeInTransaction(
       zone,
       coupon,
       tipAmount: input.tipAmount ?? "0",
+      paymentMethod: input.paymentMethod,
       couponUsageByCustomer,
       // a coupon restricted to specific customers (eligibleEmails/eligiblePhones) is checked against the
       // account's own email/mobile, not what the form sent

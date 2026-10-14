@@ -11,8 +11,13 @@ import {
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { FieldError, FieldHint, Input, inputStyles, Label, Select, Textarea } from "@/components/ui/input";
-import { checkGuestContactAction, placeOrderAction, sendGuestVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
+import { FieldError, Input, inputStyles, Label, Textarea } from "@/components/ui/input";
+import {
+  checkGuestContactAction,
+  placeOrderAction,
+  repriceCheckoutAction,
+  sendGuestVerificationCodeAction,
+} from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
 import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
 import { GuestVerifyDialog } from "@/components/storefront/guest-verify-dialog";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
@@ -36,6 +41,8 @@ export interface CheckoutPricing {
   tax: string;
   taxLabel: string;
   taxIncluded: boolean;
+  /** percentage, e.g. "8.0000" — varies by payment method (card vs. cash on delivery); shown next to the tax line */
+  taxRate: string;
   total: string;
 }
 
@@ -130,7 +137,7 @@ const choiceOn = "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-
 const choiceOff = "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[color-mix(in_srgb,var(--color-brand)_45%,var(--color-hairline))]";
 const field = "h-12";
 const ctaButton =
-  "group flex h-14 w-full items-center justify-between gap-3 rounded-[var(--radius-control)] bg-[var(--color-brand)] px-5 text-[15px] font-semibold text-[var(--color-brand-foreground)] transition-[background-color,transform,box-shadow] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)] hover:shadow-[var(--shadow-brand)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)] motion-reduce:transition-none motion-reduce:active:scale-100";
+  "group flex h-13 w-full items-center justify-between gap-3 rounded-[var(--radius-control)] bg-[var(--color-brand)] px-5 text-[15px] font-semibold text-[var(--color-brand-foreground)] transition-[background-color,transform,box-shadow] duration-200 hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)] hover:shadow-[var(--shadow-brand)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)] motion-reduce:transition-none motion-reduce:active:scale-100";
 
 const ORDER_TYPE_COPY: Record<OrderType, { title: string; text: string; icon: LucideIcon }> = {
   delivery: { title: "Delivery", text: "Get it at your doorstep", icon: Bike },
@@ -193,7 +200,7 @@ export function CheckoutForm({
   orderType,
   orderTypeOptions,
   items,
-  pricing,
+  pricing: initialPricing,
   couponCode,
   zones,
   paymentMethods,
@@ -242,6 +249,31 @@ export function CheckoutForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availablePaymentMethods]);
+
+  // Tax can depend on the chosen payment method (card vs. cash on delivery, domain/pricing.ts). The
+  // page's first render already prices with the method the form defaults to (see checkout/page.tsx), so
+  // this only re-prices on an actual change — never on mount, and never piling up a stale response on
+  // top of a newer one (requestId guard, same pattern as location-picker.tsx's reverse geocode).
+  const [pricing, setPricing] = useState<CheckoutPricing>(initialPricing);
+  const [repricing, setRepricing] = useState(false);
+  const repriceRequestId = useRef(0);
+  const mountedForRepriceRef = useRef(false);
+  useEffect(() => {
+    if (!mountedForRepriceRef.current) {
+      mountedForRepriceRef.current = true;
+      return;
+    }
+    const requestId = ++repriceRequestId.current;
+    setRepricing(true);
+    repriceCheckoutAction(restaurantSlug, { paymentMethod }).then((result) => {
+      if (requestId !== repriceRequestId.current) return; // superseded by a later payment-method change
+      setRepricing(false);
+      if (result.success) setPricing(result.data);
+      // a repricing failure (e.g. the cart changed underneath) leaves the last good totals on screen;
+      // "Place order" still recomputes authoritatively and will surface any real problem then
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod, restaurantSlug]);
   const [tip, setTip] = useState("");
   const [customTip, setCustomTip] = useState(false);
   const customTipInput = useRef<HTMLInputElement>(null);
@@ -278,7 +310,7 @@ export function CheckoutForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destinationKey]);
   const router = useRouter();
-  const { clear: clearLocalCart, setLocationId } = useLocalCart();
+  const { clear: clearLocalCart, setLocationId, setOrderType: setCartOrderType } = useLocalCart();
 
   // "new address" fields are controlled so the map/search picker can fill them in; still hand-editable.
   const [newAddress, setNewAddress] = useState({
@@ -613,7 +645,10 @@ export function CheckoutForm({
       </Link>
     </p>
   );
-  const placeOrderContent = closedLabel ? (
+  const itemCount = items.reduce((count, item) => count + item.quantity, 0);
+  // `withTotal`: the phones' sticky bar, where the summary's total block is off-screen. Next to the total
+  // block (desktop) the button does not repeat the amount.
+  const placeOrderContent = (withTotal: boolean) => closedLabel ? (
     // closed: just the reason (no total or arrow on a button that cannot be pressed)
     <span className="flex w-full items-center justify-center gap-2.5">
       <Clock className="size-[18px]" aria-hidden />
@@ -630,7 +665,7 @@ export function CheckoutForm({
         {pending ? "Placing your order" : sendingGuestCode ? "Sending code…" : "Place order"}
       </span>
       <span className="tabular flex items-center gap-2">
-        {money(totalDue)}
+        {withTotal ? money(totalDue) : null}
         <ArrowRight
           className="size-[18px] text-[var(--color-brand-foreground)] transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none"
           aria-hidden
@@ -676,7 +711,12 @@ export function CheckoutForm({
                       name="orderType"
                       value={type}
                       checked={on}
-                      onChange={() => setOrderTypeState(type)}
+                      onChange={() => {
+                        setOrderTypeState(type);
+                        // the tray's order type drives the header's branch bar ("Pick up at…" / "Serving from…") and
+                        // everything else that reads it, so it must follow the choice made here
+                        setCartOrderType(type);
+                      }}
                       className="sr-only"
                     />
                     <span
@@ -717,13 +757,16 @@ export function CheckoutForm({
           />
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="fullName">Full name</Label>
+              <Label htmlFor="fullName">
+                Full name <span aria-hidden className="text-[var(--color-danger)]">*</span>
+              </Label>
               <div className="relative">
                 <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
                 <Input
                   id="fullName"
                   name="fullName"
                   defaultValue={customerDefaults?.fullName ?? ""}
+                  placeholder="Enter your full name"
                   autoComplete="name"
                   aria-invalid={Boolean(errors.fullName)}
                   required
@@ -762,7 +805,11 @@ export function CheckoutForm({
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="email">
                 Email{" "}
-                {accountEmail ? <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span> : null}
+                {accountEmail ? (
+                  <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span>
+                ) : (
+                  <span aria-hidden className="text-[var(--color-danger)]">*</span>
+                )}
               </Label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
@@ -786,6 +833,7 @@ export function CheckoutForm({
                     type="email"
                     value={guestEmail}
                     onChange={(event) => setGuestEmail(event.target.value)}
+                    placeholder="you@example.com"
                     autoComplete="email"
                     aria-invalid={Boolean(errors.email || emailTakenMessage)}
                     className={cn(field, "pl-10")}
@@ -887,10 +935,14 @@ export function CheckoutForm({
               {chosenAddress ? null : (
                 <>
                   <div className="space-y-1.5 sm:col-span-2">
-                    <Label htmlFor="addressLine1">{locationLocked ? "House / flat no. and street" : "Street address"}</Label>
+                    <Label htmlFor="addressLine1">
+                      {locationLocked ? "House / flat no. and street" : "Street address"}{" "}
+                      <span aria-hidden className="text-[var(--color-danger)]">*</span>
+                    </Label>
                     <Input
                       id="addressLine1"
                       autoComplete="address-line1"
+                      placeholder="House number, street name, area"
                       aria-invalid={Boolean(errors.addressLine1)}
                       value={newAddress.addressLine1}
                       onChange={(event) => setNewAddress((current) => ({ ...current, addressLine1: event.target.value }))}
@@ -905,6 +957,7 @@ export function CheckoutForm({
                     <Input
                       id="addressLine2"
                       autoComplete="address-line2"
+                      placeholder={locationLocked ? "e.g. Building name, near mosque, etc." : "e.g. Building name, floor, or nearby landmark"}
                       value={newAddress.addressLine2}
                       onChange={(event) => setNewAddress((current) => ({ ...current, addressLine2: event.target.value }))}
                       className={field}
@@ -912,26 +965,16 @@ export function CheckoutForm({
                   </div>
                 </>
               )}
-              {zones.length && !locationLocked ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="deliveryZoneId">Delivery area</Label>
-                  <Select id="deliveryZoneId" name="deliveryZoneId" defaultValue={zones[0]?.id ?? ""} className={field}>
-                    {zones.map((zone) => (
-                      <option key={zone.id} value={zone.id}>
-                        {zone.name} · {money(zone.deliveryFee)}
-                      </option>
-                    ))}
-                  </Select>
-                  <FieldHint>We match your address to a zone automatically; pick one if you know it.</FieldHint>
-                </div>
-              ) : null}
               {chosenAddress || locationLocked ? null : (
-                <>
+                <div className="grid gap-5 sm:col-span-2 sm:grid-cols-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="area">Area</Label>
+                    <Label htmlFor="area">
+                      Area <span aria-hidden className="text-[var(--color-danger)]">*</span>
+                    </Label>
                     <Input
                       id="area"
                       autoComplete="address-level3"
+                      placeholder="Enter your area"
                       aria-invalid={Boolean(errors.area)}
                       value={newAddress.area}
                       onChange={(event) => setNewAddress((current) => ({ ...current, area: event.target.value }))}
@@ -940,10 +983,13 @@ export function CheckoutForm({
                     <FieldError>{errors.area}</FieldError>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="city">City</Label>
+                    <Label htmlFor="city">
+                      City <span aria-hidden className="text-[var(--color-danger)]">*</span>
+                    </Label>
                     <Input
                       id="city"
                       autoComplete="address-level2"
+                      placeholder="Enter your city"
                       aria-invalid={!showBranchPicker && Boolean(errors.city)}
                       value={newAddress.city}
                       onChange={(event) => setNewAddress((current) => ({ ...current, city: event.target.value }))}
@@ -957,12 +1003,13 @@ export function CheckoutForm({
                     <Input
                       id="postalCode"
                       autoComplete="postal-code"
+                      placeholder="e.g. 54000"
                       value={newAddress.postalCode}
                       onChange={(event) => setNewAddress((current) => ({ ...current, postalCode: event.target.value }))}
                       className={field}
                     />
                   </div>
-                </>
+                </div>
               )}
               {/* a new (not saved) address, locked or typed: offer to keep it */}
               {!chosenAddress && isSignedIn ? (
@@ -1201,50 +1248,51 @@ export function CheckoutForm({
           aria-labelledby="summary-title"
           className="overflow-hidden rounded-[var(--radius-panel)] border border-[var(--color-hairline)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] lg:flex lg:max-h-[calc(100dvh-var(--header-h,4.5rem)-3rem)] lg:flex-col"
         >
-          <div className="relative shrink-0 bg-[var(--color-brand)] px-6 pb-6 pt-6 text-[var(--color-brand-foreground)] sm:px-7">
+          <div className="relative shrink-0 bg-[var(--color-brand)] px-5 pb-4 pt-4 text-[var(--color-brand-foreground)] sm:px-6">
             <div className="flex items-baseline justify-between gap-3">
-              <h2 id="summary-title" className="font-[family-name:var(--font-display)] text-[1.55rem] font-normal leading-tight">
+              <h2 id="summary-title" className="font-[family-name:var(--font-display)] text-[1.3rem] font-normal leading-tight">
                 Order summary
               </h2>
               <span className="tabular shrink-0 text-[12.5px] text-[color-mix(in_srgb,var(--color-brand-foreground)_75%,transparent)]">
-                {items.reduce((count, item) => count + item.quantity, 0)} item
-                {items.reduce((count, item) => count + item.quantity, 0) === 1 ? "" : "s"}
+                {itemCount} item{itemCount === 1 ? "" : "s"}
               </span>
             </div>
-            <p className="mt-1 text-[13.5px] text-[color-mix(in_srgb,var(--color-brand-foreground)_80%,transparent)]">Your delicious meal is just a step away</p>
             <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-[var(--color-brand-accent)]" />
           </div>
 
           {/* when capped, the item list shrinks first (it scrolls itself) so totals and Place order stay in view;
               the body only scrolls as a last resort on very short windows */}
-          <div className="px-6 pb-6 pt-5 sm:px-7 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:overscroll-contain lg:[&>*:not(ul)]:shrink-0">
-            <ul aria-label="Items in your order" className="-mx-1 space-y-4 px-1 py-1 lg:max-h-[min(34vh,19rem)] lg:min-h-[4.5rem] lg:overflow-y-auto lg:overscroll-contain">
+          <div className="px-5 pb-5 pt-4 sm:px-6 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:overscroll-contain lg:[&>*:not(ul)]:shrink-0">
+            {/* capped at every width: 10+ dishes scroll inside the card instead of pushing the totals and
+                Place order below the fold (desktop also shrinks it further with the window) */}
+            <ul
+              aria-label="Items in your order"
+              tabIndex={items.length > 4 ? 0 : undefined}
+              className="-mx-1 max-h-[17.5rem] divide-y divide-[var(--color-hairline)] overflow-y-auto overscroll-contain px-1 focus-visible:outline-2 focus-visible:outline-[var(--color-brand)] lg:max-h-[min(34vh,17.5rem)] lg:min-h-[3.5rem]"
+            >
               {items.map((item, index) => (
-                <li key={index} className="flex items-center gap-3.5">
-                  <div className="relative size-14 shrink-0 overflow-hidden rounded-[var(--radius-brand)] bg-[var(--brand-tint)]">
+                <li key={index} className="flex items-center gap-3 py-2.5 first:pt-1 last:pb-1">
+                  <div className="relative size-11 shrink-0 overflow-hidden rounded-[var(--radius-brand)] bg-[var(--brand-tint)]">
                     {item.imageUrl ? (
-                      <Image src={item.imageUrl} alt={item.name} fill sizes="56px" className="object-cover" />
+                      <Image src={item.imageUrl} alt="" fill sizes="44px" className="object-cover" />
                     ) : (
                       <span className="grid size-full place-items-center text-[var(--color-brand)]">
-                        <UtensilsCrossed className="size-5" aria-hidden />
+                        <UtensilsCrossed className="size-4" aria-hidden />
                       </span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[14.5px] font-semibold leading-snug">{item.name}</p>
-                    {item.variantName || item.addonNames.length ? (
-                      <p className="mt-0.5 text-[12.5px] leading-snug text-[var(--color-muted-ink)]">
-                        {[item.variantName, ...item.addonNames].filter(Boolean).join(" · ")}
-                      </p>
-                    ) : null}
-                    <p className="tabular mt-0.5 text-[12.5px] text-[var(--color-muted-ink)]">Qty {item.quantity}</p>
+                    <p className="line-clamp-2 text-[14px] font-semibold leading-snug">{item.name}</p>
+                    <p className="tabular truncate text-[12.5px] leading-snug text-[var(--color-muted-ink)]">
+                      {[`Qty ${item.quantity}`, item.variantName, ...item.addonNames].filter(Boolean).join(" · ")}
+                    </p>
                   </div>
-                  <p className="tabular shrink-0 whitespace-nowrap text-[14.5px] font-medium">{money(item.lineTotal)}</p>
+                  <p className="tabular shrink-0 whitespace-nowrap text-[14px] font-medium">{money(item.lineTotal)}</p>
                 </li>
               ))}
             </ul>
 
-            <dl className="tabular mt-5 space-y-2.5 border-t border-[var(--color-hairline)] pt-5 text-sm">
+            <dl className="tabular mt-3 space-y-2 border-t border-[var(--color-hairline)] pt-4 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-[var(--color-muted-ink)]">Subtotal</dt>
                 <dd>{money(pricing.subtotal)}</dd>
@@ -1269,8 +1317,9 @@ export function CheckoutForm({
               ) : null}
               <div className="flex justify-between gap-4">
                 <dt className="text-[var(--color-muted-ink)]">
-                  {pricing.taxLabel}
+                  {pricing.taxLabel} ({Number(pricing.taxRate)}%)
                   {pricing.taxIncluded ? " (included)" : ""}
+                  {repricing ? <Loader2 className="ml-1 inline size-3 animate-spin align-[-2px]" aria-hidden /> : null}
                 </dt>
                 <dd>{money(pricing.tax)}</dd>
               </div>
@@ -1280,9 +1329,9 @@ export function CheckoutForm({
                   <dd>{tipValid ? money(tip) : "—"}</dd>
                 </div>
               ) : null}
-              <div className="!mt-5 flex items-center justify-between gap-4 rounded-[var(--radius-card)] bg-[var(--brand-tint)] px-4 py-4">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-brand)]">Total due</dt>
-                <dd aria-live="polite" className="font-[family-name:var(--font-display)] text-[1.85rem] leading-none text-[var(--color-brand)]">
+              <div className="!mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] bg-[var(--brand-tint)] px-4 py-3">
+                <dt className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-brand)]">Total due</dt>
+                <dd aria-live="polite" className="tabular whitespace-nowrap font-[family-name:var(--font-display)] text-[1.35rem] leading-none text-[var(--color-brand)] sm:text-[1.6rem]">
                   {money(totalDue)}
                 </dd>
               </div>
@@ -1293,13 +1342,10 @@ export function CheckoutForm({
               </p>
             ) : null}
 
-            <button type="submit" data-testid="place-order" disabled={pending || sendingGuestCode || Boolean(closedLabel)} className={cn(ctaButton, "mt-5 hidden lg:flex")}>
-              {placeOrderContent}
+            <button type="submit" data-testid="place-order" disabled={pending || sendingGuestCode || Boolean(closedLabel)} className={cn(ctaButton, "mt-4 hidden lg:flex")}>
+              {placeOrderContent(false)}
             </button>
             {signInPrompt ? <div className="mt-3 hidden lg:block">{signInPrompt}</div> : null}
-            <p className="mt-3 text-center text-xs leading-relaxed text-[var(--color-muted-ink)]">
-              The kitchen receives your order right away. You will get a confirmation once the restaurant accepts it.
-            </p>
           </div>
         </section>
       </aside>
@@ -1307,7 +1353,7 @@ export function CheckoutForm({
       {/* phones: the place-order action stays under the thumb with the live total */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-canvas)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl lg:hidden">
         <button type="submit" disabled={pending || sendingGuestCode || Boolean(closedLabel)} className={ctaButton}>
-          {placeOrderContent}
+          {placeOrderContent(true)}
         </button>
         {signInPrompt ? <div className="mt-2">{signInPrompt}</div> : null}
       </div>

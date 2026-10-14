@@ -7,6 +7,7 @@ import {
   encodeDestination,
   formatDistance,
   normaliseDestination,
+  orderBranchId,
   type DeliveryDestination,
 } from "@/shared/branching";
 import { restaurantFeaturesSchema } from "@/shared/contract/settings";
@@ -244,5 +245,25 @@ describe("deliveryAreas: the location sheet's city / area dropdowns", () => {
   it("is the same with or without a destination", () => {
     const withDestination = rankBranches([lahoreA, karachi], zones, destination("Gulberg", "Lahore", 31.5, 74.3));
     expect(withDestination.deliveryAreas).toEqual(rankBranches([lahoreA, karachi], zones, null).deliveryAreas);
+  });
+});
+
+describe("the branch an order belongs to (orderBranchId)", () => {
+  it("multi-branch ordering on: the branch the customer chose, never silently another", () => {
+    expect(orderBranchId(true, "mall-1", "walton")).toBe("mall-1");
+    // no choice yet stays no choice: checkout redirects to the menu and createOrder refuses it
+    expect(orderBranchId(true, null, "walton")).toBeNull();
+  });
+
+  it("off (single-branch mode): always the primary branch, so no branch has to be chosen", () => {
+    expect(orderBranchId(false, null, "walton")).toBe("walton");
+  });
+
+  it("off: a branch left in the cookie from when the flag was on (or edited) cannot move the order", () => {
+    expect(orderBranchId(false, "mall-1", "walton")).toBe("walton");
+  });
+
+  it("off with no active location configured: null (createOrder records the serving zone's branch)", () => {
+    expect(orderBranchId(false, "mall-1", null)).toBeNull();
   });
 });
