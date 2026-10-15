@@ -9,7 +9,7 @@ import { Check, Field, RowList } from "@/components/super-admin/form-parts";
 import { EmptyState, StatusBadge, Switch } from "@/components/super-admin/ui";
 import { ImageUploadTile } from "@/components/super-admin/image-upload";
 import { ORDER_TYPES, ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
-import { SECTION_LABELS, SECTION_TYPES, defaultSection, type SectionType } from "@/shared/contract/sections";
+import { ORDER_SWITCH_LAYOUTS, SECTION_LABELS, SECTION_TYPES, defaultSection, type SectionType } from "@/shared/contract/sections";
 import { cn } from "@/shared/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSONB edited field by field; the server validates against sectionSchema on save
@@ -283,7 +283,30 @@ export const FIELDS: Record<SectionType, Field[]> = {
     { k: "width", label: "Width", t: "select", options: ["narrow", "wide"] },
   ],
   order_type_switch: [
-    title(),
+    {
+      k: "layout",
+      label: "Layout",
+      t: "select",
+      options: ORDER_SWITCH_LAYOUTS,
+      labels: {
+        band: "Band — a dark strip of doors, joins the hero's bottom edge",
+        cards: "Ticket cards — order stubs with a perforated tear line",
+        photo: "Photo doors — tall photo tiles, one per service",
+        capsule: "Capsule — one rounded selector bar",
+        split: "Split — heading beside numbered rows",
+      },
+      wide: true,
+    },
+    {
+      k: "tone",
+      label: "Background",
+      t: "select",
+      options: ["auto", "night", "paper"],
+      labels: { auto: "Layout's own", night: "Dark", paper: "Light" },
+    },
+    { k: "showEta", label: "Show delivery time", t: "bool" },
+    { k: "showHeading", label: "Show heading (not in the Band layout)", t: "bool" },
+    title("Heading"),
     subtitle,
     {
       k: "orderTypes",
@@ -291,6 +314,12 @@ export const FIELDS: Record<SectionType, Field[]> = {
       t: "orderTypes",
       wide: true,
     },
+    { k: "deliveryText", label: "Delivery line (empty = default)", t: "text" },
+    { k: "pickupText", label: "Pickup line (empty = default)", t: "text" },
+    { k: "dineInText", label: "Dine-in line (empty = default)", t: "text" },
+    { k: "deliveryImage", label: "Delivery photo (Photo doors only, else the cover photo)", t: "image", wide: true },
+    { k: "pickupImage", label: "Pickup photo (Photo doors only)", t: "image", wide: true },
+    { k: "dineInImage", label: "Dine-in photo (Photo doors only)", t: "image", wide: true },
   ],
   stats_band: [
     { k: "image", label: "Background photo (optional, else the cover photo)", t: "image", wide: true },
