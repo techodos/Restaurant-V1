@@ -1,4 +1,4 @@
-import type { Section } from "@/shared/contract/sections";
+import { ORDER_SWITCH_TONE, type Section } from "@/shared/contract/sections";
 import type { SectionTone } from "@/components/storefront/section-shell";
 
 /**
@@ -12,7 +12,6 @@ const FIXED: Partial<Record<Section["type"], SectionTone>> = {
   about: "night",
   reviews: "night",
   reservation_cta: "night",
-  order_type_switch: "night",
   featured_items: "paper",
   menu_preview: "paper",
   menu_categories: "muted",
@@ -32,6 +31,7 @@ function fixedTone(section: Section): SectionTone | undefined {
     if (section.tone === "primary") return "brand";
     return undefined; // neutral: flexible
   }
+  if (section.type === "order_type_switch") return section.tone === "auto" ? ORDER_SWITCH_TONE[section.layout] : section.tone;
   return FIXED[section.type];
 }
 

@@ -211,12 +211,38 @@ export const richTextSectionSchema = z.object({
   width: z.enum(["narrow", "wide"]).default("narrow"),
 });
 
+export const ORDER_SWITCH_LAYOUTS = ["band", "cards", "photo", "capsule", "split"] as const;
+export type OrderSwitchLayout = (typeof ORDER_SWITCH_LAYOUTS)[number];
+/** each layout's own ground when the section's `tone` is "auto" */
+export const ORDER_SWITCH_TONE: Record<OrderSwitchLayout, "night" | "paper" | "muted"> = {
+  band: "night",
+  cards: "paper",
+  photo: "night",
+  capsule: "muted",
+  split: "night",
+};
+
 export const orderTypeSwitchSectionSchema = z.object({
   type: z.literal("order_type_switch"),
   enabled: z.boolean().default(true),
   title: z.string().trim().max(120).default("How would you like your order?"),
   subtitle: z.string().trim().max(300).optional(),
   orderTypes: z.array(z.enum(ORDER_TYPES)).min(1).default(["delivery", "pickup"]),
+  /** "band" (default) = the dark strip of three doors; the rest are presentation-only variants */
+  layout: z.enum(ORDER_SWITCH_LAYOUTS).catch("band").default("band"),
+  /** "auto" = the layout's own ground (ORDER_SWITCH_TONE); "night" / "paper" force dark / light */
+  tone: z.enum(["auto", "night", "paper"]).catch("auto").default("auto"),
+  showEta: z.boolean().catch(true).default(true),
+  /** the visible title + subtitle in every layout but "band" (which keeps the title for screen readers only) */
+  showHeading: z.boolean().catch(true).default(true),
+  /** per-door line under the label; empty = the built-in one */
+  deliveryText: z.string().trim().max(140).optional().catch(undefined),
+  pickupText: z.string().trim().max(140).optional().catch(undefined),
+  dineInText: z.string().trim().max(140).optional().catch(undefined),
+  /** "photo" layout only; a door with no photo falls back to the cover photo */
+  deliveryImage: imageSchema.optional().catch(undefined),
+  pickupImage: imageSchema.optional().catch(undefined),
+  dineInImage: imageSchema.optional().catch(undefined),
 });
 
 /** A full-bleed photo band: a scroll/explore action, a short caption and a row of admin-entered numbers
