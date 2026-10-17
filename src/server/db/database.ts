@@ -1,6 +1,7 @@
 import { Pool, type PoolClient, type PoolConfig, type QueryResultRow } from "pg";
 
 import type { RequestContext } from "@/server/context";
+import { logger } from "@/server/logger";
 
 /**
  * Database provider: pooled connections and per-transaction request context.
@@ -54,8 +55,14 @@ export class Database {
   constructor(runtimeUrl: string, serviceUrl?: string, options: { poolMax?: number } = {}) {
     const poolMax = options.poolMax ?? 10;
     this.runtimePool = new Pool(buildConfig(runtimeUrl, "rp_runtime", poolMax));
+    onPoolError(this.runtimePool, "rp_runtime");
     const privilegedUrl = serviceUrl?.trim();
-    this.servicePool = privilegedUrl ? new Pool(buildConfig(privilegedUrl, "rp_service", poolMax)) : this.runtimePool;
+    if (privilegedUrl) {
+      this.servicePool = new Pool(buildConfig(privilegedUrl, "rp_service", poolMax));
+      onPoolError(this.servicePool, "rp_service");
+    } else {
+      this.servicePool = this.runtimePool;
+    }
   }
 
   /**
@@ -155,6 +162,18 @@ export class Database {
     await this.runtimePool.end();
     if (this.hasServiceRole) await this.servicePool.end();
   }
+}
+
+/**
+ * pg's Pool emits `'error'` when an already-idle client's connection drops (the hosted pooler closing it, a
+ * network blip) — with no listener, Node treats that as an unhandled exception and can take the whole process
+ * down. That matched this bug exactly: a Mark Paid click would hang forever (its connection lost mid-request as
+ * the server crashed and restarted under a process supervisor, so the request's response never arrived) with
+ * no error toast, the write having silently succeeded or failed server-side moments earlier. The pool drops the
+ * dead client on its own; this only needs to stop it from being fatal.
+ */
+function onPoolError(pool: Pool, applicationName: string): void {
+  pool.on("error", (error) => logger.error("db", `idle connection error on pool ${applicationName}`, error));
 }
 
 function buildConfig(connectionString: string, applicationName: string, poolMax: number): PoolConfig {

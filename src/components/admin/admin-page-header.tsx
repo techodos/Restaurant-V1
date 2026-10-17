@@ -33,6 +33,7 @@ export function AdminPageHeader({
         {backHref ? (
           <Link
             href={backHref}
+            prefetch={false}
             className="mb-2 inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
           >
             <ArrowLeft className="size-4" aria-hidden /> {backLabel}

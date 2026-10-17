@@ -41,8 +41,10 @@ export function OrderStatusControl({ orderId, orderNumber, currentStatus }: { or
         return;
       }
       // shown once the page shows the new status (useSettledToast); no client refresh: the action revalidates,
-      // so its response already carries this page re-rendered (refreshing again was a second full render)
-      later(`Order marked ${ORDER_STATUS_LABELS[status].toLowerCase()}.`);
+      // so its response already carries this page re-rendered (refreshing again was a second full render).
+      // Rapid clicks across rows/controls consolidate into one "N orders marked X." toast.
+      const label = ORDER_STATUS_LABELS[status].toLowerCase();
+      later(`Order marked ${label}.`, { group: "order-status", label, plural: "orders" });
       setShowCancelForm(false);
     });
   }

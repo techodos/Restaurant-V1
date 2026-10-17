@@ -29,6 +29,7 @@ interface BulkState {
 }
 
 const BulkContext = createContext<BulkState | null>(null);
+const BULK_TOAST_ID = "order-bulk-status";
 
 export function OrderBulkProvider({ orders, children }: { orders: BulkOrder[]; children: ReactNode }) {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -50,18 +51,27 @@ export function OrderBulkProvider({ orders, children }: { orders: BulkOrder[]; c
 
   function apply() {
     const changes = chosen.map((order) => ({ orderId: order.id, status: order.next.status }));
+    // the hosted DB can take a visible moment for a 6-order write; a loading toast makes that wait legible
+    // instead of looking stuck, and the same id carries it straight into the eventual result (see below)
+    toast.loading(`Updating ${changes.length} ${changes.length === 1 ? "order" : "orders"}…`, { id: BULK_TOAST_ID });
     startTransition(async () => {
       const undo = markOwnOrderChanges(chosen.map((order) => ({ orderNumber: order.orderNumber, status: order.next.status })));
       const result = await bulkUpdateOrderStatusAction({ changes });
       if (!result.success) {
         undo();
-        toast.error(result.error.message);
+        toast.error(result.error.message, { id: BULK_TOAST_ID });
         return;
       }
       setPicked(new Set());
       const { updated, requested } = result.data;
+      if (updated === 0) {
+        toast.warning(`${requested} of ${requested} orders had already changed and were left as they are.`, { id: BULK_TOAST_ID });
+        return;
+      }
       if (updated < requested) toast.warning(`${requested - updated} of ${requested} orders had already changed and were left as they are.`);
-      if (updated > 0) later(`${updated} ${updated === 1 ? "order" : "orders"} updated.`);
+      // shown once the list shows the new statuses (useSettledToast); same id as the loading toast above,
+      // so it resolves that toast in place instead of leaving it hanging or popping a second one
+      later(`${updated} ${updated === 1 ? "order" : "orders"} updated.`, { group: BULK_TOAST_ID, label: "updated", plural: "orders" });
     });
   }
 

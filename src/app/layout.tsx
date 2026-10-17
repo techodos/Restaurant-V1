@@ -29,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster
           position="top-center"
           closeButton
+          visibleToasts={3}
           toastOptions={{
             className: "rounded-[var(--radius-brand)] border border-[var(--color-hairline)]",
           }}

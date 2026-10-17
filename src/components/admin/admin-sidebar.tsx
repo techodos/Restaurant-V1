@@ -112,6 +112,9 @@ function NavList({
                 <li key={href}>
                   <Link
                     href={href}
+                    // always-visible nav, same reasoning as admin-status-tabs.tsx: don't eagerly prefetch every
+                    // force-dynamic admin page just because its link is on screen
+                    prefetch={false}
                     onClick={() => {
                       if (ORDER_ACTIVITY_HREFS.has(item.href)) resetActivityCount();
                       onNavigate?.();
@@ -377,7 +380,7 @@ export function AdminBreadcrumb({ restaurantSlug }: { restaurantSlug: string }) 
           return (
             <li key={`${crumb.label}-${index}`} className={cn("flex min-w-0 items-center gap-1.5", index === 0 && "hidden sm:flex")}>
               {crumb.href ? (
-                <Link href={crumb.href} className="truncate text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]">
+                <Link href={crumb.href} prefetch={false} className="truncate text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]">
                   {crumb.label}
                 </Link>
               ) : (

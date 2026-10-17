@@ -30,8 +30,12 @@ export function OrderNextStepButton({ orderId, orderNumber, next, label }: { ord
             undo();
             toast.error(result.error.message);
           }
-          // shown once the list shows the new status (see useSettledToast)
-          else later(`Order ${result.data.orderNumber} marked ${ORDER_STATUS_LABELS[next].toLowerCase()}.`);
+          // shown once the list shows the new status (see useSettledToast); same group as OrderStatusControl so
+          // rapid clicks across rows consolidate into one toast
+          else {
+            const label = ORDER_STATUS_LABELS[next].toLowerCase();
+            later(`Order ${result.data.orderNumber} marked ${label}.`, { group: "order-status", label, plural: "orders" });
+          }
         })
       }
     >

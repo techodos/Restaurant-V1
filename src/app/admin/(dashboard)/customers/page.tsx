@@ -99,7 +99,7 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
               {result.rows.map((customer) => (
                 <tr key={customer.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
                   <td className="px-4 py-3">
-                    <Link href={`${adminPath()}/customers/${customer.id}`} className="font-medium text-[var(--color-brand)] hover:underline">
+                    <Link href={`${adminPath()}/customers/${customer.id}`} prefetch={false} className="font-medium text-[var(--color-brand)] hover:underline">
                       {customer.fullName}
                     </Link>
                     <p className="text-xs text-[var(--color-muted-ink)]">{customer.phone}</p>

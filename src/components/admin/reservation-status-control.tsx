@@ -29,8 +29,10 @@ export function ReservationStatusControl({
         setStatus(currentStatus);
         return;
       }
-      // shown once the list shows the new status (useSettledToast); no client refresh: the action revalidates
-      later(`Marked ${RESERVATION_STATUS_LABELS[status].toLowerCase()}.`);
+      // shown once the list shows the new status (useSettledToast); no client refresh: the action revalidates.
+      // Rapid clicks across rows consolidate into one "N reservations marked X." toast.
+      const label = RESERVATION_STATUS_LABELS[status].toLowerCase();
+      later(`Marked ${label}.`, { group: "reservation-status", label, plural: "reservations" });
     });
   }
 
