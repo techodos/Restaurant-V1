@@ -142,10 +142,10 @@ describe("input rules and email", () => {
   it("words the reset email as a reset, and both emails give the real 10-minute expiry", () => {
     const brand = { name: "Zaytoun", logoUrl: null, primaryColor: null, email: null, phone: null };
     const reset = renderVerificationCodeEmail({ brand, code: "123456", purpose: "reset" });
-    expect(reset.subject).toBe("123456 is your password reset code");
+    expect(reset.subject).toBe("123456 is your Zaytoun password reset code");
     expect(reset.html).toContain("Reset your password");
     const verify = renderVerificationCodeEmail({ brand, code: "123456" });
-    expect(verify.subject).toBe("123456 is your verification code");
+    expect(verify.subject).toBe("123456 is your Zaytoun verification code");
     for (const email of [reset, verify]) {
       expect(email.html).toContain("10 minutes");
       expect(email.html).not.toContain("60 seconds");

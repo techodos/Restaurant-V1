@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { signOutAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { signOutAction } from "@/app/(site)/account/actions";
 
 export function SignOutButton({ restaurantSlug }: { restaurantSlug: string }) {
   const router = useRouter();
@@ -12,7 +12,7 @@ export function SignOutButton({ restaurantSlug }: { restaurantSlug: string }) {
       className="flex-1"
       onClick={async () => {
         await signOutAction();
-        router.push(`/r/${restaurantSlug}`);
+        router.push("/");
         router.refresh();
       }}
     >

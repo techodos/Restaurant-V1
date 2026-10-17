@@ -186,7 +186,7 @@ describe("admin reservation list", () => {
 
 describe("no page re-render where nothing needs it", () => {
   it("the booking action does not revalidate (the form shows its own confirmation)", () => {
-    const action = readFileSync("src/app/r/[restaurantSlug]/(site)/reservation/actions.ts", "utf8");
+    const action = readFileSync("src/app/(site)/reservation/actions.ts", "utf8");
     expect(action).not.toMatch(/revalidatePath\(/);
     expect(action).toMatch(/after\(\(\) => dispatchDueNotifications/); // the emails still go out right after
   });
@@ -199,7 +199,7 @@ describe("no page re-render where nothing needs it", () => {
   it("the admin status control does not refresh again after its revalidating action", () => {
     const control = readFileSync("src/components/admin/reservation-status-control.tsx", "utf8");
     expect(control).not.toMatch(/router\.refresh\(\)/);
-    const action = readFileSync("src/app/r/[restaurantSlug]/admin/(dashboard)/reservations/actions.ts", "utf8");
-    expect(action).toMatch(/revalidatePath\(adminPath\(actor\.restaurantSlug, "\/reservations"\)\)/);
+    const action = readFileSync("src/app/admin/(dashboard)/reservations/actions.ts", "utf8");
+    expect(action).toMatch(/revalidatePath\(adminPath\("\/reservations"\)\)/);
   });
 });

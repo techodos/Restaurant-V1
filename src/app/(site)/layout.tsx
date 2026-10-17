@@ -15,18 +15,24 @@ import { googleAuthAvailable } from '@/server/services/customer-auth';
 import { config as serverConfig } from '@/server/config';
 import { getActiveTemplate } from '@/web/template';
 import { DepthTilt } from '@/components/storefront/templates/depth/depth-tilt';
+import { instanceRestaurantSlug } from "@/web/instance";
+
+/**
+ * Every page below renders per request. They used to be dynamic implicitly (the /r/[restaurantSlug] segment); at the
+ * root they would otherwise be prerendered at build time, which reads the database during `next build` and freezes
+ * the restaurant's menu, hours and theme into the build.
+ */
+export const dynamic = "force-dynamic";
 
 interface StorefrontLayoutProps {
   children: React.ReactNode;
   /** intercepted routes (dish sheet, tray drawer) render here over the current page */
   modal: React.ReactNode;
-  params: Promise<{ restaurantSlug: string }>;
 }
 
 export async function generateMetadata({
-  params,
 }: StorefrontLayoutProps): Promise<Metadata> {
-  const { restaurantSlug } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
   try {
     const { restaurant, website, config } =
       await getStorefrontContext(restaurantSlug);
@@ -55,13 +61,13 @@ export async function generateMetadata({
       // (apple-touch-icon.png/route.ts), not Next's own apple-icon.tsx convention, which hashes its URL.
       icons: {
         ...(restaurant.logoUrl ? { icon: restaurant.logoUrl } : {}),
-        apple: `/r/${restaurantSlug}/apple-touch-icon.png`,
+        apple: `/apple-touch-icon.png`,
       },
       // "Add to Home Screen" support: `manifest` + `appleWebApp` are what let iOS 16.4+ open the
       // storefront standalone instead of as a Safari bookmark — standalone is required before iOS
       // will deliver Web Push at all (see push-opt-in.tsx). `manifest` is generated per restaurant by
       // manifest.webmanifest/route.ts.
-      manifest: `/r/${restaurantSlug}/manifest.webmanifest`,
+      manifest: `/manifest.webmanifest`,
       appleWebApp: { capable: true, title: restaurant.name, statusBarStyle: 'default' },
       other: {
         // This Next.js version's `appleWebApp.capable` only emits the generic
@@ -79,9 +85,8 @@ export async function generateMetadata({
 export default async function StorefrontLayout({
   children,
   modal,
-  params,
 }: StorefrontLayoutProps) {
-  const { restaurantSlug } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
 
   const context = await requireStorefront(restaurantSlug);
 
@@ -152,10 +157,10 @@ export default async function StorefrontLayout({
           // the menu sheet lists every live page, not only the configured nav (de-duplicated there)
           extraLinks={[
             ...(restaurant.features.reservations && restaurant.settings.reservations.enabled
-              ? [{ label: 'Book a Table', href: `/r/${restaurant.slug}/reservation` }]
+              ? [{ label: 'Book a Table', href: `/reservation` }]
               : []),
-            ...(restaurant.features.reviews ? [{ label: 'Reviews', href: `/r/${restaurant.slug}/reviews` }] : []),
-            ...(locations.length ? [{ label: 'Locations', href: `/r/${restaurant.slug}/locations` }] : []),
+            ...(restaurant.features.reviews ? [{ label: 'Reviews', href: `/reviews` }] : []),
+            ...(locations.length ? [{ label: 'Locations', href: `/locations` }] : []),
           ]}
           googleEnabled={googleAuthAvailable()}
           googleMapsApiKey={serverConfig.maps?.apiKey ?? null}

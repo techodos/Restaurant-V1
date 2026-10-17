@@ -2,6 +2,7 @@ import { jsonError } from "@/server/errors";
 import { getOrderActivitySince } from "@/server/services/orders";
 import { requirePermission } from "@/web/session";
 import { getAdminBranchScope } from "@/web/admin";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 /**
  * Polled by the admin's order-sound notifications (OrderActivityWatcher): `GET .../orders/activity?since=<ISO>`.
@@ -11,11 +12,10 @@ import { getAdminBranchScope } from "@/web/admin";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ restaurantSlug: string }> },
+  request: Request
 ): Promise<Response> {
   try {
-    const { restaurantSlug } = await params;
+    const restaurantSlug = instanceRestaurantSlug();
     // the staff check proves this session is a member of THIS slug's restaurant, so its id is
     // actor.restaurantId — this poll runs every 7 s per open admin tab and used to re-read the
     // restaurant row each time just to learn that id

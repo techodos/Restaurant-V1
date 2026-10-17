@@ -14,6 +14,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { StatusPill, badgeTone } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Reviews" };
@@ -32,12 +33,11 @@ function badgeVariant(status: ReviewStatus): "warning" | "success" | "danger" {
 }
 
 interface ReviewsPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ status?: string; page?: string }>;
 }
 
-export default async function AdminReviewsPage({ params, searchParams }: ReviewsPageProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminReviewsPage({ searchParams }: ReviewsPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("reviews.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const { status, page } = await searchParams;
@@ -54,7 +54,7 @@ export default async function AdminReviewsPage({ params, searchParams }: Reviews
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
     if (params.page && params.page > 1) search.set("page", String(params.page));
-    return `${adminPath(restaurantSlug)}/reviews?${search.toString()}`;
+    return `${adminPath()}/reviews?${search.toString()}`;
   };
 
   return (

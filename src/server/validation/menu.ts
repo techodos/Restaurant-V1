@@ -12,6 +12,22 @@ const slug = z
   .max(120)
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens only.");
 
+/**
+ * A dish or category photo: an absolute http(s) URL (Supabase Storage, a CDN) OR a same-site path — which is what
+ * local storage hands back (`/api/media/<restaurant>/<file>`, integrations/storage.ts) and what the seeds use
+ * (`/images/...`). `z.string().url()` alone rejected both, so a dish whose photo was uploaded without Supabase (or any
+ * seeded dish) could not be saved again ("Invalid url"). A path must be one leading "/" with no "//", backslash or
+ * whitespace, so it can never point off-site.
+ */
+const imageUrl = z
+  .string()
+  .trim()
+  .max(2048)
+  .refine(
+    (value) => /^https?:\/\/\S+$/i.test(value) || /^\/(?!\/)[^\s\\]*$/.test(value),
+    "Enter an image address (https://…) or upload a photo.",
+  );
+
 const availabilityWindow = z
   .object({
     days: z.array(z.number().int().min(0).max(6)).optional(),
@@ -25,7 +41,7 @@ export const categorySchema = z.object({
   name: z.string().trim().min(1, "Enter a category name.").max(120),
   slug,
   description: z.string().trim().max(500).optional().or(z.literal("")),
-  imageUrl: z.string().trim().url().optional().or(z.literal("")),
+  imageUrl: imageUrl.optional().or(z.literal("")),
   icon: z.string().trim().max(60).optional().or(z.literal("")),
   isActive: z.coerce.boolean().optional(),
   isFeatured: z.coerce.boolean().optional(),
@@ -41,7 +57,7 @@ export const menuItemSchema = z.object({
   slug,
   description: z.string().trim().max(2000).optional().or(z.literal("")),
   shortDescription: z.string().trim().max(240).optional().or(z.literal("")),
-  imageUrl: z.string().trim().url().optional().or(z.literal("")),
+  imageUrl: imageUrl.optional().or(z.literal("")),
   basePrice: money,
   compareAtPrice: money.optional().or(z.literal("")),
   prepTimeMinutes: z.coerce.number().int().min(0).max(600).optional(),

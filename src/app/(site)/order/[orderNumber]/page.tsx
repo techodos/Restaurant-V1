@@ -16,9 +16,10 @@ import { CancelOrderButton } from "@/components/storefront/cancel-order-button";
 import { PushOptIn } from "@/components/storefront/push-opt-in";
 import { ReorderButton } from "@/components/storefront/reorder-button";
 import { JsonLd } from "@/components/storefront/json-ld";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface OrderPageProps {
-  params: Promise<{ restaurantSlug: string; orderNumber: string }>;
+  params: Promise<{ orderNumber: string }>;
   /** `t`: signed order-access token from a notification email; lets the link work from any device */
   searchParams: Promise<{ t?: string }>;
 }
@@ -33,7 +34,8 @@ export const metadata: Metadata = { title: "Order status", robots: { index: fals
  * (`?t=`), or, for a guest on the browser that placed it, the grant checkout saved in a cookie.
  */
 export default async function OrderStatusPage({ params, searchParams }: OrderPageProps) {
-  const { restaurantSlug, orderNumber: rawOrderNumber } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { orderNumber: rawOrderNumber } = await params;
   const orderNumber = decodeURIComponent(rawOrderNumber);
   const { t } = await searchParams;
 
@@ -53,7 +55,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
           actions={
             <>
               <Button asChild size="lg">
-                <Link href={`/r/${context.restaurant.slug}/menu`}>Back to the menu</Link>
+                <Link href={`/menu`}>Back to the menu</Link>
               </Button>
               {context.restaurant.phone ? (
                 <Button asChild size="lg" variant="outline">
@@ -287,7 +289,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 <p className="mt-2 text-sm text-[var(--color-muted-ink)]">A short review helps the next guest decide.</p>
                 <Button asChild variant="outline" className="mt-4 w-full">
                   <Link
-                    href={`/r/${restaurant.slug}/reviews?order=${encodeURIComponent(order.orderNumber)}${
+                    href={`/reviews?order=${encodeURIComponent(order.orderNumber)}${
                       accessToken ? `&t=${encodeURIComponent(accessToken)}` : ""
                     }`}
                   >
@@ -302,7 +304,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 This page always shows the live status of order {order.orderNumber}. Need a hand? Call{" "}
                 {restaurant.phone ?? "the restaurant"}.
               </p>
-              <Link href={`/r/${restaurant.slug}/orders`} className="mt-3 inline-block font-semibold text-[var(--color-ink)] underline-offset-4 hover:underline">
+              <Link href={`/orders`} className="mt-3 inline-block font-semibold text-[var(--color-ink)] underline-offset-4 hover:underline">
                 My Orders
               </Link>
             </section>

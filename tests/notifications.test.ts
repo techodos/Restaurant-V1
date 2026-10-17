@@ -206,10 +206,11 @@ describe("order confirmation email", () => {
     expect(mail.fromName).toBe("Bella Napoli");
     expect(mail.replyTo).toBe("hello@bella.example");
     expect(mail.subject).toContain("ORD-2609-01001");
-    expect(mail.html).toContain("2 &times; Margherita");
+    // receipt row: quantity in its own column, then the dish name
+    expect(mail.html).toMatch(/>2&times;<\/td>[\s\S]*?Margherita/);
     expect(mail.html).toContain("RS 2,550.00");
     expect(mail.html).toContain("12 Canal Road");
-    expect(mail.html).toContain(`${SITE}/r/bella-napoli/order/ORD-2609-01001?t=signed.order-aaaa`);
+    expect(mail.html).toContain(`${SITE}/order/ORD-2609-01001?t=signed.order-aaaa`);
     expect(mail.idempotencyKey).toBe("order-order-aaaa-confirmed-email");
     expect(h.saved[0]!.outcome).toMatchObject({ status: "done", emailState: "sent", pushState: "skipped" });
   });
@@ -330,8 +331,8 @@ describe("completed order", () => {
     expect(h.pushes[0]!.message.title).toBe("Order completed");
     expect(h.emails).toHaveLength(1);
     const mail = h.emails[0]!;
-    expect(mail.html).toContain("Rate Your Order");
-    expect(mail.html).toContain(`${SITE}/r/bella-napoli/reviews?order=ORD-2609-01001&amp;t=signed.order-aaaa`);
+    expect(mail.html).toContain("Rate your order");
+    expect(mail.html).toContain(`${SITE}/reviews?order=ORD-2609-01001&amp;t=signed.order-aaaa`);
     expect(mail.text).toContain("/reviews?order=ORD-2609-01001&t=signed.order-aaaa");
     expect(mail.html).toContain("RS 2,550.00");
     expect(h.saved[0]!.outcome).toMatchObject({ status: "done", emailState: "sent", pushState: "sent" });
@@ -349,7 +350,7 @@ describe("completed order", () => {
     context.restaurant.reviewsEnabled = false;
     const h = harness({ context });
     await h.service.processEvent(makeEvent("completed"));
-    expect(h.emails[0]!.html).not.toContain("Rate Your Order");
+    expect(h.emails[0]!.html).not.toContain("Rate your order");
   });
 
   it("a cancelled order never gets the completion email", async () => {
@@ -439,7 +440,7 @@ describe("multi-restaurant isolation", () => {
     expect(a!.to).toBe("sana@example.com");
     expect(b!.html).toContain("Sakura House");
     expect(b!.html).not.toContain("Bella Napoli");
-    expect(b!.html).toContain("/r/sakura/order/ORD-2609-09009");
+    expect(b!.html).toContain(`${SITE}/order/ORD-2609-09009`);
     expect(b!.to).toBe("kenji@example.com");
   });
 
@@ -461,7 +462,7 @@ describe("multi-restaurant isolation", () => {
 describe("email templates", () => {
   const baseInput = () => {
     const { restaurant, order } = makeContext();
-    return { restaurant, order, orderUrl: `${SITE}/r/bella-napoli/order/X` };
+    return { restaurant, order, orderUrl: `${SITE}/order/X` };
   };
 
   it("escapes customer-controlled text", () => {
@@ -480,11 +481,11 @@ describe("email templates", () => {
     input.restaurant.logoUrl = "javascript:alert(1)";
     const { html } = renderOrderConfirmationEmail(input);
     expect(html).not.toContain("javascript:");
-    expect(html).toContain("#b45309");
+    expect(html).toContain("#7a5c3e"); // the neutral fallback brand colour
   });
 
   it("is responsive (viewport meta, fluid 600px container) and has a plain-text alternative", () => {
-    const mail = renderOrderCompletedEmail({ ...baseInput(), reviewUrl: `${SITE}/r/bella-napoli/reviews?order=X` });
+    const mail = renderOrderCompletedEmail({ ...baseInput(), reviewUrl: `${SITE}/reviews?order=X` });
     expect(mail.html).toContain('name="viewport"');
     expect(mail.html).toContain("max-width:600px");
     expect(mail.text).toContain("Rate your order:");
@@ -589,7 +590,7 @@ describe("FCM provider", () => {
     const outcomes = await provider.send(["alive", "dead"], {
       title: "Your order is ready",
       body: "Order ORD-1 is ready",
-      link: "https://shop.example.com/r/x/order/ORD-1",
+      link: "https://shop.example.com/order/ORD-1",
       data: { orderNumber: "ORD-1" },
     });
 
@@ -600,7 +601,7 @@ describe("FCM provider", () => {
     const send = calls.find((call) => call.url.includes("fcm.googleapis.com/v1/projects/demo-project/messages:send"))!;
     const sent = JSON.parse(send.body).message;
     expect(sent.notification).toEqual({ title: "Your order is ready", body: "Order ORD-1 is ready" });
-    expect(sent.webpush.fcm_options.link).toBe("https://shop.example.com/r/x/order/ORD-1");
+    expect(sent.webpush.fcm_options.link).toBe("https://shop.example.com/order/ORD-1");
     // the OAuth token endpoint is hit once and cached for both sends
     expect(calls.filter((call) => call.url.includes("oauth2.googleapis.com"))).toHaveLength(1);
   });

@@ -4,20 +4,20 @@ import { safeReturnTo } from "@/shared/return-to";
 import { AuthShell } from "@/components/storefront/auth-shell";
 import { SignUpForm } from "@/components/storefront/sign-up-form";
 import { googleAuthAvailable } from "@/server/services/customer-auth";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface Props {
-  params: Promise<{ restaurantSlug: string }>;
   /** where to go afterwards (only a path inside this storefront is honoured) */
   searchParams: Promise<{ returnTo?: string }>;
 }
 
 export const metadata: Metadata = { title: "Create account", robots: { index: false, follow: false } };
 
-export default async function SignUpPage({ params, searchParams }: Props) {
-  const { restaurantSlug } = await params;
+export default async function SignUpPage({ searchParams }: Props) {
+  const restaurantSlug = instanceRestaurantSlug();
   const context = await requireStorefront(restaurantSlug);
-  const returnTo = safeReturnTo(restaurantSlug, (await searchParams).returnTo);
-  const forCheckout = returnTo === `/r/${restaurantSlug}/checkout`;
+  const returnTo = safeReturnTo((await searchParams).returnTo);
+  const forCheckout = returnTo === `/checkout`;
 
   return (
     <AuthShell restaurant={context.restaurant} title="Create your account" description={forCheckout ? "Orders are placed from a verified account. Create yours and we will bring you straight back to checkout." : "Save your details, follow your orders and reorder in a tap."}>

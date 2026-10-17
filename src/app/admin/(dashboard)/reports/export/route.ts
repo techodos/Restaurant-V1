@@ -4,6 +4,7 @@ import { buildSalesXlsxBuffer, buildSalesPdfBuffer } from "@/server/services/rep
 import { buildSalesCsv, resolveReportRange, type SalesCsvRow } from "@/shared/reports";
 import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requirePermission } from "@/web/session";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 /**
  * Sales Reports export: `GET .../admin/<slug>/reports/export?preset=&from=&to=&format=csv|xlsx|pdf`.
@@ -20,11 +21,10 @@ function parseFormat(value: string | null): ExportFormat {
 }
 
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ restaurantSlug: string }> },
+  request: Request
 ): Promise<Response> {
   try {
-    const { restaurantSlug } = await params;
+    const restaurantSlug = instanceRestaurantSlug();
     const actor = await requirePermission("analytics.view", restaurantSlug);
     const [restaurant, { locationId, current }] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
@@ -34,7 +34,7 @@ export async function GET(
     const format = parseFormat(url.searchParams.get("format"));
 
     // the same branch as the page (never a query param): a manager can only ever export their own branch
-    const { rows: orderRows } = await getOrdersForExport(restaurant.id, range, ctx, locationId);
+    const { rows: orderRows } = await getOrdersForExport(restaurant.id, range, restaurant.timezone, ctx, locationId);
     const rows: SalesCsvRow[] = orderRows.map((row) => ({
       orderNumber: row.orderNumber,
       createdAt: row.createdAt,

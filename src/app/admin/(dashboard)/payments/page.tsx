@@ -14,6 +14,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { StatusPill, badgeTone, tableHead } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Payments" };
@@ -30,12 +31,11 @@ function badgeVariant(status: PaymentStatus): "success" | "warning" | "danger" |
 }
 
 interface PaymentsPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ status?: string; page?: string }>;
 }
 
-export default async function AdminPaymentsPage({ params, searchParams }: PaymentsPageProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminPaymentsPage({ searchParams }: PaymentsPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("payments.view", restaurantSlug);
   const canManagePayment = actor.permissions.includes("orders.manage");
   const restaurant = await getAdminRestaurant(restaurantSlug);
@@ -57,7 +57,7 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
     if (params.page && params.page > 1) search.set("page", String(params.page));
-    return `${adminPath(restaurantSlug)}/payments?${search.toString()}`;
+    return `${adminPath()}/payments?${search.toString()}`;
   };
 
   return (
@@ -93,7 +93,7 @@ export default async function AdminPaymentsPage({ params, searchParams }: Paymen
               {result.rows.map((payment) => (
                 <tr key={payment.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
                   <td className="px-4 py-3">
-                    <Link href={`${adminPath(restaurantSlug)}/orders/${payment.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
+                    <Link href={`${adminPath()}/orders/${payment.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
                       {payment.orderNumber}
                     </Link>
                   </td>

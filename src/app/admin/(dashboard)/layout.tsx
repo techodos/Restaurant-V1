@@ -1,23 +1,22 @@
 import { Suspense } from "react";
 import { requireStaffForAdmin } from "@/web/session";
-import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { getAdminBranchScope, getAdminOrderStatusCounts, getAdminRestaurant } from "@/web/admin";
 import { BranchLabel, BranchSwitcher } from "@/components/admin/branch-switcher";
 import { hasAnyPermission } from "@/server/auth/permissions";
-import { getOrderStatusCounts } from "@/server/services/orders";
 import { entitlementForPermission, isEntitled } from "@/shared/feature-access";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { AdminMobileNav, AdminSidebar } from "@/components/admin/admin-sidebar";
 import { OrderActivityBanner, OrderActivityWatcher } from "@/components/admin/order-sound-notifications";
 import { NavigationProgress } from "@/components/admin/navigation-progress";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface AdminDashboardLayoutProps {
   children: React.ReactNode;
-  params: Promise<{ restaurantSlug: string }>;
 }
 
 /** Signed-in shell. The brand theme is applied by the parent admin layout (shared with the login page). */
-export default async function AdminDashboardLayout({ children, params }: AdminDashboardLayoutProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminDashboardLayout({ children }: AdminDashboardLayoutProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireStaffForAdmin(restaurantSlug);
   const [restaurant, scope] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
   // owner/admin with 2+ branches choose here (the admin's one branch control); branch staff only see theirs
@@ -39,7 +38,7 @@ export default async function AdminDashboardLayout({ children, params }: AdminDa
   const canOrders = hasAnyPermission(actor.permissions, ["orders.view"]);
   // orders on the pass in the branch in scope, for the sidebar's Orders count (one statement; the dashboard's own)
   const counts = canOrders
-    ? await getOrderStatusCounts(actor.restaurantId, { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name }, scope.locationId)
+    ? await getAdminOrderStatusCounts(actor.restaurantId, actor.userId, actor.name, scope.locationId)
     : null;
   const activeOrders = counts ? counts.pending + counts.confirmed + counts.preparing + counts.ready + counts.out_for_delivery : 0;
   const nav = {

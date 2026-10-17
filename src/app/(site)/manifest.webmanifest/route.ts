@@ -1,7 +1,8 @@
 import { requireStorefront } from "@/web/storefront";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 /**
- * Per-restaurant web app manifest, served at `/r/<slug>/manifest.webmanifest` (same generated-route
+ * Per-restaurant web app manifest, served at `/manifest.webmanifest` (same generated-route
  * pattern as `firebase-messaging-sw.js/route.ts`, since it depends on the restaurant, not a static file).
  *
  * `display: "standalone"` is what lets "Add to Home Screen" open the storefront without Safari's
@@ -13,10 +14,10 @@ import { requireStorefront } from "@/web/storefront";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: { params: Promise<{ restaurantSlug: string }> }): Promise<Response> {
-  const { restaurantSlug } = await params;
+export async function GET(request: Request): Promise<Response> {
+  const restaurantSlug = instanceRestaurantSlug();
   const { restaurant, theme } = await requireStorefront(restaurantSlug);
-  const scope = `/r/${restaurantSlug}/`;
+  const scope = `/`;
 
   const manifest = {
     name: restaurant.name,

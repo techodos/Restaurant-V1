@@ -1,5 +1,9 @@
 import { ImageResponse } from "next/og";
 import { requireStorefront } from "@/web/storefront";
+import { instanceRestaurantSlug } from "@/web/instance";
+
+// the restaurant (and its colours) is read per request, never baked in at build time
+export const dynamic = "force-dynamic";
 
 /**
  * The Home Screen icon iOS uses once a customer adds the storefront to their Home Screen (Share →
@@ -12,8 +16,8 @@ import { requireStorefront } from "@/web/storefront";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-export default async function AppleIcon({ params }: { params: Promise<{ restaurantSlug: string }> }) {
-  const { restaurantSlug } = await params;
+export default async function AppleIcon() {
+  const restaurantSlug = instanceRestaurantSlug();
   const { restaurant, theme } = await requireStorefront(restaurantSlug);
 
   return new ImageResponse(

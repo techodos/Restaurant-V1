@@ -46,7 +46,7 @@ export function CurrentOrdersWidget({ restaurantSlug, count }: { restaurantSlug:
       {!dismissed ? (
         <div className="flex items-center gap-2 rounded-2xl bg-[var(--color-surface)] py-2.5 pl-4 pr-2 shadow-lg ring-1 ring-[var(--color-hairline)]">
           <Link
-            href={`/r/${restaurantSlug}/current-orders`}
+            href={`/current-orders`}
             className="text-sm font-medium text-[var(--color-ink)] hover:underline"
           >
             Track your order
@@ -63,7 +63,7 @@ export function CurrentOrdersWidget({ restaurantSlug, count }: { restaurantSlug:
       ) : null}
 
       <Link
-        href={`/r/${restaurantSlug}/current-orders`}
+        href={`/current-orders`}
         aria-label={`${count} current order${count === 1 ? "" : "s"} — track live`}
         className="relative flex size-14 items-center justify-center rounded-full bg-[var(--color-brand)] text-[var(--color-brand-foreground)] shadow-lg transition-transform hover:scale-105"
       >

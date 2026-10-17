@@ -21,7 +21,7 @@ export async function moderateReviewAction(payload: unknown): Promise<ApiResult<
       ctx,
     );
 
-    revalidatePath(adminPath(actor.restaurantSlug, "/reviews"));
+    revalidatePath(adminPath("/reviews"));
     return review;
   });
 }

@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { requireStorefront } from "@/web/storefront";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 /**
  * The Home Screen icon iOS uses once a customer adds the storefront to their Home Screen (Share →
@@ -15,8 +16,8 @@ import { requireStorefront } from "@/web/storefront";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: { params: Promise<{ restaurantSlug: string }> }): Promise<Response> {
-  const { restaurantSlug } = await params;
+export async function GET(request: Request): Promise<Response> {
+  const restaurantSlug = instanceRestaurantSlug();
   const { restaurant, theme } = await requireStorefront(restaurantSlug);
 
   return new ImageResponse(

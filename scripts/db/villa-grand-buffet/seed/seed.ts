@@ -389,7 +389,7 @@ try {
         [
           RID, orderRow.id, locationId[template.location], zone?.id ?? null,
           delivered ? "delivered" : inTransit ? "in_transit" : driver ? "assigned" : "unassigned",
-          driver?.name ?? null, driver?.phone ?? null, driver ? `/r/${SLUG}/order/${orderRow.order_number}` : null,
+          driver?.name ?? null, driver?.phone ?? null, driver ? `/order/${orderRow.order_number}` : null,
           inTransit ? 31.4812 : null, inTransit ? 74.4103 : null, pricing.deliveryFee,
           driver ? after(createdAt, 5) : null, inTransit || delivered ? after(createdAt, 20) : null,
           after(createdAt, 40), delivered ? after(createdAt, 48) : null,
@@ -437,8 +437,8 @@ try {
   console.log(`\n✔ Villa seed complete`);
   console.log(`  categories ${counts?.categories} · items ${counts?.items} · orders ${counts?.orders} · customers ${counts?.customers}`);
   console.log(`  reviews ${counts?.reviews} · reservations ${counts?.reservations} · coupons ${counts?.coupons} · zones ${counts?.zones}`);
-  console.log(`\n  Storefront : /r/${SLUG}   (storefront: run the app with NEXT_PUBLIC_DEFAULT_RESTAURANT=${SLUG})`);
-  console.log(`  Admin      : /r/${SLUG}/admin  →  ${TEAM[0]!.email} / ${TEAM[0]!.password}\n`);
+  console.log(`\n  Storefront : /   (storefront: run the app with NEXT_PUBLIC_DEFAULT_RESTAURANT=${SLUG})`);
+  console.log(`  Admin      : /admin  →  ${TEAM[0]!.email} / ${TEAM[0]!.password}\n`);
 } catch (error) {
   await client.query("rollback").catch(() => undefined);
   throw error;

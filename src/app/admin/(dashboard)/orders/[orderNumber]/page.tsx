@@ -13,11 +13,12 @@ import { canAccessBranch } from "@/server/auth/branch-scope";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { StatusPill, orderStatusTone } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
 interface OrderDetailPageProps {
-  params: Promise<{ restaurantSlug: string; orderNumber: string }>;
+  params: Promise<{ orderNumber: string }>;
 }
 
 export async function generateMetadata({ params }: OrderDetailPageProps): Promise<Metadata> {
@@ -30,7 +31,8 @@ function formatDateTime(value: string): string {
 }
 
 export default async function AdminOrderDetailPage({ params }: OrderDetailPageProps) {
-  const { restaurantSlug, orderNumber } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { orderNumber } = await params;
   const actor = await requireAdminPage("orders.view", restaurantSlug);
   // money collected at the counter / door is confirmed by managers and above (shared/payment-flow.ts)
   const canManagePayment = actor.permissions.includes("orders.manage");
@@ -50,7 +52,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        backHref={adminPath(restaurantSlug, "/orders")}
+        backHref={adminPath("/orders")}
         backLabel="Back to orders"
         title={`Order ${order.orderNumber}`}
         badge={<StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>}
@@ -62,7 +64,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
           <CardTitle>Update status</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrderStatusControl orderId={order.id} currentStatus={order.status} />
+          <OrderStatusControl orderId={order.id} orderNumber={order.orderNumber} currentStatus={order.status} />
         </CardContent>
       </Card>
 

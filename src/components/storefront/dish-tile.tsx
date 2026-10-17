@@ -53,8 +53,8 @@ export function DishTile({
   if (offAtBranch) item = { ...item, isAvailable: false };
   const image = resolveMenuImage(item.imageUrl, item.categorySlug);
   const href = browseOnly
-    ? `/r/${restaurantSlug}/menu${item.categorySlug ? `#${item.categorySlug}` : ""}`
-    : `/r/${restaurantSlug}/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
+    ? `/menu${item.categorySlug ? `#${item.categorySlug}` : ""}`
+    : `/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
   // the dish sheet opens over the page (no scroll); a jump to the menu chapter must scroll to its anchor
   const linkProps = browseOnly ? {} : { scroll: false as const };
   const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: false });

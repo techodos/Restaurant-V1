@@ -6,7 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
-import { signInAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { signInAction } from "@/app/(site)/account/actions";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { ForgotPasswordForm } from "@/components/storefront/forgot-password-form";
 import { afterAuthPath, signInHref } from "@/shared/return-to";
@@ -32,7 +32,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
   const [needsVerification, setNeedsVerification] = useState(false);
   const [forgotPassword, setForgotPassword] = useState(false);
 
-  const destination = afterAuthPath(restaurantSlug, returnTo);
+  const destination = afterAuthPath(returnTo);
 
   // load the landing route's code while the customer types, so the hop after signing in is only data
   useEffect(() => {
@@ -128,7 +128,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
       </Button>
       {googleEnabled ? (
         <a
-          href={`/r/${restaurantSlug}/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
+          href={`/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] text-sm font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
         >
           Continue with Google
@@ -141,7 +141,7 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
             Create an account
           </button>
         ) : (
-          <Link href={signInHref(restaurantSlug, returnTo, "sign-up")} className="font-medium underline">Create an account</Link>
+          <Link href={signInHref(returnTo, "sign-up")} className="font-medium underline">Create an account</Link>
         )}
       </p>
     </form>

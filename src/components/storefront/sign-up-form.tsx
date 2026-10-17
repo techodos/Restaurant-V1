@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
-import { signUpAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { signUpAction } from "@/app/(site)/account/actions";
 import { afterAuthPath, signInHref } from "@/shared/return-to";
 
 interface SignUpFormProps {
@@ -34,7 +34,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
 
   // load the landing route's code while the customer fills the form and waits for the code
   useEffect(() => {
-    if (!onAuthenticated) router.prefetch(afterAuthPath(restaurantSlug, returnTo));
+    if (!onAuthenticated) router.prefetch(afterAuthPath(returnTo));
   }, [router, restaurantSlug, returnTo, onAuthenticated]);
 
   async function onSubmit(event: React.FormEvent) {
@@ -65,7 +65,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
               onAuthenticated();
               return;
             }
-            router.replace(afterAuthPath(restaurantSlug, returnTo));
+            router.replace(afterAuthPath(returnTo));
           }}
         />
       </div>
@@ -103,7 +103,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
       </Button>
       {googleEnabled ? (
         <a
-          href={`/r/${restaurantSlug}/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
+          href={`/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] text-sm font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
         >
           Continue with Google
@@ -116,7 +116,7 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
             Sign in
           </button>
         ) : (
-          <Link href={signInHref(restaurantSlug, returnTo)} className="font-medium underline">Sign in</Link>
+          <Link href={signInHref(returnTo)} className="font-medium underline">Sign in</Link>
         )}
       </p>
     </form>

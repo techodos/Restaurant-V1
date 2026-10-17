@@ -5,7 +5,7 @@ import { signOutStaffSession } from "@/web/session";
 import { selectAdminBranch } from "@/web/admin";
 import type { ApiResult } from "@/shared/contract/api";
 
-/** Ends this restaurant's admin session (the cookie is scoped to /r/<slug>/admin). */
+/** Ends this restaurant's admin session (the cookie is scoped to /admin). */
 export async function signOutAction(slug: string): Promise<ApiResult<null>> {
   return action(async () => {
     await signOutStaffSession(slug);

@@ -2,14 +2,12 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { adminPath } from "@/shared/utils";
 
 /** Admin error boundary. AppError messages (e.g. FORBIDDEN) are already safe to show as-is. */
 export default function AdminError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  const { restaurantSlug } = useParams<{ restaurantSlug: string }>();
   useEffect(() => {
     console.error(error.message);
   }, [error]);
@@ -25,7 +23,7 @@ export default function AdminError({ error, reset }: { error: Error & { digest?:
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button onClick={reset}>Try again</Button>
           <Button asChild variant="outline">
-            <Link href={adminPath(restaurantSlug)}>Back to dashboard</Link>
+            <Link href={adminPath()}>Back to dashboard</Link>
           </Button>
         </div>
       </div>

@@ -5,23 +5,20 @@ import { restaurantJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { SectionRenderer } from "@/components/storefront/section-renderer";
 import { getReviewSummary } from "@/server/services/reviews";
-
-interface HomePageProps {
-  params: Promise<{ restaurantSlug: string }>;
-}
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: HomePageProps): Promise<Metadata> {
-  const { restaurantSlug } = await params;
+export async function generateMetadata(): Promise<Metadata> {
+  const restaurantSlug = instanceRestaurantSlug();
   try {
     const { restaurant, website } = await getStorefrontContext(restaurantSlug);
     const seo = website.seo as Record<string, string | undefined>;
     return {
       title: seo.title ?? `${restaurant.name} — ${restaurant.cuisines.slice(0, 2).join(" & ") || "Restaurant"}`,
       description: seo.description ?? restaurant.shortDescription ?? undefined,
-      alternates: { canonical: `/r/${restaurant.slug}` },
-      openGraph: { url: `/r/${restaurant.slug}`, images: restaurant.coverUrl ? [restaurant.coverUrl] : undefined },
+      alternates: { canonical: "/" },
+      openGraph: { url: "/", images: restaurant.coverUrl ? [restaurant.coverUrl] : undefined },
     };
   } catch {
     return { title: "Restaurant" };
@@ -33,8 +30,8 @@ export async function generateMetadata({ params }: HomePageProps): Promise<Metad
  * website_pages.sections for the page flagged is_home, rendered by the shared
  * SectionRenderer (unknown sections are skipped, never fatal).
  */
-export default async function RestaurantHomePage({ params }: HomePageProps) {
-  const { restaurantSlug } = await params;
+export default async function RestaurantHomePage() {
+  const restaurantSlug = instanceRestaurantSlug();
 
   const context = await requireStorefront(restaurantSlug);
 

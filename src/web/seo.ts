@@ -53,7 +53,7 @@ export function restaurantJsonLd(
     "@type": "Restaurant",
     name: restaurant.name,
     description: restaurant.shortDescription ?? restaurant.description ?? undefined,
-    url: `${siteUrl()}/r/${restaurant.slug}`,
+    url: `${siteUrl()}`,
     image: restaurant.coverUrl ? `${siteUrl()}${restaurant.coverUrl}` : undefined,
     servesCuisine: restaurant.cuisines.length ? restaurant.cuisines : undefined,
     priceRange: "$$",
@@ -86,7 +86,7 @@ export function menuItemJsonLd(item: MenuItem, restaurant: Restaurant): Record<s
     name: item.name,
     description: item.description ?? undefined,
     image: item.imageUrl ? `${siteUrl()}${item.imageUrl}` : undefined,
-    url: `${siteUrl()}/r/${restaurant.slug}/menu/${item.slug}`,
+    url: `${siteUrl()}/menu/${item.slug}`,
     offers: {
       "@type": "Offer",
       price: item.basePrice,
@@ -103,7 +103,7 @@ export function reviewsJsonLd(reviews: Review[], restaurant: Restaurant): Record
     "@context": "https://schema.org",
     "@type": "Restaurant",
     name: restaurant.name,
-    url: `${siteUrl()}/r/${restaurant.slug}/reviews`,
+    url: `${siteUrl()}/reviews`,
     review: reviews.slice(0, 10).map((review) => ({
       "@type": "Review",
       author: { "@type": "Person", name: review.authorName },

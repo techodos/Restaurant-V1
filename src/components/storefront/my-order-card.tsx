@@ -40,7 +40,7 @@ function fulfilment(order: Order, restaurant: OrderCardRestaurant) {
 }
 
 const itemCount = (order: Order) => (order.items ?? []).reduce((sum, item) => sum + item.quantity, 0);
-const orderHref = (restaurant: OrderCardRestaurant, order: Order) => `/r/${restaurant.slug}/order/${encodeURIComponent(order.orderNumber)}`;
+const orderHref = (restaurant: OrderCardRestaurant, order: Order) => `/order/${encodeURIComponent(order.orderNumber)}`;
 const cardClass = "surface-card p-6 shadow-[var(--shadow-card)] md:p-7";
 
 /**

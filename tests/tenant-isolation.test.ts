@@ -60,7 +60,7 @@ describe("row level security", () => {
   });
 
   it("blocks a tenant from modifying another restaurant record", async () => {
-    const changed = await testDatabase.read(SAKURA_OWNER, (db) =>
+    const changed = await testDatabase.asRuntime(SAKURA_OWNER, (db) =>
       db.query<{ id: string }>(`update restaurants set name = 'Hijacked' where id = $1 returning id`, [
         BELLA.restaurantId,
       ]),

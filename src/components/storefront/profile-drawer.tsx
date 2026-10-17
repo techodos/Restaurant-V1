@@ -21,7 +21,7 @@ import {
   signOutAction,
   updateProfileAction,
   type ProfilePayload,
-} from "@/app/r/[restaurantSlug]/(site)/account/actions";
+} from "@/app/(site)/account/actions";
 
 const GENDER_LABELS: Record<CustomerGender, string> = {
   female: "Female",
@@ -120,7 +120,7 @@ export function ProfileDrawer({
           await signOutAction();
           onOpenChange(false);
           toast.success("Signed out");
-          router.push(`/r/${restaurantSlug}`);
+          router.push("/");
           router.refresh();
         }}
       >
@@ -165,7 +165,7 @@ export function ProfileDrawer({
               <div className="min-w-0">
                 <p className="display-3 truncate">{profile.fullName}</p>
                 <Link
-                  href={`/r/${restaurantSlug}/orders`}
+                  href={`/orders`}
                   onClick={() => onOpenChange(false)}
                   className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--color-muted-ink)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
                 >

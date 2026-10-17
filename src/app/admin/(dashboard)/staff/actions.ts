@@ -15,7 +15,7 @@ export async function createStaffAction(payload: unknown): Promise<ApiResult<Tea
     const input = createTeamMemberSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const member = await addTeamMember(actor.restaurantId, input, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, "/staff"));
+    revalidatePath(adminPath("/staff"));
     return member;
   });
 }
@@ -26,7 +26,7 @@ export async function updateStaffAction(payload: unknown): Promise<ApiResult<Tea
     const input = updateTeamMemberSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const member = await editTeamMember(actor.restaurantId, input, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, "/staff"));
+    revalidatePath(adminPath("/staff"));
     return member;
   });
 }
@@ -36,7 +36,7 @@ export async function setStaffActiveAction(memberId: string, isActive: boolean):
     const actor = await requirePermission("staff.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await setStaffActive(actor.restaurantId, memberId, isActive, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, "/staff"));
+    revalidatePath(adminPath("/staff"));
     return null;
   });
 }
@@ -46,7 +46,7 @@ export async function deleteStaffAction(memberId: string): Promise<ApiResult<nul
     const actor = await requirePermission("staff.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeTeamMember(actor.restaurantId, memberId, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, "/staff"));
+    revalidatePath(adminPath("/staff"));
     return null;
   });
 }

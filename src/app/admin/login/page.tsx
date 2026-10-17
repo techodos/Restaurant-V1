@@ -7,19 +7,16 @@ import { getCurrentStaff } from "@/web/session";
 import { adminPath } from "@/shared/utils";
 import { AuthShell } from "@/components/storefront/auth-shell";
 import { AdminLoginForm } from "@/components/admin/admin-login-form";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const metadata: Metadata = { title: "Staff sign in" };
 
-interface AdminLoginPageProps {
-  params: Promise<{ restaurantSlug: string }>;
-}
-
 /** The restaurant's own staff sign-in: its cover photo, name and theme (from the admin layout), like its customer sign-in. */
-export default async function AdminLoginPage({ params }: AdminLoginPageProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminLoginPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const restaurant = await getAdminRestaurant(restaurantSlug);
   // already signed in to this restaurant's admin -> straight to the dashboard
-  if (await getCurrentStaff(restaurantSlug)) redirect(adminPath(restaurantSlug));
+  if (await getCurrentStaff(restaurantSlug)) redirect(adminPath());
 
   return (
     // no storefront header here: the shell fills the viewport. `grid` stretches AuthShell to the full height —
@@ -32,7 +29,7 @@ export default async function AdminLoginPage({ params }: AdminLoginPageProps) {
       >
         <AdminLoginForm restaurantSlug={restaurant.slug} />
         <Link
-          href={`/r/${restaurant.slug}`}
+          href={"/"}
           className="mt-6 inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
         >
           <ArrowLeft className="size-4" aria-hidden />

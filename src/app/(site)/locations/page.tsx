@@ -13,15 +13,12 @@ import { PageHero } from "@/components/storefront/page-hero";
 import { serviceStatus } from "@/components/storefront/service-status";
 import { resolveImage } from "@/web/media";
 import { cn } from "@/shared/utils";
-
-interface LocationsPageProps {
-  params: Promise<{ restaurantSlug: string }>;
-}
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: LocationsPageProps): Promise<Metadata> {
-  const { restaurantSlug } = await params;
+export async function generateMetadata(): Promise<Metadata> {
+  const restaurantSlug = instanceRestaurantSlug();
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     return {
@@ -29,15 +26,15 @@ export async function generateMetadata({ params }: LocationsPageProps): Promise<
         title: "Locations",
         description: `Addresses, opening hours and phone numbers for ${restaurant.name}.`,
       })),
-      alternates: { canonical: `/r/${restaurant.slug}/locations` },
+      alternates: { canonical: `/locations` },
     };
   } catch {
     return { title: "Locations" };
   }
 }
 
-export default async function LocationsPage({ params }: LocationsPageProps) {
-  const { restaurantSlug } = await params;
+export default async function LocationsPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   return <ConfiguredPage restaurantSlug={restaurantSlug} pageSlug="locations" render={renderLocations} />;
 }
 
@@ -57,8 +54,8 @@ async function renderLocations(context: StorefrontContext, heading: PageHeading)
       <JsonLd data={restaurantJsonLd(restaurant, context.primaryLocation)} />
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: restaurant.name, path: `/r/${restaurant.slug}` },
-          { name: "Locations", path: `/r/${restaurant.slug}/locations` },
+          { name: restaurant.name, path: "/" },
+          { name: "Locations", path: `/locations` },
         ])}
       />
 
@@ -140,12 +137,12 @@ async function renderLocations(context: StorefrontContext, heading: PageHeading)
                 <div className="mt-8 flex flex-wrap gap-3">
                   {restaurant.features.pickup ? (
                     <Button asChild size="lg">
-                      <a href={`/r/${restaurant.slug}/menu?orderType=pickup`}>Order for pickup</a>
+                      <a href={`/menu?orderType=pickup`}>Order for pickup</a>
                     </Button>
                   ) : null}
                   {restaurant.features.delivery && zones.some((zone) => zone.locationId === location.id) ? (
                     <Button asChild size="lg" variant="outline">
-                      <a href={`/r/${restaurant.slug}/menu?orderType=delivery`}>Order delivery</a>
+                      <a href={`/menu?orderType=delivery`}>Order delivery</a>
                     </Button>
                   ) : null}
                   <Button asChild size="lg" variant="ghost">

@@ -11,7 +11,7 @@ import { ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
 import { cn } from "@/shared/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { checkCouponAction } from "@/app/r/[restaurantSlug]/(site)/cart/actions";
+import { checkCouponAction } from "@/app/(site)/cart/actions";
 import { localCartItemCount, localLineTotal, useLocalCart } from "./local-cart";
 import { useBranching } from "./branching";
 import { EmptyState } from "./empty-state";
@@ -66,7 +66,7 @@ export function LocalCartPanel({
   const branching = useBranching();
   const branchGate = branching.gate();
   const drawer = variant === "drawer";
-  const home = `/r/${restaurantSlug}`;
+  const home = "/";
   const money = (value: string | number) => formatMoney(value, { currency: currencySymbol, locale });
 
   const subtotal = cart.lines.reduce((total, line) => total.plus(localLineTotal(line)), dec(0));
@@ -83,7 +83,7 @@ export function LocalCartPanel({
     // Guests go straight to checkout too now — it verifies their email itself (the OTP modal at
     // "Place order"), not a sign-in redirect. Nothing to save first: the tray already is the cookie
     // the checkout page reads.
-    startCheckout(() => router.push(`${home}/checkout`));
+    startCheckout(() => router.push(`/checkout`));
   }
 
   function applyCoupon() {
@@ -111,11 +111,11 @@ export function LocalCartPanel({
         actions={
           <>
             <Button asChild size="lg">
-              <Link href={`${home}/menu`}>Browse the menu</Link>
+              <Link href={`/menu`}>Browse the menu</Link>
             </Button>
             {featureReservations ? (
               <Button asChild size="lg" variant="outline">
-                <Link href={`${home}/reservation`}>Book a table</Link>
+                <Link href={`/reservation`}>Book a table</Link>
               </Button>
             ) : null}
           </>
@@ -164,7 +164,7 @@ export function LocalCartPanel({
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-semibold">
                     {line.display.slug ? (
-                      <Link href={`${home}/menu/${line.display.slug}`} scroll={false} className="hover:text-[var(--color-brand)]">
+                      <Link href={`/menu/${line.display.slug}`} scroll={false} className="hover:text-[var(--color-brand)]">
                         {line.display.name}
                       </Link>
                     ) : (
@@ -378,7 +378,7 @@ export function LocalCartPanel({
           <div className="mt-4">{lines}</div>
           <div className="mt-2 flex flex-col gap-6 border-t border-[var(--rule)] pt-6 sm:flex-row sm:items-start sm:justify-between">
             <Link
-              href={`${home}/menu`}
+              href={`/menu`}
               className="press inline-flex h-10 w-fit items-center gap-1.5 rounded-full border border-[var(--rule-strong)] px-4 text-sm font-semibold"
             >
               <Plus className="size-4" aria-hidden />

@@ -10,6 +10,7 @@ import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { StatusPill } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Kitchen" };
@@ -18,8 +19,8 @@ function elapsedMinutes(createdAt: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(createdAt).getTime()) / 60000));
 }
 
-export default async function AdminKitchenPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
-  const { restaurantSlug } = await params;
+export default async function AdminKitchenPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("kitchen.view", restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
@@ -81,7 +82,7 @@ export default async function AdminKitchenPage({ params }: { params: Promise<{ r
                     </p>
                   ) : null}
                   <div className="border-t border-[var(--color-hairline)] pt-3">
-                    <OrderStatusControl orderId={order.id} currentStatus={order.status} />
+                    <OrderStatusControl orderId={order.id} orderNumber={order.orderNumber} currentStatus={order.status} />
                   </div>
                 </CardContent>
               </Card>

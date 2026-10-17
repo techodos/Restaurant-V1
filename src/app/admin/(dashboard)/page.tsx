@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ArrowRight, CalendarCheck, ChefHat, ClipboardList, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { hasAnyPermission } from "@/server/auth/permissions";
-import { getOrderStatusCounts, getRecentOrdersForAdmin } from "@/server/services/orders";
+import { getRecentOrdersForAdmin } from "@/server/services/orders";
 import { listReservationsForStaff } from "@/server/services/reservations";
 import { listReviewsForAdmin } from "@/server/services/reviews";
 import { ORDER_STATUS_LABELS, RESERVATION_STATUS_LABELS, type OrderStatus } from "@/shared/contract/enums";
@@ -12,10 +12,11 @@ import { formatMoney } from "@/shared/money";
 import { formatDateKey } from "@/shared/hours";
 import { cn } from "@/shared/utils";
 import { requireStaffForAdmin } from "@/web/session";
-import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
+import { getAdminBranchScope, getAdminOrderStatusCounts, getAdminRestaurant } from "@/web/admin";
 import { orderStatusBadgeVariant } from "@/components/admin/order-status-badge";
 import { RatingStars } from "@/components/storefront/rating-stars";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -62,13 +63,11 @@ function Panel({
  * permission as its own screen; nothing is estimated or invented.
  */
 export default async function AdminDashboardPage({
-  params,
   searchParams,
 }: {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ denied?: string }>;
 }) {
-  const { restaurantSlug } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireStaffForAdmin(restaurantSlug);
   // web/session.ts#requireAdminPage sends a member here after opening a screen their role/branch doesn't allow
   const denied = (await searchParams).denied ? (
@@ -95,7 +94,7 @@ export default async function AdminDashboardPage({
 
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
   const [counts, recentOrders, reservations, reviews] = await Promise.all([
-    canOrders ? getOrderStatusCounts(restaurant.id, ctx, locationId) : null,
+    canOrders ? getAdminOrderStatusCounts(restaurant.id, actor.userId, actor.name, locationId) : null,
     canOrders ? getRecentOrdersForAdmin(restaurant.id, ctx, 8, locationId) : [],
     canReservations
       ? listReservationsForStaff(restaurant.id, { status: "upcoming", locationId: locationId ?? undefined, page: 1, pageSize: 5 }, ctx)
@@ -130,7 +129,7 @@ export default async function AdminDashboardPage({
           <div className="flex flex-wrap gap-2">
             {hasAnyPermission(actor.permissions, ["kitchen.view"]) ? (
               <Link
-                href={adminPath(restaurantSlug, "/kitchen")}
+                href={adminPath("/kitchen")}
                 className="press inline-flex h-10 items-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand-accent)] px-4 text-sm font-semibold text-[var(--color-brand-accent-foreground)]"
               >
                 <ChefHat className="size-4" aria-hidden />
@@ -139,7 +138,7 @@ export default async function AdminDashboardPage({
             ) : null}
             {canOrders ? (
               <Link
-                href={adminPath(restaurantSlug, "/orders")}
+                href={adminPath("/orders")}
                 className="press inline-flex h-10 items-center rounded-[var(--radius-control)] border border-[var(--rule-strong)] px-4 text-sm font-semibold hover:bg-[var(--tint)]"
               >
                 All orders
@@ -156,7 +155,7 @@ export default async function AdminDashboardPage({
                 return (
                   <li key={status}>
                     <Link
-                      href={`${adminPath(restaurantSlug)}/orders?status=${status}`}
+                      href={`${adminPath()}/orders?status=${status}`}
                       className={cn(
                         "press flex h-full flex-col justify-between gap-6 rounded-[var(--radius-card)] border p-4 transition-colors",
                         urgent
@@ -179,7 +178,7 @@ export default async function AdminDashboardPage({
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
         {canOrders ? (
-          <Panel title="Latest orders" href={adminPath(restaurantSlug, "/orders")} linkLabel="View all" icon={ClipboardList}>
+          <Panel title="Latest orders" href={adminPath("/orders")} linkLabel="View all" icon={ClipboardList}>
             {recentOrders.length === 0 ? (
               <AdminEmptyState icon={ClipboardList} title="No orders yet. New orders appear here the moment they are placed." className="py-10" />
             ) : (
@@ -187,7 +186,7 @@ export default async function AdminDashboardPage({
                 {recentOrders.map((order) => (
                   <li key={order.id}>
                     <Link
-                      href={`${adminPath(restaurantSlug)}/orders/${order.orderNumber}`}
+                      href={`${adminPath()}/orders/${order.orderNumber}`}
                       className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3.5 transition-colors hover:bg-[var(--tint)] sm:grid-cols-[10rem_minmax(0,1fr)_auto_8rem]"
                     >
                       <span className="tabular font-medium">{order.orderNumber}</span>
@@ -206,7 +205,7 @@ export default async function AdminDashboardPage({
 
         <div className="space-y-6">
           {reservations ? (
-            <Panel title="Upcoming reservations" href={adminPath(restaurantSlug, "/reservations")} linkLabel="All" icon={CalendarCheck} count={reservations.total}>
+            <Panel title="Upcoming reservations" href={adminPath("/reservations")} linkLabel="All" icon={CalendarCheck} count={reservations.total}>
               {reservations.rows.length === 0 ? (
                 <p className="px-5 py-8 text-sm text-[var(--color-muted-ink)]">No upcoming bookings.</p>
               ) : (
@@ -247,7 +246,7 @@ export default async function AdminDashboardPage({
           ) : null}
 
           {reviews ? (
-            <Panel title="Reviews to moderate" href={adminPath(restaurantSlug, "/reviews")} linkLabel="Queue" icon={Star} count={reviews.total}>
+            <Panel title="Reviews to moderate" href={adminPath("/reviews")} linkLabel="Queue" icon={Star} count={reviews.total}>
               {reviews.rows.length === 0 ? (
                 <p className="px-5 py-8 text-sm text-[var(--color-muted-ink)]">Nothing waiting. New reviews land here first.</p>
               ) : (

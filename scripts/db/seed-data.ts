@@ -193,11 +193,11 @@ export const BELLA = {
   },
 
   nav: [
-    { label: "Home", href: "/r/bella-napoli", enabled: true },
-    { label: "Menu", href: "/r/bella-napoli/menu", enabled: true },
-    { label: "Reservations", href: "/r/bella-napoli/reservation", enabled: true },
-    { label: "Reviews", href: "/r/bella-napoli/reviews", enabled: true },
-    { label: "Locations", href: "/r/bella-napoli/locations", enabled: true },
+    { label: "Home", href: "/", enabled: true },
+    { label: "Menu", href: "/menu", enabled: true },
+    { label: "Reservations", href: "/reservation", enabled: true },
+    { label: "Reviews", href: "/reviews", enabled: true },
+    { label: "Locations", href: "/locations", enabled: true },
   ],
 };
 
@@ -1067,8 +1067,8 @@ export const MENU_SECTIONS = [
   {
     type: "cta", enabled: true, title: "Ordering for the whole table?",
     subtitle: "Ask about party trays and catering for 10 or more.", tone: "neutral",
-    cta: { label: "Book a table", href: "/r/bella-napoli/reservation", style: "primary" },
-    secondaryCta: { label: "See locations", href: "/r/bella-napoli/locations", style: "outline" },
+    cta: { label: "Book a table", href: "/reservation", style: "primary" },
+    secondaryCta: { label: "See locations", href: "/locations", style: "outline" },
   },
 ];
 export const RESERVATION_SECTIONS = [
@@ -1095,7 +1095,7 @@ export const REVIEWS_SECTIONS = [
   { type: "page_content", enabled: true, title: "Guest reviews", subtitle: "Real reviews from verified orders and bookings." },
   {
     type: "cta", enabled: true, title: "Hungry after reading all that?", subtitle: "Order online for delivery, pickup or dine-in.",
-    tone: "primary", cta: { label: "Start your order", href: "/r/bella-napoli/menu", style: "primary" },
+    tone: "primary", cta: { label: "Start your order", href: "/menu", style: "primary" },
   },
 ];
 export const LOCATIONS_SECTIONS = [
@@ -1103,7 +1103,7 @@ export const LOCATIONS_SECTIONS = [
   { type: "contact", enabled: true, title: "Questions about a large order or catering?", subtitle: "Call or message us; we answer within minutes.", showForm: false },
   {
     type: "cta", enabled: true, title: "Ready to eat?", tone: "neutral",
-    cta: { label: "Book a table", href: "/r/bella-napoli/reservation", style: "primary" },
-    secondaryCta: { label: "Order online", href: "/r/bella-napoli/menu", style: "outline" },
+    cta: { label: "Book a table", href: "/reservation", style: "primary" },
+    secondaryCta: { label: "Order online", href: "/menu", style: "outline" },
   },
 ];

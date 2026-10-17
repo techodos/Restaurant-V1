@@ -1,40 +1,52 @@
-import { escapeHtml, renderEmailLayout } from "./layout";
+import { emailPalette, escapeHtml, paragraph, renderEmailLayout, sectionTitle, textFooter } from "./layout";
 import { itemsTableHtml, itemsText } from "./order-summary";
-import type { OrderEmailInput, RenderedEmail } from "./order-confirmation";
+import { firstNameOf, type OrderEmailInput, type RenderedEmail } from "./order-confirmation";
 
-/** Sent when the order reaches "completed": thank-you, summary, and the review request. */
+/** Sent when the order reaches "completed": thank-you, summary, and the review request (when reviews are on). */
 export function renderOrderCompletedEmail({ restaurant, order, orderUrl, reviewUrl }: OrderEmailInput): RenderedEmail {
   const format = { currencySymbol: restaurant.currencySymbol, locale: restaurant.locale };
-  const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
+  const palette = emailPalette(restaurant.primaryColor);
+  const firstName = firstNameOf(order.customerName);
   const wantsReview = Boolean(reviewUrl);
 
-  const bodyHtml = `
-<p style="margin:0 0 16px;font-size:15px;line-height:1.6;">Hi ${escapeHtml(firstName)}, your order <strong>${escapeHtml(order.orderNumber)}</strong> from ${escapeHtml(restaurant.name)} is complete. We hope you enjoyed your meal!</p>
-${
-  wantsReview
-    ? `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;">How did we do? A quick rating takes less than a minute and helps us (and other guests) a lot.</p>`
-    : ""
-}
-<h2 style="margin:8px 0 0;font-size:16px;">Order summary</h2>
-${itemsTableHtml(order, format)}
-<p style="margin:16px 0 0;font-size:13px;color:#6b6259;"><a href="${escapeHtml(orderUrl)}" style="color:#6b6259;">View this order</a></p>`;
+  const bodyHtml = [
+    paragraph(
+      `Hi ${escapeHtml(firstName)}, your order <strong style="color:#1d1a16;">${escapeHtml(order.orderNumber)}</strong> is complete. Thank you for choosing ${escapeHtml(restaurant.name)} — we hope you enjoyed every bite.`,
+    ),
+    wantsReview
+      ? paragraph("How was it? A quick rating takes less than a minute and helps our kitchen — and the next guest — a great deal.")
+      : "",
+    sectionTitle("Order summary"),
+    itemsTableHtml(order, format, palette),
+  ].join("");
 
   const html = renderEmailLayout({
     brand: restaurant,
-    preheader: `Order ${order.orderNumber} is complete${wantsReview ? " — tell us how it was" : ""}`,
-    heading: "Order completed",
+    preheader: wantsReview
+      ? `Order ${order.orderNumber} is complete — tell us how it was.`
+      : `Order ${order.orderNumber} is complete. Thank you for ordering.`,
+    eyebrow: "Order complete",
+    heading: wantsReview ? "Thank you — how was your meal?" : "Thank you for your order",
     bodyHtml,
-    cta: wantsReview && reviewUrl ? { label: "Rate Your Order", url: reviewUrl } : null,
+    // the review is the main action and "view this order" a quiet link under it; without reviews, viewing is the action
+    cta: wantsReview && reviewUrl ? { label: "Rate your order", url: reviewUrl } : { label: "View your order", url: orderUrl },
+    secondary: wantsReview ? { label: "View this order", url: orderUrl } : null,
   });
 
   const text = [
-    `Hi ${firstName}, your order ${order.orderNumber} from ${restaurant.name} is complete. We hope you enjoyed your meal!`,
+    `Hi ${firstName}, your order ${order.orderNumber} from ${restaurant.name} is complete. Thank you for choosing us.`,
     "",
     itemsText(order, format),
     "",
     ...(wantsReview ? [`Rate your order: ${reviewUrl}`] : []),
     `View this order: ${orderUrl}`,
+    "",
+    textFooter(restaurant),
   ].join("\n");
 
-  return { subject: `How was your order from ${restaurant.name}?`, html, text };
+  return {
+    subject: wantsReview ? `How was your order from ${restaurant.name}?` : `Your ${restaurant.name} order ${order.orderNumber} is complete`,
+    html,
+    text,
+  };
 }

@@ -16,15 +16,12 @@ import { breadcrumbJsonLd } from "@/web/seo";
 import { getLocations } from "@/server/services/restaurants";
 import { ReservationFormSkeleton } from "@/components/storefront/page-skeletons";
 import { getCustomerProfile } from "@/server/services/customer-profile";
-
-interface ReservationPageProps {
-  params: Promise<{ restaurantSlug: string }>;
-}
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: ReservationPageProps): Promise<Metadata> {
-  const { restaurantSlug } = await params;
+export async function generateMetadata(): Promise<Metadata> {
+  const restaurantSlug = instanceRestaurantSlug();
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     return {
@@ -32,7 +29,7 @@ export async function generateMetadata({ params }: ReservationPageProps): Promis
         title: "Book a table",
         description: `Reserve a table at ${restaurant.name}. Live availability, instant confirmation.`,
       })),
-      alternates: { canonical: `/r/${restaurant.slug}/reservation` },
+      alternates: { canonical: `/reservation` },
     };
   } catch {
     return { title: "Book a table" };
@@ -43,8 +40,8 @@ export async function generateMetadata({ params }: ReservationPageProps): Promis
  * Booking page. Slot availability is computed from the restaurant's real
  * opening hours and table inventory, not from a hardcoded timetable.
  */
-export default async function ReservationPage({ params }: ReservationPageProps) {
-  const { restaurantSlug } = await params;
+export default async function ReservationPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   return <ConfiguredPage restaurantSlug={restaurantSlug} pageSlug="reservation" render={renderReservation} />;
 }
 
@@ -86,8 +83,8 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
     <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: restaurant.name, path: `/r/${restaurant.slug}` },
-          { name: "Reservations", path: `/r/${restaurant.slug}/reservation` },
+          { name: restaurant.name, path: "/" },
+          { name: "Reservations", path: `/reservation` },
         ])}
       />
 

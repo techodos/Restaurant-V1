@@ -10,15 +10,17 @@ import { BranchAvailabilityManager } from "@/components/admin/branch-availabilit
 import { MenuItemForm } from "@/components/admin/menu-item-form";
 import { VariantManager } from "@/components/admin/variant-manager";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface EditItemPageProps {
-  params: Promise<{ restaurantSlug: string; itemId: string }>;
+  params: Promise<{ itemId: string }>;
 }
 
 export const metadata: Metadata = { title: "Edit item" };
 
 export default async function EditMenuItemPage({ params }: EditItemPageProps) {
-  const { restaurantSlug, itemId } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { itemId } = await params;
   const actor = await requireAdminPage("menu.manage", restaurantSlug, { restaurantWide: true }); // the shared menu: owner/admin
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
@@ -33,7 +35,7 @@ export default async function EditMenuItemPage({ params }: EditItemPageProps) {
 
   return (
     <div className="space-y-8">
-      <AdminPageHeader backHref={adminPath(restaurantSlug, "/menu")} backLabel="Back to menu" title={item.name} />
+      <AdminPageHeader backHref={adminPath("/menu")} backLabel="Back to menu" title={item.name} />
 
       <MenuItemForm item={item} categories={categories} />
 

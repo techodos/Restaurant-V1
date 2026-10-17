@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
-import { signInAction } from "@/app/r/[restaurantSlug]/admin/login/actions";
+import { signInAction } from "@/app/admin/login/actions";
 import { adminPath } from "@/shared/utils";
 
 export function AdminLoginForm({ restaurantSlug }: { restaurantSlug: string }) {
@@ -37,7 +37,7 @@ export function AdminLoginForm({ restaurantSlug }: { restaurantSlug: string }) {
         }
         toast.success(`Welcome back, ${result.data.name}.`);
         // platform developers land on their own portal; they open a restaurant's admin from there
-        router.push(result.data.superAdmin ? "/super-admin" : adminPath(restaurantSlug));
+        router.push(result.data.superAdmin ? "/super-admin" : adminPath());
         router.refresh();
       });
     });

@@ -4,7 +4,7 @@ import { config } from "@/server/config";
 /** Cookie names and attributes. Nothing outside `web/` knows how sessions travel. */
 
 /**
- * Staff session, path-scoped to one restaurant's admin (/r/<slug>/admin), so only that restaurant's session is ever
+ * Staff session, path-scoped to one restaurant's admin (/admin), so only that restaurant's session is ever
  * sent. A new name (was rp_staff_session at "/"): with one shared name a leftover "/" cookie would shadow the scoped
  * one, because Next's cookie parser keeps the last duplicate.
  */
@@ -14,7 +14,7 @@ export const STAFF_COOKIE = "rp_admin_session";
  * restaurant's admin. A restaurant-scoped STAFF_COOKIE, when present, still wins (web/session.ts#getStaffSession).
  */
 export const SUPER_ADMIN_COOKIE = "rp_super_admin_session";
-/** Restaurant-wide staff's chosen branch in the admin (a location id or "all"); path /r/<slug>/admin. */
+/** Restaurant-wide staff's chosen branch in the admin (a location id or "all"); path /admin. */
 export const ADMIN_BRANCH_COOKIE = "rp_admin_branch";
 /** Pre-2026-09-27 staff cookie (path "/"); only ever deleted. */
 export const LEGACY_STAFF_COOKIE = "rp_staff_session";

@@ -3,15 +3,17 @@ import { notFound } from "next/navigation";
 import { getPageContent } from "@/server/services/storefront";
 import { getStorefrontContext, requireStorefront } from "@/web/storefront";
 import { SectionRenderer } from "@/components/storefront/section-renderer";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface ContentPageProps {
-  params: Promise<{ restaurantSlug: string; pageSlug: string }>;
+  params: Promise<{ pageSlug: string }>;
 }
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: ContentPageProps): Promise<Metadata> {
-  const { restaurantSlug, pageSlug } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { pageSlug } = await params;
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     const page = await getPageContent(restaurant.id, pageSlug);
@@ -19,7 +21,7 @@ export async function generateMetadata({ params }: ContentPageProps): Promise<Me
     return {
       title: page.title,
       description: page.description ?? restaurant.shortDescription ?? undefined,
-      alternates: { canonical: `/r/${restaurant.slug}/${page.slug}` },
+      alternates: { canonical: `/${page.slug}` },
     };
   } catch {
     return { title: "Page" };
@@ -32,7 +34,8 @@ export async function generateMetadata({ params }: ContentPageProps): Promise<Me
  * (menu, cart, reviews, ...) take precedence over this segment; an unknown or unpublished slug is a 404.
  */
 export default async function ContentPage({ params }: ContentPageProps) {
-  const { restaurantSlug, pageSlug } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { pageSlug } = await params;
   const context = await requireStorefront(restaurantSlug);
   const page = await getPageContent(context.restaurant.id, pageSlug);
   if (!page) notFound();

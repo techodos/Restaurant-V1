@@ -10,7 +10,7 @@ import {
   deleteDeliveryZoneAction,
   saveDeliveryPricingAction,
   saveDeliveryZoneAction,
-} from "@/app/r/[restaurantSlug]/admin/(dashboard)/delivery-zones/actions";
+} from "@/app/admin/(dashboard)/delivery-zones/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
 import type { Polygon } from "@/shared/geo";

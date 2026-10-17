@@ -12,15 +12,17 @@ import { requireAdminPage } from "@/web/session";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { StatusPill, orderStatusTone, tableHead } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface CustomerDetailPageProps {
-  params: Promise<{ restaurantSlug: string; customerId: string }>;
+  params: Promise<{ customerId: string }>;
 }
 
 export const metadata: Metadata = { title: "Customer" };
 
 export default async function AdminCustomerDetailPage({ params }: CustomerDetailPageProps) {
-  const { restaurantSlug, customerId } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { customerId } = await params;
   const actor = await requireAdminPage("customers.view", restaurantSlug);
   const [restaurant, { locationId }] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
@@ -40,7 +42,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        backHref={adminPath(restaurantSlug, "/customers")}
+        backHref={adminPath("/customers")}
         backLabel="Back to customers"
         title={customer.fullName}
         badge={
@@ -100,7 +102,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
               {orders.map((order) => (
                 <tr key={order.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
                   <td className="px-4 py-3">
-                    <Link href={`${adminPath(restaurantSlug)}/orders/${order.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
+                    <Link href={`${adminPath()}/orders/${order.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
                       {order.orderNumber}
                     </Link>
                   </td>

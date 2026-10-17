@@ -122,7 +122,7 @@ describe("reservation emails", () => {
     expect(mail.replyTo).toBe("hello@bella.example");
     expect(mail.idempotencyKey).toBe("reservation-res-1-requested-email");
     expect(mail.subject).toMatch(/received/i);
-    for (const part of ["Pending confirmation", "AB12CD34", "19:30", "Ayesha Khan", "Bella Napoli", "Gulberg", "awaiting"]) {
+    for (const part of ["Awaiting confirmation", "AB12CD34", "19:30", "Ayesha Khan", "Bella Napoli", "Gulberg", "awaiting"]) {
       expect(mail.html).toContain(part);
     }
     expect(mail.html).toMatch(/Saturday.*October.*2026/); // 2026-10-03, formatted in the restaurant locale

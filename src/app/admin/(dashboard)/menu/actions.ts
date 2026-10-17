@@ -15,7 +15,7 @@ export async function saveCategoryAction(payload: unknown): Promise<ApiResult<Me
     const input = categorySchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const category = await saveCategory(actor.restaurantId, input, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/menu"));
+    revalidatePath(adminPath("/menu"));
     return category;
   });
 }
@@ -25,7 +25,7 @@ export async function deleteCategoryAction(categoryId: string): Promise<ApiResul
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeCategory(categoryId, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/menu"));
+    revalidatePath(adminPath("/menu"));
     return null;
   });
 }
@@ -35,7 +35,7 @@ export async function deleteMenuItemAction(itemId: string): Promise<ApiResult<nu
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeMenuItem(itemId, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/menu"));
+    revalidatePath(adminPath("/menu"));
     return null;
   });
 }

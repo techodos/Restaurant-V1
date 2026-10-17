@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Loader2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Select } from "@/components/ui/input";
-import { selectBranchAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/actions";
+import { selectBranchAction } from "@/app/admin/(dashboard)/actions";
 
 const ALL_BRANCHES = "all"; // server/auth/branch-scope.ts#ALL_BRANCHES
 

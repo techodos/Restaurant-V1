@@ -13,7 +13,7 @@ import {
   registerAsAccountAction,
   resendGuestVerificationCodeAction,
   verifyGuestCodeAction,
-} from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
+} from "@/app/(site)/checkout/actions";
 
 const MIN_PASSWORD_LENGTH = 8;
 /** --ease-out from the motion tokens (globals.css) */

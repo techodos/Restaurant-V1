@@ -244,7 +244,7 @@ export function PagesManager({ slug, restaurantId, pages }: { slug: string; rest
               <StatusBadge tone="neutral" dot={false}>Built-in</StatusBadge>
               <div className="flex items-center gap-1">
                 <Button asChild variant="ghost" size="sm">
-                  <a href={`/r/${slug}/${kind}`} target="_blank" rel="noreferrer">
+                  <a href={`/${kind}`} target="_blank" rel="noreferrer">
                     <ExternalLink className="size-3.5" aria-hidden /> View
                   </a>
                 </Button>
@@ -430,7 +430,7 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
                   <Input value={ann.linkLabel ?? ""} placeholder="Order now" onChange={(event) => setC("announcement", { linkLabel: event.target.value })} />
                 </Field>
                 <Field label="Link address">
-                  <Input value={ann.linkHref ?? ""} onChange={(event) => setC("announcement", { linkHref: event.target.value })} placeholder="/r/slug/menu" />
+                  <Input value={ann.linkHref ?? ""} onChange={(event) => setC("announcement", { linkHref: event.target.value })} placeholder="/menu" />
                 </Field>
               </div>
             </div>
@@ -598,7 +598,7 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
                 <Textarea className="min-h-20" value={seo.description ?? ""} onChange={(event) => setS({ description: event.target.value })} />
               </Field>
               <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--sa-subtle)]/50 p-4" aria-label="Search result preview">
-                <p className="text-xs text-[var(--color-muted-ink)]">{form.domain || "yourplatform.com/r/…"}</p>
+                <p className="text-xs text-[var(--color-muted-ink)]">{form.domain || "yourrestaurant.com"}</p>
                 <p className="mt-0.5 truncate text-[15px] font-medium text-[#1a0dab]">{seo.title || form.name}</p>
                 <p className="mt-0.5 line-clamp-2 text-[13px] text-[var(--color-muted-ink)]">{seo.description || "Add a description to control the text under the title."}</p>
               </div>
@@ -712,7 +712,7 @@ export function PageEditor({ restaurantId, slug, page }: { restaurantId: string;
   const router = useRouter();
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(saved), [form, saved]);
   const set = (patch: Partial<PageState>) => setForm((current) => ({ ...current, ...patch }));
-  const storefrontHref = `/r/${slug}${page.isHome ? "" : `/${page.slug}`}`;
+  const storefrontHref = page.isHome ? "/" : `/${page.slug}`;
 
   const { uploadImage, browseLibrary } = websiteMedia(restaurantId);
 

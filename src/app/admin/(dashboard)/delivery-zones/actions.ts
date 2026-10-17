@@ -16,7 +16,7 @@ export async function saveDeliveryZoneAction(payload: unknown): Promise<ApiResul
     const input = deliveryZoneSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const zone = await saveDeliveryZone(actor.restaurantId, input, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, "/delivery-zones"));
+    revalidatePath(adminPath("/delivery-zones"));
     return zone;
   });
 }
@@ -28,7 +28,7 @@ export async function saveDeliveryPricingAction(locationId: string, slabs: unkno
     const pricing = slabs === null ? null : deliveryPricingSchema.parse({ slabs });
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const location = await saveLocationDeliveryPricing(actor.restaurantId, locationId, pricing, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, "/delivery-zones"));
+    revalidatePath(adminPath("/delivery-zones"));
     return location;
   });
 }
@@ -38,7 +38,7 @@ export async function deleteDeliveryZoneAction(zoneId: string): Promise<ApiResul
     const actor = await requirePermission("delivery.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeDeliveryZone(actor.restaurantId, zoneId, ctx, actor);
-    revalidatePath(adminPath(actor.restaurantSlug, "/delivery-zones"));
+    revalidatePath(adminPath("/delivery-zones"));
     return null;
   });
 }

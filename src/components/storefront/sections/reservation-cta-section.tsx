@@ -71,7 +71,7 @@ export function ReservationCtaSection({
 
         {bookable ? (
           <form
-            action={`/r/${restaurant.slug}/reservation`}
+            action={`/reservation`}
             className="grid grid-cols-1 gap-3 rounded-[var(--radius-panel)] border border-white/15 bg-black/35 p-3 backdrop-blur-md sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto]"
           >
             <label className="relative block">

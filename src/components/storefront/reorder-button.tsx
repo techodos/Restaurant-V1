@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { reorderAction } from "@/app/r/[restaurantSlug]/(site)/order/actions";
+import { reorderAction } from "@/app/(site)/order/actions";
 import { useLocalCart } from "./local-cart";
 
 interface ReorderButtonProps {
@@ -54,7 +54,7 @@ export function ReorderButton({ restaurantSlug, orderNumber, accessToken }: Reor
       } else {
         toast.success("Added to your cart");
       }
-      router.push(`/r/${restaurantSlug}/cart`);
+      router.push(`/cart`);
     } finally {
       setWorking(false);
     }

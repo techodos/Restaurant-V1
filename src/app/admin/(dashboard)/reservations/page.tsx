@@ -13,6 +13,7 @@ import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { StatusPill, reservationStatusTone } from "@/components/admin/admin-ui";
 import { adminPath, cn } from "@/shared/utils";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Reservations" };
@@ -29,12 +30,11 @@ const TABS: { key: "upcoming" | "all" | ReservationStatus; label: string }[] = [
 ];
 
 interface ReservationsPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ status?: string; page?: string }>;
 }
 
-export default async function AdminReservationsPage({ params, searchParams }: ReservationsPageProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminReservationsPage({ searchParams }: ReservationsPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("reservations.view", restaurantSlug);
   const { status, page } = await searchParams;
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
@@ -56,7 +56,7 @@ export default async function AdminReservationsPage({ params, searchParams }: Re
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
     if (params.page && params.page > 1) search.set("page", String(params.page));
-    return `${adminPath(restaurantSlug)}/reservations?${search.toString()}`;
+    return `${adminPath()}/reservations?${search.toString()}`;
   };
 
   // one section per day, in the order the list comes in (upcoming: soonest first; history: newest first)

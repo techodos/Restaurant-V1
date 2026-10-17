@@ -14,6 +14,7 @@ import {
   ServiceFeeSection,
   TaxSection,
 } from "@/components/admin/settings-sections";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +31,8 @@ const SECTIONS = [
 ] as const;
 export const metadata: Metadata = { title: "Settings" };
 
-export default async function AdminSettingsPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
-  const { restaurantSlug } = await params;
+export default async function AdminSettingsPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("settings.view", restaurantSlug);
   // fresh, not the 30 s admin cache: these forms save what they show
   const restaurant = await getAdminRestaurantFresh(restaurantSlug);

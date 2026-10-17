@@ -17,14 +17,15 @@ import { previewCoupon, viewTray, type TrayView } from "@/server/services/cart";
 import { resolveBranching } from "@/server/services/branching";
 import { loadStorefrontContext } from "@/server/services/storefront";
 import { resolveImage } from "./media";
+import { assertInstanceRestaurant } from "./instance";
 
 /**
  * Next.js glue for the storefront: request-scoped caching, `notFound()`, and the tray cookie.
  * The logic itself lives in server/services.
  */
 
-/** Cached per request so layout, page and sections share one lookup. */
-export const getStorefrontContext = cache(loadStorefrontContext);
+/** Cached per request so layout, page and sections share one lookup. Only this deployment's restaurant (web/instance.ts). */
+export const getStorefrontContext = cache((slug: string) => loadStorefrontContext(assertInstanceRestaurant(slug)));
 
 /**
  * Renders a 404 only when the restaurant genuinely does not exist. Infrastructure

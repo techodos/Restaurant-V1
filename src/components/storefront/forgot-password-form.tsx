@@ -9,7 +9,7 @@ import {
   requestPasswordResetAction,
   resetPasswordAction,
   verifyPasswordResetCodeAction,
-} from "@/app/r/[restaurantSlug]/(site)/account/actions";
+} from "@/app/(site)/account/actions";
 import type { ApiError } from "@/shared/contract/api";
 
 const RESEND_COOLDOWN_SECONDS = 60;

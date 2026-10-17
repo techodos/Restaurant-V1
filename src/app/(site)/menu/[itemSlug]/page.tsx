@@ -9,16 +9,18 @@ import { JsonLd } from "@/components/storefront/json-ld";
 import { DishDetail } from "@/components/storefront/dish-detail";
 import { DishTile } from "@/components/storefront/dish-tile";
 import { findMenuItemBySlug, searchMenu } from "@/server/services/catalog";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface ItemPageProps {
-  params: Promise<{ restaurantSlug: string; itemSlug: string }>;
+  params: Promise<{ itemSlug: string }>;
   searchParams: Promise<{ orderType?: string }>;
 }
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: ItemPageProps): Promise<Metadata> {
-  const { restaurantSlug, itemSlug } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { itemSlug } = await params;
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     const item = await findMenuItemBySlug(restaurant.id, itemSlug);
@@ -26,7 +28,7 @@ export async function generateMetadata({ params }: ItemPageProps): Promise<Metad
     return {
       title: item.name,
       description: item.description ?? `${item.name} at ${restaurant.name}.`,
-      alternates: { canonical: `/r/${restaurant.slug}/menu/${item.slug}` },
+      alternates: { canonical: `/menu/${item.slug}` },
       openGraph: {
         title: item.name,
         description: item.description ?? undefined,
@@ -43,7 +45,8 @@ export async function generateMetadata({ params }: ItemPageProps): Promise<Metad
  * same DishDetail in a sheet instead (@modal/(.)menu/[itemSlug]).
  */
 export default async function MenuItemPage({ params, searchParams }: ItemPageProps) {
-  const { restaurantSlug, itemSlug } = await params;
+  const restaurantSlug = instanceRestaurantSlug();
+  const { itemSlug } = await params;
   const { orderType } = await searchParams;
 
   const context = await requireStorefront(restaurantSlug);
@@ -63,15 +66,15 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
       <JsonLd data={menuItemJsonLd(item, restaurant)} />
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: restaurant.name, path: `/r/${restaurant.slug}` },
-          { name: "Menu", path: `/r/${restaurant.slug}/menu` },
-          { name: item.name, path: `/r/${restaurant.slug}/menu/${item.slug}` },
+          { name: restaurant.name, path: "/" },
+          { name: "Menu", path: `/menu` },
+          { name: item.name, path: `/menu/${item.slug}` },
         ])}
       />
 
       <nav aria-label="Breadcrumb" className="mb-6 text-sm text-[var(--color-muted-ink)]">
         <Link
-          href={`/r/${restaurant.slug}/menu`}
+          href={`/menu`}
           className="group inline-flex items-center gap-1.5 font-medium transition-colors hover:text-[var(--color-ink)]"
         >
           <ArrowLeft className="size-4 transition-transform duration-200 group-hover:-translate-x-0.5" aria-hidden />

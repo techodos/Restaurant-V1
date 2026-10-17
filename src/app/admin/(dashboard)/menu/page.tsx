@@ -19,17 +19,17 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { ListFilter } from "@/components/admin/list-filter";
 import { StatusPill } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Menu" };
 
 interface MenuAdminPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ category?: string }>;
 }
 
-export default async function AdminMenuPage({ params, searchParams }: MenuAdminPageProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("menu.view", restaurantSlug);
   const [restaurant, scope] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
   const { category } = await searchParams;
@@ -62,7 +62,7 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
     const query = new URLSearchParams();
     if (next.category) query.set("category", next.category);
     const text = query.toString();
-    return `${adminPath(restaurantSlug, "/menu")}${text ? `?${text}` : ""}`;
+    return `${adminPath("/menu")}${text ? `?${text}` : ""}`;
   };
   const activeCategory = categories.find((entry) => entry.id === category) ?? null;
   const totalItems = categories.reduce((sum, entry) => sum + (entry.itemCount ?? 0), 0);
@@ -75,7 +75,7 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
         actions={
           canManage ? (
             <Button asChild>
-              <Link href={adminPath(restaurantSlug, "/menu/items/new")}>
+              <Link href={adminPath("/menu/items/new")}>
                 <Plus className="size-4" aria-hidden /> Add item
               </Link>
             </Button>
@@ -125,7 +125,7 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
               action={
                 canManage ? (
                   <Button asChild size="sm" variant="outline">
-                    <Link href={adminPath(restaurantSlug, "/menu/items/new")}>
+                    <Link href={adminPath("/menu/items/new")}>
                       <Plus className="size-4" aria-hidden /> Add item
                     </Link>
                   </Button>
@@ -136,7 +136,7 @@ export default async function AdminMenuPage({ params, searchParams }: MenuAdminP
             <ul id="menu-items" className="divide-y divide-[var(--color-hairline)]">
               {items.map((item) => {
                 const image = resolveMenuImage(item.imageUrl, item.categorySlug ?? null);
-                const editHref = `${adminPath(restaurantSlug)}/menu/items/${item.id}`;
+                const editHref = `${adminPath()}/menu/items/${item.id}`;
                 const offHere = selectedBranch ? overrides?.get(item.id) === false || !item.isAvailable : !item.isAvailable;
                 return (
                   <li

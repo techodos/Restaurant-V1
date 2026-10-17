@@ -70,7 +70,7 @@ export function OrderLiveProvider({
   }, []);
 
   const refresh = useCallback(() => router.refresh(), [router]);
-  const eventsUrl = `/r/${encodeURIComponent(restaurantSlug)}/order/${encodeURIComponent(orderNumber)}/events${
+  const eventsUrl = `/order/${encodeURIComponent(orderNumber)}/events${
     accessToken ? `?t=${encodeURIComponent(accessToken)}` : ""
   }`;
 

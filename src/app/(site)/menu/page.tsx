@@ -18,16 +18,16 @@ import { breadcrumbJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { cn } from "@/shared/utils";
 import { getMenuCategories, searchMenu } from "@/server/services/catalog";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface MenuPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ category?: string; q?: string; orderType?: string; sort?: string }>;
 }
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: MenuPageProps): Promise<Metadata> {
-  const { restaurantSlug } = await params;
+export async function generateMetadata(): Promise<Metadata> {
+  const restaurantSlug = instanceRestaurantSlug();
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     return {
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: MenuPageProps): Promise<Metad
         title: "Menu",
         description: `Browse the full ${restaurant.name} menu: ${restaurant.cuisines.join(", ")}.`,
       })),
-      alternates: { canonical: `/r/${restaurant.slug}/menu` },
+      alternates: { canonical: `/menu` },
     };
   } catch {
     return { title: "Menu" };
@@ -43,8 +43,8 @@ export async function generateMetadata({ params }: MenuPageProps): Promise<Metad
 }
 
 /** Menu browsing: categories, search and ordering all run in the database. */
-export default async function MenuPage({ params, searchParams }: MenuPageProps) {
-  const { restaurantSlug } = await params;
+export default async function MenuPage({ searchParams }: MenuPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const filters = await searchParams;
   return (
     <ConfiguredPage
@@ -78,7 +78,7 @@ async function renderMenu(
     : (tray?.orderType ?? context.config.ordering.defaultOrderType);
   const offHere = new Set(tray?.locationId ? (branching?.unavailable[tray.locationId] ?? []) : []);
   const search = (q ?? "").trim();
-  const base = `/r/${restaurant.slug}/menu`;
+  const base = `/menu`;
   const filtered = Boolean(search || category);
 
   const [categories, items] = await Promise.all([
@@ -154,7 +154,7 @@ async function renderMenu(
     <>
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: restaurant.name, path: `/r/${restaurant.slug}` },
+          { name: restaurant.name, path: "/" },
           { name: "Menu", path: base },
         ])}
       />
@@ -244,7 +244,7 @@ async function renderMenu(
               </dl>
               {restaurant.features.reservations ? (
                 <Button asChild className="mt-6">
-                  <Link href={`/r/${restaurant.slug}/reservation`}>Reserve a table</Link>
+                  <Link href={`/reservation`}>Reserve a table</Link>
                 </Button>
               ) : null}
             </div>

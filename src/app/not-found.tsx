@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { headers } from "next/headers";
-import { PATHNAME_HEADER } from "@/middleware";
 import { getAdminRestaurant, getAdminTheme } from "@/web/admin";
+import { instanceRestaurantSlug } from "@/web/instance";
 import { fontStack, themeCssVariables } from "@/web/theme";
 import { themeSchema, type RestaurantTheme } from "@/shared/contract/settings";
 import type { Restaurant } from "@/shared/contract/models";
@@ -16,14 +15,11 @@ const NEUTRAL_THEME: RestaurantTheme = themeSchema.parse({
   font: "Inter",
 });
 
-/** The restaurant named by the URL (/r/<slug>/...), if it exists; its theme comes from the database. */
-async function restaurantForRequest(): Promise<{ restaurant: Restaurant; theme: RestaurantTheme } | null> {
-  const pathname = (await headers()).get(PATHNAME_HEADER) ?? "";
-  const slug = /^\/r\/([^/]+)/.exec(pathname)?.[1];
-  if (!slug) return null;
+/** This deployment's restaurant and its theme (from the database); null when it cannot be read (then a neutral page). */
+async function instanceRestaurant(): Promise<{ restaurant: Restaurant; theme: RestaurantTheme } | null> {
   try {
-    const decoded = decodeURIComponent(slug);
-    const [restaurant, theme] = await Promise.all([getAdminRestaurant(decoded), getAdminTheme(decoded)]);
+    const slug = instanceRestaurantSlug();
+    const [restaurant, theme] = await Promise.all([getAdminRestaurant(slug), getAdminTheme(slug)]);
     return { restaurant, theme };
   } catch {
     return null;
@@ -31,13 +27,12 @@ async function restaurantForRequest(): Promise<{ restaurant: Restaurant; theme: 
 }
 
 /**
- * Every 404 under /r/<slug>/... wears that restaurant's theme and leads back to its site (unknown page, dish, order,
- * or a restaurant this instance does not serve); anything else gets a neutral platform page.
+ * Every 404 (an unknown page, dish or order) wears the restaurant's theme and leads back to its site; if the restaurant
+ * itself cannot be read, a neutral platform page.
  */
 export default async function NotFound() {
-  const match = await restaurantForRequest();
+  const match = await instanceRestaurant();
   const theme = match?.theme ?? NEUTRAL_THEME;
-  const home = match ? `/r/${match.restaurant.slug}` : "/";
 
   return (
     <div
@@ -61,14 +56,14 @@ export default async function NotFound() {
         </p>
         <div className="mt-2 flex flex-wrap justify-center gap-3">
           <Link
-            href={home}
+            href="/"
             className="inline-flex h-11 items-center rounded-[var(--radius-brand)] bg-[var(--color-brand)] px-5 text-sm font-medium text-[var(--color-brand-foreground)] transition-opacity hover:opacity-90"
           >
             {match ? `Back to ${match.restaurant.name}` : "Back to the restaurant"}
           </Link>
           {match ? (
             <Link
-              href={`${home}/menu`}
+              href="/menu"
               className="inline-flex h-11 items-center rounded-[var(--radius-brand)] border border-[var(--color-hairline)] px-5 text-sm font-medium transition-colors hover:bg-[var(--color-canvas-muted)]"
             >
               See the menu

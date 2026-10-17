@@ -20,14 +20,14 @@ export async function updateSettingsAction(
     if (section === "features") {
       const patch = updateFeaturesSchema.parse(payload);
       const restaurant = await updateRestaurantFeatures(actor.restaurantId, patch, ctx);
-      revalidatePath(adminPath(actor.restaurantSlug, "/settings"));
+      revalidatePath(adminPath("/settings"));
       return restaurant;
     }
 
     const schema = SETTINGS_SECTION_SCHEMAS[section];
     const patch = schema.parse(payload);
     const restaurant = await updateRestaurantSettingsSection(actor.restaurantId, section, patch, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/settings"));
+    revalidatePath(adminPath("/settings"));
     return restaurant;
   });
 }

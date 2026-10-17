@@ -5,9 +5,10 @@ import { verifyReturn } from "@/server/integrations/jazzcash";
 import { confirmOnlinePayment } from "@/server/services/checkout";
 import { dispatchDueNotifications } from "@/server/services/notifications";
 import { requireRestaurant } from "@/server/services/restaurants";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 /**
- * JazzCash's `pp_ReturnURL`: `POST /r/<slug>/checkout/pay/jazzcash`. JazzCash redirects the
+ * JazzCash's `pp_ReturnURL`: `POST /checkout/pay/jazzcash`. JazzCash redirects the
  * customer's browser here with the transaction result as form fields (never trust them without
  * `verifyReturn`'s hash check — see integrations/jazzcash.ts). Always ends in a redirect to the
  * order tracking page; there is no error response JazzCash's redirect could usefully show.
@@ -16,12 +17,12 @@ import { requireRestaurant } from "@/server/services/restaurants";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(request: Request, { params }: { params: Promise<{ restaurantSlug: string }> }): Promise<Response> {
-  const { restaurantSlug } = await params;
+export async function POST(request: Request): Promise<Response> {
+  const restaurantSlug = instanceRestaurantSlug();
   const siteUrl = config.app.siteUrl;
   const trackingUrl = (orderNumber: string, status: "success" | "failed" | "error") =>
-    Response.redirect(`${siteUrl}/r/${restaurantSlug}/order/${orderNumber}?payment=${status}`, 303);
-  const failedNoOrder = () => Response.redirect(`${siteUrl}/r/${restaurantSlug}/current-orders?payment=error`, 303);
+    Response.redirect(`${siteUrl}/order/${orderNumber}?payment=${status}`, 303);
+  const failedNoOrder = () => Response.redirect(`${siteUrl}/current-orders?payment=error`, 303);
 
   const jazzcash = config.payments.jazzcash;
   if (!jazzcash) {

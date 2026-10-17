@@ -34,7 +34,7 @@ export async function MenuPreviewSection({
         title={section.title}
         subtitle={section.subtitle}
         action={
-          <Link href={`/r/${context.restaurant.slug}/menu`} className="link-arrow">
+          <Link href={`/menu`} className="link-arrow">
             Full menu
             <ArrowRight aria-hidden />
           </Link>

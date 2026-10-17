@@ -6,12 +6,13 @@ import { requireAdminPage } from "@/web/session";
 import { getAdminBranchScope, getAdminMaps } from "@/web/admin";
 import { DeliveryZoneManager } from "@/components/admin/delivery-zone-manager";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Delivery zones" };
 
-export default async function AdminDeliveryZonesPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
-  const { restaurantSlug } = await params;
+export default async function AdminDeliveryZonesPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("delivery.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };

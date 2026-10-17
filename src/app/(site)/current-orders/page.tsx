@@ -9,10 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/storefront/empty-state";
 import { PageHero } from "@/components/storefront/page-hero";
 import { resolveImage } from "@/web/media";
-
-interface CurrentOrdersPageProps {
-  params: Promise<{ restaurantSlug: string }>;
-}
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +21,8 @@ export const metadata: Metadata = { title: "Current orders", robots: { index: fa
  * (all their active orders); history lives separately at /orders and needs an account. Ownership
  * comes from the request via getVisitorContext, never the URL.
  */
-export default async function CurrentOrdersPage({ params }: CurrentOrdersPageProps) {
-  const { restaurantSlug } = await params;
+export default async function CurrentOrdersPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const { restaurant } = await requireStorefront(restaurantSlug);
   const visitor = await getVisitorContext(restaurant.id);
   // in-progress orders only: this page never shows the history, so do not read it
@@ -38,7 +35,7 @@ export default async function CurrentOrdersPage({ params }: CurrentOrdersPagePro
     locale: restaurant.locale,
     timezone: restaurant.timezone,
   };
-  const menuHref = `/r/${restaurant.slug}/menu`;
+  const menuHref = `/menu`;
 
   return (
     <>

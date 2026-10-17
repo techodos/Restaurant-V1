@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
+import Form from "next/form";
 import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,17 +15,17 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { StatusPill, tableHead } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Customers" };
 
 interface CustomersPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ q?: string; sort?: string; page?: string }>;
 }
 
-export default async function AdminCustomersPage({ params, searchParams }: CustomersPageProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminCustomersPage({ searchParams }: CustomersPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("customers.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const { q, sort, page } = await searchParams;
@@ -43,7 +44,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
     if (q) search.set("q", q);
     search.set("sort", activeSort);
     if (params.page && params.page > 1) search.set("page", String(params.page));
-    return `${adminPath(restaurantSlug)}/customers?${search.toString()}`;
+    return `${adminPath()}/customers?${search.toString()}`;
   };
 
   return (
@@ -51,24 +52,24 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
       <AdminPageHeader title="Customers" description={`${result.total} total`} />
 
       <div className="flex flex-wrap items-center gap-3">
-        <form action={adminPath(restaurantSlug, "/customers")} className="flex max-w-md flex-1 gap-2">
+        <Form action={adminPath("/customers")} className="flex max-w-md flex-1 gap-2">
           <input type="hidden" name="sort" value={activeSort} />
           <Input name="q" defaultValue={q ?? ""} placeholder="Search name, phone or email" />
           <Button type="submit" variant="secondary">
             Search
           </Button>
-        </form>
+        </Form>
         {showTotals ? (
         <div className="flex gap-2 text-sm">
           <Link
-            href={`${adminPath(restaurantSlug)}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: "recent" }).toString()}`}
+            href={`${adminPath()}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: "recent" }).toString()}`}
             className={activeSort === "recent" ? "font-medium text-[var(--color-brand)]" : "text-[var(--color-muted-ink)]"}
           >
             Recent
           </Link>
           <span className="text-[var(--color-hairline)]">·</span>
           <Link
-            href={`${adminPath(restaurantSlug)}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: "spend" }).toString()}`}
+            href={`${adminPath()}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: "spend" }).toString()}`}
             className={activeSort === "spend" ? "font-medium text-[var(--color-brand)]" : "text-[var(--color-muted-ink)]"}
           >
             Top spenders
@@ -98,7 +99,7 @@ export default async function AdminCustomersPage({ params, searchParams }: Custo
               {result.rows.map((customer) => (
                 <tr key={customer.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
                   <td className="px-4 py-3">
-                    <Link href={`${adminPath(restaurantSlug)}/customers/${customer.id}`} className="font-medium text-[var(--color-brand)] hover:underline">
+                    <Link href={`${adminPath()}/customers/${customer.id}`} className="font-medium text-[var(--color-brand)] hover:underline">
                       {customer.fullName}
                     </Link>
                     <p className="text-xs text-[var(--color-muted-ink)]">{customer.phone}</p>

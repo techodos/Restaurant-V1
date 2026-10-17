@@ -11,7 +11,7 @@ import {
   deleteStaffAction,
   setStaffActiveAction,
   updateStaffAction,
-} from "@/app/r/[restaurantSlug]/admin/(dashboard)/staff/actions";
+} from "@/app/admin/(dashboard)/staff/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ROLE_LABELS, isBranchRole } from "@/server/auth/permissions";
 import type { TeamRole } from "@/shared/contract/enums";

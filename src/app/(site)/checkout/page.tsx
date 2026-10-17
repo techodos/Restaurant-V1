@@ -14,17 +14,14 @@ import { config } from "@/server/config";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
 import { resolveMenuImage } from "@/web/media";
 import { Button } from "@/components/ui/button";
-
-interface CheckoutPageProps {
-  params: Promise<{ restaurantSlug: string }>;
-}
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Checkout", robots: { index: false, follow: false } };
 
-export default async function CheckoutPage({ params }: CheckoutPageProps) {
-  const { restaurantSlug } = await params;
+export default async function CheckoutPage() {
+  const restaurantSlug = instanceRestaurantSlug();
 
   const context = await requireStorefront(restaurantSlug);
 
@@ -38,13 +35,13 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   // addresses, email verification) in one transaction. The order itself re-prices everything from the
   // database when it is placed.
   const { tray, view } = await readTrayView(context);
-  if (view.lines.length === 0) redirect(`/r/${restaurant.slug}/menu`);
+  if (view.lines.length === 0) redirect(`/menu`);
 
   // Multi-branch ordering: checkout continues the branch chosen on the menu. Without a branch that can
   // serve this order there is nothing to check out yet — the menu's bar says what is missing.
   const branching = await getBranching(context);
   const branch = branching ? (branchesFor(branching, tray.orderType).find((option) => option.id === tray.locationId) ?? null) : null;
-  if (branching && !branch) redirect(`/r/${restaurant.slug}/menu`);
+  if (branching && !branch) redirect(`/menu`);
 
   // Single-branch mode (flag off): `readTray` already pinned the tray to the primary branch, so its zones,
   // hours and menu availability decide this order and the form offers no branch choice.
@@ -91,10 +88,10 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           <p className="mt-3 text-[var(--color-muted-ink)]">{reason}</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button asChild>
-              <Link href={`/r/${restaurant.slug}/cart`}>Back to cart</Link>
+              <Link href={`/cart`}>Back to cart</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href={`/r/${restaurant.slug}/menu`}>Edit items</Link>
+              <Link href={`/menu`}>Edit items</Link>
             </Button>
           </div>
         </div>
@@ -117,7 +114,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-6 border-b border-[var(--rule)] pb-6 md:pb-8">
         <div>
           <Link
-            href={`/r/${restaurant.slug}/cart`}
+            href={`/cart`}
             className="group mb-5 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-brand)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--color-brand)]"
           >
             <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
@@ -210,7 +207,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
           locations={formLocations}
           initialLocationId={tray.locationId}
-          branch={branch ? { name: branch.name, menuHref: `/r/${restaurant.slug}/menu`, destination: branching?.destination ?? null } : null}
+          branch={branch ? { name: branch.name, menuHref: `/menu`, destination: branching?.destination ?? null } : null}
           googleMapsApiKey={config.maps?.apiKey ?? null}
         />
       </div>

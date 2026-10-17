@@ -5,9 +5,9 @@ import { adminPath } from "@/shared/utils";
 import { after } from "next/server";
 import type { ApiResult } from "@/shared/contract/api";
 import { action } from "@/server/errors";
-import { changeOrderStatus, changePaymentStatus, type OrderStatusChange, type PaymentStatusChange } from "@/server/services/orders";
+import { changeOrderStatus, changeOrderStatuses, changePaymentStatus, type OrderStatusChange, type PaymentStatusChange } from "@/server/services/orders";
 import { dispatchDueNotifications } from "@/server/services/notifications";
-import { updateOrderStatusSchema, updatePaymentStatusSchema } from "@/server/validation/orders";
+import { bulkUpdateOrderStatusSchema, updateOrderStatusSchema, updatePaymentStatusSchema } from "@/server/validation/orders";
 import { requirePermission } from "@/web/session";
 
 /**
@@ -28,13 +28,32 @@ export async function updateOrderStatusAction(payload: unknown): Promise<ApiResu
       cancelReason: input.cancelReason || null,
     });
 
-    revalidatePath(adminPath(actor.restaurantSlug, "/orders"));
-    revalidatePath(adminPath(actor.restaurantSlug, `/orders/${order.orderNumber}`));
-    revalidatePath(adminPath(actor.restaurantSlug, "/kitchen"));
-    revalidatePath(adminPath(actor.restaurantSlug));
+    revalidatePath(adminPath("/orders"));
+    revalidatePath(adminPath(`/orders/${order.orderNumber}`));
+    revalidatePath(adminPath("/kitchen"));
+    revalidatePath(adminPath());
 
     after(() => dispatchDueNotifications({ restaurantId: actor.restaurantId }, { restaurantId: actor.restaurantId }));
     return order;
+  });
+}
+
+/**
+ * The orders list's bulk "next step": every selected order moves in ONE statement and the list re-renders once.
+ * Clicking each row's button instead queued one action + one full page render per order (Next runs a tab's server
+ * actions one at a time), ~1–2 s each on the hosted database. Cancelling stays one order at a time (it asks why).
+ */
+export async function bulkUpdateOrderStatusAction(payload: unknown): Promise<ApiResult<{ updated: number; requested: number }>> {
+  return action(async () => {
+    const actor = await requirePermission("orders.update_status");
+    const { changes } = bulkUpdateOrderStatusSchema.parse(payload);
+    const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
+    const changed = await changeOrderStatuses(changes, ctx);
+    revalidatePath(adminPath("/orders"));
+    revalidatePath(adminPath("/kitchen"));
+    revalidatePath(adminPath());
+    if (changed.length > 0) after(() => dispatchDueNotifications({ restaurantId: actor.restaurantId }, { restaurantId: actor.restaurantId }));
+    return { updated: changed.length, requested: changes.length };
   });
 }
 
@@ -49,9 +68,9 @@ export async function updatePaymentStatusAction(payload: unknown): Promise<ApiRe
     const input = updatePaymentStatusSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const change = await changePaymentStatus(input.orderId, input.status, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, `/orders/${change.orderNumber}`));
-    revalidatePath(adminPath(actor.restaurantSlug, "/orders"));
-    revalidatePath(adminPath(actor.restaurantSlug, "/payments"));
+    revalidatePath(adminPath(`/orders/${change.orderNumber}`));
+    revalidatePath(adminPath("/orders"));
+    revalidatePath(adminPath("/payments"));
     return change;
   });
 }

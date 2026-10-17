@@ -134,7 +134,7 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
   if (item.requiresSelection) {
     return (
       <Link
-        href={`/r/${restaurantSlug}/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`}
+        href={`/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`}
         scroll={false}
         aria-label={`Choose options for ${item.name}`}
         className={cn(ROUND, size, IDLE)}

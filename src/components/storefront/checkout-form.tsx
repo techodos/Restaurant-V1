@@ -17,8 +17,8 @@ import {
   placeOrderAction,
   repriceCheckoutAction,
   sendGuestVerificationCodeAction,
-} from "@/app/r/[restaurantSlug]/(site)/checkout/actions";
-import { ensureVerificationCodeAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+} from "@/app/(site)/checkout/actions";
+import { ensureVerificationCodeAction } from "@/app/(site)/account/actions";
 import { GuestVerifyDialog } from "@/components/storefront/guest-verify-dialog";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { formatMoney, sumMoney } from "@/shared/money";
@@ -565,7 +565,7 @@ export function CheckoutForm({
           if (result.error.code === "SIGN_IN_REQUIRED") {
             // the session ended mid-checkout: sign in again and come straight back here
             toast.error(result.error.message, { description: "Your cart is kept." });
-            router.push(signInHref(restaurantSlug, `/r/${restaurantSlug}/checkout`));
+            router.push(signInHref(`/checkout`));
             return;
           }
           toast.error(result.error.message, { description: "Nothing has been charged." });
@@ -589,7 +589,7 @@ export function CheckoutForm({
         toast.success("Order received", {
           description: "Your order has been received. You will get a confirmation message soon.",
         });
-        router.push(`/r/${restaurantSlug}/order/${result.data.orderNumber}`);
+        router.push(`/order/${result.data.orderNumber}`);
       } catch {
         submitting.current = false;
         toast.error("We could not confirm your order.", {
@@ -638,7 +638,7 @@ export function CheckoutForm({
     <p className="text-center text-[13px] text-[var(--color-muted-ink)]">
       Already have an account?{" "}
       <Link
-        href={signInHref(restaurantSlug, `/r/${restaurantSlug}/checkout`)}
+        href={signInHref(`/checkout`)}
         className="rounded-sm font-semibold text-[var(--color-brand)] underline decoration-1 underline-offset-4 transition-[text-decoration-thickness] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]"
       >
         Sign in

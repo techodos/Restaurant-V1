@@ -29,7 +29,7 @@ export function MenuListItem({
   showPrepTime?: boolean;
 }) {
   if (offAtBranch) item = { ...item, isAvailable: false };
-  const href = `/r/${restaurantSlug}/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
+  const href = `/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
   const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: false });
   const was = item.compareAtPrice ? formatMoney(item.compareAtPrice, { currency: currencySymbol, locale }) : null;
   const hasMeta = item.dietaryTags.length > 0 || item.spiceLevel > 0 || showPrepTime;

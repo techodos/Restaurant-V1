@@ -24,34 +24,46 @@ describe("guest order grant (how a guest's browser sees its own order)", () => {
 });
 
 describe("safeReturnTo", () => {
-  it("accepts a path inside this restaurant's storefront", () => {
-    expect(safeReturnTo("zaytoun", "/r/zaytoun/checkout")).toBe("/r/zaytoun/checkout");
-    expect(safeReturnTo("zaytoun", "/r/zaytoun")).toBe("/r/zaytoun");
+  it("accepts a storefront path", () => {
+    expect(safeReturnTo("/checkout")).toBe("/checkout");
+    expect(safeReturnTo("/")).toBe("/");
+    expect(safeReturnTo("/menu/shawarma?orderType=pickup")).toBe("/menu/shawarma?orderType=pickup");
   });
 
-  it("rejects open redirects, other tenants and the auth pages themselves", () => {
+  it("rejects open redirects, the admin/API and the auth pages themselves", () => {
     for (const bad of [
-      "https://evil.example/r/zaytoun/checkout",
+      "https://evil.example/checkout",
       "//evil.example",
-      "/r/zaytoun-evil/checkout",
-      "/r/bella-napoli/checkout",
-      "/r/zaytoun/\\evil",
-      "/r/zaytoun/account/sign-in",
-      "/r/zaytoun/account/sign-up?returnTo=/r/zaytoun/checkout",
-      "/r/zaytoun/account/google-phone",
+      "/\\evil.example",
+      "/checkout\\evil",
+      // browsers strip tab / newline / CR while parsing, so these would become //evil.example
+      "/\t/evil.example",
+      "/\n/evil.example",
+      "/\r/evil.example",
+      "/ /evil.example",
+      "/\u0000/evil.example",
+      "javascript:alert(1)",
+      "checkout",
+      "/admin",
+      "/admin/orders",
+      "/super-admin",
+      "/api/internal/notifications/dispatch",
+      "/account/sign-in",
+      "/account/sign-up?returnTo=/checkout",
+      "/account/google-phone",
       "",
       null,
       undefined,
     ]) {
-      expect(safeReturnTo("zaytoun", bad)).toBeNull();
+      expect(safeReturnTo(bad), String(bad)).toBeNull();
     }
   });
 
   it("builds the sign-in link that returns to checkout", () => {
-    expect(signInHref("zaytoun", "/r/zaytoun/checkout")).toBe("/r/zaytoun/account/sign-in?returnTo=%2Fr%2Fzaytoun%2Fcheckout");
-    expect(signInHref("zaytoun", "https://evil.example", "sign-up")).toBe("/r/zaytoun/account/sign-up");
+    expect(signInHref("/checkout")).toBe("/account/sign-in?returnTo=%2Fcheckout");
+    expect(signInHref("https://evil.example", "sign-up")).toBe("/account/sign-up");
     // the header's sign-in: back to whichever page it was clicked on, never back onto the auth page itself
-    expect(signInHref("zaytoun", "/r/zaytoun/menu/shawarma")).toBe("/r/zaytoun/account/sign-in?returnTo=%2Fr%2Fzaytoun%2Fmenu%2Fshawarma");
-    expect(signInHref("zaytoun", "/r/zaytoun/account/sign-in")).toBe("/r/zaytoun/account/sign-in");
+    expect(signInHref("/menu/shawarma")).toBe("/account/sign-in?returnTo=%2Fmenu%2Fshawarma");
+    expect(signInHref("/account/sign-in")).toBe("/account/sign-in");
   });
 });

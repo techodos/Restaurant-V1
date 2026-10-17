@@ -1,6 +1,8 @@
 import { config } from "@/server/config";
 import { errors } from "@/server/errors";
 import { logger } from "@/server/logger";
+import { randomUUID } from "node:crypto";
+import { broadcastStorefrontChanged, listenStorefrontChanged } from "@/server/repositories/storefront-events";
 import { loadStorefrontSnapshot } from "./storefront-loader";
 import { StorefrontCache } from "./storefront-cache";
 import type { StorefrontSnapshot } from "./types";
@@ -18,13 +20,24 @@ export * from "./storefront-queries";
  * hot reloads re-evaluate modules. A module-level variable would give the
  * startup hook and the pages different caches (and different refresh timers).
  */
-const globalForCache = globalThis as typeof globalThis & { __storefrontCache?: StorefrontCache };
+const globalForCache = globalThis as typeof globalThis & { __storefrontCache?: StorefrontCache; __storefrontCacheOrigin?: string };
+
+/** This process's id on the `storefront_changed` channel, so it can ignore its own broadcasts. */
+const origin = (globalForCache.__storefrontCacheOrigin ??= randomUUID());
 
 export function getStorefrontCache(): StorefrontCache {
   globalForCache.__storefrontCache ??= new StorefrontCache({
     load: () => loadStorefrontSnapshot(config.app.defaultRestaurantSlug),
     refreshIntervalMs: config.storefrontCache.refreshIntervalMs,
     loadTimeoutMs: config.storefrontCache.startupTimeoutMs,
+    // an admin write here reloads this process's snapshot; tell the other processes serving this restaurant too
+    onInvalidate: () => {
+      broadcastStorefrontChanged(origin).catch((error: unknown) =>
+        logger.warn("cache", "storefront change broadcast failed; other processes catch up on their scheduled refresh", {
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    },
   });
   return globalForCache.__storefrontCache;
 }
@@ -40,7 +53,14 @@ export async function startStorefrontCache(): Promise<void> {
     logger.info("cache", "storefront cache disabled (STOREFRONT_CACHE_ENABLED=false); storefront reads use the database");
     return;
   }
-  await getStorefrontCache().start();
+  const cache = getStorefrontCache();
+  await cache.start();
+  // other processes' admin writes (no-op without DATABASE_URL_LISTEN); a listener failure never blocks startup
+  listenStorefrontChanged(origin, () => cache.invalidate({ broadcast: false })).catch((error: unknown) =>
+    logger.warn("cache", "storefront change feed unavailable; relying on the scheduled refresh", {
+      message: error instanceof Error ? error.message : String(error),
+    }),
+  );
 }
 
 /**

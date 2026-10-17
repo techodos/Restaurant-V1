@@ -5,12 +5,13 @@ import { requireAdminPage } from "@/web/session";
 import { memberBranch } from "@/server/auth/branch-scope";
 import { LocationManager } from "@/components/admin/location-manager";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Locations" };
 
-export default async function AdminLocationsPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
-  const { restaurantSlug } = await params;
+export default async function AdminLocationsPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("locations.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
 

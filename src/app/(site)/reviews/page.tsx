@@ -15,16 +15,16 @@ import { MessageSquareQuote } from "lucide-react";
 import { EmptyState } from "@/components/storefront/empty-state";
 import { PageHero } from "@/components/storefront/page-hero";
 import { resolveImage } from "@/web/media";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 interface ReviewsPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ order?: string; t?: string }>;
 }
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: ReviewsPageProps): Promise<Metadata> {
-  const { restaurantSlug } = await params;
+export async function generateMetadata(): Promise<Metadata> {
+  const restaurantSlug = instanceRestaurantSlug();
   try {
     const { restaurant } = await getStorefrontContext(restaurantSlug);
     const breakdown = await getReviewSummary(restaurant.id);
@@ -34,15 +34,15 @@ export async function generateMetadata({ params }: ReviewsPageProps): Promise<Me
         breakdown.count > 0
           ? `${breakdown.average.toFixed(1)} out of 5 from ${breakdown.count} verified reviews at ${restaurant.name}.`
           : `Read guest reviews for ${restaurant.name}.`,
-      alternates: { canonical: `/r/${restaurant.slug}/reviews` },
+      alternates: { canonical: `/reviews` },
     };
   } catch {
     return { title: "Reviews" };
   }
 }
 
-export default async function ReviewsPage({ params, searchParams }: ReviewsPageProps) {
-  const { restaurantSlug } = await params;
+export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const query = await searchParams;
   return (
     <ConfiguredPage
@@ -76,8 +76,8 @@ async function renderReviews(
       <JsonLd data={reviewsJsonLd(reviews, restaurant)} />
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: restaurant.name, path: `/r/${restaurant.slug}` },
-          { name: "Reviews", path: `/r/${restaurant.slug}/reviews` },
+          { name: restaurant.name, path: "/" },
+          { name: "Reviews", path: `/reviews` },
         ])}
       />
 
@@ -159,7 +159,7 @@ async function renderReviews(
                   Reviews are linked to completed orders, so we can keep them honest. Open your order page to write one.
                 </p>
                 <Button asChild variant="outline" className="mt-5">
-                  <Link href={`/r/${restaurant.slug}/menu`}>Order something first</Link>
+                  <Link href={`/menu`}>Order something first</Link>
                 </Button>
               </div>
             )}

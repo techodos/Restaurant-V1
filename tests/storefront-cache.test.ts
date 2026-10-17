@@ -321,3 +321,21 @@ describe("StorefrontCache — scheduled refresh", () => {
     expect(nameOf(cache)).toBe("v1");
   });
 });
+
+describe("StorefrontCache — cross-process invalidation hook", () => {
+  it("a local invalidate tells the other processes (onInvalidate); one heard from another process is not echoed back", async () => {
+    const onInvalidate = vi.fn();
+    let n = 0;
+    const cache = track(new StorefrontCache({ load: async () => snapshot(`v${++n}`), refreshIntervalMs: 60_000, loadTimeoutMs: 5_000, onInvalidate }));
+    await cache.start();
+    expect(nameOf(cache)).toBe("v1");
+
+    cache.invalidate();
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(nameOf(cache)).toBe("v2"));
+
+    cache.invalidate({ broadcast: false }); // a NOTIFY from another process
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(nameOf(cache)).toBe("v3"));
+  });
+});

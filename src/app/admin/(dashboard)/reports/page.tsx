@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Form from "next/form";
 import { Banknote, ClipboardList, Download, Percent, ReceiptText, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -16,12 +17,12 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { OrdersTrendChart, PaymentBreakdownList, SalesTrendChart } from "@/components/admin/sales-charts";
 import { StatusPill, orderStatusTone, tableHead } from "@/components/admin/admin-ui";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Sales Reports" };
 
 interface ReportsPageProps {
-  params: Promise<{ restaurantSlug: string }>;
   searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
 }
 
@@ -53,8 +54,8 @@ function StatCard({
   );
 }
 
-export default async function AdminReportsPage({ params, searchParams }: ReportsPageProps) {
-  const { restaurantSlug } = await params;
+export default async function AdminReportsPage({ searchParams }: ReportsPageProps) {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("analytics.view", restaurantSlug);
   const [restaurant, scope] = await Promise.all([getAdminRestaurant(restaurantSlug), getAdminBranchScope(restaurantSlug)]);
   const { locationId } = scope; // a manager: always their branch; owner/admin: the header's choice (null = all)
@@ -67,13 +68,13 @@ export default async function AdminReportsPage({ params, searchParams }: Reports
     getSalesReport(restaurant.id, range, restaurant.timezone, ctx, locationId),
     listOrdersForStaff(
       restaurant.id,
-      { dateFrom: range.fromDateKey, dateTo: range.toDateKey, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 10 },
+      { dateFrom: range.fromDateKey, dateTo: range.toDateKey, timezone: restaurant.timezone, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 10 },
       ctx,
     ),
   ]);
 
-  const linkFor = (nextPreset: ReportRangePreset) => `${adminPath(restaurantSlug)}/reports?preset=${nextPreset}`;
-  const exportHref = `${adminPath(restaurantSlug)}/reports/export?preset=${range.preset}&from=${range.fromDateKey}&to=${range.toDateKey}`;
+  const linkFor = (nextPreset: ReportRangePreset) => `${adminPath()}/reports?preset=${nextPreset}`;
+  const exportHref = `${adminPath()}/reports/export?preset=${range.preset}&from=${range.fromDateKey}&to=${range.toDateKey}`;
   const hasSales = report.dailyTrend.some((point) => Number(point.sales) > 0 || point.orders > 0);
 
   return (
@@ -111,7 +112,7 @@ export default async function AdminReportsPage({ params, searchParams }: Reports
           active={range.preset === "custom" ? ("today" as ReportRangePreset) : range.preset}
           linkFor={linkFor}
         />
-        <form action={adminPath(restaurantSlug, "/reports")} className="flex flex-wrap items-end gap-2">
+        <Form action={adminPath("/reports")} className="flex flex-wrap items-end gap-2">
           <input type="hidden" name="preset" value="custom" />
           <div>
             <Label htmlFor="from" className="sr-only">From</Label>
@@ -124,7 +125,7 @@ export default async function AdminReportsPage({ params, searchParams }: Reports
           <Button type="submit" size="sm" variant="secondary">
             Apply
           </Button>
-        </form>
+        </Form>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -208,7 +209,7 @@ export default async function AdminReportsPage({ params, searchParams }: Reports
                 {recentInRange.rows.map((order) => (
                   <tr key={order.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
                     <td className="px-4 py-3">
-                      <Link href={`${adminPath(restaurantSlug)}/orders/${order.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
+                      <Link href={`${adminPath()}/orders/${order.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
                         {order.orderNumber}
                       </Link>
                     </td>

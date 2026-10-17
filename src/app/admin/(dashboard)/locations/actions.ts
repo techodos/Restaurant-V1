@@ -15,7 +15,7 @@ export async function saveLocationAction(payload: unknown): Promise<ApiResult<Re
     const input = locationSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const location = await saveLocation(actor.restaurantId, input, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/locations"));
+    revalidatePath(adminPath("/locations"));
     return location;
   });
 }
@@ -25,7 +25,7 @@ export async function deleteLocationAction(locationId: string): Promise<ApiResul
     const actor = await requirePermission("locations.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeLocation(locationId, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/locations"));
+    revalidatePath(adminPath("/locations"));
     return null;
   });
 }

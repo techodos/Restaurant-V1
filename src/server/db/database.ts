@@ -67,9 +67,15 @@ export class Database {
     return this.transaction(this.runtimePool, context, handler, "app_runtime");
   }
 
-  /** Alias kept for readability at call sites that only read. */
+  /**
+   * RLS-enforced READ-ONLY transaction (`begin read only`: Postgres refuses any write inside it). Because nothing
+   * can be written, the result is final as soon as the handler returns, so the `commit` is not awaited: it finishes
+   * (and the connection goes back to the pool) while the caller carries on. That takes one round trip off every
+   * read's critical path — ~0.3 s each on the hosted pooler (measured 2026-10-16: every read was begin+context,
+   * statement, commit = 3 sequential trips). Writes, including customer-scoped RLS writes, use `asRuntime`/`write`.
+   */
   async read<T>(context: RequestContext, handler: (db: DbClient) => Promise<T>): Promise<T> {
-    return this.asRuntime(context, handler);
+    return this.transaction(this.runtimePool, context, handler, "app_runtime", true);
   }
 
   /** Convenience for one-shot RLS-enforced queries. */
@@ -108,12 +114,24 @@ export class Database {
     context: RequestContext,
     handler: (db: DbClient) => Promise<T>,
     role = "app_runtime",
+    readOnly = false,
   ): Promise<T> {
     const client = await pool.connect();
     let broken = false;
+    let released = false;
     try {
-      await beginWithContext(client, context, role);
+      await beginWithContext(client, context, role, readOnly);
       const result = await handler(new TxClient(client));
+      if (readOnly) {
+        // read-only: nothing to make durable, so the caller does not wait for the commit's round trip; the
+        // connection is released only once the commit has actually finished (or dropped if it failed)
+        released = true;
+        client.query("commit").then(
+          () => client.release(),
+          () => client.release(true),
+        );
+        return result;
+      }
       await client.query("commit");
       return result;
     } catch (error) {
@@ -124,7 +142,7 @@ export class Database {
       }
       throw error;
     } finally {
-      client.release(broken);
+      if (!released) client.release(broken);
     }
   }
 
@@ -161,7 +179,7 @@ function buildConfig(connectionString: string, applicationName: string, poolMax:
  * driver's own `escapeLiteral`). `set_config('role', …, true)` is exactly `SET LOCAL ROLE` (the same
  * GUC; PostgREST switches roles this way), so RLS sees the same role as before.
  */
-async function beginWithContext(client: PoolClient, context: RequestContext, role = "app_runtime"): Promise<void> {
+async function beginWithContext(client: PoolClient, context: RequestContext, role = "app_runtime", readOnly = false): Promise<void> {
   if (role !== "app_runtime" && role !== "app_service") throw new Error(`unexpected database role ${role}`);
   const literal = (value: string) => client.escapeLiteral(value);
   const settings: [string, string][] = [
@@ -174,6 +192,6 @@ async function beginWithContext(client: PoolClient, context: RequestContext, rol
     ["request.jwt.claims", context.userId ? JSON.stringify({ sub: context.userId, role: "authenticated" }) : "{}"],
   ];
   await client.query(
-    `begin; select ${settings.map(([name, value]) => `set_config(${literal(name)}, ${literal(value)}, true)`).join(", ")}`,
+    `${readOnly ? "begin read only" : "begin"}; select ${settings.map(([name, value]) => `set_config(${literal(name)}, ${literal(value)}, true)`).join(", ")}`,
   );
 }

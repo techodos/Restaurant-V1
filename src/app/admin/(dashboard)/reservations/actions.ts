@@ -27,8 +27,8 @@ export async function updateReservationStatusAction(payload: unknown): Promise<A
 
     const reservation = await changeReservationStatus(input.reservationId, input.status, ctx, input.notes || null);
 
-    revalidatePath(adminPath(actor.restaurantSlug, "/reservations"));
-    revalidatePath(adminPath(actor.restaurantSlug));
+    revalidatePath(adminPath("/reservations"));
+    revalidatePath(adminPath());
 
     after(() => dispatchDueNotifications({ restaurantId: actor.restaurantId }, { restaurantId: actor.restaurantId }));
     return reservation;

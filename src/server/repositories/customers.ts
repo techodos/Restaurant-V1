@@ -226,19 +226,24 @@ export async function saveFirstAccountPhone(tx: DbClient, restaurantId: string, 
   return mapCustomer(updated);
 }
 
-/** The account row and its saved addresses in ONE transaction (profile drawer, checkout page). */
+/**
+ * The account row and its saved addresses in ONE statement (profile drawer, checkout page): the addresses ride
+ * along as JSON (was a second sequential round trip). `mapAddress`'s helpers take JSON numbers/booleans as-is.
+ */
 export async function getCustomerWithAddresses(
   customerId: string,
   ctx: RequestContext,
 ): Promise<{ customer: Customer; addresses: CustomerAddress[] } | null> {
   return getDb(ctx).read(ctx, async (tx) => {
-    const row = await tx.queryOne<Row>(`select ${CUSTOMER_COLUMNS} from customers where id = $1`, [customerId]);
-    if (!row) return null;
-    const addresses = await tx.query<Row>(
-      `select * from customer_addresses where customer_id = $1 order by is_default desc, created_at`,
+    const row = await tx.queryOne<Row>(
+      `select ${CUSTOMER_COLUMNS},
+              coalesce((select json_agg(a order by a.is_default desc, a.created_at)
+                          from customer_addresses a where a.customer_id = customers.id), '[]'::json) as addresses
+         from customers where id = $1`,
       [customerId],
     );
-    return { customer: mapCustomer(row), addresses: addresses.map(mapAddress) };
+    if (!row) return null;
+    return { customer: mapCustomer(row), addresses: (row.addresses as Row[]).map(mapAddress) };
   });
 }
 

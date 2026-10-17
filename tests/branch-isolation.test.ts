@@ -60,7 +60,7 @@ describe("branch-scoped staff (RLS)", () => {
   });
 
   it("blocks a branch-scoped manager from updating another branch's order", async () => {
-    const updated = await testDatabase.read(MANAGER, (db) =>
+    const updated = await testDatabase.asRuntime(MANAGER, (db) =>
       db.query<{ id: string }>("update orders set notes = 'hijacked' where id = $1 returning id", [dhaOrderId]),
     );
     expect(updated).toHaveLength(0);

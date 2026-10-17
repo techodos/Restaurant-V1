@@ -145,7 +145,7 @@ await query(
         enabled: true,
         text: "Free delivery on orders over Rs 3,000 within Gulberg & DHA",
         linkLabel: "Order now",
-        linkHref: "/r/bella-napoli/menu",
+        linkHref: "/menu",
       },
       navigation: { items: BELLA.nav, showCart: true, sticky: true, tone: "dark" },
       footer: {
@@ -154,17 +154,17 @@ await query(
           {
             title: "Explore",
             links: [
-              { label: "Menu", href: "/r/bella-napoli/menu" },
-              { label: "Reservations", href: "/r/bella-napoli/reservation" },
-              { label: "Reviews", href: "/r/bella-napoli/reviews" },
-              { label: "Locations", href: "/r/bella-napoli/locations" },
+              { label: "Menu", href: "/menu" },
+              { label: "Reservations", href: "/reservation" },
+              { label: "Reviews", href: "/reviews" },
+              { label: "Locations", href: "/locations" },
             ],
           },
           {
             title: "Visit",
             links: [
-              { label: "Gulberg Flagship", href: "/r/bella-napoli/locations" },
-              { label: "DHA Phase 5", href: "/r/bella-napoli/locations" },
+              { label: "Gulberg Flagship", href: "/locations" },
+              { label: "DHA Phase 5", href: "/locations" },
             ],
           },
         ],
@@ -194,8 +194,8 @@ const homeSections = [
     alignment: "left",
     overlay: 0.5,
     height: "lg",
-    primaryCta: { label: "Order online", href: "/r/bella-napoli/menu", style: "primary" },
-    secondaryCta: { label: "Book a table", href: "/r/bella-napoli/reservation", style: "outline" },
+    primaryCta: { label: "Order online", href: "/menu", style: "primary" },
+    secondaryCta: { label: "Book a table", href: "/reservation", style: "outline" },
     highlights: ["48-hour fermented dough", "Stone oven from Naples", "Delivery in 40 minutes"],
   },
   {
@@ -213,7 +213,7 @@ const homeSections = [
     itemSlugs: ["margherita-pizza", "chicken-tikka-pizza", "chicken-alfredo-fettuccine", "gulab-jamun", "mint-margarita", "beef-pepperoni-pizza"],
     limit: 6,
     layout: "grid",
-    cta: { label: "See the full menu", href: "/r/bella-napoli/menu", style: "outline" },
+    cta: { label: "See the full menu", href: "/menu", style: "outline" },
   },
   {
     type: "menu_categories",
@@ -238,7 +238,7 @@ const homeSections = [
       { value: "2", label: "Lahore kitchens" },
       { value: "4.8", label: "Average rating" },
     ],
-    cta: { label: "Reserve a table", href: "/r/bella-napoli/reservation", style: "outline" },
+    cta: { label: "Reserve a table", href: "/reservation", style: "outline" },
   },
   {
     type: "gallery",
@@ -282,7 +282,7 @@ const homeSections = [
     subtitle: "Terrace seating fills up fast on weekends — reserve in under a minute.",
     image: { url: "/images/gallery/terrace.jpg", alt: "Terrace seating at Bella Napoli" },
     phoneLabel: "Or call us",
-    cta: { label: "Make a reservation", href: "/r/bella-napoli/reservation", style: "primary" },
+    cta: { label: "Make a reservation", href: "/reservation", style: "primary" },
   },
   {
     type: "locations",
@@ -305,8 +305,8 @@ const homeSections = [
     title: "Hungry now? Your pizza is 40 minutes away.",
     subtitle: "Order online for delivery, pickup or dine-in.",
     tone: "primary",
-    cta: { label: "Start your order", href: "/r/bella-napoli/menu", style: "primary" },
-    secondaryCta: { label: "See coupons", href: "/r/bella-napoli/checkout", style: "ghost" },
+    cta: { label: "Start your order", href: "/menu", style: "primary" },
+    secondaryCta: { label: "See coupons", href: "/checkout", style: "ghost" },
   },
 ];
 
@@ -355,7 +355,7 @@ const aboutSections = [
     enabled: true,
     title: "Come see for yourself",
     tone: "neutral",
-    cta: { label: "Book a table", href: "/r/bella-napoli/reservation", style: "primary" },
+    cta: { label: "Book a table", href: "/reservation", style: "primary" },
   },
 ];
 
@@ -371,7 +371,7 @@ const contactSections = [
   },
   { type: "contact", enabled: true, title: "Get in touch", showForm: true },
   { type: "locations", enabled: true, title: "Our kitchens", showMap: true },
-  { type: "cta", enabled: true, title: "Ready to order?", tone: "primary", cta: { label: "Browse the menu", href: "/r/bella-napoli/menu", style: "primary" } },
+  { type: "cta", enabled: true, title: "Ready to order?", tone: "primary", cta: { label: "Browse the menu", href: "/menu", style: "primary" } },
 ];
 
 const pages = [
@@ -896,9 +896,9 @@ const counts = await one<{ restaurants: string; items: string; orders: string; c
 console.log("\n✔ Seed complete");
 console.log(`  restaurants ${counts?.restaurants} · menu items ${counts?.items} · orders ${counts?.orders} · customers ${counts?.customers}`);
 console.log(`  reviews ${counts?.reviews} · reservations ${counts?.reservations} · coupons ${counts?.coupons} · delivery zones ${counts?.zones}`);
-console.log("\n  Storefront : /r/bella-napoli");
-console.log("  Admin      : /r/bella-napoli/admin  →  owner@bellanapoli.pk / BellaNapoli#1");
-console.log("  Kitchen    : /r/bella-napoli/admin/kitchen (chef@bellanapoli.pk / BellaNapoli#4)\n");
+console.log("\n  Storefront : /   (run the app with NEXT_PUBLIC_DEFAULT_RESTAURANT=bella-napoli)");
+console.log("  Admin      : /admin  →  owner@bellanapoli.pk / BellaNapoli#1");
+console.log("  Kitchen    : /admin/kitchen (chef@bellanapoli.pk / BellaNapoli#4)\n");
 void orderCount;
 
 await client.end();

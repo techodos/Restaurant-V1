@@ -7,6 +7,7 @@ import { getAdminBranchScope } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { StaffManager } from "@/components/admin/staff-manager";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Staff" };
@@ -16,8 +17,8 @@ export const metadata: Metadata = { title: "Staff" };
  * see the branch chosen in the header, or everyone with "All branches". The rules for who may change whom
  * are server-side (services/team.ts); `manageableIds`/`assignableRoles` only shape the buttons.
  */
-export default async function AdminStaffPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
-  const { restaurantSlug } = await params;
+export default async function AdminStaffPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("staff.view", restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 

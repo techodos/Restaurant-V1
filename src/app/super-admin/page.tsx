@@ -5,6 +5,7 @@ import { ENTITLEMENT_KEYS, ENTITLEMENT_LABELS } from "@/shared/feature-access";
 import { adminPath } from "@/shared/utils";
 import { PageHeader } from "@/components/super-admin/ui";
 import { RestaurantList, type RestaurantSummary } from "@/components/super-admin/restaurant-list";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Restaurants" };
@@ -21,7 +22,7 @@ export default async function SuperAdminHomePage() {
     cuisines: r.cuisines,
     createdAt: r.createdAt,
     disabled: ENTITLEMENT_KEYS.filter((key) => !r.entitlements[key]).map((key) => ENTITLEMENT_LABELS[key]),
-    adminHref: adminPath(r.slug),
+    adminHref: r.slug === instanceRestaurantSlug() ? adminPath() : null,
   }));
 
   return (

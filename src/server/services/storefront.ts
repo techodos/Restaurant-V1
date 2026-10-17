@@ -42,7 +42,7 @@ export async function getHomePageContent(restaurantId: string): Promise<WebsiteP
   return getHomePage(restaurantId, forRestaurant(restaurantId));
 }
 
-/** A published page other than home (`/r/<slug>/about`); null when it does not exist or is unpublished. */
+/** A published page other than home (`/about`); null when it does not exist or is unpublished. */
 export async function getPageContent(restaurantId: string, slug: string): Promise<WebsitePage | null> {
   const snapshot = snapshotForRestaurant(restaurantId);
   if (snapshot) return readPageBySlug(snapshot, slug);

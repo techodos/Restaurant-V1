@@ -15,7 +15,7 @@ export async function saveCouponAction(payload: unknown): Promise<ApiResult<Coup
     const input = couponSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const coupon = await saveCoupon(actor.restaurantId, input, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/coupons"));
+    revalidatePath(adminPath("/coupons"));
     return coupon;
   });
 }
@@ -25,7 +25,7 @@ export async function deleteCouponAction(couponId: string): Promise<ApiResult<nu
     const actor = await requireRestaurantWidePermission("coupons.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeCoupon(couponId, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, "/coupons"));
+    revalidatePath(adminPath("/coupons"));
     return null;
   });
 }

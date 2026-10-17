@@ -41,8 +41,8 @@ export async function saveMenuItemAction(payload: unknown): Promise<ApiResult<Me
       },
       ctx,
     );
-    revalidatePath(adminPath(actor.restaurantSlug, "/menu"));
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${item.id}`));
+    revalidatePath(adminPath("/menu"));
+    revalidatePath(adminPath(`/menu/items/${item.id}`));
     return item;
   });
 }
@@ -53,8 +53,8 @@ export async function saveVariantAction(menuItemId: string, payload: unknown): P
     const input = variantSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await saveVariant(actor.restaurantId, menuItemId, input, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
-    revalidatePath(adminPath(actor.restaurantSlug, "/menu")); // the list's branch view shows it too
+    revalidatePath(adminPath(`/menu/items/${menuItemId}`));
+    revalidatePath(adminPath("/menu")); // the list's branch view shows it too
     return null;
   });
 }
@@ -64,7 +64,7 @@ export async function deleteVariantAction(menuItemId: string, variantId: string)
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeVariant(variantId, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
+    revalidatePath(adminPath(`/menu/items/${menuItemId}`));
     return null;
   });
 }
@@ -75,7 +75,7 @@ export async function saveAddonGroupAction(menuItemId: string, payload: unknown)
     const input = addonGroupSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     const group = await saveAddonGroup(actor.restaurantId, menuItemId, input, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
+    revalidatePath(adminPath(`/menu/items/${menuItemId}`));
     return group;
   });
 }
@@ -85,7 +85,7 @@ export async function deleteAddonGroupAction(menuItemId: string, groupId: string
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeAddonGroup(groupId, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
+    revalidatePath(adminPath(`/menu/items/${menuItemId}`));
     return null;
   });
 }
@@ -96,7 +96,7 @@ export async function saveAddonAction(menuItemId: string, addonGroupId: string, 
     const input = addonSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await saveAddon(actor.restaurantId, addonGroupId, input, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
+    revalidatePath(adminPath(`/menu/items/${menuItemId}`));
     return null;
   });
 }
@@ -121,7 +121,7 @@ export async function deleteAddonAction(menuItemId: string, addonId: string): Pr
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
     await removeAddon(addonId, ctx);
-    revalidatePath(adminPath(actor.restaurantSlug, `/menu/items/${menuItemId}`));
+    revalidatePath(adminPath(`/menu/items/${menuItemId}`));
     return null;
   });
 }

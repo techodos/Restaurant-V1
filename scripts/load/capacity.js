@@ -53,12 +53,12 @@ export function visit() {
   const f = F[0];
   const page = pickPage();
   const path = {
-    home: `/r/${SLUG}`,
-    menu: `/r/${SLUG}/menu`,
-    item: `/r/${SLUG}/menu/${f.items[Math.floor(Math.random() * f.items.length)]}`,
-    cart: `/r/${SLUG}/cart`,
-    reviews: `/r/${SLUG}/reviews`,
-    locations: `/r/${SLUG}/locations`,
+    home: "/",
+    menu: `/menu`,
+    item: `/menu/${f.items[Math.floor(Math.random() * f.items.length)]}`,
+    cart: `/cart`,
+    reviews: `/reviews`,
+    locations: `/locations`,
   }[page];
   const signedIn = Math.random() < 0.5;
   const cookie = `${f.trayCookie}=${f.tray}${signedIn ? `; rp_customer_session=${f.sessions[Math.floor(Math.random() * f.sessions.length)]}` : ""}`;

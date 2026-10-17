@@ -6,7 +6,7 @@ import { Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
-import { updateSettingsAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/settings/actions";
+import { updateSettingsAction } from "@/app/admin/(dashboard)/settings/actions";
 import {
   CANCELLABLE_ORDER_STATUSES,
   ORDER_STATUS_LABELS,

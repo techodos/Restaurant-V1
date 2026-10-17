@@ -43,7 +43,7 @@ export async function placeOrderAction(slug: string, payload: unknown): Promise<
     // a guest's browser keeps a signed grant for the order, so the order page and "Current orders" can show it
     const result = await placeOrder(restaurant, tray, input, visitor, { rememberGuestOrder });
     await clearTray(slug); // the order consumed the tray
-    revalidatePath(`/r/${slug}`, "layout");
+    revalidatePath("/", "layout");
 
     // The order is committed (and its "placed" event queued by the database). No email goes out
     // for a placed order; the confirmation email is sent when staff confirm it. Draining the

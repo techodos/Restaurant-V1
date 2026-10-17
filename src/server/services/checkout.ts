@@ -120,8 +120,8 @@ export async function placeOrder(
       // the same phone / email the order was saved with (the account's own when signed in), not the browser's
       customer: { name: input.fullName, phone, email },
       // provider.id, not the payment method, picks the return path — each gateway's callback route
-      returnUrl: `${config.app.siteUrl}/r/${restaurant.slug}/checkout/pay/${provider.id}`,
-      cancelUrl: `${config.app.siteUrl}/r/${restaurant.slug}/checkout`,
+      returnUrl: `${config.app.siteUrl}/checkout/pay/${provider.id}`,
+      cancelUrl: `${config.app.siteUrl}/checkout`,
     });
     if (intent.formAction && intent.formFields) {
       return { orderNumber: order.orderNumber, requiresOnlinePayment, payment: { kind: "form", formAction: intent.formAction, formFields: intent.formFields } };

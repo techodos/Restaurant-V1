@@ -42,7 +42,7 @@ export async function MenuCategoriesSection({
     return null;
   };
 
-  const menuHref = `/r/${context.restaurant.slug}/menu`;
+  const menuHref = `/menu`;
   // the last tile closes its row on phones (2 columns) and tablets (3 columns); one row from lg up
   const phoneSpan = categories.length % 2 === 1 ? "col-span-2" : "col-span-1";
   const tabletSpan = ["sm:col-span-1", "sm:col-span-3", "sm:col-span-2"][categories.length % 3];

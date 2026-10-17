@@ -74,7 +74,7 @@ describe("storefront layout: the active-order widget", () => {
   });
 
   it("the layout reads only the count", () => {
-    const layout = readFileSync("src/app/r/[restaurantSlug]/(site)/layout.tsx", "utf8");
+    const layout = readFileSync("src/app/(site)/layout.tsx", "utf8");
     expect(layout).toMatch(/getActiveOrderCount\(restaurant\.id, visitor\)/);
     expect(layout).not.toMatch(/getMyOrders/);
   });

@@ -5,12 +5,13 @@ import { requireAdminPage } from "@/web/session";
 import { isRestaurantWide } from "@/server/auth/branch-scope";
 import { CouponManager } from "@/components/admin/coupon-manager";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Coupons" };
 
-export default async function AdminCouponsPage({ params }: { params: Promise<{ restaurantSlug: string }> }) {
-  const { restaurantSlug } = await params;
+export default async function AdminCouponsPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("coupons.view", restaurantSlug);
   const restaurant = await getAdminRestaurant(restaurantSlug);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };

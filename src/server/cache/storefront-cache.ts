@@ -20,6 +20,8 @@ export interface StorefrontCacheOptions {
   refreshIntervalMs: number;
   /** a single load may take at most this long; the first one failing fails startup */
   loadTimeoutMs: number;
+  /** told about every local `invalidate()` (not remote ones): how other processes hear that the data changed */
+  onInvalidate?: () => void;
 }
 
 type LoadReason = "startup" | "scheduled" | "manual" | "invalidated";
@@ -81,7 +83,9 @@ export class StorefrontCache {
    * dropping the current snapshot. Fire-and-forget; failures are logged and the
    * old snapshot keeps serving. Future admin writes call this after committing.
    */
-  invalidate(): void {
+  invalidate(options: { broadcast?: boolean } = {}): void {
+    // a change made HERE is passed on; one heard FROM another process is not echoed back
+    if (options.broadcast !== false) this.options.onInvalidate?.();
     if (this.inflight) {
       this.refreshQueued = true;
       return;

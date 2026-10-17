@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { setItemLocationAvailabilityAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
+import { setItemLocationAvailabilityAction } from "@/app/admin/(dashboard)/menu/items/actions";
 import { useSyncedState } from "@/components/admin/use-synced-state";
 import type { RestaurantLocation } from "@/shared/contract/models";
 

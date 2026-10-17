@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// the deployment under test must run with NEXT_PUBLIC_DEFAULT_RESTAURANT=bella-napoli
 const SLUG = "bella-napoli";
 
 test.describe("customer storefront", () => {
   test("home page renders database-driven sections", async ({ page }) => {
-    await page.goto(`/r/${SLUG}`);
+    await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Naples in the heart of Lahore");
     await expect(page.getByRole("heading", { name: "Guest favourites" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What our guests say" })).toBeVisible();
@@ -14,7 +15,7 @@ test.describe("customer storefront", () => {
   });
 
   test("customising an item prices it exactly as the database says and adds it to the cart", async ({ page }) => {
-    await page.goto(`/r/${SLUG}/menu/margherita-pizza`);
+    await page.goto(`/menu/margherita-pizza`);
     await expect(page.getByRole("heading", { name: "Margherita Pizza" })).toBeVisible();
 
     await page.getByRole("radio", { name: /Medium 12"/ }).check();
@@ -26,7 +27,7 @@ test.describe("customer storefront", () => {
     await page.getByTestId("add-to-cart").click();
     await expect(page.getByText(/added$/i)).toBeVisible();
 
-    await page.goto(`/r/${SLUG}/cart`);
+    await page.goto(`/cart`);
     await expect(page.getByRole("heading", { name: "My Cart" })).toBeVisible();
     await expect(page.getByText("Margherita Pizza")).toBeVisible();
     await expect(page.getByText("Medium 12")).toBeVisible();
@@ -38,11 +39,11 @@ test.describe("customer storefront", () => {
   });
 
   test("applies a real promo code and rejects an expired one", async ({ page }) => {
-    await page.goto(`/r/${SLUG}/menu`);
+    await page.goto(`/menu`);
     await page.getByTestId("quick-add-gulab-jamun").first().click();
     await expect(page.getByText(/added$/i)).toBeVisible();
 
-    await page.goto(`/r/${SLUG}/cart`);
+    await page.goto(`/cart`);
 
     // expired coupon: the expiry date lives in the database
     await page.getByLabel("Promo code").fill("RAMADAN15");
@@ -58,12 +59,12 @@ test.describe("customer storefront", () => {
   });
 
   test("a guest cannot check out: checkout sends them to sign in and back", async ({ page }) => {
-    await page.goto(`/r/${SLUG}/menu`);
+    await page.goto(`/menu`);
     await page.getByTestId("quick-add-gulab-jamun").first().click();
     await expect(page.getByText(/added$/i)).toBeVisible();
 
-    await page.goto(`/r/${SLUG}/checkout`);
-    await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/account/sign-in\\?returnTo=%2Fr%2F${SLUG}%2Fcheckout`));
+    await page.goto(`/checkout`);
+    await expect(page).toHaveURL(/\/account\/sign-in\?returnTo=%2Fcheckout/);
     await expect(page.getByTestId("place-order")).toHaveCount(0);
   });
 
@@ -74,16 +75,16 @@ test.describe("customer storefront", () => {
     const password = process.env.E2E_CUSTOMER_PASSWORD;
     test.skip(!email || !password, "E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD not set");
 
-    await page.goto(`/r/${SLUG}/account/sign-in?returnTo=${encodeURIComponent(`/r/${SLUG}/menu`)}`);
+    await page.goto(`/account/sign-in?returnTo=${encodeURIComponent(`/menu`)}`);
     await page.getByLabel("Email").fill(email!);
     await page.getByLabel("Password").fill(password!);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/menu`));
+    await expect(page).toHaveURL(new RegExp(`/menu`));
 
     await page.getByTestId("quick-add-gulab-jamun").first().click();
     await expect(page.getByText(/added$/i)).toBeVisible();
 
-    await page.goto(`/r/${SLUG}/checkout`);
+    await page.goto(`/checkout`);
     const delivery = page.getByRole("button", { name: "Delivery", exact: true });
     await delivery.click();
     await expect(delivery).toHaveAttribute("aria-pressed", "true");
@@ -106,7 +107,7 @@ test.describe("customer storefront", () => {
   });
 
   test("books a table against real opening hours and capacity", async ({ page }) => {
-    await page.goto(`/r/${SLUG}/reservation`);
+    await page.goto(`/reservation`);
     await expect(page.getByRole("heading", { name: /Book a table/ })).toBeVisible();
 
     // pick a few days out so earlier runs' bookings cannot exhaust the slots
@@ -131,14 +132,14 @@ test.describe("customer storefront", () => {
   });
 
   test("shows only approved reviews with a real rating breakdown", async ({ page }) => {
-    await page.goto(`/r/${SLUG}/reviews`);
+    await page.goto(`/reviews`);
     await expect(page.getByRole("heading", { name: "Guest reviews" })).toBeVisible();
     await expect(page.getByText(/verified review/i).first()).toBeVisible();
     await expect(page.getByText("Featured").first()).toBeVisible();
   });
 
-  test("an unknown restaurant slug returns a 404 instead of an empty site", async ({ page }) => {
-    const response = await page.goto("/r/not-a-restaurant");
+  test("the old /r/<slug> URLs are gone (no redirect layer): they 404", async ({ page }) => {
+    const response = await page.goto(`/r/${SLUG}/menu`);
     expect(response?.status()).toBe(404);
     await expect(page.getByText(/could not find that page/i)).toBeVisible();
   });

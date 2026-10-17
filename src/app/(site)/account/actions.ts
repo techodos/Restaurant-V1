@@ -192,13 +192,13 @@ export async function isSignedInWithVerifiedEmail(slug: string): Promise<{ signe
 // ── Google OAuth (redirect flow; route handlers below call these) ───────────
 
 function googleRedirectUri(slug: string): string {
-  return `${config.app.siteUrl}/r/${slug}/account/google/callback`;
+  return `${config.app.siteUrl}/account/google/callback`;
 }
 
 export async function beginGoogleSignIn(slug: string, returnTo: string | null): Promise<never> {
   const state = randomUUID();
   await setGoogleState(state);
-  const safeReturnTo = safeReturnToPath(slug, returnTo);
+  const safeReturnTo = safeReturnToPath(returnTo);
   if (safeReturnTo) await setGoogleReturnTo(safeReturnTo);
   const url = startGoogleAuth(googleRedirectUri(slug), state);
   redirect(url);
@@ -266,7 +266,7 @@ export async function updateProfileAction(slug: string, payload: unknown): Promi
     const profile = await updateCustomerProfile(restaurant, visitor, input);
     // the header shows the name from the session token; keep it in step with the account
     await refreshCustomerSession({ name: profile.fullName });
-    revalidatePath(`/r/${slug}/checkout`);
+    revalidatePath(`/checkout`);
     return profile;
   });
 }
@@ -276,7 +276,7 @@ export async function saveAddressAction(slug: string, payload: unknown): Promise
     const input = customerAddressSchema.parse(payload);
     const { restaurant, visitor } = await profileScope(slug);
     const addresses = await saveCustomerAddress(restaurant, visitor, input);
-    revalidatePath(`/r/${slug}/checkout`);
+    revalidatePath(`/checkout`);
     return addresses;
   });
 }
@@ -285,7 +285,7 @@ export async function deleteAddressAction(slug: string, addressId: string): Prom
   return action(async () => {
     const { restaurant, visitor } = await profileScope(slug);
     const addresses = await deleteCustomerAddress(restaurant, visitor, String(addressId));
-    revalidatePath(`/r/${slug}/checkout`);
+    revalidatePath(`/checkout`);
     return addresses;
   });
 }

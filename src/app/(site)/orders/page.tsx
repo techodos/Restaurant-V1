@@ -10,10 +10,7 @@ import { EmptyState } from "@/components/storefront/empty-state";
 import { PageHero } from "@/components/storefront/page-hero";
 import { resolveImage } from "@/web/media";
 import { signInHref } from "@/shared/return-to";
-
-interface MyOrdersPageProps {
-  params: Promise<{ restaurantSlug: string }>;
-}
+import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +23,8 @@ export const metadata: Metadata = { title: "My Orders", robots: { index: false, 
  * (see DECISIONS.md, "My Orders vs Current Orders"). Ownership still comes from the request (customer
  * session), never the URL; a guest is never shown another visitor's history.
  */
-export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
-  const { restaurantSlug } = await params;
+export default async function MyOrdersPage() {
+  const restaurantSlug = instanceRestaurantSlug();
   const { restaurant } = await requireStorefront(restaurantSlug);
   const visitor = await getVisitorContext(restaurant.id);
   const { signedIn, previous } = await getMyOrders(restaurant.id, visitor);
@@ -55,10 +52,10 @@ export default async function MyOrdersPage({ params }: MyOrdersPageProps) {
             actions={
               <>
                 <Button asChild size="lg">
-                  <Link href={signInHref(restaurantSlug, `/r/${restaurantSlug}/orders`)}>Sign in</Link>
+                  <Link href={signInHref(`/orders`)}>Sign in</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href={signInHref(restaurantSlug, `/r/${restaurantSlug}/orders`, "sign-up")}>Sign up</Link>
+                  <Link href={signInHref(`/orders`, "sign-up")}>Sign up</Link>
                 </Button>
               </>
             }

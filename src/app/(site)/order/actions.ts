@@ -15,6 +15,7 @@ import type { TrayLine, TrayLineDisplay } from "@/shared/tray";
 import { resolveImage } from "@/web/media";
 import { getVisitorContext } from "@/web/session";
 import { requireStorefrontRestaurant } from "@/web/storefront";
+import { assertInstanceRestaurant } from "@/web/instance";
 
 /** Links this browser's push token to the customer who placed the order (ownership is proven by the service). */
 export async function registerPushTokenAction(slug: string, payload: unknown): Promise<ApiResult<{ registered: true }>> {
@@ -86,7 +87,7 @@ export async function cancelOrderAction(
 ): Promise<ApiResult<{ status: OrderStatus }>> {
   return action(async () => {
     const input = cancelOrderSchema.parse(payload);
-    const restaurant = await requireRestaurant(slug);
+    const restaurant = await requireRestaurant(assertInstanceRestaurant(slug));
     const visitor = await getVisitorContext(restaurant.id);
     const order = await findVisitorOrder(restaurant.id, orderNumber, visitor, accessToken);
     if (!order) throw errors.notFound("Order");
@@ -94,9 +95,9 @@ export async function cancelOrderAction(
     const ctx = { ...visitor, restaurantId: restaurant.id };
     const updated = await cancelOrderByCustomer(order, restaurant, ctx, input.reason || null);
 
-    revalidatePath(`/r/${slug}/order/${encodeURIComponent(orderNumber)}`);
-    revalidatePath(`/r/${slug}/current-orders`);
-    revalidatePath(`/r/${slug}/orders`);
+    revalidatePath(`/order/${encodeURIComponent(orderNumber)}`);
+    revalidatePath(`/current-orders`);
+    revalidatePath(`/orders`);
     after(() => dispatchDueNotifications({ restaurantId: restaurant.id }, { restaurantId: restaurant.id }));
     return { status: updated.status };
   });

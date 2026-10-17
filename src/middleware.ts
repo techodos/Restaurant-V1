@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Request header carrying the path, so the root 404 can theme itself for the restaurant in the URL. */
+/** Request header carrying the path: server code that gets no URL (Server Actions on /admin, see web/session.ts) reads it. */
 export const PATHNAME_HEADER = "x-rp-pathname";
 
 /**
- * The root not-found page receives no params or URL, and it is what renders for an unknown restaurant, an unmatched
- * deep path, or a notFound() thrown by the storefront layout. Passing the path lets it wear that restaurant's theme
- * instead of the platform default.
+ * Stamps the request path on every page request. Server Actions POST to the page they were called from, so this is
+ * how web/session.ts knows an action came from /admin (and so checks this deployment's restaurant membership).
  */
 export function middleware(request: NextRequest) {
   const headers = new Headers(request.headers);
@@ -14,4 +13,5 @@ export function middleware(request: NextRequest) {
   return NextResponse.next({ request: { headers } });
 }
 
-export const config = { matcher: "/r/:path*" };
+// every page; not Next internals, API routes or files with an extension (icons, manifest, images)
+export const config = { matcher: "/((?!_next/|api/|.*\\..*).*)" };

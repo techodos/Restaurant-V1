@@ -7,7 +7,7 @@ import type { ApiResult } from "@/shared/contract/api";
 
 /**
  * Staff sign-in to one restaurant's admin. `slug` is the restaurant in the URL; signInStaff only accepts a member of
- * that restaurant. The client navigates to /r/<slug>/admin after a successful result.
+ * that restaurant. The client navigates to /admin after a successful result.
  */
 export async function signInAction(slug: string, payload: unknown): Promise<ApiResult<{ name: string; superAdmin: boolean }>> {
   return action(async () => {

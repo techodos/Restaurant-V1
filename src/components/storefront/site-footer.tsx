@@ -115,10 +115,10 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
             </p>
             {/* this restaurant's own legal pages (components/storefront/legal-page.tsx) */}
             <nav aria-label="Legal" className="flex gap-4">
-              <Link href={`/r/${restaurant.slug}/privacy`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
+              <Link href={`/privacy`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
                 Privacy Policy
               </Link>
-              <Link href={`/r/${restaurant.slug}/terms`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
+              <Link href={`/terms`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
                 Terms of Service
               </Link>
             </nav>

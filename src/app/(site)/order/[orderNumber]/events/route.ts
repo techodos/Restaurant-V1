@@ -2,9 +2,10 @@ import { jsonError } from "@/server/errors";
 import { openOrderStream, orderEventsEnabled, type OrderStream } from "@/server/services/order-events";
 import { getVisitorContext, guestOrderAccessToken } from "@/web/session";
 import { requireStorefrontRestaurant } from "@/web/storefront";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 /**
- * Server-Sent Events for one order: `GET /r/<slug>/order/<number>/events[?t=<email link token>]`.
+ * Server-Sent Events for one order: `GET /order/<number>/events[?t=<email link token>]`.
  *
  * The first event is the current state; after that the database pushes each change
  * (LISTEN/NOTIFY, see server/db/listener.ts). Nothing here polls. A comment line every
@@ -31,13 +32,14 @@ const HEADERS = {
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ restaurantSlug: string; orderNumber: string }> },
+  { params }: { params: Promise<{ orderNumber: string }> },
 ): Promise<Response> {
   try {
     if (!orderEventsEnabled()) {
       return Response.json({ success: false, error: { code: "DISABLED", message: "Live updates are not configured." } }, { status: 503 });
     }
-    const { restaurantSlug, orderNumber } = await params;
+    const restaurantSlug = instanceRestaurantSlug();
+    const { orderNumber } = await params;
     const restaurant = await requireStorefrontRestaurant(restaurantSlug); // snapshot: no database read
     const visitor = await getVisitorContext(restaurant.id);
     // the email link's `?t=`, else the grant a guest's checkout saved in this browser
