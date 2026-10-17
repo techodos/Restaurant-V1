@@ -34,7 +34,9 @@ export function ReviewModerationControl({
         toast.error(result.error.message);
         return;
       }
-      later(next === "approved" ? "Review approved." : "Review rejected.");
+      // rapid clicks across rows consolidate into one "N reviews approved/rejected." toast
+      const label = next === "approved" ? "approved" : "rejected";
+      later(`Review ${label}.`, { group: "review-status", label, plural: "reviews" });
     });
   }
 

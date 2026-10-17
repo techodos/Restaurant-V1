@@ -131,7 +131,7 @@ async function PaymentsResults({
               {result.rows.map((payment) => (
                 <tr key={payment.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
                   <td className="px-4 py-3">
-                    <Link href={`${adminPath()}/orders/${payment.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
+                    <Link href={`${adminPath()}/orders/${payment.orderNumber}`} prefetch={false} className="font-medium text-[var(--color-brand)] hover:underline">
                       {payment.orderNumber}
                     </Link>
                   </td>

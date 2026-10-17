@@ -25,6 +25,11 @@ export function AdminStatusTabs<K extends string>({
             <Link
               key={option.key}
               href={linkFor(option.key)}
+              // every tab is always in the viewport, so Next's default prefetch would eagerly re-render this
+              // force-dynamic, DB-backed list for every tab on mount — up to 9 of them per page (orders alone).
+              // That queued enough background RSC fetches behind the browser's 6-per-origin limit to stall a
+              // real action request (e.g. a Payments row's Mark Paid) for tens of seconds with no feedback.
+              prefetch={false}
               aria-current={on ? "page" : undefined}
               className={cn(
                 "inline-flex items-center gap-1.5 whitespace-nowrap rounded-[calc(var(--radius-card)-3px)] px-3 py-1.5 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-150",

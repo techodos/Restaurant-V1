@@ -54,8 +54,10 @@ export function PaymentStatusControl({
         toast.error(result.error.message);
         return;
       }
-      // shown once the page shows the new status (useSettledToast)
-      later(`Payment for ${result.data.orderNumber} marked ${next === "pending" ? "unpaid" : next}.`);
+      // shown once the page shows the new status (useSettledToast); rapid row-by-row clicks consolidate into
+      // one "N payments marked X." toast instead of one popup per row
+      const label = next === "pending" ? "unpaid" : next;
+      later(`Payment for ${result.data.orderNumber} marked ${label}.`, { group: "payment-status", label, plural: "payments" });
     });
   }
 

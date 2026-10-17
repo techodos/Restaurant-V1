@@ -47,7 +47,7 @@ function Panel({
             <span className="tabular rounded-full bg-[var(--tint-strong)] px-2 py-0.5 text-[12px] font-semibold">{count}</span>
           ) : null}
         </h2>
-        <Link href={href} className="link-arrow text-[13px] text-[var(--color-muted-ink)]">
+        <Link href={href} prefetch={false} className="link-arrow text-[13px] text-[var(--color-muted-ink)]">
           {linkLabel}
           <ArrowRight aria-hidden />
         </Link>
@@ -156,6 +156,7 @@ export default async function AdminDashboardPage({
                   <li key={status}>
                     <Link
                       href={`${adminPath()}/orders?status=${status}`}
+                      prefetch={false}
                       className={cn(
                         "press flex h-full flex-col justify-between gap-6 rounded-[var(--radius-card)] border p-4 transition-colors",
                         urgent
@@ -187,6 +188,7 @@ export default async function AdminDashboardPage({
                   <li key={order.id}>
                     <Link
                       href={`${adminPath()}/orders/${order.orderNumber}`}
+                      prefetch={false}
                       className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3.5 transition-colors hover:bg-[var(--tint)] sm:grid-cols-[10rem_minmax(0,1fr)_auto_8rem]"
                     >
                       <span className="tabular font-medium">{order.orderNumber}</span>

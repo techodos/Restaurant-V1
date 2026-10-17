@@ -198,7 +198,7 @@ async function OrdersResults({
                         <div className="flex items-start gap-3">
                           {next ? <span className="pt-1"><OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /></span> : null}
                           <div>
-                            <Link href={href} className="tabular font-semibold text-[var(--color-ink)]">{order.orderNumber}</Link>
+                            <Link href={href} prefetch={false} className="tabular font-semibold text-[var(--color-ink)]">{order.orderNumber}</Link>
                             <p className="text-xs text-[var(--color-muted-ink)]">{placed(order.createdAt)} · {ORDER_TYPE_LABELS[order.orderType]}</p>
                           </div>
                         </div>
@@ -213,7 +213,7 @@ async function OrdersResults({
                         {next ? (
                           <OrderNextStepButton orderId={order.id} orderNumber={order.orderNumber} next={next.status} label={next.label} />
                         ) : (
-                          <Button asChild variant="outline" size="sm"><Link href={href}>View</Link></Button>
+                          <Button asChild variant="outline" size="sm"><Link href={href} prefetch={false}>View</Link></Button>
                         )}
                       </div>
                     </li>
@@ -247,7 +247,7 @@ async function OrdersResults({
                             <td className="py-3 pl-4">{next ? <OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /> : null}</td>
                           ) : null}
                           <td className="whitespace-nowrap px-4 py-3">
-                            <Link href={href} className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-brand)] hover:underline">
+                            <Link href={href} prefetch={false} className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-brand)] hover:underline">
                               {order.orderNumber}
                             </Link>
                             <p className="text-xs text-[var(--color-muted-ink)]">{placed(order.createdAt)}</p>
@@ -278,7 +278,7 @@ async function OrdersResults({
                             {next ? (
                               <OrderNextStepButton orderId={order.id} orderNumber={order.orderNumber} next={next.status} label={next.label} />
                             ) : (
-                              <Link href={href} className="inline-flex items-center gap-1 rounded px-1 text-[13px] font-medium text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]">
+                              <Link href={href} prefetch={false} className="inline-flex items-center gap-1 rounded px-1 text-[13px] font-medium text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]">
                                 View <ChevronRight className="size-4" aria-hidden />
                               </Link>
                             )}

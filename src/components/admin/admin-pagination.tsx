@@ -26,12 +26,12 @@ export function AdminPagination({
       <span className="tabular text-[13px] text-[var(--color-muted-ink)]">{range}</span>
       <div className="flex gap-2">
         <Button asChild variant="outline" size="sm" className={page <= 1 ? "pointer-events-none opacity-40" : ""}>
-          <Link href={linkFor(page - 1)} aria-disabled={page <= 1} tabIndex={page <= 1 ? -1 : undefined}>
+          <Link href={linkFor(page - 1)} prefetch={false} aria-disabled={page <= 1} tabIndex={page <= 1 ? -1 : undefined}>
             Previous
           </Link>
         </Button>
         <Button asChild variant="outline" size="sm" className={page >= totalPages ? "pointer-events-none opacity-40" : ""}>
-          <Link href={linkFor(page + 1)} aria-disabled={page >= totalPages} tabIndex={page >= totalPages ? -1 : undefined}>
+          <Link href={linkFor(page + 1)} prefetch={false} aria-disabled={page >= totalPages} tabIndex={page >= totalPages ? -1 : undefined}>
             Next
           </Link>
         </Button>

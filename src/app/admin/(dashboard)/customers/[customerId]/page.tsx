@@ -102,7 +102,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
               {orders.map((order) => (
                 <tr key={order.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
                   <td className="px-4 py-3">
-                    <Link href={`${adminPath()}/orders/${order.orderNumber}`} className="font-medium text-[var(--color-brand)] hover:underline">
+                    <Link href={`${adminPath()}/orders/${order.orderNumber}`} prefetch={false} className="font-medium text-[var(--color-brand)] hover:underline">
                       {order.orderNumber}
                     </Link>
                   </td>

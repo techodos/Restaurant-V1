@@ -152,7 +152,7 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
                     <div className="min-w-[11rem] flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         {canManage ? (
-                          <Link href={editHref} className="truncate font-medium hover:text-[var(--color-brand)] hover:underline">
+                          <Link href={editHref} prefetch={false} className="truncate font-medium hover:text-[var(--color-brand)] hover:underline">
                             {item.name}
                           </Link>
                         ) : (
@@ -189,7 +189,7 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
                         )}
                         {canManage ? (
                           <Button asChild size="sm" variant="ghost" className="text-[var(--color-muted-ink)]">
-                            <Link href={editHref} aria-label={`Edit ${item.name}`}>
+                            <Link href={editHref} prefetch={false} aria-label={`Edit ${item.name}`}>
                               <Pencil className="size-3.5" aria-hidden /> <span className="hidden xl:inline">Edit</span>
                             </Link>
                           </Button>
