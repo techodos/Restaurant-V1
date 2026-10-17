@@ -8,10 +8,12 @@ import { adminPath } from "@/shared/utils";
 import { pageShowsActivity } from "@/shared/admin-activity";
 
 /**
- * Admin "new order" / "cancelled order" sound notifications. No SSE/LISTEN infra exists for a
- * multi-order staff feed (the one stream in this app is scoped to a single order, section 8 of the
- * skill) — this polls the same way KitchenAutoRefresh already does, just for "did anything change"
- * instead of a full page refresh, so it can run on every admin page, not only /kitchen.
+ * Admin "new order" / "cancelled order" sound notifications. Follows GET /admin/orders/events
+ * (Server-Sent Events, same LISTEN/NOTIFY infra as the customer order-tracking page, section 8 of the
+ * skill, extended to a restaurant-wide feed by migration 0042) — nothing is polled while that stream is
+ * live. Only when DATABASE_URL_LISTEN is not configured (stream route answers 503, browsers don't retry
+ * a closed EventSource) does this fall back to polling GET /admin/orders/activity every POLL_MS, the way
+ * it always did before the SSE feed existed.
  *
  * Two tones are synthesised with the Web Audio API (no bundled audio asset, no new dependency):
  * a short rising two-note chime for a new order, a single lower tone for a cancellation. Browsers
@@ -229,6 +231,8 @@ export function markOwnOrderChanges(changes: readonly { orderNumber: string; sta
   return () => keys.forEach((key) => ownChanges.delete(key));
 }
 
+type RawActivityEvent = { orderNumber: string; status: string; isNew: boolean };
+
 export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: string }) {
   const [enabled] = useSoundPreference();
   const sinceRef = useRef<string>(new Date().toISOString());
@@ -240,14 +244,10 @@ export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: strin
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
 
-  const poll = useCallback(async () => {
-    try {
-      const url = `${adminPath("/orders/activity")}?since=${encodeURIComponent(sinceRef.current)}`;
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) return;
-      const body = await response.json();
-      if (!body?.success) return;
-      const { now, events } = body.data as { now: string; events: { orderNumber: string; status: string; isNew: boolean }[] };
+  // Shared by both transports (SSE events, one at a time; the poll fallback's batched response) — dedupe,
+  // chime and the list/banner refresh behave identically either way.
+  const handleEvents = useCallback(
+    (events: RawActivityEvent[]) => {
       // dedupe across the safety-margin re-check: `id` would be tighter, but orderNumber+status already
       // can't legitimately repeat for the kinds of event this plays a sound for (a cancelled order stays
       // cancelled; a brand-new order's `isNew` row is only ever seen once since its own updated_at never
@@ -266,7 +266,6 @@ export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: strin
           else if (event.isNew) playChime("new-order");
         }
       }
-      sinceRef.current = new Date(Math.max(0, Date.parse(now) - CURSOR_SAFETY_MARGIN_MS)).toISOString();
       const notable = fresh.filter((event) => event.isNew || event.status === "cancelled");
       // the sound alone left the list stale until a manual reload: re-render the page when it shows these
       // orders (dashboard, orders list, kitchen, that order's page) — never on forms like menu or settings
@@ -276,15 +275,51 @@ export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: strin
       // kept separate from the refresh above: the banner stays up until a staff member actually taps it,
       // since a background router.refresh() succeeding is not guaranteed to be visible the moment it happens
       if (notable.length > 0) bumpActivityCount(notable.length);
+    },
+    [router],
+  );
+
+  const poll = useCallback(async () => {
+    try {
+      const url = `${adminPath("/orders/activity")}?since=${encodeURIComponent(sinceRef.current)}`;
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) return;
+      const body = await response.json();
+      if (!body?.success) return;
+      const { now, events } = body.data as { now: string; events: RawActivityEvent[] };
+      handleEvents(events);
+      sinceRef.current = new Date(Math.max(0, Date.parse(now) - CURSOR_SAFETY_MARGIN_MS)).toISOString();
     } catch {
       /* a missed poll just means the next one covers a wider window; nothing to recover */
     }
-  }, [restaurantSlug, router]);
+  }, [handleEvents]);
 
   useEffect(() => {
-    const timer = setInterval(poll, POLL_MS);
-    return () => clearInterval(timer);
-  }, [poll]);
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+    const startPolling = () => {
+      pollTimer ??= setInterval(poll, POLL_MS);
+    };
+
+    const source = new EventSource(adminPath("/orders/events"));
+    source.addEventListener("activity", (event) => {
+      try {
+        handleEvents([JSON.parse((event as MessageEvent<string>).data) as RawActivityEvent]);
+      } catch {
+        /* malformed payload: nothing to recover, the next event still arrives */
+      }
+    });
+    source.addEventListener("error", () => {
+      // the server refused (not permitted) or the feed isn't configured (DATABASE_URL_LISTEN unset,
+      // 503): browsers do not retry a closed EventSource, so fall back to the old poll. A transient drop
+      // (readyState stays CONNECTING) is left to the browser's own reconnect (server sends retry: 5000).
+      if (source.readyState === EventSource.CLOSED) startPolling();
+    });
+
+    return () => {
+      source.close();
+      clearInterval(pollTimer);
+    };
+  }, [poll, handleEvents, restaurantSlug]);
 
   return null;
 }

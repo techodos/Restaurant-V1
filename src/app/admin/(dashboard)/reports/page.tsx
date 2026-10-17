@@ -1,20 +1,23 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import Form from "next/form";
 import { Banknote, ClipboardList, Download, Percent, ReceiptText, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getSalesReport, listOrdersForStaff } from "@/server/services/orders";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
-import { REPORT_RANGE_LABELS, REPORT_RANGE_PRESETS, resolveReportRange, type ReportRangePreset } from "@/shared/reports";
+import { REPORT_RANGE_LABELS, REPORT_RANGE_PRESETS, resolveReportRange, type ReportRange, type ReportRangePreset } from "@/shared/reports";
 import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { adminPath } from "@/shared/utils";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
+import { AdminStatSkeleton } from "@/components/admin/admin-skeleton";
 import { OrdersTrendChart, PaymentBreakdownList, SalesTrendChart } from "@/components/admin/sales-charts";
 import { StatusPill, orderStatusTone, tableHead } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
@@ -64,18 +67,8 @@ export default async function AdminReportsPage({ searchParams }: ReportsPageProp
 
   const range = resolveReportRange(preset, from, to, restaurant.timezone);
 
-  const [report, recentInRange] = await Promise.all([
-    getSalesReport(restaurant.id, range, restaurant.timezone, ctx, locationId),
-    listOrdersForStaff(
-      restaurant.id,
-      { dateFrom: range.fromDateKey, dateTo: range.toDateKey, timezone: restaurant.timezone, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 10 },
-      ctx,
-    ),
-  ]);
-
   const linkFor = (nextPreset: ReportRangePreset) => `${adminPath()}/reports?preset=${nextPreset}`;
   const exportHref = `${adminPath()}/reports/export?preset=${range.preset}&from=${range.fromDateKey}&to=${range.toDateKey}`;
-  const hasSales = report.dailyTrend.some((point) => Number(point.sales) > 0 || point.orders > 0);
 
   return (
     <div className="space-y-6">
@@ -128,6 +121,38 @@ export default async function AdminReportsPage({ searchParams }: ReportsPageProp
         </Form>
       </div>
 
+      {/* keyed on the range + branch so a filter change always suspends and shows the skeleton again,
+          instead of Next reusing the already-resolved boundary from the previous search params */}
+      <Suspense key={`${range.fromDateKey}:${range.toDateKey}:${locationId ?? "all"}`} fallback={<ReportsResultsSkeleton />}>
+        <ReportsResults restaurant={restaurant} range={range} locationId={locationId} ctx={ctx} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ReportsResults({
+  restaurant,
+  range,
+  locationId,
+  ctx,
+}: {
+  restaurant: Awaited<ReturnType<typeof getAdminRestaurant>>;
+  range: ReportRange;
+  locationId: string | null;
+  ctx: { restaurantId: string; userId: string; actor: string };
+}) {
+  const [report, recentInRange] = await Promise.all([
+    getSalesReport(restaurant.id, range, restaurant.timezone, ctx, locationId),
+    listOrdersForStaff(
+      restaurant.id,
+      { dateFrom: range.fromDateKey, dateTo: range.toDateKey, timezone: restaurant.timezone, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 10 },
+      ctx,
+    ),
+  ]);
+  const hasSales = report.dailyTrend.some((point) => Number(point.sales) > 0 || point.orders > 0);
+
+  return (
+    <>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard icon={Banknote} label="Total sales" value={formatMoney(report.totalSales, { currency: restaurant.currency })} />
         <StatCard icon={ClipboardList} label="Total orders" value={String(report.totalOrders)} />
@@ -228,6 +253,20 @@ export default async function AdminReportsPage({ searchParams }: ReportsPageProp
           </div>
         )}
       </Card>
-    </div>
+    </>
+  );
+}
+
+function ReportsResultsSkeleton() {
+  return (
+    <>
+      <AdminStatSkeleton count={5} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Card className="p-6"><Skeleton className="h-[260px] w-full" /></Card>
+        <Card className="p-6"><Skeleton className="h-[260px] w-full" /></Card>
+      </div>
+      <Card className="p-6"><Skeleton className="h-[200px] w-full" /></Card>
+      <Card className="p-6"><Skeleton className="h-[220px] w-full" /></Card>
+    </>
   );
 }

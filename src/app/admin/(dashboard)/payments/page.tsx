@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import { CreditCard } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { listPaymentsForAdmin } from "@/server/services/payments";
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUSES, type PaymentStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
@@ -13,6 +15,7 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
 import { StatusPill, badgeTone, tableHead } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
@@ -47,12 +50,6 @@ export default async function AdminPaymentsPage({ searchParams }: PaymentsPagePr
   // the branch comes from the header's selector (owner/admin) or the member's own branch — never the URL
   const { locationId } = await getAdminBranchScope(restaurantSlug);
 
-  const result = await listPaymentsForAdmin(
-    restaurant.id,
-    { status: activeStatus, locationId: locationId ?? undefined, page: pageNum, pageSize: 20 },
-    ctx,
-  );
-
   const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
@@ -62,6 +59,47 @@ export default async function AdminPaymentsPage({ searchParams }: PaymentsPagePr
 
   return (
     <div className="space-y-6">
+      {/* keyed on the filter/page/branch so a filter change always suspends and shows the skeleton again */}
+      <Suspense key={`${activeStatus}:${pageNum}:${locationId ?? "all"}`} fallback={<PaymentsResultsSkeleton />}>
+        <PaymentsResults
+          restaurant={restaurant}
+          ctx={ctx}
+          activeStatus={activeStatus}
+          pageNum={pageNum}
+          locationId={locationId}
+          canManagePayment={canManagePayment}
+          linkFor={linkFor}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+async function PaymentsResults({
+  restaurant,
+  ctx,
+  activeStatus,
+  pageNum,
+  locationId,
+  canManagePayment,
+  linkFor,
+}: {
+  restaurant: Awaited<ReturnType<typeof getAdminRestaurant>>;
+  ctx: { restaurantId: string; userId: string; actor: string };
+  activeStatus: "all" | PaymentStatus;
+  pageNum: number;
+  locationId: string | null;
+  canManagePayment: boolean;
+  linkFor: (params: { status?: string; page?: number }) => string;
+}) {
+  const result = await listPaymentsForAdmin(
+    restaurant.id,
+    { status: activeStatus, locationId: locationId ?? undefined, page: pageNum, pageSize: 20 },
+    ctx,
+  );
+
+  return (
+    <>
       <AdminPageHeader title="Payments" description={`${result.total} total`} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -124,6 +162,16 @@ export default async function AdminPaymentsPage({ searchParams }: PaymentsPagePr
       </Card>
 
       <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
+    </>
+  );
+}
+
+function PaymentsResultsSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading payments">
+      <AdminPageHeader title="Payments" description={<Skeleton className="h-4 w-16" />} />
+      <AdminTabsSkeleton count={6} />
+      <AdminTableSkeleton rows={8} cols={6} />
     </div>
   );
 }

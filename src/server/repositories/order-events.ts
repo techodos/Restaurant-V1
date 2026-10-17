@@ -48,3 +48,41 @@ export function watchOrderChanges(orderId: string, handlers: OrderChangeHandlers
     onReset: handlers.onReset,
   });
 }
+
+/** The extra fields migration 0042 adds to the NOTIFY payload, for the admin order-activity feed. */
+export interface OrderActivityChangeRecord extends OrderChangeRecord {
+  location_id: string | null;
+  order_number: string;
+  created_at: string;
+  is_new: boolean;
+}
+
+export interface OrderActivityHandlers {
+  onChange: (record: OrderActivityChangeRecord) => void;
+  /** the change feed was interrupted and restored: anything sent meanwhile was missed */
+  onReset: () => void;
+}
+
+/**
+ * Follows every order of one restaurant (not a single id) — the admin "new order" chime/banner's feed.
+ * Same shared channel and connection as `watchOrderChanges`; only the filter differs (restaurant, not
+ * order). Resolves once the feed is active; call the returned function to stop.
+ */
+export function watchRestaurantOrderActivity(restaurantId: string, handlers: OrderActivityHandlers): Promise<() => void> {
+  const url = config.orderEvents.listenUrl;
+  if (!url) return Promise.reject(new Error("DATABASE_URL_LISTEN is not configured."));
+  return listenToChannel(url, CHANNEL, {
+    onNotify(payload) {
+      let record: unknown;
+      try {
+        record = JSON.parse(payload);
+      } catch {
+        return;
+      }
+      if (record && typeof record === "object" && (record as { restaurant_id?: unknown }).restaurant_id === restaurantId) {
+        handlers.onChange(record as OrderActivityChangeRecord);
+      }
+    },
+    onReset: handlers.onReset,
+  });
+}

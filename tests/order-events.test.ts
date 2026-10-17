@@ -265,13 +265,20 @@ const feed = vi.hoisted(() => ({
   watch: vi.fn(),
   calls: [] as string[],
 }));
-const orders = vi.hoisted(() => ({ find: vi.fn() }));
+const activityFeed = vi.hoisted(() => ({
+  handlers: null as null | { onChange: (r: Record<string, unknown>) => void; onReset: () => void },
+  stop: vi.fn(),
+  watch: vi.fn(),
+  calls: [] as string[],
+}));
+const orders = vi.hoisted(() => ({ find: vi.fn(), activitySince: vi.fn() }));
 
 vi.mock("@/server/repositories/order-events", () => ({
   orderChangeFeedConfigured: () => true,
   watchOrderChanges: feed.watch,
+  watchRestaurantOrderActivity: activityFeed.watch,
 }));
-vi.mock("@/server/services/orders", () => ({ findVisitorOrder: orders.find }));
+vi.mock("@/server/services/orders", () => ({ findVisitorOrder: orders.find, getOrderActivitySince: orders.activitySince }));
 
 const RESTAURANT_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const RESTAURANT_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -386,6 +393,120 @@ describe("openOrderStream", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
+// Service: admin multi-order feed — same ordering guarantees, scoped by restaurant + branch instead of one order id
+// ---------------------------------------------------------------------------------------------------------------
+
+function activityRecord(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "order-a1",
+    restaurant_id: RESTAURANT_A,
+    location_id: "loc-1",
+    order_number: "ORD-1",
+    status: "pending",
+    payment_status: "pending",
+    estimated_ready_at: null,
+    created_at: at(0),
+    updated_at: at(0),
+    is_new: true,
+    ...overrides,
+  };
+}
+
+describe("openOrderActivityStream", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    activityFeed.handlers = null;
+    activityFeed.calls = [];
+    activityFeed.stop.mockReset();
+    activityFeed.watch.mockReset();
+    activityFeed.watch.mockImplementation(async (restaurantId: string, handlers: typeof activityFeed.handlers) => {
+      activityFeed.calls.push(`watch:${restaurantId}`);
+      activityFeed.handlers = handlers;
+      return activityFeed.stop;
+    });
+    orders.activitySince.mockReset();
+    orders.activitySince.mockResolvedValue({ events: [], now: at(0) });
+  });
+
+  const open = async (locationId: string | null, sink: { send: (e: { orderNumber: string; status: string; isNew: boolean }) => void }) => {
+    const { openOrderActivityStream } = await import("@/server/services/order-events");
+    return openOrderActivityStream(RESTAURANT_A, locationId, { restaurantId: RESTAURANT_A } as never, sink);
+  };
+  const sink = () => ({ send: vi.fn<(e: { orderNumber: string; status: string; isNew: boolean }) => void>() });
+
+  it("subscribes BEFORE the catch-up read, so nothing can fall in the gap", async () => {
+    orders.activitySince.mockImplementation(async () => {
+      activityFeed.calls.push("catch-up");
+      return { events: [], now: at(0) };
+    });
+    await open(null, sink());
+    expect(activityFeed.calls).toEqual([`watch:${RESTAURANT_A}`, "catch-up"]);
+  });
+
+  it("forwards each change for this restaurant only", async () => {
+    const s = sink();
+    await open(null, s);
+    s.send.mockClear();
+
+    activityFeed.handlers!.onChange(activityRecord({ restaurant_id: RESTAURANT_B }));
+    expect(s.send).not.toHaveBeenCalled(); // wrong tenant
+
+    activityFeed.handlers!.onChange(activityRecord({ order_number: "ORD-2", status: "pending", is_new: true }));
+    expect(s.send).toHaveBeenCalledWith({ orderNumber: "ORD-2", status: "pending", isNew: true });
+
+    activityFeed.handlers!.onChange(activityRecord({ order_number: "ORD-2", status: "cancelled", is_new: false }));
+    expect(s.send).toHaveBeenLastCalledWith({ orderNumber: "ORD-2", status: "cancelled", isNew: false });
+  });
+
+  it("applies branch scope: a change outside the admin's branch is never sent", async () => {
+    const s = sink();
+    await open("loc-1", s);
+    s.send.mockClear();
+
+    activityFeed.handlers!.onChange(activityRecord({ location_id: "loc-2" }));
+    expect(s.send).not.toHaveBeenCalled();
+
+    activityFeed.handlers!.onChange(activityRecord({ location_id: "loc-1", order_number: "ORD-3" }));
+    expect(s.send).toHaveBeenCalledWith({ orderNumber: "ORD-3", status: "pending", isNew: true });
+  });
+
+  it("includes the catch-up window's own events (the subscribe-race margin)", async () => {
+    orders.activitySince.mockResolvedValue({
+      events: [{ id: "x", orderNumber: "ORD-9", status: "pending", isNew: true, updatedAt: at(0) }],
+      now: at(0),
+    });
+    const s = sink();
+    await open(null, s);
+    expect(s.send).toHaveBeenCalledWith({ orderNumber: "ORD-9", status: "pending", isNew: true });
+  });
+
+  it("re-runs the catch-up query when the change feed had to reconnect", async () => {
+    const s = sink();
+    await open(null, s);
+    s.send.mockClear();
+
+    orders.activitySince.mockResolvedValue({
+      events: [{ id: "x", orderNumber: "ORD-5", status: "ready", isNew: false, updatedAt: at(8) }],
+      now: at(8),
+    });
+    activityFeed.handlers!.onReset();
+    await vi.waitFor(() => expect(s.send).toHaveBeenCalledWith({ orderNumber: "ORD-5", status: "ready", isNew: false }));
+  });
+
+  it("stops listening when the client goes away", async () => {
+    const stream = await open(null, sink());
+    stream.close();
+    expect(activityFeed.stop).toHaveBeenCalled();
+  });
+
+  it("does not leak a subscription when the catch-up read fails", async () => {
+    orders.activitySince.mockRejectedValueOnce(new Error("db down"));
+    await expect(open(null, sink())).rejects.toThrow("db down");
+    expect(activityFeed.stop).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
 // Static guarantees
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -417,5 +538,19 @@ describe("no polling, no Supabase Realtime, providers stay separate", () => {
     for (const file of [...live.slice(0, 2), "src/server/services/order-events.ts"]) {
       expect(read(file), file).not.toMatch(/from\s+["'](firebase|@\/server\/(integrations|notifications|services\/notifications))/);
     }
+  });
+
+  it("the admin order-activity SSE route also only sends a keep-alive comment, no polling loop", () => {
+    const route = read("src/app/admin/(dashboard)/orders/events/route.ts");
+    expect(route.match(/setInterval\(/g)).toHaveLength(1);
+    expect(route).toMatch(/`: ping\\n\\n`/);
+  });
+
+  it("the admin sound watcher only polls as a fallback, gated on the SSE stream actually closing", () => {
+    const source = read("src/components/admin/order-sound-notifications.tsx");
+    expect(source).toMatch(/new EventSource\(/);
+    expect(source).toMatch(/readyState === EventSource\.CLOSED/);
+    // the setInterval call exists (fallback), but only inside startPolling, not run unconditionally on mount
+    expect(source).not.toMatch(/useEffect\(\(\) => \{\s*const timer = setInterval/);
   });
 });

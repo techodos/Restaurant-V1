@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import Form from "next/form";
@@ -6,6 +7,7 @@ import { Bike, ChefHat, ChevronRight, ClipboardList, Search, ShoppingBag, Utensi
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { listOrdersForStaff } from "@/server/services/orders";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS, type OrderStatus, type OrderType, type PaymentStatus } from "@/shared/contract/enums";
 import { formatMoney } from "@/shared/money";
@@ -16,6 +18,7 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
 import { StatusPill, orderStatusTone, tableHead, tableRow } from "@/components/admin/admin-ui";
 import { OrderNextStepButton } from "@/components/admin/order-next-step-button";
 import { OrderBulkProvider, OrderSelectAll, OrderSelectBox, type BulkOrder } from "@/components/admin/order-bulk-actions";
@@ -56,19 +59,12 @@ export default async function AdminOrdersPage({ searchParams }: OrdersPageProps)
   const { locationId } = await getAdminBranchScope(restaurantSlug);
 
   // side by side (the staff check already tied this session to this slug's restaurant)
-  const [restaurant, counts, result] = await Promise.all([
+  const [restaurant, counts] = await Promise.all([
     getAdminRestaurant(restaurantSlug),
     getAdminOrderStatusCounts(actor.restaurantId, actor.userId, actor.name, locationId),
-    listOrdersForStaff(actor.restaurantId, { status: activeStatus, search: q, locationId: locationId ?? undefined, page: pageNum, pageSize: PAGE_SIZE }, ctx),
   ]);
   const canUpdate = actor.permissions.includes("orders.update_status");
   const allBranches = locationId === null;
-  const bulkOrders: BulkOrder[] = canUpdate
-    ? result.rows.flatMap((order) => {
-        const next = nextOrderStep(order.status, order.orderType);
-        return next ? [{ id: order.id, orderNumber: order.orderNumber, next }] : [];
-      })
-    : [];
 
   const countFor = (key: string): number => {
     if (key === "all") return Object.values(counts).reduce((sum, n) => sum + n, 0);
@@ -87,6 +83,71 @@ export default async function AdminOrdersPage({ searchParams }: OrdersPageProps)
 
   return (
     <div className="space-y-5">
+      {/* keyed on everything the query depends on, so a filter/search/page change always suspends and
+          shows the skeleton again, instead of Next reusing the already-resolved boundary */}
+      <Suspense
+        key={`${activeStatus}:${q ?? ""}:${pageNum}:${locationId ?? "all"}`}
+        fallback={<OrdersResultsSkeleton kitchenLink={actor.permissions.includes("kitchen.view")} />}
+      >
+        <OrdersResults
+          restaurant={restaurant}
+          actor={actor}
+          ctx={ctx}
+          activeStatus={activeStatus}
+          q={q}
+          pageNum={pageNum}
+          locationId={locationId}
+          counts={counts}
+          countFor={countFor}
+          linkFor={linkFor}
+          placed={placed}
+          canUpdate={canUpdate}
+          allBranches={allBranches}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+async function OrdersResults({
+  restaurant,
+  actor,
+  ctx,
+  activeStatus,
+  q,
+  pageNum,
+  locationId,
+  counts,
+  countFor,
+  linkFor,
+  placed,
+  canUpdate,
+  allBranches,
+}: {
+  restaurant: Awaited<ReturnType<typeof getAdminRestaurant>>;
+  actor: Awaited<ReturnType<typeof requireAdminPage>>;
+  ctx: { restaurantId: string; userId: string; actor: string };
+  activeStatus: "active" | "all" | OrderStatus;
+  q?: string;
+  pageNum: number;
+  locationId: string | null;
+  counts: Awaited<ReturnType<typeof getAdminOrderStatusCounts>>;
+  countFor: (key: string) => number;
+  linkFor: (params: { status?: string; page?: number }) => string;
+  placed: (iso: string) => string;
+  canUpdate: boolean;
+  allBranches: boolean;
+}) {
+  const result = await listOrdersForStaff(actor.restaurantId, { status: activeStatus, search: q, locationId: locationId ?? undefined, page: pageNum, pageSize: PAGE_SIZE }, ctx);
+  const bulkOrders: BulkOrder[] = canUpdate
+    ? result.rows.flatMap((order) => {
+        const next = nextOrderStep(order.status, order.orderType);
+        return next ? [{ id: order.id, orderNumber: order.orderNumber, next }] : [];
+      })
+    : [];
+
+  return (
+    <>
       <AdminPageHeader
         title="Orders"
         description={`${result.total} ${result.total === 1 ? "order" : "orders"}${q ? ` matching “${q}”` : ""}${counts.pending > 0 ? ` · ${counts.pending} waiting for confirmation` : ""}`}
@@ -237,6 +298,23 @@ export default async function AdminOrdersPage({ searchParams }: OrdersPageProps)
           ) : null}
         </Card>
       </OrderBulkProvider>
+    </>
+  );
+}
+
+function OrdersResultsSkeleton({ kitchenLink }: { kitchenLink: boolean }) {
+  return (
+    <div className="space-y-5" aria-busy="true" aria-label="Loading orders">
+      <AdminPageHeader
+        title="Orders"
+        description={<Skeleton className="h-4 w-24" />}
+        actions={kitchenLink ? <Skeleton className="h-9 w-32 rounded-[var(--radius-card)]" /> : null}
+      />
+      <div className="flex flex-col gap-3">
+        <AdminTabsSkeleton count={9} />
+        <Skeleton className="h-10 w-full max-w-md" />
+      </div>
+      <AdminTableSkeleton rows={8} cols={6} />
     </div>
   );
 }
