@@ -18,7 +18,8 @@ export interface RestaurantSummary {
   createdAt: string;
   /** labels of the entitlements the platform has switched off */
   disabled: string[];
-  adminHref: string;
+  /** only the restaurant this deployment serves has an admin here (/admin); null for any other row */
+  adminHref: string | null;
 }
 
 type Sort = "newest" | "name" | "restricted";
@@ -114,7 +115,7 @@ function RestaurantCard({ restaurant }: { restaurant: RestaurantSummary }) {
             </h2>
             <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
           </div>
-          <p className="truncate font-mono text-xs text-[var(--color-muted-ink)]">/r/{restaurant.slug}</p>
+          <p className="truncate font-mono text-xs text-[var(--color-muted-ink)]">{restaurant.slug}</p>
           {restaurant.cuisines.length ? <p className="mt-1 truncate text-[13px] text-[var(--color-muted-ink)]">{restaurant.cuisines.join(" · ")}</p> : null}
         </div>
       </div>
@@ -142,12 +143,14 @@ function RestaurantCard({ restaurant }: { restaurant: RestaurantSummary }) {
             <Globe className="size-4" aria-hidden /> Website
           </Link>
         </Button>
-        <Link
-          href={restaurant.adminHref}
-          className={cn("ml-auto inline-flex items-center gap-1 rounded px-1 text-[13px] font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-brand)]")}
-        >
-          Open admin <ExternalLink className="size-3.5" aria-hidden />
-        </Link>
+        {restaurant.adminHref ? (
+          <Link
+            href={restaurant.adminHref}
+            className={cn("ml-auto inline-flex items-center gap-1 rounded px-1 text-[13px] font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-brand)]")}
+          >
+            Open admin <ExternalLink className="size-3.5" aria-hidden />
+          </Link>
+        ) : null}
       </div>
     </article>
   );

@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { updatePaymentStatusAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/orders/actions";
+import { updatePaymentStatusAction } from "@/app/admin/(dashboard)/orders/actions";
 import { useSettledToast } from "@/components/admin/use-settled-toast";
 import { manualPaymentTargets, PAYMENT_ACTION_LABELS } from "@/shared/payment-flow";
 import type { PaymentMethod, PaymentStatus } from "@/shared/contract/enums";

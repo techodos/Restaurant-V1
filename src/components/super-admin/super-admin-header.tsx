@@ -22,7 +22,7 @@ export function SuperAdminHeader({ name, email }: { name: string; email: string 
   function signOut() {
     startTransition(() => {
       signOutSuperAdminAction().then((result) => {
-        router.push(result.success ? adminPath(result.data.loginSlug, "/login") : "/");
+        router.push(result.success ? adminPath("/login") : "/");
         router.refresh();
       });
     });

@@ -258,8 +258,10 @@ privileges, seed presence, arithmetic stored on real orders, and orphan checks.
 * **Super Admin.** Multi-tenant platform administration is architecturally
   prepared (restaurants/plan/status, `features.customDomain`, `websites` per
   tenant) but intentionally not built yet.
-* **Custom domains.** Routing is `/r/[restaurantSlug]/…` so a domain can be
-  resolved to a slug later in middleware; no host mapping is implemented.
+* **Custom domains.** One deployment = one restaurant (2026-10-16): URLs are root-level
+  (`/menu`, `/admin`) and the restaurant comes from `NEXT_PUBLIC_DEFAULT_RESTAURANT`, so a
+  custom domain simply points at that restaurant's deployment; the old `/r/[restaurantSlug]/…`
+  routing was removed without a redirect layer (testing phase, no customer links to keep).
 * **Media.** Uploads go to Supabase Storage when configured, otherwise to
   `.uploads/` served through `/api/media/[...path]`.
 * **Realtime.** Order tracking uses Server-Sent Events (see §18); there is no polling.
@@ -361,8 +363,8 @@ reservations and booked slots, order tracking, cost prices.
   `requireRestaurant` (used by every write path) also reads the database.
   Display-only values (menu prices on cards, restaurant tax/service settings used to show a
   cart total) can lag the database by up to one refresh interval.
-* With the cache on, any other `/r/<slug>` is 404: the instance has one restaurant. With it
-  off, behaviour is unchanged (any tenant in the database).
+* The instance has one restaurant, named by `NEXT_PUBLIC_DEFAULT_RESTAURANT`; with or without
+  the cache no URL can select another tenant (the `/r/<slug>` segment is gone, 2026-10-16).
 * Future admin writes call `getStorefrontCache().invalidate()` after committing; there is no
   admin system yet, so nothing calls it today.
 * The startup hook reads `process.env.NEXT_RUNTIME` directly: Next replaces that literal at
@@ -390,7 +392,7 @@ nothing new. A reservation inserted already confirmed (auto-confirm) queues only
 `features.notifications` + `emailNotify`. The guest email is now **required** on the booking form/schema, because these
 emails are the only way to reach the guest.
 
-**My Orders (`/r/<slug>/orders`).** Ownership is derived from the request: the customer session (`customer_id`) or the guest
+**My Orders (`/orders`).** Ownership is derived from the request: the customer session (`customer_id`) or the guest
 cart cookie (`carts.session_token`); the page takes no order id. RLS already isolated both (0006 `orders_customer`, 0008
 `orders_guest_select`) and is verified again by the query's own predicates (defence in depth). No policy was added or relaxed.
 One rule RLS cannot express is enforced in the repository: a guest token may own several past carts, and RLS would let the
@@ -548,7 +550,7 @@ Same session: "Continue with Google" already opens as a modal over the current p
 consent screen — that part can't be a modal. To still return the browser to wherever "Continue with Google" was
 clicked (not a hardcoded `/account`), the trigger link carries `?returnTo=<usePathname()>`, which `account/google/
 route.ts` stores in a short cookie (`rp_google_return_to`, same TTL/pattern as the existing CSRF `state` cookie) and
-the callback consumes and redirects to on success — validated against `/r/<this-slug>/...` only (no open redirects)
+the callback consumes and redirects to on success — validated against `same-origin storefront paths` only (no open redirects)
 and rejecting the sign-in/sign-up/google-phone pages themselves (landing back on "please sign in" while already
 signed in is a confusing loop). The error path was deliberately left going to the standalone `/account/sign-in?
 error=google` page rather than reopening the dialog inline — that needs a client affordance ("read `?error=google`

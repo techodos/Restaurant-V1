@@ -231,10 +231,12 @@ export class NotificationService {
     }
     if (!reservation.guestEmail) return { state: "skipped" };
 
+    // the site origin: footer link + base for a relative logo path (emails never resolve a relative URL)
+    const brand = { ...restaurant, siteUrl: this.deps.siteUrl };
     const rendered =
       event.eventType === "confirmed"
-        ? renderReservationConfirmedEmail({ restaurant, reservation })
-        : renderReservationRequestedEmail({ restaurant, reservation });
+        ? renderReservationConfirmedEmail({ restaurant: brand, reservation })
+        : renderReservationRequestedEmail({ restaurant: brand, reservation });
 
     const result = await provider.send({
       to: reservation.guestEmail,
@@ -271,8 +273,9 @@ export class NotificationService {
       logger.warn("notifications", `email not configured; skipping ${event.eventType} for order ${context.order.orderNumber}`);
       return { state: "skipped" };
     }
-    const { order, restaurant } = context;
+    const { order } = context;
     if (!order.customerEmail) return { state: "skipped" };
+    const restaurant = { ...context.restaurant, siteUrl: this.deps.siteUrl };
 
     const { orderUrl, reviewUrl } = await this.links(context);
     let rendered: RenderedEmail;
@@ -350,7 +353,7 @@ export class NotificationService {
   private async links(context: NotificationOrderContext): Promise<{ orderUrl: string; reviewUrl: string | null }> {
     const { order, restaurant } = context;
     const token = await this.sign({ orderId: order.id, restaurantId: restaurant.id });
-    const base = `${this.deps.siteUrl}/r/${restaurant.slug}`;
+    const base = `${this.deps.siteUrl}`;
     const number = encodeURIComponent(order.orderNumber);
     return {
       orderUrl: `${base}/order/${number}?t=${encodeURIComponent(token)}`,

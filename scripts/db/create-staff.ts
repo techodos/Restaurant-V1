@@ -112,6 +112,6 @@ await client.query(
 );
 
 console.log(
-  `Staff account ready: ${email} / ${password} (${role}${locationSlug ? `, branch: ${locationSlug}` : ", all branches"}) on ${restaurantSlug}, sign in at /r/${restaurantSlug}/admin/login`,
+  `Staff account ready: ${email} / ${password} (${role}${locationSlug ? `, branch: ${locationSlug}` : ", all branches"}) on ${restaurantSlug}, sign in at /admin/login (on the deployment whose NEXT_PUBLIC_DEFAULT_RESTAURANT is ${restaurantSlug})`,
 );
 await client.end();

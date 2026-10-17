@@ -36,7 +36,7 @@ export async function CartView({ context, variant }: { context: StorefrontContex
       minimumOrderAmount={restaurant.settings.ordering.minimumOrderAmount.toFixed(2)}
       availableOrderTypes={enabledOrderTypes(restaurant.features)}
       isSignedIn={Boolean(customer)}
-      signInHref={signInHref(restaurant.slug, `/r/${restaurant.slug}/checkout`)}
+      signInHref={signInHref(`/checkout`)}
       closedBranches={closedBranches}
       primaryLocationId={context.primaryLocation?.id ?? null}
     />

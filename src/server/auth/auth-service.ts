@@ -40,7 +40,7 @@ export interface StaffActor {
   email: string;
   name: string;
   restaurantId: string;
-  /** The restaurant the session belongs to; its admin lives at /r/<restaurantSlug>/admin. */
+  /** The restaurant the session belongs to; its admin lives at /admin. */
   restaurantSlug: string;
   role: TeamRole;
   member: TeamMember;
@@ -196,9 +196,12 @@ export async function signInStaff(
 
   // auth.users is Supabase's own protected schema on a hosted project (DECISIONS.md §2:
   // "NEVER attempt to modify the Supabase auth schema") — app_service cannot write to it there,
-  // so last-login bookkeeping lives on team_members only.
-  await db.write(
-    { userId: member.userId, restaurantId: restaurant.id },
+  // so last-login bookkeeping lives on team_members only. It is the member's OWN row, so it is written in the
+  // member's home restaurant: a super admin's row lives in its home restaurant, and writing it while scoped to the
+  // restaurant being signed into (one deployment = one restaurant, so often not the home) is refused by the 0029
+  // cross-restaurant guard (RB403) and failed the whole sign-in.
+  await getDb({ restaurantId: home.restaurantId }).write(
+    { userId: member.userId, restaurantId: home.restaurantId },
     async (tx) => {
       await tx.query(
         `update team_members set last_login_at = now() where id = $1`,

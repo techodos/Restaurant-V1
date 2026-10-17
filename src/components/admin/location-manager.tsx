@@ -6,7 +6,7 @@ import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
-import { deleteLocationAction, saveLocationAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/locations/actions";
+import { deleteLocationAction, saveLocationAction } from "@/app/admin/(dashboard)/locations/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { RestaurantLocation } from "@/shared/contract/models";
 import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";

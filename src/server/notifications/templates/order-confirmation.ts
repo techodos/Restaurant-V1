@@ -1,8 +1,8 @@
 import { ORDER_STATUS_LABELS } from "@/shared/contract/enums";
 import type { Order } from "@/shared/contract/models";
 import type { NotificationOrderContext } from "../types";
-import { escapeHtml, renderEmailLayout } from "./layout";
-import { estimateLine, fulfilmentLines, itemsTableHtml, itemsText, orderTypeLabel } from "./order-summary";
+import { details, emailPalette, escapeHtml, paragraph, renderEmailLayout, sectionTitle, textFooter, type EmailBrand } from "./layout";
+import { estimateLine, estimateTime, fulfilmentDetail, itemsTableHtml, itemsText, orderTypeLabel } from "./order-summary";
 
 export interface RenderedEmail {
   subject: string;
@@ -11,7 +11,7 @@ export interface RenderedEmail {
 }
 
 export interface OrderEmailInput {
-  restaurant: NotificationOrderContext["restaurant"];
+  restaurant: NotificationOrderContext["restaurant"] & Pick<EmailBrand, "siteUrl">;
   order: Order;
   /** absolute link to the order tracking page */
   orderUrl: string;
@@ -19,49 +19,57 @@ export interface OrderEmailInput {
   reviewUrl?: string | null;
 }
 
+export const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
+
 /** Sent once, when the restaurant confirms the order (not when the customer places it). */
 export function renderOrderConfirmationEmail({ restaurant, order, orderUrl }: OrderEmailInput): RenderedEmail {
   const format = { currencySymbol: restaurant.currencySymbol, locale: restaurant.locale };
-  const fulfilment = fulfilmentLines(order, restaurant.name);
-  const estimate = estimateLine(order, restaurant.timezone);
+  const palette = emailPalette(restaurant.primaryColor);
   const status = ORDER_STATUS_LABELS[order.status];
-  const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
+  const firstName = firstNameOf(order.customerName);
+  const where = fulfilmentDetail(order, restaurant.name);
+  const time = estimateTime(order, restaurant.timezone);
+  const estimate = estimateLine(order, restaurant.timezone);
 
-  const facts = [
-    `<strong>Order number:</strong> ${escapeHtml(order.orderNumber)}`,
-    `<strong>Status:</strong> ${escapeHtml(status)}`,
-    `<strong>Type:</strong> ${escapeHtml(orderTypeLabel(order))} &middot; ${escapeHtml(fulfilment.join(" "))}`,
-    ...(estimate ? [escapeHtml(estimate)] : []),
-  ]
-    .map((line) => `<p style="margin:0 0 6px;font-size:14px;line-height:1.5;">${line}</p>`)
-    .join("");
+  const facts: [string, string][] = [
+    ["Order", order.orderNumber],
+    ["Status", status],
+    [orderTypeLabel(order), where || orderTypeLabel(order)],
+    ...(time ? ([[order.orderType === "delivery" ? "Arriving" : "Ready", `About ${time}`]] as [string, string][]) : []),
+  ];
 
-  const bodyHtml = `
-<p style="margin:0 0 16px;font-size:15px;line-height:1.6;">Hi ${escapeHtml(firstName)}, thanks for ordering from ${escapeHtml(restaurant.name)}. Good news: your order has been confirmed and is on its way to the kitchen.</p>
-<div style="background:#faf8f5;border-radius:8px;padding:14px 16px;margin:0 0 16px;">${facts}</div>
-<h2 style="margin:8px 0 0;font-size:16px;">Your order</h2>
-${itemsTableHtml(order, format)}`;
+  const bodyHtml = [
+    paragraph(
+      `Hi ${escapeHtml(firstName)}, thank you for ordering from ${escapeHtml(restaurant.name)}. Your order has been confirmed and is now with our kitchen.`,
+    ),
+    details(facts, palette),
+    sectionTitle("Your order"),
+    itemsTableHtml(order, format, palette),
+  ].join("");
 
   const html = renderEmailLayout({
     brand: restaurant,
-    preheader: `Order ${order.orderNumber} confirmed by ${restaurant.name}`,
+    preheader: `Order ${order.orderNumber} is confirmed${time ? ` — ${order.orderType === "delivery" ? "arriving" : "ready"} about ${time}` : ""}.`,
+    eyebrow: "Order confirmed",
     heading: "Your order is confirmed",
     bodyHtml,
     cta: { label: "Track your order", url: orderUrl },
-    footerNote: "You will get updates about this order as it moves along.",
+    footerNote: "We'll keep you posted as your order moves along. Questions about it? Reply to this email or call us and quote your order number.",
   });
 
   const text = [
-    `Hi ${firstName}, thanks for ordering from ${restaurant.name}.`,
+    `Hi ${firstName}, thank you for ordering from ${restaurant.name}. Your order has been confirmed.`,
     "",
-    `Order number: ${order.orderNumber}`,
+    `Order: ${order.orderNumber}`,
     `Status: ${status}`,
-    `${orderTypeLabel(order)}: ${fulfilment.join(" ")}`,
+    `${orderTypeLabel(order)}: ${where || orderTypeLabel(order)}`,
     ...(estimate ? [estimate] : []),
     "",
     itemsText(order, format),
     "",
     `Track your order: ${orderUrl}`,
+    "",
+    textFooter(restaurant),
   ].join("\n");
 
   return { subject: `Order ${order.orderNumber} confirmed — ${restaurant.name}`, html, text };

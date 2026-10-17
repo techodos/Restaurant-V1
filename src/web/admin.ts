@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { Restaurant } from "@/shared/contract/models";
 import type { RestaurantTheme } from "@/shared/contract/settings";
 import { getAdminRestaurantContext, getLocations } from "@/server/services/restaurants";
+import { getOrderStatusCounts } from "@/server/services/orders";
 import { config } from "@/server/config";
 import { ALL_BRANCHES, resolveBranchScope, type BranchScope } from "@/server/auth/branch-scope";
 import { errors } from "@/server/errors";
@@ -23,6 +24,15 @@ export const getAdminBranchScope = cache(async (restaurantSlug: string): Promise
 });
 
 /**
+ * Order status counters for ONE admin request: the layout's sidebar badge and the dashboard / orders page ask for
+ * the same numbers, so they share one statement instead of running it twice (measured 2026-10-16: two identical
+ * `select status, count(*)` per admin page view). Primitive arguments, so React's per-request cache can key them.
+ */
+export const getAdminOrderStatusCounts = cache((restaurantId: string, userId: string, actor: string, locationId: string | null) =>
+  getOrderStatusCounts(restaurantId, { restaurantId, userId, actor }, locationId),
+);
+
+/**
  * Stores a restaurant-wide member's branch choice. Refused for branch-scoped staff, and only an active
  * branch of THIS restaurant (or "all") is accepted. Server Actions only.
  */
@@ -33,11 +43,11 @@ export async function selectAdminBranch(restaurantSlug: string, value: string): 
     const locations = await getLocations(actor.restaurantId, { activeOnly: true });
     if (!locations.some((location) => location.id === value)) throw errors.notFound("Branch");
   }
-  (await cookies()).set(ADMIN_BRANCH_COOKIE, value, { ...(await cookieOptions(60 * 60 * 24 * 180)), path: adminPath(actor.restaurantSlug) });
+  (await cookies()).set(ADMIN_BRANCH_COOKIE, value, { ...(await cookieOptions(60 * 60 * 24 * 180)), path: adminPath() });
 }
 
 /**
- * The restaurant whose admin is open (/r/<restaurantSlug>/admin) and its brand theme: ONE database
+ * The restaurant whose admin is open (/admin) and its brand theme: ONE database
  * statement for both, shared by the admin layouts and every admin page of a request (React `cache`),
  * and kept for 30 s per process across requests (`getAdminRestaurantContext`; restaurant writes clear
  * it). Read from the database, not the storefront snapshot, so a restaurant's staff can reach their

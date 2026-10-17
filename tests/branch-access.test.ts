@@ -270,7 +270,7 @@ describe("branch data writes trust nothing from the browser", () => {
 });
 
 describe("static guarantees", () => {
-  const adminDir = join(process.cwd(), "src/app/r/[restaurantSlug]/admin/(dashboard)");
+  const adminDir = join(process.cwd(), "src/app/admin/(dashboard)");
   const files = (dir: string): string[] =>
     readdirSync(dir).flatMap((name) => {
       const path = join(dir, name);

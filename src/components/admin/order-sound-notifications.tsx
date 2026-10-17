@@ -215,6 +215,20 @@ export function OrderActivityBanner() {
  */
 const CURSOR_SAFETY_MARGIN_MS = 5_000;
 
+/**
+ * Status changes THIS tab just made. The poll sees them like anyone else's, and used to answer with a second full
+ * page render on top of the one the action's own response already carries — and that refresh queued behind the
+ * next status click. They are skipped (no refresh, no chime); changes by other staff still refresh as before.
+ */
+const ownChanges = new Set<string>();
+// marked BEFORE the action is sent (a poll can land between its commit and its response); undo it if it fails
+export function markOwnOrderChanges(changes: readonly { orderNumber: string; status: string }[]): () => void {
+  if (ownChanges.size > 200) ownChanges.clear(); // bounded: only needs to outlive the next few polls
+  const keys = changes.map((change) => `${change.orderNumber}:${change.status}`);
+  for (const key of keys) ownChanges.add(key);
+  return () => keys.forEach((key) => ownChanges.delete(key));
+}
+
 export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: string }) {
   const [enabled] = useSoundPreference();
   const sinceRef = useRef<string>(new Date().toISOString());
@@ -228,7 +242,7 @@ export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: strin
 
   const poll = useCallback(async () => {
     try {
-      const url = `${adminPath(restaurantSlug, "/orders/activity")}?since=${encodeURIComponent(sinceRef.current)}`;
+      const url = `${adminPath("/orders/activity")}?since=${encodeURIComponent(sinceRef.current)}`;
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) return;
       const body = await response.json();
@@ -239,6 +253,7 @@ export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: strin
       // cancelled; a brand-new order's `isNew` row is only ever seen once since its own updated_at never
       // repeats a "pending, isNew" row) — so a key the seen-set naturally caps in size without needing ids.
       const fresh = events.filter((event) => {
+        if (!event.isNew && ownChanges.has(`${event.orderNumber}:${event.status}`)) return false;
         const key = `${event.orderNumber}:${event.status}:${event.isNew}`;
         if (seenRef.current.has(key)) return false;
         seenRef.current.add(key);
@@ -255,7 +270,7 @@ export function OrderActivityWatcher({ restaurantSlug }: { restaurantSlug: strin
       const notable = fresh.filter((event) => event.isNew || event.status === "cancelled");
       // the sound alone left the list stale until a manual reload: re-render the page when it shows these
       // orders (dashboard, orders list, kitchen, that order's page) — never on forms like menu or settings
-      if (pageShowsActivity(pathRef.current, adminPath(restaurantSlug), fresh.map((event) => event.orderNumber))) {
+      if (pageShowsActivity(pathRef.current, adminPath(), fresh.map((event) => event.orderNumber))) {
         router.refresh();
       }
       // kept separate from the refresh above: the banner stays up until a staff member actually taps it,

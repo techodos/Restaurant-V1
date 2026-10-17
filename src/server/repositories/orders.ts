@@ -605,8 +605,10 @@ export interface OrderListFilters {
   status?: OrderStatus | "active" | "all";
   orderType?: OrderType;
   search?: string;
+  /** YYYY-MM-DD, inclusive, as days in `timezone` (the restaurant's) — the same bounds as the sales report */
   dateFrom?: string;
   dateTo?: string;
+  timezone?: string;
   paymentStatus?: string;
   locationId?: string;
   page?: number;
@@ -621,7 +623,7 @@ export async function listOrders(
   const db = getDb({ restaurantId });
   return db.read({ ...ctx, restaurantId }, async (tx) => {
     const page = filters.page ?? 1;
-    const pageSize = Math.min(filters.pageSize ?? 20, 100);
+    const pageSize = Math.min(filters.pageSize ?? 20, 5000); // 5000 = the report export; UI input is capped at 100 by its schema
     const params: unknown[] = [restaurantId];
     const conditions: string[] = ["o.restaurant_id = $1"];
 
@@ -645,13 +647,17 @@ export async function listOrders(
         `(o.order_number ilike $${params.length} or o.customer_name ilike $${params.length} or o.customer_phone ilike $${params.length})`,
       );
     }
+    // local midnight in the restaurant's timezone (was UTC midnight: the report's order list and export disagreed
+    // with its totals by the UTC offset, e.g. five hours at each end of the range in Pakistan)
+    if (filters.dateFrom || filters.dateTo) params.push(filters.timezone ?? "UTC");
+    const tz = `$${params.length}`;
     if (filters.dateFrom) {
       params.push(filters.dateFrom);
-      conditions.push(`o.created_at >= $${params.length}::timestamptz`);
+      conditions.push(`o.created_at >= ($${params.length}::date)::timestamp at time zone ${tz}`);
     }
     if (filters.dateTo) {
       params.push(filters.dateTo);
-      conditions.push(`o.created_at < ($${params.length}::timestamptz + interval '1 day')`);
+      conditions.push(`o.created_at < ($${params.length}::date + 1)::timestamp at time zone ${tz}`);
     }
     if (filters.locationId) {
       params.push(filters.locationId);
@@ -796,20 +802,24 @@ export async function getOrderItems(tx: DbClient, orderId: string): Promise<Orde
 async function getItemsForOrders(tx: DbClient, orderIds: readonly string[]): Promise<Map<string, OrderItem[]>> {
   const byOrder = new Map<string, OrderItem[]>();
   if (orderIds.length === 0) return byOrder;
+  // items and their add-ons in ONE statement (was two sequential round trips): each line carries its add-ons as
+  // JSON, money cast to text so `money()` sees the same string the driver returns for a numeric column
   const rows = await tx.query<Row>(
-    `select oi.*, mi.image_url, mi.slug
+    `select oi.*, mi.image_url, mi.slug,
+            coalesce((
+              select json_agg(json_build_object(
+                       'id', a.id, 'order_item_id', a.order_item_id, 'menu_addon_id', a.menu_addon_id,
+                       'group_name', a.group_name, 'addon_name', a.addon_name,
+                       'unit_price', a.unit_price::text, 'quantity', a.quantity)
+                     order by a.position, a.created_at)
+                from order_item_addons a where a.order_item_id = oi.id
+            ), '[]'::json) as addons
        from order_items oi left join menu_items mi on mi.id = oi.menu_item_id
       where oi.order_id = any($1::uuid[]) order by oi.order_id, oi.position, oi.created_at`,
     [orderIds],
   );
-  const addons = rows.length
-    ? await tx.query<Row>(
-        `select * from order_item_addons where order_item_id = any($1::uuid[]) order by order_item_id, position, created_at`,
-        [rows.map((row) => str(row.id))],
-      )
-    : [];
   for (const row of rows) {
-    const item = mapOrderItem(row, addons.filter((addon) => str(addon.order_item_id) === str(row.id)).map(mapOrderItemAddon));
+    const item = mapOrderItem(row, (row.addons as Row[]).map(mapOrderItemAddon));
     const orderId = str(row.order_id);
     const list = byOrder.get(orderId);
     if (list) list.push(item);
@@ -1161,6 +1171,34 @@ export async function updateOrderStatus(
       );
     }
     return { id: str(row.id), orderNumber: str(row.order_number), status: str(row.status) as OrderStatus };
+  });
+}
+
+/**
+ * Several orders, each to its own target status, in ONE statement (the orders list's bulk action). Same guards as
+ * `updateOrderStatus` per row; an order whose move is no longer allowed (someone else already moved it, or it is
+ * finished) is skipped instead of failing the batch, so the caller reports "n of m". The status triggers (history,
+ * notification outbox, live tracking NOTIFY) fire per row exactly as for a single change.
+ */
+export async function updateOrderStatuses(
+  changes: readonly { orderId: string; status: OrderStatus }[],
+  ctx: RequestContext,
+): Promise<OrderStatusChange[]> {
+  if (changes.length === 0) return [];
+  const db = getDb(ctx);
+  return db.write(ctx, async (tx) => {
+    const rows = await tx.query<Row>(
+      `update orders o set status = v.status
+         from unnest($1::uuid[], $2::order_status[]) as v(id, status)
+        where o.id = v.id
+          and o.status <> v.status
+          and app.order_transition_allowed(o.status, v.status)
+          and o.restaurant_id = coalesce(app.current_restaurant_id(), o.restaurant_id)
+          and app.can_access_location(o.restaurant_id, o.location_id)
+       returning o.id, o.order_number, o.status`,
+      [changes.map((c) => c.orderId), changes.map((c) => c.status)],
+    );
+    return rows.map((row) => ({ id: str(row.id), orderNumber: str(row.order_number), status: str(row.status) as OrderStatus }));
   });
 }
 

@@ -31,13 +31,13 @@ import {
 import { adminPath, cn } from "@/shared/utils";
 import { ROLE_LABELS, hasAnyPermission, type Permission } from "@/server/auth/permissions";
 import type { TeamRole } from "@/shared/contract/enums";
-import { signOutAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/actions";
+import { signOutAction } from "@/app/admin/(dashboard)/actions";
 import { resetActivityCount, useOrderActivityCount } from "@/components/admin/order-sound-notifications";
 
 /** Nav links that show live orders — arriving at one is as good as tapping the activity banner. */
 const ORDER_ACTIVITY_HREFS = new Set(["", "/orders", "/kitchen"]);
 
-/** `href` is relative to the restaurant's admin root (/r/<slug>/admin). */
+/** `href` is relative to the restaurant's admin root (/admin). */
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; permission?: Permission };
 
 /** Grouped by the job the screen serves; each link is still gated by the same permission as before. */
@@ -190,7 +190,7 @@ function UserCard({ user, restaurantSlug }: { user: AdminNavUser; restaurantSlug
   function signOut() {
     startTransition(() => {
       signOutAction(restaurantSlug).then(() => {
-        router.push(adminPath(restaurantSlug, "/login"));
+        router.push(adminPath("/login"));
         router.refresh();
       });
     });
@@ -268,7 +268,7 @@ export function AdminSidebar({ permissions, restaurantName, restaurantSlug, user
         <Brand restaurantName={restaurantName} />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-5">
-        <NavList permissions={permissions} base={adminPath(restaurantSlug)} activeOrders={activeOrders} />
+        <NavList permissions={permissions} base={adminPath()} activeOrders={activeOrders} />
       </div>
       <div className="p-3">
         <UserCard user={user} restaurantSlug={restaurantSlug} />
@@ -328,7 +328,7 @@ export function AdminMobileNav({ permissions, restaurantName, restaurantSlug, us
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-3 py-5">
-              <NavList permissions={permissions} base={adminPath(restaurantSlug)} activeOrders={activeOrders} onNavigate={() => setOpen(false)} />
+              <NavList permissions={permissions} base={adminPath()} activeOrders={activeOrders} onNavigate={() => setOpen(false)} />
             </div>
             <div className="p-3">
               <UserCard user={user} restaurantSlug={restaurantSlug} />
@@ -353,7 +353,7 @@ function subPageLabel(rest: string): string | null {
 /** "Group › Page" (› sub-page) for the header, from the same navigation the sidebar shows. */
 export function AdminBreadcrumb({ restaurantSlug }: { restaurantSlug: string }) {
   const pathname = usePathname();
-  const base = adminPath(restaurantSlug);
+  const base = adminPath();
   let found: { group: string; item: NavItem; rest: string } | null = null;
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {

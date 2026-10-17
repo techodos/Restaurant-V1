@@ -6,7 +6,7 @@ import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input } from "@/components/ui/input";
-import { deleteCategoryAction, saveCategoryAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/actions";
+import { deleteCategoryAction, saveCategoryAction } from "@/app/admin/(dashboard)/menu/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { MenuCategory } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";

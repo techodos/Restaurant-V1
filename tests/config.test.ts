@@ -51,6 +51,28 @@ describe("config", () => {
     expect(config.payments.stripe).toBeNull();
   });
 
+  it("production refuses to guess which restaurant it serves or which origin its links use", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      await expect(loadConfig().then((c) => c.app)).rejects.toThrow(/NEXT_PUBLIC_DEFAULT_RESTAURANT is required in production/);
+      vi.resetModules();
+      await expect(loadConfig().then((c) => c.app)).rejects.toThrow(/NEXT_PUBLIC_SITE_URL is required in production/);
+
+      vi.resetModules();
+      process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT = "zaytoun";
+      process.env.NEXT_PUBLIC_SITE_URL = "https://zaytoun.example/";
+      const app = (await loadConfig()).app;
+      expect(app.defaultRestaurantSlug).toBe("zaytoun");
+      expect(app.siteUrl).toBe("https://zaytoun.example");
+
+      vi.resetModules();
+      process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT = "../evil";
+      await expect(loadConfig().then((c) => c.app)).rejects.toThrow(/NEXT_PUBLIC_DEFAULT_RESTAURANT must be a restaurant slug/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("parses database settings and treats blank optional values as unset", async () => {
     process.env.DATABASE_URL = "postgresql://runtime@localhost/db";
     process.env.DATABASE_URL_SERVICE = "   ";
@@ -128,10 +150,28 @@ describe("config", () => {
       ["STOREFRONT_CACHE_REFRESH_INTERVAL_MS", "999999999"],
       ["STOREFRONT_CACHE_STARTUP_TIMEOUT_MS", "0"],
       ["STOREFRONT_CACHE_STARTUP_TIMEOUT_MS", "-5"],
-    ])("rejects %s=%s and names the variable", async (key, value) => {
-      process.env[key] = value;
-      const config = await loadConfig();
-      expect(() => config.storefrontCache).toThrow(new RegExp(`Invalid storefront cache configuration: ${key}`));
+    ])("falls back to the default for %s=%s with a warning naming the variable (never a failed startup)", async (key, value) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        process.env[key] = value;
+        const config = await loadConfig();
+        expect(config.storefrontCache).toEqual({ enabled: true, refreshIntervalMs: 300_000, startupTimeoutMs: 60_000 });
+        expect(warn).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^\\[config\\] ${key} must be`)));
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("an invalid value for one setting leaves the others as configured", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        process.env.STOREFRONT_CACHE_ENABLED = "false";
+        process.env.STOREFRONT_CACHE_REFRESH_INTERVAL_MS = "30m";
+        process.env.STOREFRONT_CACHE_STARTUP_TIMEOUT_MS = "15000";
+        expect((await loadConfig()).storefrontCache).toEqual({ enabled: false, refreshIntervalMs: 300_000, startupTimeoutMs: 15_000 });
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it("does not affect the other sections when its own values are invalid", async () => {

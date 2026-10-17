@@ -43,7 +43,7 @@ export const IDS = {
 } as const;
 
 export const SLUG = "villa-grand-buffet";
-const BASE = `/r/${SLUG}`;
+const BASE = "";
 const IMG = `/images/${SLUG}`;
 const MAIL = "villagrandbuffet.example";
 
@@ -180,7 +180,7 @@ export const THEME = {
 };
 
 export const NAV = [
-  { label: "Home", href: BASE, enabled: true },
+  { label: "Home", href: "/", enabled: true },
   { label: "Menu", href: `${BASE}/menu`, enabled: true },
   { label: "The Buffet", href: `${BASE}/about`, enabled: true },
   { label: "Reservations", href: `${BASE}/reservation`, enabled: true },

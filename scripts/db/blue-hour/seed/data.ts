@@ -38,7 +38,7 @@ export const IDS = {
 } as const;
 
 export const SLUG = "blue-hour";
-const BASE = `/r/${SLUG}`;
+const BASE = "";
 const IMG = `/images/${SLUG}`;
 
 export const RESTAURANT = {
@@ -171,7 +171,7 @@ export const THEME = {
 };
 
 export const NAV = [
-  { label: "Home", href: BASE, enabled: true },
+  { label: "Home", href: "/", enabled: true },
   { label: "Menu", href: `${BASE}/menu`, enabled: true },
   { label: "Our Story", href: `${BASE}/about`, enabled: true },
   { label: "Book a Table", href: `${BASE}/reservation`, enabled: true },

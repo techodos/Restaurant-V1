@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pageShowsActivity } from "@/shared/admin-activity";
 
-const root = "/r/bella-napoli/admin";
+const root = "/admin";
 
 describe("admin order poll: which page refreshes for new orders / status changes", () => {
   it("dashboard, orders list and kitchen refresh when anything changed", () => {

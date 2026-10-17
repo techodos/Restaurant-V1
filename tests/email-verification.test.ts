@@ -63,9 +63,9 @@ describe("verifyEmailCode", () => {
 
 describe("afterAuthPath", () => {
   it("returns to where the customer came from, else the storefront home — never /account", () => {
-    expect(afterAuthPath("bella", "/r/bella/checkout")).toBe("/r/bella/checkout");
-    expect(afterAuthPath("bella", "/r/bella/menu")).toBe("/r/bella/menu");
-    expect(afterAuthPath("bella", null)).toBe("/r/bella");
-    expect(afterAuthPath("bella", undefined)).toBe("/r/bella");
+    expect(afterAuthPath("/checkout")).toBe("/checkout");
+    expect(afterAuthPath("/menu")).toBe("/menu");
+    expect(afterAuthPath(null)).toBe("/");
+    expect(afterAuthPath(undefined)).toBe("/");
   });
 });

@@ -49,8 +49,8 @@ export const websiteInputSchema = z.object({
 });
 export type WebsiteInput = z.infer<typeof websiteInputSchema>;
 
-/** Routes under /r/<slug>/ that a page slug must never shadow (a new page would hide the real screen). */
-export const RESERVED_PAGE_SLUGS = ["account", "admin", "api", "cart", "checkout", "current-orders", "order", "orders"] as const;
+/** Root-level routes a custom page slug must never take (the real screen would hide the page, or the reverse). */
+export const RESERVED_PAGE_SLUGS = ["account", "admin", "api", "cart", "checkout", "current-orders", "order", "orders", "super-admin"] as const;
 
 const pageSlug = z
   .string()

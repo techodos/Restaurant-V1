@@ -86,7 +86,7 @@ export function OrderTypeSwitchSection({
     label: ORDER_TYPE_LABELS[type],
     text: section[TEXT_KEY[type]] || BLURBS[type],
     eta: section.showEta && type === "delivery" ? context.restaurant.settings.delivery.defaultEtaMinutes : null,
-    href: `/r/${context.restaurant.slug}/menu?orderType=${type}`,
+    href: `/menu?orderType=${type}`,
   }));
   const cols = doors.length === 3 ? "md:grid-cols-3" : doors.length === 2 ? "md:grid-cols-2" : "";
 

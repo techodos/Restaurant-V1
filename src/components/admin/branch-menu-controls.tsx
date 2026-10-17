@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminSwitch } from "@/components/admin/admin-switch";
 import { useSyncedState } from "@/components/admin/use-synced-state";
-import { setItemLocationAvailabilityAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
+import { setItemLocationAvailabilityAction } from "@/app/admin/(dashboard)/menu/items/actions";
 
 /**
  * Menu Management in branch view (restaurants with 2+ branches). The menu itself — categories, items,

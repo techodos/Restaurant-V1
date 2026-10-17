@@ -173,9 +173,9 @@ export function browse() {
   const customer = customerFor(meta);
   const tray = `${meta.trayCookie}=${pick(meta.trays.pickup)}`;
   const cookies = signedIn ? `rp_customer_session=${customer.session}; ${tray}` : tray;
-  const base = `/r/${meta.slug}`;
+  const base = ""; // one deployment = one restaurant: root-level paths
 
-  get(meta, base, cookies, "home");
+  get(meta, "/", cookies, "home");
   think(2, 5);
   get(meta, `${base}/menu`, cookies, "menu");
   think(2, 5);
@@ -201,7 +201,7 @@ export function order() {
   const delivery = Math.random() < 0.5;
   const tray = `${meta.trayCookie}=${pick(delivery ? meta.trays.delivery : meta.trays.pickup)}`;
   const cookies = `rp_customer_session=${customer.session}; ${tray}`;
-  const base = `/r/${meta.slug}`;
+  const base = ""; // one deployment = one restaurant: root-level paths
 
   get(meta, `${base}/menu`, cookies, "menu");
   think(2, 5);
@@ -284,7 +284,7 @@ export function admin() {
   const meta = META[exec.vu.idInTest % 2]; // admins at both restaurants
   const actions = ACTIONS[meta.slug];
   const cookies = `rp_admin_session=${meta.staffSession}`;
-  const base = `/r/${meta.slug}/admin`;
+  const base = "/admin";
   const t = (name) => ({ tags: { kind: "admin", page: name }, headers: { Cookie: cookies }, redirects: 0, timeout: "60s" });
 
   let since = new Date(Date.now() - 60_000).toISOString();

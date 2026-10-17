@@ -61,7 +61,7 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
   if (item.requiresSelection) {
     return (
       <Link
-        href={`/r/${restaurantSlug}/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`}
+        href={`/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`}
         scroll={false}
         className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)]"
       >

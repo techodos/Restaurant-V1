@@ -6,7 +6,7 @@ import { ExternalLink, Globe, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/shared/utils";
 
 /** Underlined section tabs for one restaurant; scrolls sideways on narrow screens instead of wrapping. */
-export function RestaurantTabs({ slug, adminHref }: { slug: string; adminHref: string }) {
+export function RestaurantTabs({ slug, adminHref }: { slug: string; adminHref: string | null }) {
   const pathname = usePathname();
   const base = `/super-admin/${slug}`;
   const tabs = [
@@ -34,14 +34,16 @@ export function RestaurantTabs({ slug, adminHref }: { slug: string; adminHref: s
             </Link>
           </li>
         ))}
-        <li className="ml-auto pl-4">
-          <Link
-            href={adminHref}
-            className="flex h-11 items-center gap-1.5 px-2 text-[13px] font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-brand)]"
-          >
-            Open admin <ExternalLink className="size-3.5" aria-hidden />
-          </Link>
-        </li>
+        {adminHref ? (
+          <li className="ml-auto pl-4">
+            <Link
+              href={adminHref}
+              className="flex h-11 items-center gap-1.5 px-2 text-[13px] font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-brand)]"
+            >
+              Open admin <ExternalLink className="size-3.5" aria-hidden />
+            </Link>
+          </li>
+        ) : null}
       </ul>
     </nav>
   );

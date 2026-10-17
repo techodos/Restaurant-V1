@@ -100,9 +100,11 @@ export async function sendVerificationCode(
       primaryColor: restaurant?.primaryColor ?? null,
       email: restaurant?.email ?? null,
       phone: restaurant?.phone ?? null,
+      siteUrl: config.app.siteUrl,
     },
     code,
     purpose,
+    expiresInMinutes: CODE_TTL_MINUTES,
   });
   await provider.send({
     to: email,

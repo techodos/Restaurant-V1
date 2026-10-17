@@ -8,7 +8,7 @@ import type { Restaurant, RestaurantLocation } from "./contract/models";
 import { formatMoney } from "./money";
 
 /**
- * The default Privacy Policy and Terms of Service every storefront gets at /r/<slug>/privacy and /terms.
+ * The default Privacy Policy and Terms of Service every storefront gets at /privacy and /terms.
  * Pure and isomorphic: the document is built only from the ONE restaurant passed in (its name, legal name,
  * contact details and the features it actually has switched on), so a page can never show another
  * restaurant's text. A restaurant that wants its own wording publishes a `privacy` / `terms` website page

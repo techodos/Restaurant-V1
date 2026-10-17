@@ -3,6 +3,7 @@ import { adminPath } from "@/shared/utils";
 import { RestaurantTabs } from "@/components/super-admin/restaurant-tabs";
 import { PageHeader, StatusBadge } from "@/components/super-admin/ui";
 import { restaurantStatusTone } from "@/components/super-admin/status";
+import { instanceRestaurantSlug } from "@/web/instance";
 
 /** One restaurant: breadcrumb, name, status and the section tabs, shared by the Features and Website screens. */
 export default async function SuperAdminRestaurantLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -19,11 +20,11 @@ export default async function SuperAdminRestaurantLayout({ children, params }: {
           description={
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-              <span className="font-mono text-xs">/r/{restaurant.slug}</span>
+              <span className="font-mono text-xs">{restaurant.slug}</span>
             </span>
           }
         />
-        <RestaurantTabs slug={restaurant.slug} adminHref={adminPath(restaurant.slug)} />
+        <RestaurantTabs slug={restaurant.slug} adminHref={restaurant.slug === instanceRestaurantSlug() ? adminPath() : null} />
       </div>
       {children}
     </div>

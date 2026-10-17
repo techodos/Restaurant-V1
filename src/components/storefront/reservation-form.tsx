@@ -11,7 +11,7 @@ import { ReservationSuccess } from "./reservation-success";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { signInHref } from "@/shared/return-to";
-import { bookTableAction, type BookingResult } from "@/app/r/[restaurantSlug]/(site)/reservation/actions";
+import { bookTableAction, type BookingResult } from "@/app/(site)/reservation/actions";
 
 export interface ReservationSlotOption {
   time: string;
@@ -141,7 +141,7 @@ export function ReservationForm({
     // `returnTo` brings them straight back to this page to finish and submit again.
     if (!isSignedIn) {
       toast.error("Please sign in first to book a table.", { description: "You'll come right back here afterwards." });
-      router.push(signInHref(restaurantSlug, `/r/${restaurantSlug}/reservation`));
+      router.push(signInHref(`/reservation`));
       return;
     }
 
@@ -181,7 +181,7 @@ export function ReservationForm({
         if (result.error.code === "SIGN_IN_REQUIRED") {
           // the session ended mid-booking: sign in again and come straight back here
           toast.error(result.error.message, { description: "Your booking details are not lost — sign in to continue." });
-          router.push(signInHref(restaurantSlug, `/r/${restaurantSlug}/reservation`));
+          router.push(signInHref(`/reservation`));
           return;
         }
         toast.error(result.error.message);

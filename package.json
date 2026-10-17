@@ -17,6 +17,8 @@
     "db:seed:bun-intended": "tsx scripts/db/bun-intended/seed/seed.ts",
     "db:create-staff": "tsx scripts/db/create-staff.ts",
     "db:reset": "node --env-file=.env.local scripts/db/migrate.mjs --fresh && tsx scripts/db/seed.ts",
+    "db:copy-data": "node --env-file=.env.local scripts/db/copy-data.mjs",
+    "db:copy-storage": "node --env-file=.env.local scripts/db/copy-storage.mjs",
     "db:verify": "tsx scripts/db/verify.ts",
     "notifications:dispatch": "tsx scripts/notifications/dispatch.ts",
     "test": "vitest run",

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useSettledToast } from "@/components/admin/use-settled-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
-import { moderateReviewAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/reviews/actions";
+import { moderateReviewAction } from "@/app/admin/(dashboard)/reviews/actions";
 import type { ReviewStatus } from "@/shared/contract/enums";
 
 export function ReviewModerationControl({

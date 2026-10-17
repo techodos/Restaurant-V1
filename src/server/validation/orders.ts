@@ -9,6 +9,11 @@ export const updateOrderStatusSchema = z.object({
 });
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 
+/** Orders list bulk action: each selected order to its own next status (one page of the list at most). */
+export const bulkUpdateOrderStatusSchema = z.object({
+  changes: z.array(z.object({ orderId: z.string().uuid(), status: z.enum(ORDER_STATUSES).exclude(["pending", "cancelled"]) })).min(1).max(100),
+});
+
 export const cancelOrderSchema = z.object({
   reason: z.string().trim().max(500).optional().or(z.literal("")),
 });

@@ -22,7 +22,7 @@ describe("JazzCash wallet checkout", () => {
       orderId: "11111111-1111-1111-1111-111111111111",
       orderNumber: "ORD-1001",
       description: "Order ORD-1001",
-      returnUrl: "https://example.test/r/bella-napoli/checkout/pay/jazzcash",
+      returnUrl: "https://example.test/checkout/pay/jazzcash",
     });
 
     expect(actionUrl).toContain("sandbox.jazzcash.com.pk");

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { CalendarCheck, CheckCircle2, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { BookingResult } from "@/app/r/[restaurantSlug]/(site)/reservation/actions";
+import type { BookingResult } from "@/app/(site)/reservation/actions";
 
 interface ReservationSuccessProps {
   restaurantSlug: string;
@@ -83,7 +83,7 @@ export function ReservationSuccess({ restaurantSlug, booking, onBookAnother }: R
 
       <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
         <Button asChild>
-          <Link href={`/r/${restaurantSlug}`}>Back to home</Link>
+          <Link href={"/"}>Back to home</Link>
         </Button>
         <Button variant="outline" onClick={onBookAnother}>
           Book another table

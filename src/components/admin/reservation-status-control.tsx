@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useSettledToast } from "@/components/admin/use-settled-toast";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
-import { updateReservationStatusAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/reservations/actions";
+import { updateReservationStatusAction } from "@/app/admin/(dashboard)/reservations/actions";
 import { RESERVATION_STATUSES, RESERVATION_STATUS_LABELS, type ReservationStatus } from "@/shared/contract/enums";
 
 export function ReservationStatusControl({

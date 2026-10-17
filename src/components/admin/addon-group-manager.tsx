@@ -11,7 +11,7 @@ import {
   deleteAddonGroupAction,
   saveAddonAction,
   saveAddonGroupAction,
-} from "@/app/r/[restaurantSlug]/admin/(dashboard)/menu/items/actions";
+} from "@/app/admin/(dashboard)/menu/items/actions";
 import type { MenuAddonGroup } from "@/shared/contract/models";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 

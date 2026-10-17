@@ -5,11 +5,12 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
-import { updateOrderStatusAction } from "@/app/r/[restaurantSlug]/admin/(dashboard)/orders/actions";
+import { updateOrderStatusAction } from "@/app/admin/(dashboard)/orders/actions";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_RANK, TERMINAL_ORDER_STATUSES, type OrderStatus } from "@/shared/contract/enums";
 import { useSettledToast } from "@/components/admin/use-settled-toast";
+import { markOwnOrderChanges } from "@/components/admin/order-sound-notifications";
 
-export function OrderStatusControl({ orderId, currentStatus }: { orderId: string; currentStatus: OrderStatus }) {
+export function OrderStatusControl({ orderId, orderNumber, currentStatus }: { orderId: string; orderNumber: string; currentStatus: OrderStatus }) {
   const [pending, startTransition] = useTransition();
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
   const later = useSettledToast(pending);
@@ -31,9 +32,11 @@ export function OrderStatusControl({ orderId, currentStatus }: { orderId: string
   function submit(status: OrderStatus, options: { cancelReason?: string } = {}) {
     setPendingStatus(status);
     startTransition(async () => {
+      const undo = markOwnOrderChanges([{ orderNumber, status }]);
       const result = await updateOrderStatusAction({ orderId, status, cancelReason: options.cancelReason });
       setPendingStatus(null);
       if (!result.success) {
+        undo();
         toast.error(result.error.message);
         return;
       }

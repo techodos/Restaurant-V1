@@ -14,13 +14,13 @@ interface MobileDockProps {
 }
 
 /** Routes with their own sticky primary action: the dock steps aside there. */
-function hiddenOn(pathname: string, home: string): boolean {
+function hiddenOn(pathname: string): boolean {
   return (
-    pathname.startsWith(`${home}/checkout`) ||
-    pathname.startsWith(`${home}/cart`) ||
-    pathname.startsWith(`${home}/reservation`) ||
+    pathname.startsWith(`/checkout`) ||
+    pathname.startsWith(`/cart`) ||
+    pathname.startsWith(`/reservation`) ||
     /\/menu\/[^/]+$/.test(pathname) ||
-    pathname.startsWith(`${home}/account/`)
+    pathname.startsWith(`/account/`)
   );
 }
 
@@ -32,8 +32,8 @@ function hiddenOn(pathname: string, home: string): boolean {
  */
 export function MobileDock({ restaurantSlug, activeOrders, reservationsEnabled, signedIn }: MobileDockProps) {
   const pathname = usePathname();
-  const home = `/r/${restaurantSlug}`;
-  if (hiddenOn(pathname, home)) return null;
+  const home = "/";
+  if (hiddenOn(pathname)) return null;
 
   const item = (href: string, label: string, Icon: typeof User, extra?: React.ReactNode, exact = false) => {
     // Home is active only on itself, every other tab on its sub-pages too
@@ -61,11 +61,11 @@ export function MobileDock({ restaurantSlug, activeOrders, reservationsEnabled, 
     >
       <div className="flex h-[3.75rem] items-stretch gap-1 px-1.5">
         {item(home, "Home", House, undefined, true)}
-        {item(`${home}/menu`, "Menu", UtensilsCrossed)}
-        {reservationsEnabled ? item(`${home}/reservation`, "Book", CalendarDays) : null}
+        {item(`/menu`, "Menu", UtensilsCrossed)}
+        {reservationsEnabled ? item(`/reservation`, "Book", CalendarDays) : null}
         {activeOrders > 0
           ? item(
-              `${home}/current-orders`,
+              `/current-orders`,
               "Track",
               MapPin,
               <span aria-hidden className="absolute right-[calc(50%-18px)] top-2.5 size-2 rounded-full bg-[var(--color-brand)]">
@@ -73,8 +73,8 @@ export function MobileDock({ restaurantSlug, activeOrders, reservationsEnabled, 
               </span>,
             )
           : signedIn
-            ? item(`${home}/orders`, "My Orders", ClipboardList)
-            : item(signInHref(restaurantSlug, pathname), "Sign in", User)}
+            ? item(`/orders`, "My Orders", ClipboardList)
+            : item(signInHref(pathname), "Sign in", User)}
       </div>
     </nav>
   );

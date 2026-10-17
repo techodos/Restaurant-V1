@@ -17,7 +17,7 @@ export async function ReviewsSection({ section, context }: { section: ReviewsCon
     getReviewSummary(context.restaurant.id),
   ]);
   if (!reviews.length) return null;
-  const reviewsHref = `/r/${context.restaurant.slug}/reviews`;
+  const reviewsHref = `/reviews`;
 
   return (
     <SectionShell tone="night">

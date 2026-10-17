@@ -194,9 +194,9 @@ export function SiteHeader({
   // desktop opens the menu from the left (its button sits left of the logo), phones from the bottom
   const [menuSide, setMenuSide] = useState<'left' | 'right'>('right');
   const announcement = config.announcement;
-  const home = `/r/${restaurant.slug}`;
+  const home = "/";
   // only rendered while signed out (signed in opens the profile drawer); brings them back to this page
-  const accountHref = signInHref(restaurant.slug, pathname);
+  const accountHref = signInHref(pathname);
   const accountLabel = customer?.signedIn
     ? (customer.name ?? 'Account')
     : 'Sign In / Sign Up';
@@ -386,10 +386,10 @@ export function SiteHeader({
   );
   const ordersControl = customer?.signedIn ? (
     <Link
-      href={`${home}/orders`}
+      href={`/orders`}
       aria-label='My Orders'
       title='My Orders'
-      aria-current={isActive(pathname, `${home}/orders`, home) ? 'page' : undefined}
+      aria-current={isActive(pathname, `/orders`, home) ? 'page' : undefined}
       className={cn(floatingIconClass, 'hidden sm:grid')}
     >
       <ClipboardList className='size-[19px]' aria-hidden />
@@ -418,7 +418,7 @@ export function SiteHeader({
             {accountControl}
             {config.navigation.showCart ? (
               <Link
-                href={`${home}/cart`}
+                href={`/cart`}
                 data-tray-target
                 aria-label={cartLabel}
                 title='My Cart'
@@ -444,7 +444,7 @@ export function SiteHeader({
           <HeaderBranchPill tone={tone} align='end' className='mr-0.5 hidden lg:flex' />
           {config.navigation.showCart ? (
             <Link
-              href={`${home}/cart`}
+              href={`/cart`}
               data-tray-target
               aria-label={cartLabel}
               title='My Cart'
@@ -658,7 +658,7 @@ export function SiteHeader({
               {/* same controls as the classic bar — branch, orders, account, cart, menu — as round buttons,
                   plus search, which opens the menu page (its hero carries the search field) */}
               <HeaderBranchPill tone={tone} align='end' className='mr-1 hidden lg:flex' />
-              <Link href={`${home}/menu`} aria-label='Search the menu' title='Search the menu' className={floatingIconClass}>
+              <Link href={`/menu`} aria-label='Search the menu' title='Search the menu' className={floatingIconClass}>
                 <Search className='size-[19px]' aria-hidden />
               </Link>
               {signedIn ? (
@@ -680,7 +680,7 @@ export function SiteHeader({
               )}
               {config.navigation.showCart ? (
                 <Link
-                  href={`${home}/cart`}
+                  href={`/cart`}
                   data-tray-target
                   aria-label={`My Cart, ${itemCount} item${itemCount === 1 ? '' : 's'}`}
                   title='My Cart'
@@ -713,12 +713,12 @@ export function SiteHeader({
 
             {customer?.signedIn ? (
               <HeaderIconLink
-                href={`${home}/orders`}
+                href={`/orders`}
                 label='My Orders'
                 icon={ClipboardList}
                 aria-label='My Orders'
                 aria-current={
-                  isActive(pathname, `${home}/orders`, home)
+                  isActive(pathname, `/orders`, home)
                     ? 'page'
                     : undefined
                 }
@@ -728,7 +728,7 @@ export function SiteHeader({
 
             {config.navigation.showCart ? (
               <HeaderIconLink
-                href={`${home}/cart`}
+                href={`/cart`}
                 label='My Cart'
                 icon={ShoppingBag}
                 data-tray-target
@@ -927,7 +927,7 @@ export function SiteHeader({
           <div className='mt-6 grid gap-2.5'>
             {customer?.signedIn ? (
               <Link
-                href={`${home}/orders`}
+                href={`/orders`}
                 onClick={() => setOpen(false)}
                 className='press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--rule-strong)] text-[13.5px] font-semibold'
               >

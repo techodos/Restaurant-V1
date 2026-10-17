@@ -23,6 +23,7 @@ import {
   listRecentOrders,
   listVisitorOrders,
   updateOrderStatus,
+  updateOrderStatuses,
   type OrderActivityEvent,
   type OrderListFilters,
   type OrderStatusChange,
@@ -194,6 +195,11 @@ export function changeOrderStatus(
   return updateOrderStatus(orderId, status, ctx, options);
 }
 
+/** Bulk "next step" from the orders list: one statement for every selected order; skipped ones are left out. */
+export function changeOrderStatuses(changes: readonly { orderId: string; status: OrderStatus }[], ctx: RequestContext): Promise<OrderStatusChange[]> {
+  return updateOrderStatuses(changes, ctx);
+}
+
 export interface PaymentStatusChange {
   orderNumber: string;
   status: PaymentStatus;
@@ -253,10 +259,16 @@ export function getSalesReport(
 }
 
 /** Every order in the range, for the CSV export (no pagination cap below the admin UI's own page size). */
-export function getOrdersForExport(restaurantId: string, range: ReportRange, ctx: RequestContext, locationId: string | null = null): Promise<Paginated<OrderSummary>> {
+export function getOrdersForExport(
+  restaurantId: string,
+  range: ReportRange,
+  timezone: string,
+  ctx: RequestContext,
+  locationId: string | null = null,
+): Promise<Paginated<OrderSummary>> {
   return listOrders(
     restaurantId,
-    { dateFrom: range.fromDateKey, dateTo: range.toDateKey, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 5000 },
+    { dateFrom: range.fromDateKey, dateTo: range.toDateKey, timezone, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 5000 },
     ctx,
   );
 }

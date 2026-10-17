@@ -15,11 +15,37 @@ import { logger } from "@/server/logger";
 const emptyToUndefined = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
 const optionalText = z.preprocess(emptyToUndefined, z.string().trim().optional());
 
-const appSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).catch("development"),
-  NEXT_PUBLIC_SITE_URL: z.preprocess(emptyToUndefined, z.string().trim().url().default("http://localhost:3000")),
-  NEXT_PUBLIC_DEFAULT_RESTAURANT: z.preprocess(emptyToUndefined, z.string().trim().default("bella-napoli")),
-});
+/**
+ * One deployment serves ONE restaurant: NEXT_PUBLIC_DEFAULT_RESTAURANT names it (the URL no longer does), and
+ * NEXT_PUBLIC_SITE_URL is the origin every email / push / payment-return link is built on. Development and tests
+ * fall back to bella-napoli on localhost; production refuses to start without both, rather than silently serving
+ * another restaurant or mailing localhost links.
+ */
+const appSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).catch("development"),
+    NEXT_PUBLIC_SITE_URL: z.preprocess(emptyToUndefined, z.string().trim().url().optional()),
+    NEXT_PUBLIC_DEFAULT_RESTAURANT: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .trim()
+        .regex(/^[a-z0-9][a-z0-9-]*$/, "must be a restaurant slug (lowercase letters, digits, hyphens)")
+        .optional(),
+    ),
+  })
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV !== "production") return;
+    if (!env.NEXT_PUBLIC_DEFAULT_RESTAURANT)
+      ctx.addIssue({ code: "custom", path: ["NEXT_PUBLIC_DEFAULT_RESTAURANT"], message: "is required in production" });
+    if (!env.NEXT_PUBLIC_SITE_URL)
+      ctx.addIssue({ code: "custom", path: ["NEXT_PUBLIC_SITE_URL"], message: "is required in production" });
+  })
+  .transform((env) => ({
+    ...env,
+    NEXT_PUBLIC_SITE_URL: env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+    NEXT_PUBLIC_DEFAULT_RESTAURANT: env.NEXT_PUBLIC_DEFAULT_RESTAURANT ?? "bella-napoli",
+  }));
 
 const databaseSchema = z.object({
   DATABASE_URL: z.string().trim().min(1, "is required"),
@@ -27,27 +53,31 @@ const databaseSchema = z.object({
   DB_POOL_MAX: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(100).default(10)),
 });
 
-const booleanFlag = (fallback: boolean) =>
-  z.preprocess(
-    (value) => (typeof value === "string" ? value.trim().toLowerCase() : value),
-    z
-      .enum(["true", "false", "1", "0"], { message: "must be true or false" })
-      .transform((value) => value === "true" || value === "1")
-      .optional()
-      .transform((value) => value ?? fallback),
-  );
+/**
+ * The storefront cache's settings never stop the app from starting: an invalid value (a typo, "5m", a number out of
+ * range) falls back to the documented default with one `[config]` warning, the same way TEMPLATE_ID does. Failing
+ * startup over a tuning knob would take the whole storefront down; silently disabling the cache would move every
+ * page view onto the database.
+ */
+const CACHE_DEFAULTS = { enabled: true, refreshIntervalMs: 300_000, startupTimeoutMs: 60_000 } as const;
 
-const storefrontCacheSchema = z.object({
-  STOREFRONT_CACHE_ENABLED: z.preprocess(emptyToUndefined, booleanFlag(true)),
-  STOREFRONT_CACHE_REFRESH_INTERVAL_MS: z.preprocess(
-    emptyToUndefined,
-    z.coerce.number().int().min(1_000).max(86_400_000).default(300_000),
-  ),
-  STOREFRONT_CACHE_STARTUP_TIMEOUT_MS: z.preprocess(
-    emptyToUndefined,
-    z.coerce.number().int().min(1_000).max(600_000).default(60_000),
-  ),
-});
+function cacheMs(name: string, raw: unknown, fallback: number, min: number, max: number): number {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return fallback;
+  const value = Number(text);
+  if (Number.isInteger(value) && value >= min && value <= max) return value;
+  logger.warn("config", `${name} must be a whole number of milliseconds from ${min} to ${max}; using ${fallback}.`);
+  return fallback;
+}
+
+function cacheFlag(name: string, raw: unknown, fallback: boolean): boolean {
+  const text = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!text) return fallback;
+  if (text === "true" || text === "1") return true;
+  if (text === "false" || text === "0") return false;
+  logger.warn("config", `${name} must be true or false; using ${fallback}.`);
+  return fallback;
+}
 
 const authSchema = z.object({
   AUTH_SECRET: z.string().min(16, "must be at least 16 characters"),
@@ -162,12 +192,13 @@ const database = lazy(() => {
 });
 
 const storefrontCache = lazy(() => {
-  const env = parse("storefront cache", storefrontCacheSchema);
+  const env = process.env;
   return {
-    enabled: env.STOREFRONT_CACHE_ENABLED,
-    refreshIntervalMs: env.STOREFRONT_CACHE_REFRESH_INTERVAL_MS,
+    enabled: cacheFlag("STOREFRONT_CACHE_ENABLED", env.STOREFRONT_CACHE_ENABLED, CACHE_DEFAULTS.enabled),
+    /** one interval for the whole snapshot: data and image URLs (logo, cover, dish and page photos) alike */
+    refreshIntervalMs: cacheMs("STOREFRONT_CACHE_REFRESH_INTERVAL_MS", env.STOREFRONT_CACHE_REFRESH_INTERVAL_MS, CACHE_DEFAULTS.refreshIntervalMs, 1_000, 86_400_000),
     /** bounds every snapshot load: startup fails on it, a scheduled refresh is abandoned on it */
-    startupTimeoutMs: env.STOREFRONT_CACHE_STARTUP_TIMEOUT_MS,
+    startupTimeoutMs: cacheMs("STOREFRONT_CACHE_STARTUP_TIMEOUT_MS", env.STOREFRONT_CACHE_STARTUP_TIMEOUT_MS, CACHE_DEFAULTS.startupTimeoutMs, 1_000, 600_000),
   };
 });
 

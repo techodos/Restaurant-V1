@@ -11,7 +11,7 @@ import { JsonLd } from "@/components/storefront/json-ld";
 import { PageHero } from "@/components/storefront/page-hero";
 
 /**
- * /r/<slug>/privacy and /r/<slug>/terms. Everything comes from the ONE restaurant the URL resolves to
+ * /privacy and /terms. Everything comes from the ONE restaurant this deployment serves
  * (requireStorefront → that restaurant's snapshot; any other slug is a 404), so a storefront only ever shows
  * its own documents. The body is the default template from shared/legal.ts, filled with this restaurant's
  * details and the features it really offers; a restaurant that publishes its own `privacy` / `terms` website
@@ -32,7 +32,7 @@ export async function legalPageMetadata(restaurantSlug: string, kind: LegalKind)
             ? `How ${restaurant.name} collects, uses and protects your personal information.`
             : `The terms for ordering from and booking with ${restaurant.name}.`,
       })),
-      alternates: { canonical: `/r/${restaurant.slug}/${kind}` },
+      alternates: { canonical: `/${kind}` },
     };
   } catch {
     return { title: PAGE_LABEL[kind] };
@@ -69,7 +69,7 @@ async function renderLegalDocument(kind: LegalKind, context: StorefrontContext, 
     primaryLocation: context.primaryLocation,
     contactEmail: context.config.contact.email,
   });
-  const base = `/r/${restaurant.slug}`;
+  const base = "/";
   const other: LegalKind = kind === "privacy" ? "terms" : "privacy";
 
   return (
@@ -77,7 +77,7 @@ async function renderLegalDocument(kind: LegalKind, context: StorefrontContext, 
       <JsonLd
         data={breadcrumbJsonLd([
           { name: restaurant.name, path: base },
-          { name: document.title, path: `${base}/${kind}` },
+          { name: document.title, path: `/${kind}` },
         ])}
       />
 
@@ -141,7 +141,7 @@ async function renderLegalDocument(kind: LegalKind, context: StorefrontContext, 
 
             <p className="mt-4 border-t border-[var(--rule)] pt-6 text-[14px] text-[var(--color-muted-ink)]">
               See also our{" "}
-              <Link href={`${base}/${other}`} className="font-medium text-[var(--color-ink)] underline underline-offset-4">
+              <Link href={`/${other}`} className="font-medium text-[var(--color-ink)] underline underline-offset-4">
                 {PAGE_LABEL[other]}
               </Link>
               .

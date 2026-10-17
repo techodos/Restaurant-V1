@@ -1,0 +1,217 @@
+import { ArrowLeft, Check } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
+import { isSupportedCountry } from "libphonenumber-js";
+import { getCustomerProfile, type CustomerProfile } from "@/server/services/customer-profile";
+import { getBranching, readTrayView, requireStorefront } from "@/web/storefront";
+import { branchesFor } from "@/shared/branching";
+import { branchClosedLabel, priceTray, serviceAvailability } from "@/server/services/cart";
+import { getCheckoutOptions } from "@/server/services/checkout";
+import { getDeliveryZones } from "@/server/services/restaurants";
+import { config } from "@/server/config";
+import { CheckoutForm } from "@/components/storefront/checkout-form";
+import { resolveMenuImage } from "@/web/media";
+import { Button } from "@/components/ui/button";
+import { instanceRestaurantSlug } from "@/web/instance";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Checkout", robots: { index: false, follow: false } };
+
+export default async function CheckoutPage() {
+  const restaurantSlug = instanceRestaurantSlug();
+
+  const context = await requireStorefront(restaurantSlug);
+
+  const { restaurant, primaryLocation, locations } = context;
+  // Guests check out directly (the OTP modal verifies their email at "Place order", no sign-in
+  // required) — `customer` is null for a guest; every prop below already has a guest fallback.
+  const customer = await getStorefrontCustomer(restaurant.id);
+
+  // The tray is the browser's cookie and is priced from the in-memory menu, zones and coupon definitions:
+  // no database. The page makes exactly one database read — the account's own profile (saved mobile,
+  // addresses, email verification) in one transaction. The order itself re-prices everything from the
+  // database when it is placed.
+  const { tray, view } = await readTrayView(context);
+  if (view.lines.length === 0) redirect(`/menu`);
+
+  // Multi-branch ordering: checkout continues the branch chosen on the menu. Without a branch that can
+  // serve this order there is nothing to check out yet — the menu's bar says what is missing.
+  const branching = await getBranching(context);
+  const branch = branching ? (branchesFor(branching, tray.orderType).find((option) => option.id === tray.locationId) ?? null) : null;
+  if (branching && !branch) redirect(`/menu`);
+
+  // Single-branch mode (flag off): `readTray` already pinned the tray to the primary branch, so its zones,
+  // hours and menu availability decide this order and the form offers no branch choice.
+  const formLocations = branching ? locations : primaryLocation ? [primaryLocation] : [];
+  // the kitchen that will cook it (the cart's branch, else the primary one): the same one createOrder checks
+  const orderLocation = locations.find((location) => location.id === tray.locationId) ?? primaryLocation;
+  const availability = serviceAvailability(restaurant, orderLocation, tray.orderType);
+  // closed by its hours: the form still shows, with Place order disabled and saying so (not a blocking page)
+  const closedLabel = branchClosedLabel(restaurant, orderLocation, locations.filter((location) => location.isActive).length > 1);
+  const zones =
+    tray.orderType === "delivery"
+      ? await getDeliveryZones(restaurant.id, { locationId: tray.locationId ?? undefined, activeOnly: true })
+      : [];
+  // the same profile the header drawer shows: account email, saved mobile, saved addresses (and the
+  // identity a customer-restricted coupon is checked against). A guest has no account row to read —
+  // `getCustomerProfile` requires a session — so it gets the empty shape; the form asks for everything.
+  const profile: CustomerProfile = customer
+    ? await getCustomerProfile(restaurant, await getVisitorContext(restaurant.id))
+    : { fullName: "", email: null, phone: null, gender: null, dateOfBirth: null, authProvider: "password", emailVerified: false, addresses: [] };
+  const { orderTypes: orderTypeOptions, paymentMethods } = getCheckoutOptions(restaurant, tray.orderType);
+  // Tax can vary by payment method (card vs. cash on delivery) — price with whichever method the form
+  // will default to (its own default picks the same first available method) so the first paint already
+  // shows the right rate; switching methods on the page re-prices via `repriceCheckoutAction`.
+  const pricingResult = await priceTray(restaurant, tray, view, {
+    zones,
+    customer: { email: profile.email, phone: profile.phone },
+    paymentMethod: paymentMethods[0] ?? null,
+  });
+  const emailVerified = profile.emailVerified;
+  const couponCode = pricingResult.coupon?.code ?? null;
+
+  if (!pricingResult.pricing || pricingResult.blockers.length > 0 || (!availability.acceptsOrders && !closedLabel)) {
+    // no delivery zone at all for this branch is a real "no", not a missing choice: say what to do instead
+    const noDeliveryZones = tray.orderType === "delivery" && zones.length === 0 && restaurant.settings.delivery.enabled;
+    const reason = noDeliveryZones
+      ? `${orderLocation?.name ?? restaurant.name} isn't delivering online right now. Switch your order to pickup in the cart to continue.`
+      : (pricingResult.blockers[0] ?? availability.message);
+    return (
+      <div>
+      <div className="container-page py-16">
+        <div className="mx-auto max-w-lg text-center">
+          <p className="eyebrow mb-4 justify-center">Checkout</p>
+          <h1 className="display-2">We cannot take this order yet</h1>
+          <p className="mt-3 text-[var(--color-muted-ink)]">{reason}</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button asChild>
+              <Link href={`/cart`}>Back to cart</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/menu`}>Edit items</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+      </div>
+    );
+  }
+
+  const pricing = pricingResult.pricing;
+
+  const steps = [
+    { label: "Cart", state: "done" },
+    { label: "Checkout", state: "current" },
+    { label: "Tracking", state: "upcoming" },
+  ] as const;
+
+  return (
+    <div>
+    <div className="container-page page-y">
+      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-6 border-b border-[var(--rule)] pb-6 md:pb-8">
+        <div>
+          <Link
+            href={`/cart`}
+            className="group mb-5 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-brand)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--color-brand)]"
+          >
+            <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+            Back to cart
+          </Link>
+          <h1 className="display-2 font-normal">
+            Checkout
+          </h1>
+          <p className="mt-3 text-[15px] text-[var(--color-muted-ink)]">Complete your order and enjoy a delightful meal!</p>
+        </div>
+        <ol aria-label="Order progress" className="flex items-center gap-2.5 text-[13px] font-medium">
+          {steps.map((step, index) => (
+            <li key={step.label} className="flex items-center gap-2.5" aria-current={step.state === "current" ? "step" : undefined}>
+              {index > 0 ? (
+                <span aria-hidden className={`h-px w-6 sm:w-10 ${step.state === "upcoming" ? "bg-[var(--rule-strong)]" : "bg-[var(--color-brand-accent)]"}`} />
+              ) : null}
+              <span
+                aria-hidden
+                className={
+                  step.state === "done"
+                    ? "grid size-6 place-items-center rounded-full bg-[var(--color-brand-accent)] text-[var(--color-brand-accent-foreground)]"
+                    : step.state === "current"
+                      ? "grid size-6 place-items-center rounded-full bg-[var(--color-brand)] text-[11px] text-[var(--color-brand-foreground)] tabular"
+                      : "grid size-6 place-items-center rounded-full border border-[var(--rule-strong)] text-[11px] text-[var(--color-muted-ink)] tabular"
+                }
+              >
+                {step.state === "done" ? <Check className="size-3.5" strokeWidth={2.5} /> : index + 1}
+              </span>
+              <span className={step.state === "current" ? "text-[var(--color-ink)]" : "text-[var(--color-muted-ink)]"}>
+                {step.label}
+                {step.state === "done" ? <span className="sr-only"> (completed)</span> : null}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </header>
+
+      {pricingResult.couponNotice ? (
+        <p role="status" className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--brand-tint)] p-3.5 text-sm text-[var(--color-ink)]">
+          {pricingResult.couponNotice}
+        </p>
+      ) : null}
+
+      <div className="mt-8 md:mt-10">
+        <CheckoutForm
+          restaurantSlug={restaurant.slug}
+          closedLabel={closedLabel}
+          orderType={tray.orderType}
+          orderTypeOptions={orderTypeOptions}
+          items={view.lines.map((line) => ({
+            name: line.name,
+            imageUrl: resolveMenuImage(line.imageUrl, null),
+            quantity: line.line.quantity,
+            variantName: line.variantName,
+            addonNames: line.addons.map((addon) => addon.name),
+            lineTotal: line.lineTotal,
+          }))}
+          pricing={{
+            subtotal: pricing.subtotal,
+            discount: pricing.discount,
+            deliveryFee: pricing.deliveryFee,
+            serviceFee: pricing.serviceFee,
+            tax: pricing.tax,
+            taxLabel: pricing.taxLabel,
+            taxIncluded: pricing.taxIncluded,
+            taxRate: pricing.taxRate,
+            total: pricing.total,
+          }}
+          couponCode={couponCode}
+          zones={zones.map((zone) => ({
+            id: zone.id,
+            name: zone.name,
+            deliveryFee: zone.deliveryFee,
+            minOrderAmount: zone.minOrderAmount,
+          }))}
+          paymentMethods={paymentMethods}
+          currencySymbol={restaurant.currencySymbol}
+          locale={restaurant.locale}
+          isSignedIn={Boolean(customer)}
+          emailVerified={emailVerified}
+          customerDefaults={
+            customer
+              ? { fullName: customer.name, phone: "", email: "" }
+              : null
+          }
+          defaultCity={primaryLocation?.city ?? ""}
+          accountEmail={profile.email}
+          savedPhone={profile.phone}
+          savedAddresses={profile.addresses}
+          phoneCountry={isSupportedCountry(restaurant.country) ? restaurant.country : "PK"}
+          locations={formLocations}
+          initialLocationId={tray.locationId}
+          branch={branch ? { name: branch.name, menuHref: `/menu`, destination: branching?.destination ?? null } : null}
+          googleMapsApiKey={config.maps?.apiKey ?? null}
+        />
+      </div>
+    </div>
+    </div>
+  );
+}

@@ -23,7 +23,8 @@ import {
 import type { RequestContext } from "@/server/context";
 import { config } from "@/server/config";
 import { reissueCustomerSession } from "@/server/services/customer-auth";
-import { adminPath, adminSlugFromPath } from "@/shared/utils";
+import { adminPath, isAdminPath } from "@/shared/utils";
+import { assertInstanceRestaurant, instanceRestaurantSlug } from "./instance";
 import { PATHNAME_HEADER } from "@/middleware";
 import { entitlementForPermission, isEntitled } from "@/shared/feature-access";
 import { getAdminRestaurantContext } from "@/server/services/restaurants";
@@ -70,18 +71,21 @@ export const isServerActionRequest = cache(async (): Promise<boolean> => {
 });
 
 /**
- * The restaurant whose admin this request is for, from the path the middleware stamps on every /r/* request
- * (a Server Action POSTs to the page it was called from). Without it a slug-less check fell back to the
- * member's HOME restaurant, so a super admin working in restaurant B's admin wrote into restaurant A. It only
- * narrows which membership is checked (authenticateStaff still requires one there), so it can never widen access.
+ * The restaurant whose admin this request is for: on /admin (a Server Action POSTs to the page it was called
+ * from; the middleware stamps the path) that is this deployment's restaurant. Without it a slug-less check fell
+ * back to the member's HOME restaurant, so a super admin whose home is another restaurant would have written
+ * there. It only narrows which membership is checked (authenticateStaff still requires one), so it can never
+ * widen access.
  */
 async function adminSlugFromRequest(): Promise<string | undefined> {
-  return adminSlugFromPath((await headers()).get(PATHNAME_HEADER)) ?? undefined;
+  return isAdminPath((await headers()).get(PATHNAME_HEADER)) ? instanceRestaurantSlug() : undefined;
 }
 
 export const getCurrentStaff = cache(async (slug?: string): Promise<StaffActor | null> => {
   const session = await getStaffSession();
   if (!session) return null;
+  // an explicit slug comes from a page or a Server Action's arguments (the browser): only this deployment's restaurant
+  if (slug !== undefined && slug !== instanceRestaurantSlug()) return null;
   const restaurantSlug = slug ?? (await adminSlugFromRequest());
   // page views and GET routes: cached membership (≤30 s); writes: always the database
   return authenticateStaff(session, restaurantSlug, { fresh: await isServerActionRequest() });
@@ -114,7 +118,7 @@ export async function requireSuperAdmin(): Promise<StaffActor> {
 /** Pages: anyone else goes to the default restaurant's admin sign-in (super admins sign in there, like everyone). */
 export async function requireSuperAdminPage(): Promise<StaffActor> {
   const actor = await getSuperAdmin();
-  if (!actor) redirect(adminPath(config.app.defaultRestaurantSlug, "/login"));
+  if (!actor) redirect(adminPath("/login"));
   return actor;
 }
 
@@ -147,7 +151,7 @@ export async function requireRestaurantWidePermission(permission: Permission, re
 }
 
 /**
- * Page guard for /r/<slug>/admin pages (not actions or route handlers, which keep their FORBIDDEN error):
+ * Page guard for /admin pages (not actions or route handlers, which keep their FORBIDDEN error):
  * a member who opens a screen their role or branch does not allow (a typed URL, an old bookmark) is sent
  * to the dashboard with a "no access" notice. Rendering the error boundary instead showed "Something went
  * wrong", since production builds hide server error messages. The page never renders either way.
@@ -162,7 +166,7 @@ export async function requireAdminPage(
     actor.permissions.includes(permission) &&
     (!options.restaurantWide || actor.member.locationId === null) &&
     (await isEntitledFor(actor, permission));
-  if (!allowed) redirect(`${adminPath(restaurantSlug)}?denied=1`);
+  if (!allowed) redirect(`${adminPath()}?denied=1`);
   return actor;
 }
 
@@ -173,14 +177,14 @@ export async function callerIdentifier(): Promise<string> {
 }
 
 /**
- * Admin guard for /r/<slug>/admin: the session must belong to a member of THAT restaurant, otherwise the
+ * Admin guard for /admin: the session must belong to a member of THAT restaurant, otherwise the
  * visitor is sent to that restaurant's own admin login (never another tenant's).
  */
 export async function requireStaffForAdmin(restaurantSlug: string): Promise<StaffActor> {
   try {
     return await requireStaff(restaurantSlug);
   } catch (error) {
-    if (error instanceof AppError && error.code === "UNAUTHORIZED") redirect(adminPath(restaurantSlug, "/login"));
+    if (error instanceof AppError && error.code === "UNAUTHORIZED") redirect(adminPath("/login"));
     throw error;
   }
 }
@@ -192,12 +196,11 @@ export async function signInStaffSession(
   restaurantSlug: string,
   identifier = "unknown",
 ): Promise<StaffActor> {
-  const { token, maxAge, member, restaurant } = await signInStaff(email, password, restaurantSlug, identifier);
+  const { token, maxAge, member, restaurant } = await signInStaff(email, password, assertInstanceRestaurant(restaurantSlug), identifier);
   const store = await cookies();
-  // Scoped to /r/<slug>/admin: each restaurant's admin keeps its own session (signing in to one never
-  // replaces another's), and the cookie never travels with storefront requests.
+  // Scoped to /admin: the cookie never travels with storefront requests.
   if (member.role === "super_admin") store.set(SUPER_ADMIN_COOKIE, token, await cookieOptions(maxAge));
-  else store.set(STAFF_COOKIE, token, { ...(await cookieOptions(maxAge)), path: adminPath(restaurant.slug) });
+  else store.set(STAFF_COOKIE, token, { ...(await cookieOptions(maxAge)), path: adminPath() });
   return {
     // signInStaff already rejects a member with no linked login.
     userId: member.userId as string,
@@ -214,9 +217,9 @@ export async function signInStaffSession(
 /** Ends one restaurant's admin session. Server Actions/Route Handlers only. */
 export async function signOutStaffSession(restaurantSlug: string): Promise<void> {
   const store = await cookies();
-  store.delete({ name: STAFF_COOKIE, path: adminPath(restaurantSlug) });
+  store.delete({ name: STAFF_COOKIE, path: adminPath() });
   store.delete({ name: SUPER_ADMIN_COOKIE, path: "/" });
-  // the pre-/r/<slug>/admin cookie, if this browser still has one
+  // the pre-2026-09-27 "/" staff cookie, if this browser still has one
   store.delete({ name: LEGACY_STAFF_COOKIE, path: "/" });
 }
 

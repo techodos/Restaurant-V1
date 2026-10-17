@@ -14,8 +14,8 @@ import { FieldError, Input, Label, Select } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
-import { setDestinationAction } from "@/app/r/[restaurantSlug]/(site)/menu/actions";
-import { getProfileAction } from "@/app/r/[restaurantSlug]/(site)/account/actions";
+import { setDestinationAction } from "@/app/(site)/menu/actions";
+import { getProfileAction } from "@/app/(site)/account/actions";
 import { useLocalCart } from "./local-cart";
 
 /**
