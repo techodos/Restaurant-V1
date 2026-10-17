@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { adminPath } from "@/shared/utils";
 import { Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { listReviewsForAdmin } from "@/server/services/reviews";
 import { REVIEW_STATUS_LABELS, type ReviewStatus } from "@/shared/contract/enums";
 import { getAdminRestaurant } from "@/web/admin";
@@ -13,6 +15,7 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { AdminCardListSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
 import { StatusPill, badgeTone } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
@@ -48,7 +51,6 @@ export default async function AdminReviewsPage({ searchParams }: ReviewsPageProp
   const pageNum = Number.parseInt(page ?? "1", 10) || 1;
 
   const { locationId } = await getAdminBranchScope(restaurantSlug);
-  const result = await listReviewsForAdmin(restaurant.id, { status: activeStatus, locationId, page: pageNum, pageSize: 20 }, ctx);
 
   const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
@@ -59,6 +61,43 @@ export default async function AdminReviewsPage({ searchParams }: ReviewsPageProp
 
   return (
     <div className="space-y-6">
+      {/* keyed on the filter/page/branch so a filter change always suspends and shows the skeleton again */}
+      <Suspense key={`${activeStatus}:${pageNum}:${locationId ?? "all"}`} fallback={<ReviewsResultsSkeleton />}>
+        <ReviewsResults
+          restaurant={restaurant}
+          ctx={ctx}
+          activeStatus={activeStatus}
+          pageNum={pageNum}
+          locationId={locationId}
+          canManage={canManage}
+          linkFor={linkFor}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ReviewsResults({
+  restaurant,
+  ctx,
+  activeStatus,
+  pageNum,
+  locationId,
+  canManage,
+  linkFor,
+}: {
+  restaurant: Awaited<ReturnType<typeof getAdminRestaurant>>;
+  ctx: { restaurantId: string; userId: string; actor: string };
+  activeStatus: "pending" | "approved" | "rejected" | "all";
+  pageNum: number;
+  locationId: string | null;
+  canManage: boolean;
+  linkFor: (params: { status?: string; page?: number }) => string;
+}) {
+  const result = await listReviewsForAdmin(restaurant.id, { status: activeStatus, locationId, page: pageNum, pageSize: 20 }, ctx);
+
+  return (
+    <>
       <AdminPageHeader title="Reviews" description={`${result.total} total`} />
 
       <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
@@ -112,6 +151,18 @@ export default async function AdminReviewsPage({ searchParams }: ReviewsPageProp
       )}
 
       <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
+    </>
+  );
+}
+
+function ReviewsResultsSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading reviews">
+      <AdminPageHeader title="Reviews" description={<Skeleton className="h-4 w-16" />} />
+      <div className="mt-6 space-y-6">
+        <AdminTabsSkeleton count={4} />
+        <AdminCardListSkeleton count={4} />
+      </div>
     </div>
   );
 }

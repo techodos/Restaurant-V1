@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Armchair, CalendarCheck, Users } from "lucide-react";
 import { formatDateKey } from "@/shared/hours";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { listReservationsForStaff } from "@/server/services/reservations";
 import { RESERVATION_STATUS_LABELS, type ReservationStatus } from "@/shared/contract/enums";
 import { requireAdminPage } from "@/web/session";
@@ -11,6 +13,7 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
 import { StatusPill, reservationStatusTone } from "@/components/admin/admin-ui";
 import { adminPath, cn } from "@/shared/utils";
 import { instanceRestaurantSlug } from "@/web/instance";
@@ -45,19 +48,54 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
   // the branch comes from the header's selector (owner/admin) or the member's own branch — never the URL
   const { locationId } = await getAdminBranchScope(restaurantSlug);
 
-  // the staff check already tied this session to this slug's restaurant (actor.restaurantId)
-  const result = await listReservationsForStaff(
-    actor.restaurantId,
-    { status: activeStatus, locationId: locationId ?? undefined, page: pageNum, pageSize: 20 },
-    ctx,
-  );
-
   const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
     if (params.page && params.page > 1) search.set("page", String(params.page));
     return `${adminPath()}/reservations?${search.toString()}`;
   };
+
+  return (
+    <div className="space-y-5">
+      {/* keyed on the filter/page/branch so a filter change always suspends and shows the skeleton again */}
+      <Suspense key={`${activeStatus}:${pageNum}:${locationId ?? "all"}`} fallback={<ReservationsResultsSkeleton />}>
+        <ReservationsResults
+          ctx={ctx}
+          actorRestaurantId={actor.restaurantId}
+          activeStatus={activeStatus}
+          pageNum={pageNum}
+          locationId={locationId}
+          canManage={canManage}
+          linkFor={linkFor}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ReservationsResults({
+  ctx,
+  actorRestaurantId,
+  activeStatus,
+  pageNum,
+  locationId,
+  canManage,
+  linkFor,
+}: {
+  ctx: { restaurantId: string; userId: string; actor: string };
+  actorRestaurantId: string;
+  activeStatus: "upcoming" | "all" | ReservationStatus;
+  pageNum: number;
+  locationId: string | null;
+  canManage: boolean;
+  linkFor: (params: { status?: string; page?: number }) => string;
+}) {
+  // the staff check already tied this session to this slug's restaurant (actorRestaurantId)
+  const result = await listReservationsForStaff(
+    actorRestaurantId,
+    { status: activeStatus, locationId: locationId ?? undefined, page: pageNum, pageSize: 20 },
+    ctx,
+  );
 
   // one section per day, in the order the list comes in (upcoming: soonest first; history: newest first)
   const days: { date: string; rows: typeof result.rows }[] = [];
@@ -68,7 +106,7 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
   }
 
   return (
-    <div className="space-y-5">
+    <>
       <AdminPageHeader title="Reservations" description={`${result.total} ${result.total === 1 ? "booking" : "bookings"}, grouped by day`} />
 
       <AdminStatusTabs label="Reservation status" options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
@@ -131,6 +169,16 @@ export default async function AdminReservationsPage({ searchParams }: Reservatio
       )}
 
       <AdminPagination page={pageNum} totalPages={result.totalPages} total={result.total} pageSize={20} linkFor={(page) => linkFor({ page })} />
+    </>
+  );
+}
+
+function ReservationsResultsSkeleton() {
+  return (
+    <div className="space-y-5" aria-busy="true" aria-label="Loading reservations">
+      <AdminPageHeader title="Reservations" description={<Skeleton className="h-4 w-32" />} />
+      <AdminTabsSkeleton count={8} />
+      <AdminTableSkeleton rows={8} cols={5} />
     </div>
   );
 }
