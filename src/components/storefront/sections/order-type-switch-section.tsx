@@ -124,7 +124,7 @@ export function OrderTypeSwitchSection({
                     </span>
                     <span className="display-3 block [grid-area:label] md:display-2 md:mt-7">{door.label}</span>
                     <EtaTag minutes={door.eta} className="[grid-area:eta] justify-self-end" />
-                    <span className="mt-2.5 block max-w-[34ch] text-pretty text-[13.5px] leading-relaxed text-[var(--color-muted-ink)] [grid-area:text] md:mt-2 md:text-[14px]">
+                    <span className="mt-1.5 block max-w-[34ch] text-pretty text-[13.5px] leading-relaxed text-[var(--color-muted-ink)] [grid-area:text] md:mt-2 md:text-[14px]">
                       {door.text}
                     </span>
                   </span>
@@ -132,7 +132,7 @@ export function OrderTypeSwitchSection({
                     <span className="absolute -left-[1.625rem] -top-2.5 size-5 rounded-full bg-[var(--color-canvas)] sm:-left-[1.875rem]" />
                     <span className="absolute -right-[1.625rem] -top-2.5 size-5 rounded-full bg-[var(--color-canvas)] sm:-right-[1.875rem]" />
                   </span>
-                  <span className="flex items-center justify-between gap-3 px-4 py-3 text-[13.5px] font-semibold sm:px-6 sm:py-4 md:px-7">
+                  <span className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13.5px] font-semibold sm:px-6 sm:py-4 md:px-7">
                     {ACTIONS[door.type]}
                     <span className="grid size-8 place-items-center rounded-full bg-[var(--color-ink)] text-[var(--color-canvas)] transition-[transform,background-color] duration-500 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:bg-[var(--color-brand-accent)] group-data-[selected]:bg-[var(--color-brand-accent)]">
                       <DoorMark className="size-3.5" />
@@ -236,7 +236,7 @@ export function OrderTypeSwitchSection({
                     PRESS,
                   )}
                 >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-[var(--color-canvas)] transition-colors duration-300 group-hover:bg-[var(--color-brand-accent)] group-data-[selected]:bg-[var(--color-brand-accent)] sm:size-11">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-ink)_7%,transparent)] text-[var(--color-ink)] transition-colors duration-300 group-hover:bg-[var(--color-brand-accent)] group-hover:text-[var(--color-canvas)] group-data-[selected]:bg-[var(--color-brand-accent)] group-data-[selected]:text-[var(--color-canvas)] sm:size-11">
                     <door.Icon className="size-[18px]" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">

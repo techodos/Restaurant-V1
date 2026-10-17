@@ -42,7 +42,7 @@ export default async function AdminSettingsPage() {
     <div className="space-y-5">
       <AdminPageHeader title="Settings" description={`How ${restaurant.name} takes orders, charges and books tables. Each section saves on its own.`} />
 
-      <div className="grid items-start gap-6 lg:grid-cols-[12.5rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[12.5rem_minmax(0,1fr)]">
         {/* jump links to each section's anchor (SectionForm renders id="settings-<section>") */}
         <nav aria-label="Settings sections" className="scrollbar-none -mx-4 overflow-x-auto px-4 lg:sticky lg:top-24 lg:mx-0 lg:overflow-visible lg:px-0">
           <ul className="flex gap-1 lg:surface-card lg:flex-col lg:p-1.5">

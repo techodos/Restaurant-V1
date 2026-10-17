@@ -1,0 +1,594 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: responsive.spec.ts >> layout /
+- Location: e2e\responsive.spec.ts:45:3
+
+# Error details
+
+```
+Test timeout of 270000ms exceeded.
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#main"
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - text: Free delivery on orders over Rs 2,500 in F-6, F-7 and F-8 — use code FREESHIP
+          - link "Order now" [ref=e8] [cursor=pointer]:
+            - /url: /menu
+        - generic [ref=e11]:
+          - link "Zaytoun home" [ref=e13] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e14]: Zaytoun
+          - generic [ref=e15]:
+            - link "My Cart, 0 items" [ref=e16] [cursor=pointer]:
+              - /url: /cart
+              - generic [ref=e17]: "0"
+            - link "Sign In / Sign Up" [ref=e23] [cursor=pointer]:
+              - /url: /account/sign-in?returnTo=%2F
+            - button "Open menu" [ref=e29]
+    - main [ref=e33]:
+      - generic [ref=e35]:
+        - img "Charcoal-grilled skewers and vegetables at Zaytoun" [ref=e36]
+        - generic [ref=e39]:
+          - paragraph [ref=e40]: Levantine kitchen · Islamabad
+          - heading "Charcoal, olive oil and a table full of plates" [level=1] [ref=e41]
+          - paragraph [ref=e42]: Lamb marinated overnight, bread from the taboon and mezze made by hand every morning. Dine in, take away or have it delivered hot.
+          - generic [ref=e43]:
+            - link "Order online" [ref=e44] [cursor=pointer]:
+              - /url: /menu
+            - link "Book a table" [ref=e47] [cursor=pointer]:
+              - /url: /reservation
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]: Scroll to explore
+            - generic [ref=e56]:
+              - generic [ref=e57]: Closed
+              - generic [ref=e59]: opens 12pm
+              - generic [ref=e60]: F-7 Markaz, Islamabad
+          - list [ref=e64]:
+            - listitem [ref=e65]: Overnight-marinated meats
+            - listitem [ref=e67]: Lump charcoal grill
+            - listitem [ref=e69]: Delivery in about 40 minutes
+      - region "How would you like your order?" [ref=e72]:
+        - generic [ref=e73]:
+          - heading "How would you like your order?" [level=2] [ref=e74]
+          - list [ref=e75]:
+            - listitem [ref=e76]:
+              - link "Delivery 45 min Hot to your door, tracked from the kitchen." [ref=e77] [cursor=pointer]:
+                - /url: /menu?orderType=delivery
+                - generic [ref=e82]:
+                  - generic [ref=e83]:
+                    - generic [ref=e84]: Delivery
+                    - generic [ref=e85]: 45 min
+                  - generic [ref=e86]: Hot to your door, tracked from the kitchen.
+            - listitem [ref=e89]:
+              - link "Pickup Skip the queue. Ready when you arrive." [ref=e90] [cursor=pointer]:
+                - /url: /menu?orderType=pickup
+                - generic [ref=e97]:
+                  - generic [ref=e98]: Pickup
+                  - generic [ref=e100]: Skip the queue. Ready when you arrive.
+            - listitem [ref=e103]:
+              - link "Dine-in Order at the table or ahead of your visit." [ref=e104] [cursor=pointer]:
+                - /url: /menu?orderType=dine_in
+                - generic [ref=e111]:
+                  - generic [ref=e112]: Dine-in
+                  - generic [ref=e114]: Order at the table or ahead of your visit.
+      - generic [ref=e119]:
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - paragraph [ref=e122]: Signature dishes
+            - heading "House favourites" [level=2] [ref=e123]
+            - paragraph [ref=e124]: The plates our regulars order every week.
+          - link "See the full menu" [ref=e126] [cursor=pointer]:
+            - /url: /menu
+        - generic [ref=e129]:
+          - list "featured dishes" [ref=e130]:
+            - listitem [ref=e131]:
+              - article [ref=e132]:
+                - generic [ref=e133]:
+                  - link [aria-hidden] [ref=e134] [cursor=pointer]:
+                    - /url: /menu/zaytoun-mixed-grill
+                  - button "Add Zaytoun Mixed Grill to your order" [ref=e136]
+                - generic [ref=e138]:
+                  - heading [level=3] [ref=e139]:
+                    - link "Zaytoun Mixed Grill" [ref=e140] [cursor=pointer]:
+                      - /url: /menu/zaytoun-mixed-grill
+                  - paragraph [ref=e141]: Lamb kofta, shish taouk, marinated lamb cubes and wings with grilled tomato and pepper, saffron rice, toum and hot flatbread.
+                  - paragraph [ref=e142]:
+                    - generic [ref=e143]: halal
+                    - generic [ref=e144]: gluten-free
+                  - paragraph [ref=e145]: RS 3,950.00
+            - listitem [ref=e146]:
+              - article [ref=e147]:
+                - generic [ref=e148]:
+                  - link [aria-hidden] [ref=e149] [cursor=pointer]:
+                    - /url: /menu/lamb-shank-mansaf
+                  - button "Add Lamb Shank Mansaf to your order" [ref=e151]
+                - generic [ref=e153]:
+                  - heading [level=3] [ref=e154]:
+                    - link "Lamb Shank Mansaf" [ref=e155] [cursor=pointer]:
+                      - /url: /menu/lamb-shank-mansaf
+                  - paragraph [ref=e156]: A lamb shank braised for five hours, laid over saffron-spiced rice with toasted almonds and jameed sauce on the side.
+                  - paragraph [ref=e157]:
+                    - generic [ref=e158]: halal
+                  - paragraph [ref=e159]: RS 2,690.00
+            - listitem [ref=e160]:
+              - article [ref=e161]:
+                - generic [ref=e162]:
+                  - link [aria-hidden] [ref=e163] [cursor=pointer]:
+                    - /url: /menu/chicken-shawarma-wrap
+                  - button "Add Chicken Shawarma Wrap to your order" [ref=e165]
+                - generic [ref=e167]:
+                  - heading [level=3] [ref=e168]:
+                    - link "Chicken Shawarma Wrap" [ref=e169] [cursor=pointer]:
+                      - /url: /menu/chicken-shawarma-wrap
+                  - paragraph [ref=e170]: Thinly sliced spit-roasted chicken, pickles, cabbage and toum in a toasted saj wrap.
+                  - paragraph [ref=e171]:
+                    - generic [ref=e172]: halal
+                  - paragraph [ref=e173]: RS 990.00
+            - listitem [ref=e174]:
+              - article [ref=e175]:
+                - generic [ref=e176]:
+                  - link [aria-hidden] [ref=e177] [cursor=pointer]:
+                    - /url: /menu/mezze-sharing-platter
+                  - button "Add Mezze Sharing Platter to your order" [ref=e179]
+                - generic [ref=e181]:
+                  - heading [level=3] [ref=e182]:
+                    - link "Mezze Sharing Platter" [ref=e183] [cursor=pointer]:
+                      - /url: /menu/mezze-sharing-platter
+                  - paragraph [ref=e184]: "Our best-seller: crisp herb falafel, charcoal chicken, tabbouleh, pickled turnip and warm flatbread with house dips — built for the middle of the table."
+                  - paragraph [ref=e185]:
+                    - generic [ref=e186]: halal
+                  - paragraph [ref=e187]: RS 2,450.00
+            - listitem [ref=e188]:
+              - article [ref=e189]:
+                - generic [ref=e190]:
+                  - link [aria-hidden] [ref=e191] [cursor=pointer]:
+                    - /url: /menu/assorted-baklava
+                  - button "Add Assorted Baklava to your order" [ref=e193]
+                - generic [ref=e195]:
+                  - heading [level=3] [ref=e196]:
+                    - link "Assorted Baklava" [ref=e197] [cursor=pointer]:
+                      - /url: /menu/assorted-baklava
+                  - paragraph [ref=e198]: Pistachio, walnut and cashew baklava, baked each morning with orange-blossom syrup.
+                  - paragraph [ref=e199]:
+                    - generic [ref=e200]: vegetarian
+                    - generic [ref=e201]: halal
+                  - paragraph [ref=e202]: RS 990.00
+            - listitem [ref=e203]:
+              - article [ref=e204]:
+                - generic [ref=e205]:
+                  - link [aria-hidden] [ref=e206] [cursor=pointer]:
+                    - /url: /menu/limonana
+                  - button "Add Limonana to your order" [ref=e208]
+                - generic [ref=e210]:
+                  - heading [level=3] [ref=e211]:
+                    - link "Limonana" [ref=e212] [cursor=pointer]:
+                      - /url: /menu/limonana
+                  - paragraph [ref=e213]: Fresh-pressed lemon blended with mint over crushed ice. The house drink.
+                  - paragraph [ref=e214]:
+                    - generic [ref=e215]: vegan
+                    - generic [ref=e216]: halal
+                  - paragraph [ref=e217]: RS 550.00
+          - generic [ref=e218]:
+            - button "Previous featured dishes" [disabled]
+            - button "Next featured dishes" [ref=e219]
+      - generic [ref=e224]:
+        - generic [ref=e225]:
+          - generic [ref=e226]:
+            - paragraph [ref=e227]: The menu
+            - heading "Explore the menu" [level=2] [ref=e228]
+            - paragraph [ref=e229]: Seven sections, one very busy grill.
+          - link "View all categories" [ref=e231] [cursor=pointer]:
+            - /url: /menu
+        - list [ref=e234]:
+          - listitem [ref=e235]:
+            - link "Mezze & Small Plates 5 dishes" [ref=e236] [cursor=pointer]:
+              - /url: /menu#mezze
+              - generic [ref=e238]: Mezze & Small Plates
+              - generic [ref=e239]: 5 dishes
+          - listitem [ref=e243]:
+            - link "Soups & Salads 5 dishes" [ref=e244] [cursor=pointer]:
+              - /url: /menu#soups-salads
+              - generic [ref=e246]: Soups & Salads
+              - generic [ref=e247]: 5 dishes
+          - listitem [ref=e251]:
+            - link "Charcoal Grill 7 dishes" [ref=e252] [cursor=pointer]:
+              - /url: /menu#grill
+              - generic [ref=e254]: Charcoal Grill
+              - generic [ref=e255]: 7 dishes
+          - listitem [ref=e259]:
+            - link "Shawarma & Wraps 2 dishes" [ref=e260] [cursor=pointer]:
+              - /url: /menu#wraps
+              - generic [ref=e262]: Shawarma & Wraps
+              - generic [ref=e263]: 2 dishes
+          - listitem [ref=e267]:
+            - link "Signature Plates 5 dishes" [ref=e268] [cursor=pointer]:
+              - /url: /menu#plates
+              - generic [ref=e270]: Signature Plates
+              - generic [ref=e271]: 5 dishes
+          - listitem [ref=e275]:
+            - link "Sweets 5 dishes" [ref=e276] [cursor=pointer]:
+              - /url: /menu#desserts
+              - generic [ref=e278]: Sweets
+              - generic [ref=e279]: 5 dishes
+          - listitem [ref=e283]:
+            - link "Drinks & Coolers 6 dishes" [ref=e284] [cursor=pointer]:
+              - /url: /menu#drinks
+              - generic [ref=e286]: Drinks & Coolers
+              - generic [ref=e287]: 6 dishes
+      - generic [ref=e292]:
+        - img "Chef plating at Zaytoun" [ref=e294]
+        - generic [ref=e296]:
+          - generic [ref=e297]:
+            - paragraph [ref=e298]: Our story
+            - heading "A family table that never learned to cut corners" [level=2] [ref=e299]
+            - paragraph [ref=e301]: Zaytoun began in 2016 with a single charcoal grill, ten tables and our grandmother's recipes. Nine years later the lamb is still marinated overnight, the bread still comes off the taboon minutes before it reaches the table, and the mezze are still made by hand each morning. Generous portions, warm service and no shortcuts.
+            - link "Reserve a table" [ref=e303] [cursor=pointer]:
+              - /url: /reservation
+          - generic [ref=e306]:
+            - generic [ref=e307]:
+              - term [ref=e308]: Opened in F-7
+              - definition [ref=e309]: "2016"
+            - generic [ref=e310]:
+              - term [ref=e311]: Overnight marinade
+              - definition [ref=e312]: 12h
+            - generic [ref=e313]:
+              - term [ref=e314]: Islamabad kitchens
+              - definition [ref=e315]: "2"
+            - generic [ref=e316]:
+              - term [ref=e317]: Average rating
+              - definition [ref=e318]: "4.8"
+      - generic [ref=e321]:
+        - generic [ref=e323]:
+          - paragraph [ref=e324]: Gallery
+          - heading "Inside Zaytoun" [level=2] [ref=e325]
+          - paragraph [ref=e326]: Warm light, long tables and a lot of food.
+        - generic [ref=e327]:
+          - generic [ref=e328]:
+            - figure "The main dining room at Zaytoun F-7" [ref=e329]:
+              - img "The main dining room at Zaytoun F-7" [ref=e330]
+            - figure "The courtyard terrace at golden hour" [ref=e332]:
+              - img "The courtyard terrace at golden hour" [ref=e333]
+            - figure "Plates of grilled meat and fresh salads" [ref=e335]:
+              - img "Plates of grilled meat and fresh salads" [ref=e336]
+          - generic [ref=e338]:
+            - figure "The open kitchen during service" [ref=e339]:
+              - img "The open kitchen during service" [ref=e340]
+            - figure "The lounge and majlis seating" [ref=e342]:
+              - img "The lounge and majlis seating" [ref=e343]
+            - figure "Our cooks preparing mezze" [ref=e345]:
+              - img "Our cooks preparing mezze" [ref=e346]
+      - generic [ref=e351]:
+        - generic [ref=e352]:
+          - paragraph [ref=e353]: Our promise
+          - heading "Why guests choose us" [level=2] [ref=e354]
+        - list [ref=e355]:
+          - listitem [ref=e356]:
+            - generic [ref=e357]: "01"
+            - generic [ref=e358]:
+              - heading "Real charcoal" [level=3] [ref=e359]
+              - paragraph [ref=e362]: Every skewer is cooked over lump charcoal — never gas, never a shortcut.
+          - listitem [ref=e363]:
+            - generic [ref=e364]: "02"
+            - generic [ref=e365]:
+              - heading "Made fresh daily" [level=3] [ref=e366]
+              - paragraph [ref=e370]: Mezze, dips and pastries are prepared each morning; nothing sits overnight.
+          - listitem [ref=e371]:
+            - generic [ref=e372]: "03"
+            - generic [ref=e373]:
+              - heading "Insulated delivery" [level=3] [ref=e374]
+              - paragraph [ref=e380]: Orders leave in heated bags and arrive in about 40 minutes across most areas.
+          - listitem [ref=e381]:
+            - generic [ref=e382]: "04"
+            - generic [ref=e383]:
+              - heading "Family recipes" [level=3] [ref=e384]
+              - paragraph [ref=e387]: Marinades and stews follow recipes we've never written down.
+      - generic [ref=e391]:
+        - generic [ref=e392]:
+          - paragraph [ref=e393]: What our guests say
+          - heading "What our guests say" [level=2] [ref=e394]
+          - paragraph [ref=e395]: Real reviews from verified orders.
+          - generic [ref=e396]:
+            - paragraph [ref=e397]: "4.5"
+            - generic [ref=e398]:
+              - img "4.5 out of 5" [ref=e399]
+              - paragraph [ref=e410]: 7 verified reviews
+          - link "Read every review" [ref=e411] [cursor=pointer]:
+            - /url: /reviews
+        - generic [ref=e414]:
+          - list "reviews" [ref=e415]:
+            - listitem [ref=e416]:
+              - figure "Areeba Siddiqui" [ref=e417]:
+                - generic [ref=e418]:
+                  - generic [aria-hidden] [ref=e419]: A
+                  - generic [ref=e420]:
+                    - img "5.0 out of 5" [ref=e421]
+                    - paragraph [ref=e432]: on Zaytoun Mixed Grill
+                - paragraph [ref=e433]: The mixed grill is an event
+                - blockquote [ref=e434]: “Everything was cooked perfectly — the kofta is juicy, the shish taouk has that lemony char. Fed four of us with leftovers.”
+            - listitem [ref=e436]:
+              - figure "Faisal Mahmood" [ref=e437]:
+                - generic [ref=e438]:
+                  - generic [aria-hidden] [ref=e439]: F
+                  - generic [ref=e440]:
+                    - img "5.0 out of 5" [ref=e441]
+                    - paragraph [ref=e452]: on Lamb Shank Mansaf
+                - paragraph [ref=e453]: Fall-off-the-bone lamb
+                - blockquote [ref=e454]: “Tender, deeply flavoured and the almonds on the rice are a great touch. Best mansaf I've had outside Amman.”
+            - listitem [ref=e456]:
+              - figure "Noor Ahmed" [ref=e457]:
+                - generic [ref=e458]:
+                  - generic [aria-hidden] [ref=e459]: "N"
+                  - generic [ref=e460]:
+                    - img "5.0 out of 5" [ref=e461]
+                    - paragraph [ref=e472]: on Assorted Baklava
+                - paragraph [ref=e473]: Fresh, not syrupy
+                - blockquote [ref=e474]: “Crisp layers, plenty of pistachio, and not sickly sweet like most places. We order a box every week.”
+            - listitem [ref=e476]:
+              - figure "Saad Bukhari" [ref=e477]:
+                - generic [ref=e478]:
+                  - generic [aria-hidden] [ref=e479]: S
+                  - generic [ref=e480]:
+                    - img "5.0 out of 5" [ref=e481]
+                    - paragraph [ref=e492]: on Charcoal Lamb Ribs
+                - paragraph [ref=e493]: Worth the wait
+                - blockquote [ref=e494]: “The ribs need thirty-five minutes but they're worth every one. Smoky, sticky and incredibly tender.”
+            - listitem [ref=e496]:
+              - figure "Omar Qureshi" [ref=e497]:
+                - generic [ref=e498]:
+                  - generic [aria-hidden] [ref=e499]: O
+                  - generic [ref=e500]:
+                    - img "4.0 out of 5" [ref=e501]
+                    - paragraph [ref=e512]: on Chicken Shawarma Wrap
+                - paragraph [ref=e513]: Proper shawarma
+                - blockquote [ref=e514]: “Great garlic sauce, proper char on the chicken. I'd like a slightly bigger wrap for the price, but I'll be back.”
+            - listitem [ref=e516]:
+              - figure "Laila Hussain" [ref=e517]:
+                - generic [ref=e518]:
+                  - generic [aria-hidden] [ref=e519]: L
+                  - generic [ref=e520]:
+                    - img "5.0 out of 5" [ref=e521]
+                    - paragraph [ref=e532]: on Limonana
+                - paragraph [ref=e533]: Best limonana in town
+                - blockquote [ref=e534]: “Tart, minty and ice-cold. The jug is perfect for sharing.”
+          - generic [ref=e536]:
+            - button "Previous reviews" [disabled]
+            - button "Next reviews" [ref=e537]
+      - generic [ref=e544]:
+        - generic [ref=e545]:
+          - paragraph [ref=e546]: Reservations
+          - heading "Book your table at Zaytoun" [level=2] [ref=e547]
+          - paragraph [ref=e548]: Courtyard seating and the majlis fill up quickly on weekends — reserve in under a minute.
+          - paragraph [ref=e549]:
+            - text: Or call us
+            - link "+92 51 2612 401" [ref=e550] [cursor=pointer]:
+              - /url: tel:+92512612401
+        - generic [ref=e551]:
+          - generic [ref=e552]:
+            - generic [ref=e553]: Date
+            - combobox "Date" [ref=e554] [cursor=pointer]:
+              - option "Today, Sun, Oct 18" [selected]
+              - option "Tomorrow, Mon, Oct 19"
+              - option "Tue, Oct 20"
+              - option "Wed, Oct 21"
+              - option "Thu, Oct 22"
+              - option "Fri, Oct 23"
+              - option "Sat, Oct 24"
+              - option "Sun, Oct 25"
+              - option "Mon, Oct 26"
+              - option "Tue, Oct 27"
+              - option "Wed, Oct 28"
+              - option "Thu, Oct 29"
+              - option "Fri, Oct 30"
+              - option "Sat, Oct 31"
+          - generic [ref=e555]:
+            - generic [ref=e556]: Guests
+            - combobox "Guests" [ref=e557] [cursor=pointer]:
+              - option "1 guest"
+              - option "2 guests" [selected]
+              - option "3 guests"
+              - option "4 guests"
+              - option "5 guests"
+              - option "6 guests"
+              - option "7 guests"
+              - option "8 guests"
+              - option "9 guests"
+              - option "10 guests"
+              - option "11 guests"
+              - option "12 guests"
+              - option "13 guests"
+              - option "14 guests"
+          - button "Make a reservation" [ref=e558]
+      - generic [ref=e563]:
+        - generic [ref=e565]:
+          - paragraph [ref=e566]: Visit
+          - heading "Find us" [level=2] [ref=e567]
+          - paragraph [ref=e568]: Two kitchens in Islamabad, open seven days a week.
+        - list [ref=e569]:
+          - listitem [ref=e570]:
+            - generic [ref=e571]:
+              - heading "F-7 Markaz" [level=3] [ref=e572]
+              - paragraph [ref=e573]:
+                - text: Closed
+                - generic [ref=e575]: opens 12pm
+            - paragraph [ref=e576]:
+              - generic [ref=e580]: Shop 12, Jinnah Super Market, F-7, Islamabad
+            - paragraph [ref=e581]:
+              - link "+92 51 2612 401" [ref=e584] [cursor=pointer]:
+                - /url: tel:+92512612401
+            - generic [ref=e585]:
+              - generic [ref=e586]:
+                - term [ref=e587]: Monday
+                - definition [ref=e588]: 12pm – 11:30pm
+              - generic [ref=e589]:
+                - term [ref=e590]: Tuesday
+                - definition [ref=e591]: 12pm – 11:30pm
+              - generic [ref=e592]:
+                - term [ref=e593]: Wednesday
+                - definition [ref=e594]: 12pm – 11:30pm
+              - generic [ref=e595]:
+                - term [ref=e596]: Thursday
+                - definition [ref=e597]: 12pm – 11:30pm
+              - generic [ref=e598]:
+                - term [ref=e599]: Friday
+                - definition [ref=e600]: 1pm – 12:30am
+              - generic [ref=e601]:
+                - term [ref=e602]: Saturday
+                - definition [ref=e603]: 12pm – 12:30am
+              - generic [ref=e604]:
+                - term [ref=e605]: Sunday
+                - definition [ref=e606]: 12pm – 11:30pm
+            - link "Get directions" [ref=e607] [cursor=pointer]:
+              - /url: https://www.google.com/maps/search/?api=1&query=33.7215,73.0563
+          - listitem [ref=e611]:
+            - generic [ref=e612]:
+              - heading "Gulberg Greens" [level=3] [ref=e613]
+              - paragraph [ref=e614]:
+                - text: Closed
+                - generic [ref=e616]: opens 12pm
+            - paragraph [ref=e617]:
+              - generic [ref=e621]: Plaza 4, Gulberg Greens Boulevard, Gulberg Greens, Islamabad
+            - paragraph [ref=e622]:
+              - link "+92 51 2612 402" [ref=e625] [cursor=pointer]:
+                - /url: tel:+92512612402
+            - generic [ref=e626]:
+              - generic [ref=e627]:
+                - term [ref=e628]: Monday
+                - definition [ref=e629]: 1pm – 11pm
+              - generic [ref=e630]:
+                - term [ref=e631]: Tuesday
+                - definition [ref=e632]: 1pm – 11pm
+              - generic [ref=e633]:
+                - term [ref=e634]: Wednesday
+                - definition [ref=e635]: 1pm – 11pm
+              - generic [ref=e636]:
+                - term [ref=e637]: Thursday
+                - definition [ref=e638]: 1pm – 11pm
+              - generic [ref=e639]:
+                - term [ref=e640]: Friday
+                - definition [ref=e641]: 1pm – 12am
+              - generic [ref=e642]:
+                - term [ref=e643]: Saturday
+                - definition [ref=e644]: 12pm – 12am
+              - generic [ref=e645]:
+                - term [ref=e646]: Sunday
+                - definition [ref=e647]: 12pm – 11pm
+            - link "Get directions" [ref=e648] [cursor=pointer]:
+              - /url: https://www.google.com/maps/search/?api=1&query=33.6069,73.1728
+      - generic [ref=e655]:
+        - generic [ref=e657]:
+          - paragraph [ref=e658]: Contact
+          - heading "Get in touch" [level=2] [ref=e659]
+          - paragraph [ref=e660]: Catering, large groups or feedback? We reply within minutes.
+        - list [ref=e662]:
+          - listitem [ref=e663]:
+            - generic [ref=e668]:
+              - paragraph [ref=e669]: F-7 Markaz
+              - paragraph [ref=e670]: Shop 12, Jinnah Super Market, F-7, Islamabad
+          - listitem [ref=e671]:
+            - generic [ref=e675]:
+              - paragraph [ref=e676]: Call us
+              - link "+92 51 2612 401" [ref=e677] [cursor=pointer]:
+                - /url: tel:+92512612401
+          - listitem [ref=e678]:
+            - generic [ref=e682]:
+              - paragraph [ref=e683]: WhatsApp
+              - link "Message the restaurant" [ref=e684] [cursor=pointer]:
+                - /url: https://wa.me/923335120401
+          - listitem [ref=e685]:
+            - generic [ref=e690]:
+              - paragraph [ref=e691]: Email
+              - link "hello@zaytoun.pk" [ref=e692] [cursor=pointer]:
+                - /url: mailto:hello@zaytoun.pk
+          - listitem [ref=e693]:
+            - generic [ref=e698]:
+              - paragraph [ref=e699]: Opening hours
+              - paragraph [ref=e700]: Today · 12pm – 11:30pm
+      - generic [ref=e703]:
+        - generic [ref=e704]:
+          - heading "Hungry? Your grill is 40 minutes away." [level=2] [ref=e706]
+          - paragraph [ref=e707]: Order online for delivery, pickup or dine-in.
+        - generic [ref=e708]:
+          - link "Start your order" [ref=e709] [cursor=pointer]:
+            - /url: /menu
+          - link "See offers" [ref=e712] [cursor=pointer]:
+            - /url: /checkout
+    - contentinfo [ref=e713]:
+      - generic [ref=e714]:
+        - generic [ref=e715]:
+          - paragraph [ref=e716]: Zaytoun
+          - paragraph [ref=e717]: Charcoal, olive oil and a table full of sharing plates — Levantine cooking in Islamabad.
+          - list [ref=e718]:
+            - listitem [ref=e719]:
+              - link "Instagram" [ref=e720] [cursor=pointer]:
+                - /url: https://instagram.com/zaytoun.pk
+            - listitem [ref=e724]:
+              - link "Facebook" [ref=e725] [cursor=pointer]:
+                - /url: https://facebook.com/zaytoun.pk
+        - generic [ref=e728]:
+          - generic [ref=e729]:
+            - paragraph [ref=e730]: Explore
+            - list [ref=e731]:
+              - listitem [ref=e732]:
+                - link "Menu" [ref=e733] [cursor=pointer]:
+                  - /url: /menu
+              - listitem [ref=e734]:
+                - link "Our story" [ref=e735] [cursor=pointer]:
+                  - /url: /about
+              - listitem [ref=e736]:
+                - link "Contact" [ref=e737] [cursor=pointer]:
+                  - /url: /contact
+              - listitem [ref=e738]:
+                - link "Reservations" [ref=e739] [cursor=pointer]:
+                  - /url: /reservation
+              - listitem [ref=e740]:
+                - link "Reviews" [ref=e741] [cursor=pointer]:
+                  - /url: /reviews
+              - listitem [ref=e742]:
+                - link "Locations" [ref=e743] [cursor=pointer]:
+                  - /url: /locations
+          - generic [ref=e744]:
+            - paragraph [ref=e745]: Visit
+            - list [ref=e746]:
+              - listitem [ref=e747]:
+                - link "F-7 Markaz" [ref=e748] [cursor=pointer]:
+                  - /url: /locations
+              - listitem [ref=e749]:
+                - link "Gulberg Greens" [ref=e750] [cursor=pointer]:
+                  - /url: /locations
+          - generic [ref=e751]:
+            - paragraph [ref=e752]: Visit us
+            - generic [ref=e753]:
+              - generic [ref=e754]: Shop 12, Jinnah Super Market, F-7, Islamabad
+              - generic [ref=e759]: Today · 12pm – 11:30pm
+              - link "+92 51 2612 401" [ref=e764] [cursor=pointer]:
+                - /url: tel:+92512612401
+              - link "hello@zaytoun.pk" [ref=e767] [cursor=pointer]:
+                - /url: mailto:hello@zaytoun.pk
+      - generic [ref=e772]:
+        - generic [ref=e773]:
+          - paragraph [ref=e774]: © 2026 Zaytoun Hospitality (Pvt) Ltd. All rights reserved.
+          - navigation "Legal" [ref=e775]:
+            - link "Privacy Policy" [ref=e776] [cursor=pointer]:
+              - /url: /privacy
+            - link "Terms of Service" [ref=e777] [cursor=pointer]:
+              - /url: /terms
+        - paragraph [ref=e778]: Prices exclude sales tax, shown at checkout.
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e784] [cursor=pointer]
+  - alert [ref=e788]
+```

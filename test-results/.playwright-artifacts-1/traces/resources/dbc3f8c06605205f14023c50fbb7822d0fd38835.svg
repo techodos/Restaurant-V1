@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-label="Zaytoun">
+  <rect width="320" height="96" rx="14" fill="#1B2B24"/>
+  <g transform="translate(14 12)">
+    <circle cx="36" cy="36" r="34" fill="none" stroke="#C8963E" stroke-width="2.5"/>
+    <path d="M36 12c-9 8-13 18-13 27 0 8 6 14 13 14s13-6 13-14c0-9-4-19-13-27Z" fill="#2F5D46"/>
+    <path d="M36 12c9 8 13 18 13 27 0 8-6 14-13 14V12Z" fill="#3E7A5E"/>
+    <path d="M36 22v34" stroke="#F5EFE0" stroke-width="2" stroke-linecap="round"/>
+    <path d="M36 32c-5-1-9-4-11-8M36 40c5-1 9-4 11-8M36 47c-5-1-8-3-10-7" stroke="#F5EFE0" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  </g>
+  <text x="98" y="47" fill="#F5EFE0" font-family="Georgia, 'Times New Roman', serif" font-size="30" letter-spacing="1.2">Zaytoun</text>
+  <text x="99" y="67" fill="#C8963E" font-family="Helvetica, Arial, sans-serif" font-size="9.5" letter-spacing="3.4">LEVANTINE KITCHEN</text>
+</svg>

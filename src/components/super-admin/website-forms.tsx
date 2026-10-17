@@ -143,7 +143,7 @@ export function PagesManager({ slug, restaurantId, pages }: { slug: string; rest
       meta={<span className="text-[13px] text-[var(--color-muted-ink)]">{published} of {pages.length} published</span>}
       bodyClassName="p-0 sm:p-0"
       footer={
-        <form onSubmit={create} className="grid w-full gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <form onSubmit={create} className="grid grid-cols-[minmax(0,1fr)] w-full gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
           <Field label="New page title">
             <Input
               value={title}
@@ -352,7 +352,7 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
         <p className="text-[13px] text-[var(--color-muted-ink)]">Brand, header, footer and search appearance of the storefront. Saved changes go live immediately.</p>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <fieldset disabled={pending} className="min-w-0 space-y-4">
           <legend className="sr-only">Website settings</legend>
 
@@ -480,7 +480,7 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
                   ))}
                 </div>
               </ImageUploadProvider>
-              <div className="grid gap-4 border-t border-[var(--color-hairline)] pt-4 sm:grid-cols-[1fr_12rem]">
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-4 border-t border-[var(--color-hairline)] pt-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
                 <div className="divide-y divide-[var(--color-hairline)]">
                   <SettingRow id="nav-cart" title="Cart button" description="Show the cart in the header." checked={Boolean(nav.showCart)} onChange={(value) => setC("navigation", { showCart: value })} />
                   <SettingRow id="nav-sticky" title="Sticky header" description="Keep the header visible while scrolling." checked={Boolean(nav.sticky)} onChange={(value) => setC("navigation", { sticky: value })} />
@@ -756,7 +756,7 @@ export function PageEditor({ restaurantId, slug, page }: { restaurantId: string;
         </Button>
       </div>
 
-      <fieldset disabled={pending} className="grid items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <fieldset disabled={pending} className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
         <legend className="sr-only">Page</legend>
         <Panel title="Page details" icon={FileText} className="lg:sticky lg:top-20">
           <div className="space-y-4">

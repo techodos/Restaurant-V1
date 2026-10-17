@@ -49,10 +49,10 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
         type="button"
         aria-disabled={noService || undefined}
         onClick={() => (noService ? undefined : branching.resolveGate(orderType))}
-        className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)] disabled:opacity-45"
+        className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] px-3 py-2 text-center text-[13px] font-semibold leading-snug text-[var(--color-brand-foreground)] disabled:opacity-45"
         disabled={noService}
       >
-        <MapPin aria-hidden className="size-4" />
+        <MapPin aria-hidden className="size-4 shrink-0" />
         {hint}
       </button>
     );
@@ -99,11 +99,14 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
   };
 
   return (
-    <div className="mt-3 flex items-center gap-2">
+    // Stacked (stepper over a full-width button) while the card is narrower than one row needs:
+    // in two-column phone cards the nowrap button was clipped by the card edge.
+    <div className="@container mt-3">
+    <div className="flex flex-col gap-2 @[14.5rem]:flex-row @[14.5rem]:items-center">
       <div
         role="group"
         aria-label={`Quantity for ${item.name}`}
-        className="flex h-10 shrink-0 items-center rounded-[var(--radius-control)] border border-[var(--color-hairline)]"
+        className="flex h-10 shrink-0 items-center justify-between rounded-[var(--radius-control)] border border-[var(--color-hairline)]"
       >
         <button
           type="button"
@@ -127,10 +130,11 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
           <Plus aria-hidden className="size-3.5" />
         </button>
       </div>
-      <Button type="button" onClick={add} className="h-10 flex-1 gap-2 px-3 text-[13px]">
+      <Button type="button" onClick={add} className="h-10 w-full min-w-0 gap-2 px-3 text-[13px] @[14.5rem]:w-auto @[14.5rem]:flex-1">
         <ShoppingBag aria-hidden className="size-4" />
         Add to Cart
       </Button>
+    </div>
     </div>
   );
 }

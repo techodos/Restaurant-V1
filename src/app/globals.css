@@ -613,6 +613,16 @@
   }
 }
 
+/*
+ * Phones: iOS Safari zooms the whole page into any focused text control under 16px and leaves it zoomed.
+ * Unlayered so it beats per-call `text-sm`/`text-[13px]` on inputs across admin, super admin and storefront.
+ */
+@media (max-width: 639px) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+    font-size: max(16px, 1em);
+  }
+}
+
 /* Unlayered on purpose: these must beat the shared primitives' Tailwind utilities, inside .sa-root only. */
 .sa-root :is(h1, h2, h3, h4) {
   font-family: var(--font-sans);
@@ -626,7 +636,13 @@
   border-radius: var(--radius-control);
   border-color: var(--color-hairline);
   box-shadow: var(--sa-shadow-xs);
-  font-size: 0.875rem;
+  /* 16px on phones: iOS Safari zooms the page into any focused control below 16px. */
+  font-size: 1rem;
+}
+@media (min-width: 640px) {
+  .sa-root :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea) {
+    font-size: 0.875rem;
+  }
 }
 .sa-root :is(input, select, textarea):focus {
   border-color: var(--color-brand);

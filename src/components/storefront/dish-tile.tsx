@@ -106,7 +106,8 @@ export function DishTile({
     return (
       <article data-dish={item.slug} className="group grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-6 sm:gap-6">
         <div className="min-w-0">
-          <div className="flex items-baseline gap-3">
+          {/* phones: name on its own line, price under it — beside a 96px photo a shared row wrapped names to 3 lines */}
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
             <h3 className="min-w-0 font-[family-name:var(--font-display)] text-[1.2rem] leading-snug md:text-[1.3rem]">
               <Link href={href} {...linkProps} className="transition-colors duration-200 hover:text-[var(--color-brand-accent)]">
                 {item.name}

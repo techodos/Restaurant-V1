@@ -8,7 +8,7 @@ export default function ReportsLoading() {
       <AdminHeaderSkeleton />
       <AdminTabsSkeleton count={6} />
       <AdminStatSkeleton count={5} />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card className="p-6"><Skeleton className="h-[260px] w-full" /></Card>
         <Card className="p-6"><Skeleton className="h-[260px] w-full" /></Card>
       </div>

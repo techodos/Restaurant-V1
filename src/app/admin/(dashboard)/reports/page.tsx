@@ -167,7 +167,7 @@ async function ReportsResults({
         </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Sales trend</CardTitle>
@@ -219,7 +219,7 @@ async function ReportsResults({
         {recentInRange.rows.length === 0 ? (
           <AdminEmptyState icon={ClipboardList} title="No orders in this period." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="tabular w-full min-w-[42rem] text-sm">
               <thead className={tableHead}>
                 <tr>
@@ -261,7 +261,7 @@ function ReportsResultsSkeleton() {
   return (
     <>
       <AdminStatSkeleton count={5} />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card className="p-6"><Skeleton className="h-[260px] w-full" /></Card>
         <Card className="p-6"><Skeleton className="h-[260px] w-full" /></Card>
       </div>

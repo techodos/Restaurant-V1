@@ -222,7 +222,7 @@ async function OrdersResults({
               </ul>
 
               {/* laptop and up: the table */}
-              <div className="hidden overflow-x-auto lg:block">
+              <div className="relative hidden overflow-x-auto lg:block">
                 <table className="tabular w-full min-w-[52rem] text-sm">
                   <thead className={tableHead}>
                     <tr>
