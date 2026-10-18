@@ -7,7 +7,7 @@ export const PATHNAME_HEADER = "x-rp-pathname";
  * Stamps the request path on every page request. Server Actions POST to the page they were called from, so this is
  * how web/session.ts knows an action came from /admin (and so checks this deployment's restaurant membership).
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const headers = new Headers(request.headers);
   headers.set(PATHNAME_HEADER, request.nextUrl.pathname);
   return NextResponse.next({ request: { headers } });

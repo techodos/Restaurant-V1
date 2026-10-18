@@ -25,7 +25,7 @@ import { config } from "@/server/config";
 import { reissueCustomerSession } from "@/server/services/customer-auth";
 import { adminPath, isAdminPath } from "@/shared/utils";
 import { assertInstanceRestaurant, instanceRestaurantSlug } from "./instance";
-import { PATHNAME_HEADER } from "@/middleware";
+import { PATHNAME_HEADER } from "@/proxy";
 import { entitlementForPermission, isEntitled } from "@/shared/feature-access";
 import { getAdminRestaurantContext } from "@/server/services/restaurants";
 import {
