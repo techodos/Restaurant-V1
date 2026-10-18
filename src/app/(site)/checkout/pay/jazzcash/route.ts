@@ -20,7 +20,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request): Promise<Response> {
   const restaurantSlug = instanceRestaurantSlug();
   const siteUrl = config.app.siteUrl;
-  const trackingUrl = (orderNumber: string, status: "success" | "failed" | "error") =>
+  const trackingUrl = (orderNumber: string, status: "success" | "failed" | "pending" | "error") =>
     Response.redirect(`${siteUrl}/order/${orderNumber}?payment=${status}`, 303);
   const failedNoOrder = () => Response.redirect(`${siteUrl}/current-orders?payment=error`, 303);
 
@@ -41,8 +41,23 @@ export async function POST(request: Request): Promise<Response> {
   const result = verifyReturn(fields, jazzcash.integritySalt);
   if (!result.valid || !result.orderId || !result.orderNumber) {
     // A bad hash means the payload cannot be trusted — never act on it (and never leak which part failed).
-    logger.error("payments", "JazzCash return failed hash verification", { restaurantSlug, responseCode: result.responseCode });
+    logger.error("payments", "JazzCash return failed hash verification", {
+      restaurantSlug,
+      responseCode: result.responseCode,
+      responseMessage: result.responseMessage,
+    });
     return failedNoOrder();
+  }
+
+  if (result.pending) {
+    // Not paid and not failed: leave the payment Pending (staff can still mark it, and a later success
+    // resolves it) rather than telling the customer it failed.
+    logger.info("payments", "JazzCash return reports the payment as pending", {
+      restaurantSlug,
+      orderNumber: result.orderNumber,
+      responseCode: result.responseCode,
+    });
+    return trackingUrl(result.orderNumber, "pending");
   }
 
   try {

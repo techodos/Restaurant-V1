@@ -1,4 +1,4 @@
-import type { OrderStatus, OrderType } from "./contract/enums";
+import { ORDER_STATUS_RANK, type OrderStatus, type OrderType } from "./contract/enums";
 
 /**
  * The one forward step a staff member usually takes next, for the admin's one-click button (orders list, kitchen).
@@ -22,3 +22,17 @@ export function nextOrderStep(status: OrderStatus, orderType: OrderType): { stat
       return null;
   }
 }
+
+/**
+ * Every status staff may move an order to from here (forward only, cancellation excluded — it is its own action),
+ * in progression order. "Out for delivery" only exists for delivery orders: offering it on pickup/dine-in tickets
+ * was noise at best and a wrong status at worst. Terminal orders have none.
+ */
+export function forwardOrderStatuses(status: OrderStatus, orderType: OrderType): OrderStatus[] {
+  if (status === "completed" || status === "cancelled") return [];
+  return (Object.keys(ORDER_STATUS_RANK) as OrderStatus[])
+    .filter((candidate) => candidate !== "cancelled" && ORDER_STATUS_RANK[candidate] > ORDER_STATUS_RANK[status])
+    .filter((candidate) => candidate !== "out_for_delivery" || orderType === "delivery")
+    .sort((a, b) => ORDER_STATUS_RANK[a] - ORDER_STATUS_RANK[b]);
+}
+

@@ -64,7 +64,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
           <CardTitle>Update status</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrderStatusControl orderId={order.id} orderNumber={order.orderNumber} currentStatus={order.status} />
+          <OrderStatusControl orderId={order.id} orderNumber={order.orderNumber} currentStatus={order.status} orderType={order.orderType} />
         </CardContent>
       </Card>
 

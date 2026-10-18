@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
   poweredByHeader: false,
+  // Dev only: lets `next dev` serve its HMR/dev assets to an ngrok tunnel (used to test payment-gateway returns
+  // like JazzCash, which can't POST to localhost). Ignored by production builds.
+  allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app"],
   // Next gzips every page itself: ~5–15 ms of CPU per storefront page (measured, 15–30% of a render). Behind a
   // proxy/CDN that compresses anyway (nginx, Cloudflare; Vercel ignores this), set NEXT_COMPRESS=false.
   compress: process.env.NEXT_COMPRESS !== "false",

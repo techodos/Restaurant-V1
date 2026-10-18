@@ -15,3 +15,7 @@ next-env.d.ts
 
 # load-test fixtures/outputs (scripts/load)
 scripts/load/.out/
+
+# demo video outputs / isolated demo build
+demo-video-out/
+.next-demo/

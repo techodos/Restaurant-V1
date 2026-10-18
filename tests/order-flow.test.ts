@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextOrderStep } from "@/shared/order-flow";
+import { forwardOrderStatuses, nextOrderStep } from "@/shared/order-flow";
 import { ORDER_STATUS_RANK } from "@/shared/contract/enums";
 
 describe("nextOrderStep (admin one-click button)", () => {
@@ -27,3 +27,26 @@ describe("nextOrderStep (admin one-click button)", () => {
     }
   });
 });
+
+describe("forwardOrderStatuses", () => {
+  it("never offers out for delivery on pickup or dine-in orders", () => {
+    expect(forwardOrderStatuses("pending", "pickup")).toEqual(["confirmed", "preparing", "ready", "completed"]);
+    expect(forwardOrderStatuses("ready", "dine_in")).toEqual(["completed"]);
+    expect(forwardOrderStatuses("ready", "delivery")).toEqual(["out_for_delivery", "completed"]);
+  });
+
+  it("is forward-only, excludes cancellation, and is empty for finished orders", () => {
+    expect(forwardOrderStatuses("preparing", "delivery")).toEqual(["ready", "out_for_delivery", "completed"]);
+    expect(forwardOrderStatuses("completed", "delivery")).toEqual([]);
+    expect(forwardOrderStatuses("cancelled", "pickup")).toEqual([]);
+  });
+
+  it("always contains the usual next step", () => {
+    for (const status of ["pending", "confirmed", "preparing", "ready", "out_for_delivery"] as const) {
+      for (const type of ["delivery", "pickup", "dine_in"] as const) {
+        expect(forwardOrderStatuses(status, type)).toContain(nextOrderStep(status, type)!.status);
+      }
+    }
+  });
+});
+

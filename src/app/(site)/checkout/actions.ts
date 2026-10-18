@@ -20,7 +20,7 @@ import { rememberCheckoutAddress } from "@/server/services/customer-profile";
 import { guestContactCheckSchema, guestContactSchema, guestVerifyCodeSchema, placeOrderSchema, repriceCheckoutSchema } from "@/server/validation/checkout";
 import { signUpSchema } from "@/server/validation/customer-auth";
 import { callerIdentifier, getStorefrontCustomer, getVisitorContext, refreshCustomerSession, rememberGuestOrder, setCustomerSession } from "@/web/session";
-import { clearTray, readTray, readTrayView, requireStorefront, requireStorefrontRestaurant } from "@/web/storefront";
+import { clearTray, markOrderPlaced, readTray, readTrayView, requireStorefront, requireStorefrontRestaurant } from "@/web/storefront";
 import type { CheckoutPricing } from "@/components/storefront/checkout-form";
 
 export type { PlaceOrderResult };
@@ -43,6 +43,8 @@ export async function placeOrderAction(slug: string, payload: unknown): Promise<
     // a guest's browser keeps a signed grant for the order, so the order page and "Current orders" can show it
     const result = await placeOrder(restaurant, tray, input, visitor, { rememberGuestOrder });
     await clearTray(slug); // the order consumed the tray
+    // the re-rendered /checkout (same response) must not redirect to the menu mid-hand-off to the gateway
+    await markOrderPlaced(slug, result.orderNumber);
     revalidatePath("/", "layout");
 
     // The order is committed (and its "placed" event queued by the database). No email goes out

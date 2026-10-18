@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
 import { isSupportedCountry } from "libphonenumber-js";
 import { getCustomerProfile, type CustomerProfile } from "@/server/services/customer-profile";
-import { getBranching, readTrayView, requireStorefront } from "@/web/storefront";
+import { getBranching, readPlacedOrder, readTrayView, requireStorefront } from "@/web/storefront";
 import { branchesFor } from "@/shared/branching";
 import { branchClosedLabel, priceTray, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
@@ -35,7 +35,13 @@ export default async function CheckoutPage() {
   // addresses, email verification) in one transaction. The order itself re-prices everything from the
   // database when it is placed.
   const { tray, view } = await readTrayView(context);
-  if (view.lines.length === 0) redirect(`/menu`);
+  if (view.lines.length === 0) {
+    // Just placed an order from here: this render is part of that Server Action's response, and redirecting
+    // would race the client's hand-off to the payment gateway / order page (see `markOrderPlaced`).
+    const placedOrderNumber = await readPlacedOrder(restaurantSlug);
+    if (!placedOrderNumber) redirect(`/menu`);
+    return <OrderPlacedNotice orderNumber={placedOrderNumber} />;
+  }
 
   // Multi-branch ordering: checkout continues the branch chosen on the menu. Without a branch that can
   // serve this order there is nothing to check out yet — the menu's bar says what is missing.
@@ -212,6 +218,29 @@ export default async function CheckoutPage() {
         />
       </div>
     </div>
+    </div>
+  );
+}
+
+/** What /checkout shows right after an order was placed from it, while the browser moves on (payment or tracking). */
+function OrderPlacedNotice({ orderNumber }: { orderNumber: string }) {
+  return (
+    <div className="container-page py-16">
+      <div className="mx-auto max-w-lg text-center">
+        <p className="eyebrow mb-4 justify-center">Checkout</p>
+        <h1 className="display-2">Order received</h1>
+        <p className="mt-3 text-[var(--color-muted-ink)]">
+          Order {orderNumber} is placed. If you are not taken on automatically, open it below.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Button asChild>
+            <Link href={`/order/${encodeURIComponent(orderNumber)}`}>View order</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/menu`}>Back to menu</Link>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

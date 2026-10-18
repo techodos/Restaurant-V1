@@ -105,6 +105,34 @@ export async function clearTray(slug: string): Promise<void> {
   store.delete(trayCookieName(slug));
 }
 
+const placedOrderCookieName = (slug: string) => `placed_${slug}`;
+const PLACED_ORDER_COOKIE_MAX_AGE = 120;
+
+/**
+ * Marks "this browser just placed order N" for two minutes, set together with `clearTray`. Clearing the tray in
+ * the place-order Server Action re-renders /checkout in the same response; with an empty tray that page used to
+ * `redirect("/menu")`, and that navigation raced the client's hand-off to the payment gateway (JazzCash's form
+ * POST, Stripe's redirect) — through a slower link the menu won and the customer never reached the gateway.
+ * The checkout page reads this marker and shows "order received" instead of redirecting. Server Actions / Route
+ * Handlers only. The value is only an order number for a link; it grants nothing (the order page checks access).
+ */
+export async function markOrderPlaced(slug: string, orderNumber: string): Promise<void> {
+  const store = await cookies();
+  store.set(placedOrderCookieName(slug), orderNumber, {
+    path: "/",
+    maxAge: PLACED_ORDER_COOKIE_MAX_AGE,
+    sameSite: "lax",
+    httpOnly: true,
+  });
+}
+
+/** The order number this browser placed in the last two minutes, if any (see `markOrderPlaced`). */
+export async function readPlacedOrder(slug: string): Promise<string | null> {
+  const store = await cookies();
+  const value = store.get(placedOrderCookieName(slug))?.value ?? null;
+  return value && /^[A-Z0-9-]{1,40}$/i.test(value) ? value : null;
+}
+
 // ─── multi-branch ordering (features.BranchingFeature) ─────────────────────────
 
 /**
