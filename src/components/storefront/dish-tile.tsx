@@ -29,7 +29,7 @@ interface DishTileProps {
   browseOnly?: boolean;
   /** switched off at the customer's chosen branch (the item itself is still on the menu elsewhere) */
   offAtBranch?: boolean;
-  /** "card" layout only: a quantity stepper + an explicit "Add to Cart" bar under the price, instead of the floating + over the photo (the grid menu layout) */
+  /** "card" layout only: a footer row of price + Add pill / stepper / Customize (the grid menu layout), instead of the floating + over the photo */
   inlineAdd?: boolean;
 }
 
@@ -187,25 +187,38 @@ export function DishTile({
           <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
         ) : null}
         {meta}
-        <p className={cn("tabular text-[15px] font-semibold", "mt-auto", inlineAdd ? "pt-3" : "pt-4")}>
-          {price}
-          {was}
-        </p>
         {inlineAdd ? (
-          <GridAddBar
-            restaurantSlug={restaurantSlug}
-            item={{
-              id: item.id,
-              name: item.name,
-              slug: item.slug,
-              requiresSelection: item.requiresSelection,
-              isAvailable: item.isAvailable,
-              basePrice: item.basePrice,
-              imageUrl: image,
-            }}
-            orderType={orderType}
-          />
-        ) : null}
+          <div className="mt-auto pt-4">
+            <div className="h-px bg-[var(--color-hairline)]" />
+            <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
+              <div className="flex flex-col">
+                {item.requiresSelection ? <span className="label-caps text-[var(--color-muted-ink)]">From</span> : null}
+                <p className="tabular font-[family-name:var(--font-display)] text-[1.25rem] font-medium leading-tight text-[var(--color-brand)]">
+                  {price}
+                  {was}
+                </p>
+              </div>
+              <GridAddBar
+                restaurantSlug={restaurantSlug}
+                item={{
+                  id: item.id,
+                  name: item.name,
+                  slug: item.slug,
+                  requiresSelection: item.requiresSelection,
+                  isAvailable: item.isAvailable,
+                  basePrice: item.basePrice,
+                  imageUrl: image,
+                }}
+                orderType={orderType}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="tabular mt-auto pt-4 text-[15px] font-semibold">
+            {price}
+            {was}
+          </p>
+        )}
       </div>
     </article>
   );
