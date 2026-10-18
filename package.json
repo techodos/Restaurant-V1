@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev --turbopack -p 3000",
     "prebuild": "node scripts/clear-webpack-cache.mjs",
-    "build": "next build",
+    "build": "next build --turbopack",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --env-file=.env.local scripts/db/migrate.mjs",
@@ -27,6 +27,7 @@
     "db:verify:test": "VERIFY_DATABASE_URL=postgresql://app_runtime:app_runtime@localhost:5432/restaurant_platform_test VERIFY_DATABASE_URL_SERVICE=postgresql://app_service:app_service@localhost:5432/restaurant_platform_test VERIFY_DATABASE_URL_MIGRATOR=postgresql://app_owner:app_owner@localhost:5432/restaurant_platform_test tsx scripts/db/verify.ts"
   },
   "dependencies": {
+    "@firebase/firestore": "^4.18.0",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-checkbox": "^1.1.2",
@@ -47,12 +48,12 @@
     "date-fns": "^4.1.0",
     "decimal.js": "^10.4.3",
     "exceljs": "^4.4.0",
-    "firebase": "^12.19.0",
+    "firebase": "^13.0.0",
     "jose": "^5.9.6",
     "libphonenumber-js": "^1.13.13",
     "lucide-react": "^0.468.0",
     "motion": "^13.4.4",
-    "next": "^15.1.0",
+    "next": "^16.4.2",
     "pdfkit": "^0.20.2",
     "pg": "^8.13.1",
     "react": "^19.0.0",
@@ -77,9 +78,11 @@
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^5.0.5"
   },
   "overrides": {
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "protobufjs": "^7.4.0",
+    "@grpc/grpc-js": "^1.14.5"
   }
 }
