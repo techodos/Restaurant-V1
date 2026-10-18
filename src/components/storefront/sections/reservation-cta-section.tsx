@@ -58,7 +58,7 @@ export function ReservationCtaSection({
         <div className="max-w-xl">
           <p className="eyebrow mb-3 text-white/80">Reservations</p>
           <h2 className="display-1">{section.title}</h2>
-          {section.subtitle ? <p className="mt-3 max-w-[46ch] text-[15.5px] leading-relaxed text-white/80">{section.subtitle}</p> : null}
+          {section.subtitle ? <p className="mt-3 max-w-[46ch] text-[16px] leading-relaxed text-white/80">{section.subtitle}</p> : null}
           {phone ? (
             <p className="mt-5 text-sm text-white/75">
               {section.phoneLabel}{" "}

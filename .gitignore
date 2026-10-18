@@ -19,3 +19,8 @@ scripts/load/.out/
 # demo video outputs / isolated demo build
 demo-video-out/
 .next-demo/
+# test and screenshot output (Playwright, manual verification shots) — never commit
+test-results/
+playwright-report/
+blob-report/
+.shots/

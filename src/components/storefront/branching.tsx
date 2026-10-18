@@ -445,7 +445,7 @@ function LocationChooser({
         </div>
       ) : addresses.length > 0 ? (
         <section aria-labelledby="saved-addresses">
-          <h3 id="saved-addresses" className="font-[family-name:var(--font-sans)] text-[11.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">
+          <h3 id="saved-addresses" className="label-caps font-semibold text-[var(--color-muted-ink)]">
             Saved addresses
           </h3>
           <ul className="mt-2.5 space-y-2">
@@ -468,7 +468,7 @@ function LocationChooser({
                     <MapPin className="size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">{address.label}</span>
-                      <span className="block truncate text-[12.5px] text-[var(--color-muted-ink)]">
+                      <span className="block truncate text-[13px] text-[var(--color-muted-ink)]">
                         {[address.addressLine1, address.area, address.city].filter(Boolean).join(", ")}
                       </span>
                     </span>
@@ -487,7 +487,7 @@ function LocationChooser({
 
       {apiKey ? (
         <section aria-labelledby="find-address" className="space-y-3">
-          <h3 id="find-address" className="font-[family-name:var(--font-sans)] text-[11.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">
+          <h3 id="find-address" className="label-caps font-semibold text-[var(--color-muted-ink)]">
             {addresses && addresses.length > 0 ? "Or find another address" : "Find your address"}
           </h3>
           <LocationPicker
@@ -527,7 +527,7 @@ function LocationChooser({
 
       {/* Always offered: typing works without a Maps key, and when the map cannot resolve a point. */}
       <section aria-labelledby="type-address" className="space-y-3">
-        <h3 id="type-address" className="font-[family-name:var(--font-sans)] text-[11.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">
+        <h3 id="type-address" className="label-caps font-semibold text-[var(--color-muted-ink)]">
           {apiKey ? "Or type your area" : "Your area"}
         </h3>
         <form
@@ -691,10 +691,10 @@ function BranchList({
                       <span className="text-sm font-semibold">{branch.name}</span>
                       {branch.id === nearestId ? <Badge variant="soft">Nearest</Badge> : null}
                     </span>
-                    {branch.address ? <span className="mt-0.5 block text-[12.5px] text-[var(--color-muted-ink)]">{branch.address}</span> : null}
+                    {branch.address ? <span className="mt-0.5 block text-[13px] text-[var(--color-muted-ink)]">{branch.address}</span> : null}
                   </span>
                   {branch.distanceKm !== null ? (
-                    <span className="tabular shrink-0 pt-0.5 text-[12.5px] text-[var(--color-muted-ink)]">{formatDistance(branch.distanceKm)}</span>
+                    <span className="tabular shrink-0 pt-0.5 text-[13px] text-[var(--color-muted-ink)]">{formatDistance(branch.distanceKm)}</span>
                   ) : null}
                 </button>
               </li>

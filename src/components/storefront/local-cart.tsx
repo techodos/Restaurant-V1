@@ -252,8 +252,14 @@ function writeCookie(name: string, value: string): void {
     : `${name}=; path=/; max-age=0; samesite=lax${secure}`;
 }
 
-function encodeCart(cart: LocalCart): string {
-  return cart.lines.length || cart.couponCode ? encodeTray(toTray(cart)) : "";
+/**
+ * The cookie value for a cart, or "" (delete the cookie) when it holds no choice at all. A chosen order type
+ * or branch on an EMPTY cart is a choice: it used to be dropped here, so the order-type doors and the branch
+ * fell back to the defaults on the next full reload.
+ */
+export function encodeCart(cart: LocalCart, defaultOrderType: OrderType): string {
+  const chosen = cart.lines.length > 0 || cart.couponCode || cart.locationId || cart.orderType !== defaultOrderType;
+  return chosen ? encodeTray(toTray(cart)) : "";
 }
 
 export function LocalCartProvider({
@@ -267,6 +273,7 @@ export function LocalCartProvider({
 }) {
   const router = useRouter();
   const cookieName = trayCookieName(restaurantSlug);
+  const defaultOrderType = initial.defaultOrderType;
   // Starts from what the server read out of the same cookie, so the first client render matches the
   // server's HTML exactly (badge count included) — no empty-then-filled flash.
   const [cart, setCart] = useState<LocalCart>(() => fromInitialTray(initial));
@@ -280,11 +287,11 @@ export function LocalCartProvider({
   const commit = useCallback(
     (next: LocalCart) => {
       cartRef.current = next;
-      const encoded = encodeCart(next);
+      const encoded = encodeCart(next, defaultOrderType);
       if (encoded !== readCookie(cookieName)) writeCookie(cookieName, encoded);
       setCart(next);
     },
-    [cookieName],
+    [cookieName, defaultOrderType],
   );
 
   // The server re-rendered the layout (navigation refresh, a server action, another tab's change
@@ -296,22 +303,22 @@ export function LocalCartProvider({
   useEffect(() => {
     if (adoptedInitial.current === initial) return;
     adoptedInitial.current = initial;
-    if (initial.encoded !== encodeCart(cartRef.current)) commit(fromInitialTray(initial));
+    if (initial.encoded !== encodeCart(cartRef.current, initial.defaultOrderType)) commit(fromInitialTray(initial));
   }, [initial, commit]);
 
   // Persist every change (already written by `commit`; this is the safety net). Writing the cookie IS
   // the whole "add to cart" — no request. Reads the ref, not the render's `cart`: on mount a child may
   // already have committed a newer tray, and writing this render's older value would revert it.
   useEffect(() => {
-    const encoded = encodeCart(cartRef.current);
+    const encoded = encodeCart(cartRef.current, defaultOrderType);
     if (encoded !== readCookie(cookieName)) writeCookie(cookieName, encoded);
-  }, [cart, cookieName]);
+  }, [cart, cookieName, defaultOrderType]);
 
   // Another tab changed the tray: when this tab is looked at again, let the server re-price it.
   useEffect(() => {
     function onFocus() {
       if (document.visibilityState === "hidden") return;
-      if (readCookie(cookieName) !== encodeCart(cartRef.current)) router.refresh();
+      if (readCookie(cookieName) !== encodeCart(cartRef.current, defaultOrderType)) router.refresh();
     }
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
@@ -319,7 +326,7 @@ export function LocalCartProvider({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [cookieName, router]);
+  }, [cookieName, defaultOrderType, router]);
 
   const addLines = useCallback(
     (inputs: AddLineInput[]) => {

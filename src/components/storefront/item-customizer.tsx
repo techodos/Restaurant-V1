@@ -347,7 +347,7 @@ export function ItemCustomizer({
             <span className="tabular font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale })}</span>
           </Button>
         </div>
-        <p className="mt-2 text-center text-[11px] text-[var(--color-muted-ink)]">Prices are confirmed when your order is placed.</p>
+        <p className="mt-2 text-center text-xs text-[var(--color-muted-ink)]">Prices are confirmed when your order is placed.</p>
       </div>
     </div>
   );

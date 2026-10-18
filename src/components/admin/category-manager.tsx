@@ -162,13 +162,13 @@ export function CategoryManager({
               </Link>
               {canManage ? (
                 <span className="flex shrink-0 items-center opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                  <Button size="icon" variant="ghost" className="size-8" onClick={() => setEditingId(category.id)} aria-label={`Edit ${category.name}`}>
+                  <Button size="icon" variant="ghost" className="size-10 lg:size-8" onClick={() => setEditingId(category.id)} aria-label={`Edit ${category.name}`}>
                     <Pencil className="size-3.5" aria-hidden />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="size-8 hover:text-[var(--color-danger)]"
+                    className="size-10 lg:size-8 hover:text-[var(--color-danger)]"
                     onClick={() => handleDelete(category)}
                     disabled={deletingId === category.id}
                     aria-label={`Delete ${category.name}`}

@@ -129,7 +129,7 @@ export function PreviousOrderCard({ order, restaurant }: { order: Order; restaur
     >
       <p className="row-span-2 text-center md:row-span-1" title={whenPlaced(order, restaurant)}>
         <span className="tabular block font-[family-name:var(--font-display)] text-[2.2rem] leading-none md:text-[2.8rem]">{date({ day: "numeric" })}</span>
-        <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">
+        <span className="mt-1 block label-caps font-semibold text-[var(--color-muted-ink)]">
           {date({ month: "short", year: "2-digit" })}
         </span>
       </p>

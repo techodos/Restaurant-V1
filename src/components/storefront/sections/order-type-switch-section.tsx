@@ -52,7 +52,7 @@ function EtaTag({ minutes, className }: { minutes: number | null; className?: st
   return (
     <span
       className={cn(
-        "tabular inline-flex shrink-0 items-center rounded-full bg-[var(--tint-strong)] px-2 py-0.5 font-sans text-[11px] font-medium leading-4 tracking-normal text-[var(--color-muted-ink)]",
+        "tabular inline-flex shrink-0 items-center rounded-full bg-[var(--tint-strong)] px-2 py-0.5 font-sans text-xs font-medium leading-4 tracking-normal text-[var(--color-muted-ink)]",
         className,
       )}
     >
@@ -124,7 +124,7 @@ export function OrderTypeSwitchSection({
                     </span>
                     <span className="display-3 block [grid-area:label] md:display-2 md:mt-7">{door.label}</span>
                     <EtaTag minutes={door.eta} className="[grid-area:eta] justify-self-end" />
-                    <span className="mt-2.5 block max-w-[34ch] text-pretty text-[13.5px] leading-relaxed text-[var(--color-muted-ink)] [grid-area:text] md:mt-2 md:text-[14px]">
+                    <span className="mt-1.5 block max-w-[34ch] text-pretty text-[14px] leading-relaxed text-[var(--color-muted-ink)] [grid-area:text] md:mt-2 md:text-[14px]">
                       {door.text}
                     </span>
                   </span>
@@ -132,7 +132,7 @@ export function OrderTypeSwitchSection({
                     <span className="absolute -left-[1.625rem] -top-2.5 size-5 rounded-full bg-[var(--color-canvas)] sm:-left-[1.875rem]" />
                     <span className="absolute -right-[1.625rem] -top-2.5 size-5 rounded-full bg-[var(--color-canvas)] sm:-right-[1.875rem]" />
                   </span>
-                  <span className="flex items-center justify-between gap-3 px-4 py-3 text-[13.5px] font-semibold sm:px-6 sm:py-4 md:px-7">
+                  <span className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px] font-semibold sm:px-6 sm:py-4 md:px-7">
                     {ACTIONS[door.type]}
                     <span className="grid size-8 place-items-center rounded-full bg-[var(--color-ink)] text-[var(--color-canvas)] transition-[transform,background-color] duration-500 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:bg-[var(--color-brand-accent)] group-data-[selected]:bg-[var(--color-brand-accent)]">
                       <DoorMark className="size-3.5" />
@@ -209,7 +209,7 @@ export function OrderTypeSwitchSection({
                       {door.eta ? <span className="tabular">About {door.eta} min</span> : null}
                     </span>
                     <span className="display-2 mt-1.5 block md:mt-2">{door.label}</span>
-                    <span className="mt-1.5 block max-w-[34ch] text-pretty text-[13.5px] leading-snug text-white/80 md:mt-2 md:text-[14px] md:leading-relaxed">
+                    <span className="mt-1.5 block max-w-[34ch] text-pretty text-[14px] leading-snug text-white/80 md:mt-2 md:text-[14px] md:leading-relaxed">
                       {door.text}
                     </span>
                   </OrderTypeDoor>
@@ -236,7 +236,7 @@ export function OrderTypeSwitchSection({
                     PRESS,
                   )}
                 >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--color-ink)] text-[var(--color-canvas)] transition-colors duration-300 group-hover:bg-[var(--color-brand-accent)] group-data-[selected]:bg-[var(--color-brand-accent)] sm:size-11">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-ink)_7%,transparent)] text-[var(--color-ink)] transition-colors duration-300 group-hover:bg-[var(--color-brand-accent)] group-hover:text-[var(--color-canvas)] group-data-[selected]:bg-[var(--color-brand-accent)] group-data-[selected]:text-[var(--color-canvas)] sm:size-11">
                     <door.Icon className="size-[18px]" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -244,7 +244,7 @@ export function OrderTypeSwitchSection({
                       <span className="text-[15px] font-semibold leading-tight">{door.label}</span>
                       <EtaTag minutes={door.eta} />
                     </span>
-                    <span className="mt-0.5 block text-pretty text-[12.5px] leading-snug text-[var(--color-muted-ink)]">{door.text}</span>
+                    <span className="mt-0.5 block text-pretty text-[13px] leading-snug text-[var(--color-muted-ink)]">{door.text}</span>
                   </span>
                   <DoorMark className="size-4 shrink-0 text-[var(--color-muted-ink)] transition-[transform,color] duration-300 group-hover:translate-x-0.5 group-hover:text-[var(--color-ink)] group-data-[selected]:text-[var(--color-brand-accent)]" />
                 </OrderTypeDoor>
@@ -281,7 +281,7 @@ export function OrderTypeSwitchSection({
                         </span>
                         <EtaTag minutes={door.eta} />
                       </span>
-                      <span className="mt-1 block text-pretty text-[13px] leading-snug text-[var(--color-muted-ink)] md:mt-1.5 md:text-[13.5px]">
+                      <span className="mt-1 block text-pretty text-[14px] leading-snug text-[var(--color-muted-ink)] md:mt-1.5">
                         {door.text}
                       </span>
                     </span>
@@ -295,6 +295,68 @@ export function OrderTypeSwitchSection({
           </div>
         </SectionShell>
       );
+
+    case "float": {
+      // pickup's chip is the kitchen's real preparation time (settings.ordering), delivery's its delivery ETA;
+      // dine-in has no time to promise, so no chip
+      const prep = section.showEta ? context.restaurant.settings.ordering.preparationTimeMinutes : 0;
+      const tag = (door: Door) =>
+        door.type === "pickup" ? (prep ? `Ready in ${prep} min` : null) : door.eta ? `${door.eta} min` : null;
+      return (
+        <section
+          aria-label={section.title || undefined}
+          className={cn(
+            `tone-${tone} section-y`,
+            // right after a hero the cards rest on its bottom edge: the top of this section continues the hero's night ground
+            "[[data-after=hero]>&]:bg-[linear-gradient(to_bottom,var(--color-night)_2.25rem,var(--color-canvas)_2.25rem)] [[data-after=hero]>&]:pt-0 [[data-after=hero]>&]:pb-2 md:[[data-after=hero]>&]:pb-4",
+          )}
+        >
+          <div className="container-page">
+            <div className="[[data-after=hero]_&]:sr-only">{heading(false)}</div>
+            <ul className={cn("grid gap-3 md:gap-4", doors.length === 3 ? "lg:grid-cols-3" : cols)}>
+              {doors.map((door) => {
+                const label = tag(door);
+                return (
+                  <li key={door.type} className="reveal">
+                    <OrderTypeDoor
+                      type={door.type}
+                      href={door.href}
+                      className={cn(
+                        // elevation is the shadow alone (no border under it); selected = an accent ring, plus a check (never colour alone)
+                        "group grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 rounded-[var(--radius-card)] bg-[var(--color-surface)] px-3.5 py-3 shadow-[0_1px_2px_color-mix(in_srgb,#000_6%,transparent),0_10px_24px_-14px_color-mix(in_srgb,#000_35%,transparent)] transition-[box-shadow,transform] duration-300 ease-[var(--ease-out)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)] data-[selected]:ring-[1.5px] data-[selected]:ring-[var(--color-brand-accent)] sm:gap-4 sm:px-5 sm:py-4 md:p-5",
+                        PRESS,
+                      )}
+                    >
+                      <span className="grid size-11 shrink-0 place-items-center rounded-full border border-[color-mix(in_srgb,var(--color-brand-accent)_70%,transparent)] text-[var(--color-brand-accent)] transition-colors duration-300 group-data-[selected]:bg-[color-mix(in_srgb,var(--color-brand-accent)_12%,transparent)]">
+                        <door.Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-[family-name:var(--font-display)] text-[1.125rem] leading-tight">{door.label}</span>
+                          {label ? (
+                            <span className="tabular inline-flex items-center rounded-full bg-[var(--tint-strong)] px-2 py-0.5 text-xs font-medium leading-4 text-[var(--color-muted-ink)]">
+                              {label}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block text-pretty text-[14px] leading-snug text-[color-mix(in_srgb,var(--color-ink)_82%,transparent)]">
+                          {door.text}
+                        </span>
+                      </span>
+                      {/* phones: no arrows, as in a quiet list; only the selected card carries a check. From sm: the hover arrow */}
+                      <span className="flex w-[18px] shrink-0 justify-end text-[var(--color-muted-ink)] transition-[transform,color] duration-300 group-hover:translate-x-0.5 group-hover:text-[var(--color-ink)] group-data-[selected]:text-[var(--color-brand-accent)]">
+                        <ArrowRight className="hidden size-[18px] sm:block sm:group-data-[selected]:hidden" aria-hidden />
+                        <Check className="hidden size-[18px] group-data-[selected]:block" strokeWidth={2.5} aria-hidden />
+                      </span>
+                    </OrderTypeDoor>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+      );
+    }
 
     default:
       return (
@@ -331,7 +393,7 @@ export function OrderTypeSwitchSection({
                         <span className="display-3">{door.label}</span>
                         <EtaTag minutes={door.eta} />
                       </span>
-                      <span className="mt-1 block text-pretty text-[13px] leading-snug text-[var(--color-muted-ink)]">{door.text}</span>
+                      <span className="mt-1 block text-pretty text-[14px] leading-snug text-[var(--color-muted-ink)]">{door.text}</span>
                     </span>
                     <DoorMark className="size-5 shrink-0 text-[var(--color-muted-ink)] transition-[transform,color] duration-300 group-hover:translate-x-1 group-hover:text-[var(--color-ink)] group-data-[selected]:text-[var(--color-brand-accent)]" />
                   </OrderTypeDoor>

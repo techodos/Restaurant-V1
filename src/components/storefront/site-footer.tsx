@@ -63,7 +63,7 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
           {footer.columns.map((column) => (
             <div key={column.title}>
               <p className="eyebrow">{column.title}</p>
-              <ul className="mt-4 space-y-2.5 text-[14.5px]">
+              <ul className="mt-4 space-y-2.5 text-[15px]">
                 {column.links.map((link) => (
                   <li key={`${column.title}-${link.href}-${link.label}`}>
                     <Link href={link.href} className="text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]">
@@ -77,7 +77,7 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
 
           <div className="col-span-2 md:col-span-1">
             <p className="eyebrow">Visit us</p>
-            <address className="mt-4 space-y-3 text-[14.5px] not-italic text-[var(--color-muted-ink)]">
+            <address className="mt-4 space-y-3 text-[15px] not-italic text-[var(--color-muted-ink)]">
               {primaryLocation ? (
                 <span className="flex items-start gap-3">
                   <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />

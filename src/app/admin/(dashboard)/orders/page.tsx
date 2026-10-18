@@ -173,7 +173,7 @@ async function OrdersResults({
           <input type="hidden" name="status" value={activeStatus} />
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
-            <Input name="q" type="search" defaultValue={q ?? ""} aria-label="Search orders" placeholder="Order #, customer or phone" className="h-10 pl-9" />
+            <Input name="q" type="search" defaultValue={q ?? ""} aria-label="Search orders" placeholder="Order #, name or phone" className="h-10 pl-9" />
           </div>
           <Button type="submit" variant="outline" className="h-10">
             Search
@@ -222,7 +222,7 @@ async function OrdersResults({
               </ul>
 
               {/* laptop and up: the table */}
-              <div className="hidden overflow-x-auto lg:block">
+              <div className="relative hidden overflow-x-auto lg:block">
                 <table className="tabular w-full min-w-[52rem] text-sm">
                   <thead className={tableHead}>
                     <tr>

@@ -143,8 +143,8 @@ export default async function CheckoutPage() {
                   step.state === "done"
                     ? "grid size-6 place-items-center rounded-full bg-[var(--color-brand-accent)] text-[var(--color-brand-accent-foreground)]"
                     : step.state === "current"
-                      ? "grid size-6 place-items-center rounded-full bg-[var(--color-brand)] text-[11px] text-[var(--color-brand-foreground)] tabular"
-                      : "grid size-6 place-items-center rounded-full border border-[var(--rule-strong)] text-[11px] text-[var(--color-muted-ink)] tabular"
+                      ? "grid size-6 place-items-center rounded-full bg-[var(--color-brand)] text-xs text-[var(--color-brand-foreground)] tabular"
+                      : "grid size-6 place-items-center rounded-full border border-[var(--rule-strong)] text-xs text-[var(--color-muted-ink)] tabular"
                 }
               >
                 {step.state === "done" ? <Check className="size-3.5" strokeWidth={2.5} /> : index + 1}

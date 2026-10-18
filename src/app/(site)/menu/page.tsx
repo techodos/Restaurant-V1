@@ -184,11 +184,12 @@ async function renderMenu(
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <form
             action={base}
-            className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-white/20 bg-black/30 p-2 backdrop-blur-md transition-colors focus-within:border-white/60 sm:flex-nowrap sm:gap-1 sm:py-2 sm:pl-5 sm:pr-2 lg:max-w-2xl"
+            // one row at every width: wrapped into two rows inside a pill radius, the button poked out of the curve
+            className="flex items-center gap-1 rounded-[var(--radius-control)] border border-white/20 bg-black/30 py-1.5 pl-4 pr-1.5 backdrop-blur-md transition-colors focus-within:border-white/60 sm:py-2 sm:pl-5 sm:pr-2 lg:max-w-2xl"
           >
             <input type="hidden" name="orderType" value={activeOrderType} />
             {category ? <input type="hidden" name="category" value={category} /> : null}
-            <div className="flex min-w-0 basis-full items-center gap-2 pl-2 sm:basis-auto sm:flex-1 sm:pl-0">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <Search className="size-[18px] shrink-0 text-white/70" aria-hidden />
               <input
                 name="q"
@@ -210,8 +211,9 @@ async function renderMenu(
               <option value="price_asc">Price, low first</option>
               <option value="price_desc">Price, high first</option>
             </select>
-            <Button type="submit" size="md" className="h-11 flex-1 px-7 sm:flex-none">
-              Search
+            <Button type="submit" size="md" aria-label="Search" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-7">
+              <Search className="sm:hidden" aria-hidden />
+              <span className="hidden sm:inline">Search</span>
             </Button>
           </form>
         </div>
@@ -335,7 +337,7 @@ async function renderMenu(
           ) : layout === "sidebar" ? (
             // a standing category index beside the dishes; each chapter opens on its own photograph
             <section className="tone-paper section-y">
-              <div className="container-page grid gap-10 lg:grid-cols-[13.5rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)] xl:gap-16">
+              <div className="container-page grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[13.5rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)] xl:gap-16">
                 <aside className="hidden lg:block">
                   <div className="sticky top-[calc(var(--header-h,4.25rem)+2rem)] border-l border-[var(--rule)]">
                     <StationNav stations={stations} variant="index" />
@@ -403,10 +405,10 @@ async function renderMenu(
                           {group.category.name}
                         </h2>
                         {group.category.description ? (
-                          <p className="mt-1.5 max-w-xl text-[14.5px] leading-relaxed text-[var(--color-muted-ink)]">{group.category.description}</p>
+                          <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-[var(--color-muted-ink)]">{group.category.description}</p>
                         ) : null}
                       </div>
-                      <p className="tabular text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">
+                      <p className="tabular label-caps font-semibold text-[var(--color-muted-ink)]">
                         {dishes(group.items.length)}
                       </p>
                     </header>

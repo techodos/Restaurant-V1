@@ -105,11 +105,11 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
           {section.primaryCta || secondary ? (
             <div
               className={cn(
-                "animate-rise mt-7 flex flex-wrap items-center gap-x-8 gap-y-4 [animation-delay:240ms] md:mt-8",
+                "animate-rise mt-7 flex flex-wrap items-center gap-x-6 gap-y-4 sm:gap-x-8 [animation-delay:240ms] md:mt-8",
                 centered && "justify-center",
               )}
             >
-              {section.primaryCta ? <CtaLink cta={{ ...section.primaryCta, style: "primary" }} size="lg" arrow /> : null}
+              {section.primaryCta ? <CtaLink cta={{ ...section.primaryCta, style: "primary" }} size="lg" arrow className="px-6 sm:px-8" /> : null}
               {secondary ? (
                 <Link
                   href={secondary.href}
@@ -132,7 +132,7 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
         <div className="container-page relative w-full pb-7 md:pb-10">
           <div className="flex flex-col gap-4 border-t border-white/15 pt-5 text-[13px] text-white/75 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <span className="hidden items-center gap-2.5 text-[10.5px] font-semibold uppercase tracking-[0.22em] text-white/70 md:inline-flex">
+              <span className="hidden items-center gap-2.5 label-caps font-semibold text-white/70 md:inline-flex">
                 <Mouse className="animate-cue size-[18px]" aria-hidden />
                 Scroll to explore
               </span>

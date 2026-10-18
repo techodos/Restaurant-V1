@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Minus, Plus, ShoppingBag, MapPin } from "lucide-react";
+import { Minus, Plus, ShoppingBag, MapPin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useLocalCart } from "./local-cart";
 import { useBranching } from "./branching";
 import { flyToTray } from "@/components/motion/fly-to-tray";
-import { useState } from "react";
 
 interface GridAddBarProps {
   restaurantSlug: string;
@@ -24,14 +23,16 @@ interface GridAddBarProps {
 }
 
 /**
- * The grid menu layout's add control: a quantity stepper next to an explicit "Add to Cart" button,
- * instead of the rest of the site's floating + that adds straight away. The stepper only picks how many
- * to add next — it does not reflect what is already in the cart — and "Add to Cart" commits that count
- * through the same `addLine` the floating control uses, so it is the same tray, same cookie, same rules.
+ * The grid menu layout's add control. Not in the cart: a full-width "Add to Cart" button. In the cart: a
+ * − n + stepper showing the cart's real quantity of this dish (its plain line: no variant, add-ons or note),
+ * changed in place through `updateQuantity`; − at 1 removes it. Same tray, same cookie, same rules as the
+ * floating + elsewhere (`addLine`). Dishes with options link to their page instead.
  */
 export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps) {
-  const [qty, setQty] = useState(1);
-  const { addLine } = useLocalCart();
+  const { cart, addLine, updateQuantity } = useLocalCart();
+  const line = cart.lines.find(
+    (candidate) => candidate.menuItemId === item.id && candidate.variantId === null && candidate.addons.length === 0 && !candidate.specialInstructions,
+  );
   const branching = useBranching();
 
   if (!item.isAvailable) return null;
@@ -49,10 +50,10 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
         type="button"
         aria-disabled={noService || undefined}
         onClick={() => (noService ? undefined : branching.resolveGate(orderType))}
-        className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-sm font-semibold text-[var(--color-brand-foreground)] disabled:opacity-45"
+        className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] px-3 py-2 text-center text-[13px] font-semibold leading-snug text-[var(--color-brand-foreground)] disabled:opacity-45"
         disabled={noService}
       >
-        <MapPin aria-hidden className="size-4" />
+        <MapPin aria-hidden className="size-4 shrink-0" />
         {hint}
       </button>
     );
@@ -75,7 +76,7 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
     const ok = addLine({
       menuItemId: item.id,
       variantId: null,
-      quantity: qty,
+      quantity: 1,
       addons: [],
       display: {
         name: item.name,
@@ -94,43 +95,44 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
     }
     const plateImage = event.currentTarget.closest("[data-dish]")?.querySelector("img") ?? null;
     flyToTray(plateImage);
-    toast.success(`${qty} × ${item.name} added to your order`);
-    setQty(1);
+    toast.success(`${item.name} added to your order`);
   };
 
-  return (
-    <div className="mt-3 flex items-center gap-2">
-      <div
-        role="group"
-        aria-label={`Quantity for ${item.name}`}
-        className="flex h-10 shrink-0 items-center rounded-[var(--radius-control)] border border-[var(--color-hairline)]"
-      >
-        <button
-          type="button"
-          aria-label="Decrease quantity"
-          disabled={qty <= 1}
-          onClick={() => setQty((value) => Math.max(1, value - 1))}
-          className="grid size-9 place-items-center text-[var(--color-ink)] disabled:opacity-35"
-        >
-          <Minus aria-hidden className="size-3.5" />
-        </button>
-        <span aria-live="polite" className="tabular w-5 text-center text-sm font-semibold">
-          {qty}
-        </span>
-        <button
-          type="button"
-          aria-label="Increase quantity"
-          disabled={qty >= 99}
-          onClick={() => setQty((value) => Math.min(99, value + 1))}
-          className="grid size-9 place-items-center text-[var(--color-ink)] disabled:opacity-35"
-        >
-          <Plus aria-hidden className="size-3.5" />
-        </button>
-      </div>
-      <Button type="button" onClick={add} className="h-10 flex-1 gap-2 px-3 text-[13px]">
+  if (!line) {
+    return (
+      <Button type="button" onClick={add} className="mt-3 h-10 w-full min-w-0 gap-2 px-3 text-[13px]">
         <ShoppingBag aria-hidden className="size-4" />
         Add to Cart
       </Button>
+    );
+  }
+
+  return (
+    <div
+      role="group"
+      aria-label={`${item.name} in your cart`}
+      className="@container mt-3 flex h-10 w-full items-center justify-between rounded-[var(--radius-control)] bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] text-[var(--color-brand)]"
+    >
+      <button
+        type="button"
+        aria-label={line.quantity === 1 ? `Remove ${item.name} from cart` : "Decrease quantity"}
+        onClick={() => updateQuantity(line.id, line.quantity - 1)}
+        className="grid size-10 place-items-center rounded-[var(--radius-control)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)]"
+      >
+        {line.quantity === 1 ? <Trash2 aria-hidden className="size-3.5" /> : <Minus aria-hidden className="size-3.5" />}
+      </button>
+      <span aria-live="polite" className="tabular whitespace-nowrap text-sm font-semibold">
+        {line.quantity}<span className="hidden font-medium opacity-75 @[9.5rem]:inline"> in cart</span>
+      </span>
+      <button
+        type="button"
+        aria-label="Increase quantity"
+        disabled={line.quantity >= 99}
+        onClick={() => updateQuantity(line.id, line.quantity + 1)}
+        className="grid size-10 place-items-center rounded-[var(--radius-control)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] disabled:opacity-35"
+      >
+        <Plus aria-hidden className="size-3.5" />
+      </button>
     </div>
   );
 }

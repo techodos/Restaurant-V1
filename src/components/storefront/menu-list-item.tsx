@@ -51,10 +51,10 @@ export function MenuListItem({
       <div className="mt-1.5 flex items-start justify-between gap-6">
         <div className="min-w-0">
           {item.description ? (
-            <p className="line-clamp-2 max-w-[52ch] text-[13.5px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
+            <p className="line-clamp-2 max-w-[52ch] text-[14px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
           ) : null}
           {hasMeta || !item.isAvailable ? (
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted-ink)]">
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 label-caps font-semibold text-[var(--color-muted-ink)]">
               {!item.isAvailable ? <span className="text-[var(--color-ink)]">{offAtBranch ? "Not at this branch" : "Sold out today"}</span> : null}
               {item.dietaryTags.slice(0, 2).map((tag) => (
                 <span key={tag}>{tag}</span>

@@ -36,9 +36,9 @@ function VariantRow({ menuItemId, variant, onSaved }: { menuItemId: string; vari
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-1 items-center gap-2">
-      <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Variant name (e.g. Large)" className="w-48" required />
-      <Input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="Price" className="w-28" required />
+    <form onSubmit={submit} className="flex min-w-0 flex-1 items-center gap-2">
+      <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Variant name (e.g. Large)" className="min-w-0 flex-1 sm:w-48 sm:flex-none" required />
+      <Input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="Price" inputMode="decimal" className="w-20 shrink-0 sm:w-28" required />
       <Button type="submit" size="sm" variant={variant ? "outline" : "primary"} disabled={pending}>
         {pending ? (
           <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -82,7 +82,7 @@ export function VariantManager({ menuItemId, variants }: { menuItemId: string; v
       {variants.map((variant) => (
         <div
           key={variant.id}
-          className="flex items-center justify-between gap-3 surface-flat px-3.5 py-2.5"
+          className="flex items-center justify-between gap-2 surface-flat px-2.5 py-2.5 sm:gap-3 sm:px-3.5"
         >
           <VariantRow menuItemId={menuItemId} variant={variant} onSaved={() => router.refresh()} />
           <Button

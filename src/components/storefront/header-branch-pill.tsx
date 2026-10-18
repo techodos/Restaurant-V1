@@ -85,7 +85,7 @@ export function HeaderBranchPill({
                   }. Change branch or location`
             }
           >
-            <span className="container-page flex h-10 items-center gap-2.5 text-[12.5px]">
+            <span className="container-page flex h-10 items-center gap-2.5 text-[13px]">
               {unserved ? (
                 <MapPinOff className="size-[15px] shrink-0 text-[var(--color-warning)]" strokeWidth={1.75} aria-hidden />
               ) : (
@@ -148,14 +148,14 @@ export function HeaderBranchPill({
             <MapPin className={cn("size-4 shrink-0 lg:size-[18px]", iconTone)} strokeWidth={1.75} aria-hidden />
           )}
           <span aria-hidden className="mx-2.5 h-5 w-px shrink-0 bg-[color-mix(in_srgb,var(--color-brand-accent)_22%,transparent)] lg:mx-3 lg:h-[22px]" />
-          <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1.5 leading-none">
-            <span className="truncate text-[10.5px] font-medium text-[var(--color-ink)] lg:text-[11.5px]">
+          <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1 leading-none">
+            <span className="truncate text-xs font-medium text-[var(--color-ink)] lg:text-[13px]">
               {unserved ? (destination?.label ?? "Your location") : selected?.name}
             </span>
             {!unserved && selected?.city ? (
               <span
                 className={cn(
-                  "hidden truncate text-[9px] min-[400px]:block lg:text-[10px]",
+                  "hidden truncate text-[11px] min-[400px]:block lg:text-[11.5px]",
                   tone === "night" ? "text-[color-mix(in_srgb,var(--color-brand-accent)_75%,var(--color-muted-ink))]" : "text-[var(--color-muted-ink)]",
                 )}
               >
@@ -195,12 +195,12 @@ export function HeaderBranchPill({
             ) : (
               <>
                 <div className="px-4 pb-2 pt-3.5">
-                  <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">
+                  <p className="flex items-center gap-2 label-caps font-semibold text-[var(--color-muted-ink)]">
                     <span aria-hidden className="size-1.5 rounded-full bg-[var(--color-success)]" />
                     {delivery ? "Serving from" : cart.orderType === "pickup" ? "Pick up from" : "Dining at"}
                   </p>
                   {delivery && destination ? (
-                    <p className="mt-1 truncate text-[12.5px] text-[var(--color-muted-ink)]">Delivering to {destination.label}</p>
+                    <p className="mt-1 truncate text-[13px] text-[var(--color-muted-ink)]">Delivering to {destination.label}</p>
                   ) : null}
                 </div>
                 <ul
@@ -231,7 +231,7 @@ export function HeaderBranchPill({
                   close();
                   branching.openLocation();
                 }}
-                className="group flex w-full items-center justify-between gap-3 rounded-[calc(var(--radius-card)-4px)] px-3 py-2.5 text-left text-[13.5px] font-medium transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:bg-[var(--tint)] focus-visible:outline-none"
+                className="group flex w-full items-center justify-between gap-3 rounded-[calc(var(--radius-card)-4px)] px-3 py-2.5 text-left text-[14px] font-medium transition-colors duration-150 hover:bg-[var(--tint)] focus-visible:bg-[var(--tint)] focus-visible:outline-none"
               >
                 <span className="flex min-w-0 items-center gap-2.5">
                   <MapPin className="size-4 shrink-0 text-[var(--color-muted-ink)]" aria-hidden />
@@ -275,7 +275,7 @@ function BranchRow({ branch, on, nearest, onPick }: { branch: BranchOption; on: 
             <span className="break-words text-sm font-semibold leading-snug">{branch.name}</span>
             {nearest ? <Badge variant="soft">Nearest</Badge> : null}
           </span>
-          {detail ? <span className="mt-0.5 block break-words text-[12.5px] leading-snug text-[var(--color-muted-ink)]">{detail}</span> : null}
+          {detail ? <span className="mt-0.5 block break-words text-[13px] leading-snug text-[var(--color-muted-ink)]">{detail}</span> : null}
         </span>
         {branch.distanceKm !== null ? (
           <span className="tabular shrink-0 pt-0.5 text-[12px] text-[var(--color-muted-ink)]">{formatDistance(branch.distanceKm)}</span>

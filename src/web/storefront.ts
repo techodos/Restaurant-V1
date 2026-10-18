@@ -85,6 +85,7 @@ export async function getInitialTray(context: StorefrontContext): Promise<Initia
   return {
     encoded,
     tray,
+    defaultOrderType: context.config.ordering.defaultOrderType,
     couponDiscount,
     displays: view.lines.map((line) => ({
       name: line.name,

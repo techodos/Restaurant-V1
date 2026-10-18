@@ -40,7 +40,7 @@ export function AdminStatusTabs<K extends string>({
             >
               {option.label}
               {option.count !== undefined ? (
-                <span className={cn("tabular text-[11px]", on ? "text-[var(--color-brand)]" : "opacity-70")}>{option.count}</span>
+                <span className={cn("tabular text-xs", on ? "text-[var(--color-brand)]" : "opacity-70")}>{option.count}</span>
               ) : null}
             </Link>
           );

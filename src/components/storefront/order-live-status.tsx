@@ -261,7 +261,7 @@ export function OrderPass() {
               </span>
               <span
                 className={cn(
-                  "mt-3 px-1 text-[11px] leading-tight sm:text-[13px]",
+                  "mt-3 px-1 text-xs leading-tight sm:text-[13px]",
                   isCurrent ? "font-semibold text-[var(--color-ink)]" : reached ? "text-[var(--color-ink)]" : "text-[var(--color-muted-ink)]",
                   !isCurrent && "max-sm:hidden",
                 )}
@@ -269,7 +269,7 @@ export function OrderPass() {
                 {SHORT_LABELS[step.status] ?? step.label}
               </span>
               {step.at ? (
-                <span className="tabular mt-0.5 hidden text-[11px] text-[var(--color-muted-ink)] sm:block">
+                <span className="tabular mt-0.5 hidden text-xs text-[var(--color-muted-ink)] sm:block">
                   {new Date(step.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                 </span>
               ) : null}
