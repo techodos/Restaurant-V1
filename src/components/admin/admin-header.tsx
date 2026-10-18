@@ -27,7 +27,10 @@ export function AdminHeader({
     <header className="tone-night sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-[var(--rule)] px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         {mobileNav}
-        <AdminBreadcrumb restaurantSlug={restaurantSlug} />
+        {/* phones: no room beside the branch picker (it truncated to "O…"); the page title names the screen */}
+        <div className="hidden min-w-0 sm:block">
+          <AdminBreadcrumb restaurantSlug={restaurantSlug} />
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {branch}

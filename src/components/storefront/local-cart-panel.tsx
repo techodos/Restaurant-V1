@@ -368,7 +368,7 @@ export function LocalCartPanel({
       <header className="border-b border-[var(--rule)] pb-6 md:pb-8">
         <p className="eyebrow mb-2.5">Your order</p>
         <h1 className="display-2 font-normal">My Cart</h1>
-        <p className="tabular mt-2.5 text-[14.5px] leading-relaxed text-[var(--color-muted-ink)] md:text-[15px]">
+        <p className="tabular mt-2.5 text-[15px] leading-relaxed text-[var(--color-muted-ink)] md:text-[15px]">
           {itemCount} item{itemCount === 1 ? "" : "s"} from {restaurantName}. Delivery and tax are added at checkout.
         </p>
       </header>

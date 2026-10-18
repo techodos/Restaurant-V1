@@ -177,6 +177,8 @@ export interface InitialTray {
   /** the cookie value it was read from, so the browser can tell when another tab changed it */
   encoded: string;
   tray: Tray;
+  /** the restaurant's default order type: an otherwise-empty tray on any other type is still worth a cookie */
+  defaultOrderType: OrderType;
   /** `displays[i]` belongs to `tray.lines[i]` */
   displays: TrayLineDisplay[];
   /** the tray's promo code preview discount (subtotal only), or null when there is none / it no longer applies */

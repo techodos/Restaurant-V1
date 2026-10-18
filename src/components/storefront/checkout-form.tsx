@@ -730,7 +730,7 @@ export function CheckoutForm({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[13px] font-semibold uppercase tracking-[0.12em]">{title}</span>
-                      <span className={cn("mt-0.5 block text-[13.5px]", on ? "text-[color-mix(in_srgb,var(--color-brand-foreground)_80%,transparent)]" : "text-[var(--color-muted-ink)]")}>{text}</span>
+                      <span className={cn("mt-0.5 block text-[14px]", on ? "text-[color-mix(in_srgb,var(--color-brand-foreground)_80%,transparent)]" : "text-[var(--color-muted-ink)]")}>{text}</span>
                     </span>
                     <span
                       aria-hidden
@@ -859,13 +859,13 @@ export function CheckoutForm({
                   <MapPin className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-brand)]">Delivering to</p>
+                  <p className="label-caps font-semibold text-[var(--color-brand)]">Delivering to</p>
                   <p className="mt-1 break-words text-base font-semibold leading-snug">{destination!.label}</p>
                   {(() => {
                     const lines = chosenAddress
                       ? [chosenAddress.addressLine1, chosenAddress.addressLine2].filter(Boolean).join(", ")
                       : [destination!.area, destination!.city].filter(Boolean).join(", ");
-                    return lines ? <p className="mt-0.5 text-[13.5px] leading-snug text-[var(--color-muted-ink)]">{lines}</p> : null;
+                    return lines ? <p className="mt-0.5 text-[14px] leading-snug text-[var(--color-muted-ink)]">{lines}</p> : null;
                   })()}
                 </div>
                 <button
@@ -1253,7 +1253,7 @@ export function CheckoutForm({
               <h2 id="summary-title" className="font-[family-name:var(--font-display)] text-[1.3rem] font-normal leading-tight">
                 Order summary
               </h2>
-              <span className="tabular shrink-0 text-[12.5px] text-[color-mix(in_srgb,var(--color-brand-foreground)_75%,transparent)]">
+              <span className="tabular shrink-0 text-[13px] text-[color-mix(in_srgb,var(--color-brand-foreground)_75%,transparent)]">
                 {itemCount} item{itemCount === 1 ? "" : "s"}
               </span>
             </div>
@@ -1283,7 +1283,7 @@ export function CheckoutForm({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-[14px] font-semibold leading-snug">{item.name}</p>
-                    <p className="tabular truncate text-[12.5px] leading-snug text-[var(--color-muted-ink)]">
+                    <p className="tabular truncate text-[13px] leading-snug text-[var(--color-muted-ink)]">
                       {[`Qty ${item.quantity}`, item.variantName, ...item.addonNames].filter(Boolean).join(" · ")}
                     </p>
                   </div>
@@ -1330,7 +1330,7 @@ export function CheckoutForm({
                 </div>
               ) : null}
               <div className="!mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] bg-[var(--brand-tint)] px-4 py-3">
-                <dt className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-brand)]">Total due</dt>
+                <dt className="whitespace-nowrap label-caps font-semibold text-[var(--color-brand)]">Total due</dt>
                 <dd aria-live="polite" className="tabular whitespace-nowrap font-[family-name:var(--font-display)] text-[1.35rem] leading-none text-[var(--color-brand)] sm:text-[1.6rem]">
                   {money(totalDue)}
                 </dd>

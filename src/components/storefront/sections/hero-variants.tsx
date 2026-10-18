@@ -72,7 +72,7 @@ export function FramedHero({ section, context }: HeroProps) {
             />
           ) : null}
           {status ? (
-            <p className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] items-center gap-2.5 rounded-full bg-[color-mix(in_srgb,var(--color-canvas)_90%,transparent)] px-4 py-2 text-[12.5px] font-semibold text-[var(--color-ink)] shadow-[0_10px_30px_-18px_rgb(0_0_0/0.6)] backdrop-blur-md md:bottom-5 md:left-5">
+            <p className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] items-center gap-2.5 rounded-full bg-[color-mix(in_srgb,var(--color-canvas)_90%,transparent)] px-4 py-2 text-[13px] font-semibold text-[var(--color-ink)] shadow-[0_10px_30px_-18px_rgb(0_0_0/0.6)] backdrop-blur-md md:bottom-5 md:left-5">
               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", DOT[status.state])} />
               <span className="truncate">
                 {status.headline}

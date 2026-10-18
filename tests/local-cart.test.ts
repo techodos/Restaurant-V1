@@ -12,6 +12,7 @@ import {
   setLocalOrderType,
   updateLocalLineQuantity,
   fromInitialTray,
+  encodeCart,
   toTray,
   type LocalCart,
 } from "@/components/storefront/local-cart";
@@ -198,7 +199,7 @@ describe("local cart reducer", () => {
       ],
     };
     const displays = [display("Margherita Pizza", "1200.00", "250.00"), display("Margherita Pizza", "1200.00", "250.00")];
-    const initial = { encoded: encodeTray(tray), tray, displays, couponDiscount: null };
+    const initial = { encoded: encodeTray(tray), tray, defaultOrderType: "delivery" as const, displays, couponDiscount: null };
     const cart = fromInitialTray(initial);
     expect(cart.lines).toHaveLength(1);
     expect(cart.lines[0]!.quantity).toBe(2);
@@ -206,10 +207,23 @@ describe("local cart reducer", () => {
 
   it("fromInitialTray pairs each cookie line with the server's display, with ids stable across server and client renders", () => {
     const tray = toTray(addLocalLine(emptyLocalCart("delivery"), line()));
-    const initial = { encoded: encodeTray(tray), tray, displays: [display("Margherita Pizza", "1200.00", "250.00")], couponDiscount: null };
+    const initial = { encoded: encodeTray(tray), tray, defaultOrderType: "delivery" as const, displays: [display("Margherita Pizza", "1200.00", "250.00")], couponDiscount: null };
     const first = fromInitialTray(initial);
     const second = fromInitialTray(initial);
     expect(first.lines.map((entry) => entry.id)).toEqual(second.lines.map((entry) => entry.id));
     expect(first.lines[0]).toMatchObject({ menuItemId: MARGHERITA, quantity: 1, display: { name: "Margherita Pizza" } });
+  });
+
+  it("encodeCart keeps an empty cart's chosen order type or branch, so a reload does not reset them", () => {
+    const empty = emptyLocalCart("delivery");
+    expect(encodeCart(empty, "delivery")).toBe(""); // nothing chosen → no cookie
+    const pickup = setLocalOrderType(empty, "pickup");
+    expect(decodeTray(encodeCart(pickup, "delivery"), "delivery").orderType).toBe("pickup");
+    const branch = setLocalLocationId(empty, MEDIUM);
+    expect(decodeTray(encodeCart(branch, "delivery"), "delivery").locationId).toBe(MEDIUM);
+    // back on the default with nothing else chosen → the cookie is deleted again
+    expect(encodeCart(setLocalOrderType(pickup, "delivery"), "delivery")).toBe("");
+    // items still keep it, whatever the type
+    expect(encodeCart(addLocalLine(empty, line()), "delivery")).not.toBe("");
   });
 });

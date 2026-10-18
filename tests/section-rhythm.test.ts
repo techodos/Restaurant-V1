@@ -34,9 +34,10 @@ describe("section rhythm", () => {
         { type: "order_type_switch", layout: "cards" },
         { type: "order_type_switch", layout: "capsule" },
         { type: "order_type_switch", layout: "photo", tone: "paper" },
+        { type: "order_type_switch", layout: "float" },
         { type: "order_type_switch", layout: "nope", tone: "nope" },
       ]),
-    ).toEqual(["night", "paper", "muted", "paper", "night"]);
+    ).toEqual(["night", "paper", "muted", "paper", "muted", "night"]);
     const [section] = parseSections([{ type: "order_type_switch", deliveryImage: { url: "" }, showEta: "x" }]);
     expect(section).toMatchObject({ layout: "band", tone: "auto", showEta: true, showHeading: true, deliveryImage: undefined });
   });

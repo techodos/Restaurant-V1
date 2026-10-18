@@ -43,7 +43,7 @@ export function MobileDock({ restaurantSlug, activeOrders, reservationsEnabled, 
         href={href}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "press relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium",
+          "press relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs font-medium",
           active ? "text-[var(--color-ink)]" : "text-[var(--color-muted-ink)]",
         )}
       >

@@ -76,7 +76,7 @@ export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md"
                 {title}
               </h1>
               {subtitle ? (
-                <p className="animate-rise mt-3 max-w-[40rem] text-[15.5px] leading-relaxed text-white/80 [animation-delay:160ms] md:text-[17px]">
+                <p className="animate-rise mt-3 max-w-[40rem] text-[16px] leading-relaxed text-white/80 [animation-delay:160ms] md:text-[17px]">
                   {subtitle}
                 </p>
               ) : null}

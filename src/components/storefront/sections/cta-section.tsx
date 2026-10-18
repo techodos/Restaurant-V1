@@ -46,7 +46,7 @@ export function CtaSection({
           <span aria-hidden className="mb-5 block h-px w-12 bg-[var(--color-brand-accent)]" />
           <h2 className="display-1">{section.title}</h2>
           {section.subtitle ? (
-            <p className="mt-4 max-w-[52ch] text-[15.5px] leading-relaxed text-[var(--color-muted-ink)]">{section.subtitle}</p>
+            <p className="mt-4 max-w-[52ch] text-[16px] leading-relaxed text-[var(--color-muted-ink)]">{section.subtitle}</p>
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">

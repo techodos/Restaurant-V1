@@ -35,7 +35,7 @@ export function WhyChooseUsSection({ section, tone = "muted" }: { section: WhyCo
                   <SectionIcon name={item.icon} className="size-4 shrink-0 text-[var(--color-brand-accent)] opacity-80" />
                 </h3>
                 {item.description ? (
-                  <p className="mt-2.5 max-w-[46ch] text-[14.5px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
+                  <p className="mt-2.5 max-w-[46ch] text-[15px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
                 ) : null}
               </div>
             </li>

@@ -55,7 +55,9 @@ for (const route of [...storefront, "/admin/login", ...admin, ...superAdmin]) {
       ].filter(Boolean) as { name: string; value: string; domain: string; path: string }[];
       if (cookies.length) await context.addCookies(cookies);
       const page = await context.newPage();
-      await page.goto(route, { waitUntil: "networkidle" });
+      // "load", not "networkidle": live order streams and dev HMR keep connections open
+      await page.goto(route, { waitUntil: "load" });
+      await page.waitForTimeout(1500);
       // walk the page once so lazy images and client widgets have rendered
       await page.evaluate(async () => {
         for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 30)); }

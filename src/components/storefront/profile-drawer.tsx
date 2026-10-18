@@ -67,7 +67,7 @@ function ReadOnlyRow({ label, value }: { label: string; value: string }) {
 function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <h3 className="font-[family-name:var(--font-sans)] text-[11.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">{children}</h3>
+      <h3 className="label-caps font-semibold text-[var(--color-muted-ink)]">{children}</h3>
       {aside}
     </div>
   );
@@ -176,7 +176,7 @@ export function ProfileDrawer({
             </div>
 
             <section>
-              <SectionTitle aside={<span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-muted-ink)]"><Lock className="size-3" aria-hidden />Account info</span>}>
+              <SectionTitle aside={<span className="inline-flex items-center gap-1 text-xs text-[var(--color-muted-ink)]"><Lock className="size-3" aria-hidden />Account info</span>}>
                 Account
               </SectionTitle>
               <dl className="mt-2 divide-y divide-[var(--rule)] border-y border-[var(--rule)]">
@@ -363,7 +363,7 @@ function AddressBook({
                   <p className="flex items-center gap-2 text-sm font-semibold">
                     {address.label}
                     {address.isDefault ? (
-                      <span className="rounded-full bg-[var(--tint-strong)] px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--color-muted-ink)]">
+                      <span className="rounded-full bg-[var(--tint-strong)] px-2 py-0.5 label-caps font-semibold text-[var(--color-muted-ink)]">
                         Default
                       </span>
                     ) : null}

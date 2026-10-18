@@ -68,12 +68,12 @@ export async function ReviewsSection({ section, context }: { section: ReviewsCon
                 </div>
               </div>
               {review.title ? <p className="mt-4 break-words font-semibold md:mt-5">{review.title}</p> : null}
-              <blockquote className="mt-2 line-clamp-5 break-words text-[14.5px] leading-relaxed text-[color-mix(in_srgb,var(--color-ink)_88%,transparent)] md:line-clamp-6">
+              <blockquote className="mt-2 line-clamp-5 break-words text-[15px] leading-relaxed text-[color-mix(in_srgb,var(--color-ink)_88%,transparent)] md:line-clamp-6">
                 &ldquo;{review.comment ?? review.title}&rdquo;
               </blockquote>
               {review.response ? (
                 // capped so one long reply doesn't stretch every card in the rail (they share a height)
-                <p className="mt-4 line-clamp-3 break-words border-t border-[var(--rule)] pt-4 text-[12.5px] leading-relaxed text-[var(--color-muted-ink)]">
+                <p className="mt-4 line-clamp-3 break-words border-t border-[var(--rule)] pt-4 text-[13px] leading-relaxed text-[var(--color-muted-ink)]">
                   <span className="font-semibold text-[var(--color-ink)]">{context.restaurant.name}:</span> {review.response}
                 </p>
               ) : null}

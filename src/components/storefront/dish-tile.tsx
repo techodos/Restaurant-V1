@@ -78,17 +78,17 @@ export function DishTile({
     />
   );
   const badge = !item.isAvailable ? (
-    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/75 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white backdrop-blur">
+    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/75 px-2.5 py-1 label-caps font-semibold text-white backdrop-blur">
       {offAtBranch ? "Not at this branch" : "Sold out today"}
     </span>
   ) : item.compareAtPrice ? (
-    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-[var(--color-brand-accent)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-accent-foreground)]">
+    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-[var(--color-brand-accent)] px-2.5 py-1 label-caps font-semibold text-[var(--color-brand-accent-foreground)]">
       Offer
     </span>
   ) : null;
   const meta =
     item.dietaryTags.length || item.spiceLevel > 0 || showPrepTime ? (
-      <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-medium uppercase tracking-[0.1em] text-[var(--color-muted-ink)]">
+      <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 label-caps font-medium text-[var(--color-muted-ink)]">
         {item.dietaryTags.slice(0, 2).map((tag) => (
           <span key={tag}>{tag}</span>
         ))}
@@ -187,7 +187,7 @@ export function DishTile({
           <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
         ) : null}
         {meta}
-        <p className={cn("tabular text-[15px] font-semibold", inlineAdd ? "mt-3" : "mt-auto pt-4")}>
+        <p className={cn("tabular text-[15px] font-semibold", "mt-auto", inlineAdd ? "pt-3" : "pt-4")}>
           {price}
           {was}
         </p>

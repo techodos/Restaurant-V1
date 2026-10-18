@@ -96,7 +96,7 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
         <Card className="p-2 lg:sticky lg:top-24">
-          <p className="px-2.5 pb-2 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">Categories</p>
+          <p className="px-2.5 pb-2 pt-1.5 label-caps font-semibold text-[var(--color-muted-ink)]">Categories</p>
           <CategoryManager
             categories={categories}
             activeId={category ?? null}

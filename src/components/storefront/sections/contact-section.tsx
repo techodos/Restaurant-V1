@@ -44,7 +44,7 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
                   <Icon className="size-4" aria-hidden />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">{label}</p>
+                  <p className="label-caps font-semibold text-[var(--color-muted-ink)]">{label}</p>
                   {href ? (
                     <a
                       href={href}

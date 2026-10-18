@@ -40,7 +40,7 @@ export function AdminPageHeader({
           </Link>
         ) : null}
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="truncate text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">{title}</h1>
+          <h1 className="text-balance text-[1.375rem] font-semibold leading-tight tracking-[-0.015em] [overflow-wrap:anywhere]">{title}</h1>
           {badge}
         </div>
         {description ? <p className="mt-1 text-sm text-[var(--color-muted-ink)]">{description}</p> : null}

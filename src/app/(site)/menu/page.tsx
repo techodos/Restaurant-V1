@@ -405,10 +405,10 @@ async function renderMenu(
                           {group.category.name}
                         </h2>
                         {group.category.description ? (
-                          <p className="mt-1.5 max-w-xl text-[14.5px] leading-relaxed text-[var(--color-muted-ink)]">{group.category.description}</p>
+                          <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-[var(--color-muted-ink)]">{group.category.description}</p>
                         ) : null}
                       </div>
-                      <p className="tabular text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">
+                      <p className="tabular label-caps font-semibold text-[var(--color-muted-ink)]">
                         {dishes(group.items.length)}
                       </p>
                     </header>

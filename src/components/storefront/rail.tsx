@@ -86,8 +86,8 @@ export function Rail({
       </ul>
       {controls === "sides" ? (
         <>
-          <div className="absolute left-0 top-[38%] hidden -translate-x-1/2 -translate-y-1/2 xl:block">{button(-1)}</div>
-          <div className="absolute right-0 top-[38%] hidden -translate-y-1/2 translate-x-1/2 xl:block">{button(1)}</div>
+          <div className="absolute left-0 top-[26%] hidden -translate-x-1/2 -translate-y-1/2 xl:block">{button(-1)}</div>
+          <div className="absolute right-0 top-[26%] hidden -translate-y-1/2 translate-x-1/2 xl:block">{button(1)}</div>
           <div className="mt-3 flex justify-end gap-2 xl:hidden">
             {button(-1)}
             {button(1)}

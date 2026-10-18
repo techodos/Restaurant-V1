@@ -119,7 +119,7 @@ async function ReservationsResults({
         <div className="space-y-5">
           {days.map((day) => (
             <section key={day.date} aria-label={formatDateKey(day.date, undefined, { weekday: "long", day: "numeric", month: "long" })}>
-              <h2 className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">
+              <h2 className="mb-2 px-0.5 label-caps font-semibold text-[var(--color-muted-ink)]">
                 {formatDateKey(day.date, undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 <span className="ml-2 font-medium normal-case tracking-normal">
                   · {day.rows.length} {day.rows.length === 1 ? "booking" : "bookings"}

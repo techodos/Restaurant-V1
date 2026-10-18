@@ -36,7 +36,7 @@ export function StatsBandSection({ section, context }: { section: StatsBandSecti
               className="size-[18px] transition-transform duration-300 ease-[var(--ease-out)] group-hover/explore:translate-y-0.5"
               aria-hidden
             />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.1em]">{section.exploreCta.label}</span>
+            <span className="label-caps font-semibold">{section.exploreCta.label}</span>
           </Link>
         ) : (
           <span />
@@ -54,7 +54,7 @@ export function StatsBandSection({ section, context }: { section: StatsBandSecti
                 {section.stats.map((stat, index) => (
                   <li key={index}>
                     <p className="tabular display-2 leading-none">{stat.value}</p>
-                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">{stat.label}</p>
+                    <p className="mt-2 label-caps font-semibold text-white/70">{stat.label}</p>
                   </li>
                 ))}
               </ul>

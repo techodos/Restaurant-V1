@@ -211,7 +211,7 @@ export const richTextSectionSchema = z.object({
   width: z.enum(["narrow", "wide"]).default("narrow"),
 });
 
-export const ORDER_SWITCH_LAYOUTS = ["band", "cards", "photo", "capsule", "split"] as const;
+export const ORDER_SWITCH_LAYOUTS = ["band", "cards", "photo", "capsule", "split", "float"] as const;
 export type OrderSwitchLayout = (typeof ORDER_SWITCH_LAYOUTS)[number];
 /** each layout's own ground when the section's `tone` is "auto" */
 export const ORDER_SWITCH_TONE: Record<OrderSwitchLayout, "night" | "paper" | "muted"> = {
@@ -220,6 +220,7 @@ export const ORDER_SWITCH_TONE: Record<OrderSwitchLayout, "night" | "paper" | "m
   photo: "night",
   capsule: "muted",
   split: "night",
+  float: "muted",
 };
 
 export const orderTypeSwitchSectionSchema = z.object({

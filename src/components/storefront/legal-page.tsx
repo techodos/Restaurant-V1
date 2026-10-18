@@ -110,7 +110,7 @@ async function renderLegalDocument(kind: LegalKind, context: StorefrontContext, 
             </nav>
           </aside>
 
-          <article className="max-w-[46rem] text-[15.5px] leading-[1.7]">
+          <article className="max-w-[46rem] text-[16px] leading-[1.7]">
             {document.sections.map((section, index) => (
               <section
                 key={section.id}

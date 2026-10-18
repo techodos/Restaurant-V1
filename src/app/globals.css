@@ -250,7 +250,8 @@
 @utility display-hero {
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: clamp(2.5rem, 1.55rem + 3.8vw, 5.25rem);
+  /* phones ~34px (320) / 36px (375): three balanced lines, not four; desktop unchanged */
+  font-size: clamp(2.125rem, 1.25rem + 4.2vw, 5.25rem);
   line-height: 1;
   letter-spacing: -0.025em;
   text-wrap: balance;
@@ -259,7 +260,7 @@
 @utility display-1 {
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: clamp(2rem, 1.45rem + 2vw, 3.25rem);
+  font-size: clamp(1.75rem, 1.2rem + 2.3vw, 3.25rem);
   line-height: 1.05;
   letter-spacing: -0.02em;
   text-wrap: balance;
@@ -268,7 +269,7 @@
 @utility display-2 {
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: clamp(1.55rem, 1.3rem + 0.9vw, 2.2rem);
+  font-size: clamp(1.4rem, 1.2rem + 1.1vw, 2.2rem);
   line-height: 1.1;
   letter-spacing: -0.015em;
   text-wrap: balance;
@@ -286,19 +287,38 @@
 @utility eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  /* phones: a shorter lead rule and calmer tracking, so a two-part eyebrow ("Kitchen · City") fits one line at 320px */
+  gap: 0.5rem;
   font-family: var(--font-sans);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-ink) 78%, transparent);
   &::before {
     content: "";
-    width: 1.5rem;
+    width: 1rem;
     height: 1px;
     background-color: var(--color-brand-accent);
   }
+  @media (min-width: 768px) {
+    gap: 0.75rem;
+    letter-spacing: 0.18em;
+    &::before {
+      width: 1.5rem;
+    }
+  }
+}
+
+/* The one small uppercase label (form groups, "Today", dish meta, sidebar groups): 12px, modest tracking.
+   Size, case and tracking only, so callers choose weight and colour. Never smaller, never wider-spaced. */
+@utility label-caps {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 @utility lede {
