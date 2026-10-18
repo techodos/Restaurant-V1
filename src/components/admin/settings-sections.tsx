@@ -149,7 +149,7 @@ export function FeaturesSection({
       </div>
       {entitlements.notifications && (entitlements.emailNotify || entitlements.pushNotify) ? (
         <div className="pt-1">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted-ink)]">Notification channels</p>
+          <p className="mb-3 label-caps font-semibold text-[var(--color-muted-ink)]">Notification channels</p>
           <div className="flex flex-wrap gap-6">
             {entitlements.emailNotify ? (
               <Checkbox

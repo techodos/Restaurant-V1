@@ -164,7 +164,7 @@ export function ImageUploadTile({
             <ImagePlus className="size-5" aria-hidden />
             <span className="text-xs font-medium">Upload {label.toLowerCase()}</span>
           </button>
-          <span id={hintId} className="text-[11px] text-[var(--sa-faint-ink)]">Click or drop · up to 4 MB</span>
+          <span id={hintId} className="text-xs text-[var(--sa-faint-ink)]">Click or drop · up to 4 MB</span>
           {enabled ? (
             <button
               type="button"
@@ -317,7 +317,7 @@ function MediaLibraryDialog({ current, onClose, onPick }: { current: string; onC
                         </span>
                         <span className="flex items-center justify-between gap-2 px-2 py-1.5">
                           <span className="truncate text-xs text-[var(--color-ink)]" title={image.name}>{image.name}</span>
-                          {image.url === current ? <span className="shrink-0 text-[10px] font-medium text-[var(--color-brand)]">In use</span> : null}
+                          {image.url === current ? <span className="shrink-0 text-[11px] font-medium text-[var(--color-brand)]">In use</span> : null}
                         </span>
                         {active ? (
                           <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-[var(--color-brand)] text-white shadow-sm" aria-hidden>

@@ -346,7 +346,7 @@ export function SiteHeader({
         href={item.href}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'relative whitespace-nowrap py-2 text-[11.5px] font-semibold uppercase tracking-[0.16em] transition-colors duration-200',
+          'relative whitespace-nowrap py-2 label-caps font-semibold transition-colors duration-200',
           active ? 'text-[var(--color-ink)]' : 'text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]',
         )}
       >
@@ -363,7 +363,7 @@ export function SiteHeader({
   };
   const cartLabel = `My Cart, ${itemCount} item${itemCount === 1 ? '' : 's'}`;
   const countChip = (className: string) => (
-    <span className={cn('grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-[10.5px] font-bold tracking-normal tabular-nums', className)}>
+    <span className={cn('grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-[11px] font-bold tracking-normal tabular-nums', className)}>
       <TrayCount count={itemCount} />
     </span>
   );
@@ -423,7 +423,7 @@ export function SiteHeader({
                 aria-label={cartLabel}
                 title='My Cart'
                 className={cn(
-                  'press flex h-10 shrink-0 items-center gap-2.5 rounded-[var(--radius-control)] border border-[var(--rule-strong)] pl-3.5 pr-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink)] transition-colors duration-200 hover:border-[var(--color-ink)]',
+                  'press flex h-10 shrink-0 items-center gap-2.5 rounded-[var(--radius-control)] border border-[var(--rule-strong)] pl-3.5 pr-1.5 label-caps font-semibold text-[var(--color-ink)] transition-colors duration-200 hover:border-[var(--color-ink)]',
                   cartFocus,
                 )}
               >
@@ -456,7 +456,7 @@ export function SiteHeader({
               <ShoppingBag className='size-[18px]' aria-hidden />
               <span
                 className={cn(
-                  'absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--color-ink)] px-1 text-[10px] font-bold text-[var(--color-canvas)] ring-2 ring-[var(--color-canvas)] transition-[opacity,transform] duration-200',
+                  'absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--color-ink)] px-1 text-[11px] font-bold text-[var(--color-canvas)] ring-2 ring-[var(--color-canvas)] transition-[opacity,transform] duration-200',
                   itemCount > 0 ? undefined : 'scale-75 opacity-0',
                 )}
               >
@@ -471,7 +471,7 @@ export function SiteHeader({
             aria-expanded={open}
             aria-label='Open menu'
             className={cn(
-              'press flex h-10 items-center gap-3 rounded-[var(--radius-control)] bg-[var(--color-ink)] px-3 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-canvas)] transition-opacity duration-200 hover:opacity-90 sm:pl-4 sm:pr-3.5',
+              'press flex h-10 items-center gap-3 rounded-[var(--radius-control)] bg-[var(--color-ink)] px-3 label-caps font-semibold text-[var(--color-canvas)] transition-opacity duration-200 hover:opacity-90 sm:pl-4 sm:pr-3.5',
               cartFocus,
             )}
           >
@@ -533,7 +533,7 @@ export function SiteHeader({
         {announcement.enabled && announcement.text ? (
           <div
             className={cn(
-              'border-b border-[var(--rule)] px-4 py-2 text-center text-[12.5px] leading-snug text-[var(--color-muted-ink)]',
+              'border-b border-[var(--rule)] px-4 py-2 text-center text-[13px] leading-snug text-[var(--color-muted-ink)]',
               tone === 'night'
                 ? 'bg-[color-mix(in_srgb,var(--color-night)_80%,black)]'
                 : 'bg-[var(--steel-1)]',
@@ -612,7 +612,7 @@ export function SiteHeader({
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'rounded-full px-3 py-2 text-[13.5px] font-medium tracking-[0.01em] transition-colors duration-200',
+                      'rounded-full px-3 py-2 text-[14px] font-medium tracking-[0.01em] transition-colors duration-200',
                       active
                         ? tone === 'paper'
                           ? 'text-[var(--color-brand)]'
@@ -630,7 +630,7 @@ export function SiteHeader({
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'relative px-3.5 py-2 text-[13.5px] font-medium tracking-[0.01em] transition-colors duration-200',
+                    'relative px-3.5 py-2 text-[14px] font-medium tracking-[0.01em] transition-colors duration-200',
                     active
                       ? 'text-[var(--color-ink)]'
                       : 'text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]',
@@ -689,7 +689,7 @@ export function SiteHeader({
                   <ShoppingBag className='size-[18px]' aria-hidden />
                   <span
                     className={cn(
-                      'absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--color-ink)] px-1 text-[10px] font-bold text-[var(--color-canvas)] ring-2 ring-[var(--color-canvas)] transition-[opacity,transform] duration-200',
+                      'absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--color-ink)] px-1 text-[11px] font-bold text-[var(--color-canvas)] ring-2 ring-[var(--color-canvas)] transition-[opacity,transform] duration-200',
                       itemCount > 0 ? undefined : 'scale-75 opacity-0',
                     )}
                   >
@@ -736,7 +736,7 @@ export function SiteHeader({
                 badge={
                   <span
                     className={cn(
-                      'absolute -right-1.5 -top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[10px] font-bold transition-[opacity,transform] duration-200',
+                      'absolute -right-1.5 -top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[11px] font-bold transition-[opacity,transform] duration-200',
                       itemCount > 0
                         ? 'bg-[var(--color-brand-accent)] text-[var(--color-brand-accent-foreground)]'
                         : 'scale-75 opacity-0',
@@ -787,7 +787,7 @@ export function SiteHeader({
                     className='grid size-7 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand-foreground)_18%,transparent)]'
                   >
                     {customer?.signedIn && customer.name ? (
-                      <span className='text-[11px] font-bold uppercase'>
+                      <span className='text-[13px] font-bold uppercase'>
                         {customer.name.slice(0, 1)}
                       </span>
                     ) : (
@@ -816,7 +816,7 @@ export function SiteHeader({
                   className='grid size-7 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand-foreground)_18%,transparent)]'
                 >
                   {customer?.signedIn && customer.name ? (
-                    <span className='text-[11px] font-bold uppercase'>
+                    <span className='text-[13px] font-bold uppercase'>
                       {customer.name.slice(0, 1)}
                     </span>
                   ) : (
@@ -929,7 +929,7 @@ export function SiteHeader({
               <Link
                 href={`/orders`}
                 onClick={() => setOpen(false)}
-                className='press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--rule-strong)] text-[13.5px] font-semibold'
+                className='press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--rule-strong)] text-[14px] font-semibold'
               >
                 <ClipboardList className='size-4' aria-hidden />
                 My Orders
@@ -942,7 +942,7 @@ export function SiteHeader({
                   setOpen(false);
                   setProfileOpen(true);
                 }}
-                className='press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-[13.5px] font-semibold text-[var(--color-brand-foreground)]'
+                className='press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-[14px] font-semibold text-[var(--color-brand-foreground)]'
               >
                 <UserRound className='size-4' aria-hidden />
                 <span className='max-w-60 truncate'>{accountLabel}</span>
@@ -951,7 +951,7 @@ export function SiteHeader({
               <Link
                 href={accountHref}
                 onClick={() => setOpen(false)}
-                className='press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-[13.5px] font-semibold text-[var(--color-brand-foreground)]'
+                className='press flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-brand)] text-[14px] font-semibold text-[var(--color-brand-foreground)]'
               >
                 <UserRound className='size-4' aria-hidden />
                 <span className='max-w-60 truncate'>{accountLabel}</span>

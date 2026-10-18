@@ -79,7 +79,7 @@ export function BuffetMenuCard({ item, restaurant, menu, variant }: BuffetMenuCa
             {section.title ? (
               <h3 className="mb-2 text-[15px] font-bold uppercase tracking-[0.06em] text-[var(--color-brand)]">{section.title}</h3>
             ) : null}
-            <ul className="space-y-1 text-[14.5px] leading-snug">
+            <ul className="space-y-1 text-[15px] leading-snug">
               {section.items.map((dish, dishIndex) => (
                 <li key={`${dish}-${dishIndex}`}>{dish}</li>
               ))}

@@ -65,7 +65,7 @@ function Step({ index, title, children }: { index: number; title: string; childr
           <span className="tabular font-[family-name:var(--font-display)] text-[1.9rem] leading-none text-[var(--color-brand-accent)]">
             {String(index).padStart(2, "0")}
           </span>
-          <span className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">{title}</span>
+          <span className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--color-muted-ink)]">{title}</span>
         </span>
       </p>
       <div className="min-w-0 space-y-5">{children}</div>
@@ -237,7 +237,7 @@ export function ReservationForm({
                     <span className="min-w-0">
                       <span className="block font-semibold">{option.name}</span>
                       {option.area || option.city ? (
-                        <span className="block truncate text-[12.5px] opacity-75">{[option.area, option.city].filter(Boolean).join(", ")}</span>
+                        <span className="block truncate text-[13px] opacity-75">{[option.area, option.city].filter(Boolean).join(", ")}</span>
                       ) : null}
                     </span>
                   </button>
@@ -290,11 +290,11 @@ export function ReservationForm({
                     on ? chipOn : chipIdle,
                   )}
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-75">
+                  <span className="label-caps font-semibold opacity-75">
                     {index === 0 ? "Today" : parts.weekday}
                   </span>
                   <span className="tabular font-[family-name:var(--font-display)] text-[1.45rem] leading-tight">{parts.day}</span>
-                  <span className="text-[11px] opacity-75">{parts.month}</span>
+                  <span className="text-xs opacity-75">{parts.month}</span>
                 </button>
               );
             })}
@@ -469,7 +469,7 @@ export function ReservationForm({
       {/* the booking so far + the action: inline on wide screens, a bar pinned to the bottom on phones */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-canvas)_92%,transparent)] px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md md:static md:z-auto md:flex md:items-center md:justify-between md:gap-6 md:rounded-[var(--radius-panel)] md:border md:border-[var(--color-hairline)] md:bg-[var(--color-surface)] md:p-5 md:pl-7 md:backdrop-blur-none">
         <div className="hidden min-w-0 md:block">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted-ink)]">Your table</p>
+          <p className="label-caps font-semibold text-[var(--color-muted-ink)]">Your table</p>
           <p className="mt-1 truncate font-[family-name:var(--font-display)] text-[1.25rem]">
             {summary}
             {location && locations.length > 1 ? <span className="text-[var(--color-muted-ink)]"> · {location.name}</span> : null}

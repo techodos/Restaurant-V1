@@ -156,13 +156,13 @@ async function renderLocations(context: StorefrontContext, heading: PageHeading)
 
               <div>
                 <p className="eyebrow mb-4">Opening hours</p>
-                <table className="w-full text-[14.5px]">
+                <table className="w-full text-[15px]">
                   <tbody>
                     {hours.map((row) => (
                       <tr key={row.day} className="border-t border-[var(--rule)] last:border-b">
                         <th scope="row" className={cn("py-2.5 text-left", row.isToday ? "font-semibold" : "font-normal text-[var(--color-muted-ink)]")}>
                           {row.label}
-                          {row.isToday ? <span className="ml-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-brand-accent)]">Today</span> : null}
+                          {row.isToday ? <span className="ml-2 label-caps font-semibold text-[var(--color-brand-accent)]">Today</span> : null}
                         </th>
                         <td className={cn("tabular py-2.5 text-right", row.isToday ? "font-semibold" : "text-[var(--color-muted-ink)]")}>
                           {row.text || "Closed"}

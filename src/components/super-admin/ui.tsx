@@ -27,7 +27,7 @@ export function PageHeader({
       {breadcrumbs ? <Breadcrumbs items={breadcrumbs} /> : null}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 space-y-1">
-          <h1 className="truncate text-2xl tracking-tight text-[var(--color-ink)]">{title}</h1>
+          <h1 className="text-balance text-[1.375rem] leading-tight tracking-tight text-[var(--color-ink)] [overflow-wrap:anywhere] sm:text-2xl">{title}</h1>
           {description ? <p className="text-sm text-[var(--color-muted-ink)]">{description}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}

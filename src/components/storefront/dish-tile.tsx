@@ -78,17 +78,17 @@ export function DishTile({
     />
   );
   const badge = !item.isAvailable ? (
-    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/75 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white backdrop-blur">
+    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/75 px-2.5 py-1 label-caps font-semibold text-white backdrop-blur">
       {offAtBranch ? "Not at this branch" : "Sold out today"}
     </span>
   ) : item.compareAtPrice ? (
-    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-[var(--color-brand-accent)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--color-brand-accent-foreground)]">
+    <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-[var(--color-brand-accent)] px-2.5 py-1 label-caps font-semibold text-[var(--color-brand-accent-foreground)]">
       Offer
     </span>
   ) : null;
   const meta =
     item.dietaryTags.length || item.spiceLevel > 0 || showPrepTime ? (
-      <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-medium uppercase tracking-[0.1em] text-[var(--color-muted-ink)]">
+      <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 label-caps font-medium text-[var(--color-muted-ink)]">
         {item.dietaryTags.slice(0, 2).map((tag) => (
           <span key={tag}>{tag}</span>
         ))}
@@ -106,7 +106,8 @@ export function DishTile({
     return (
       <article data-dish={item.slug} className="group grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-6 sm:gap-6">
         <div className="min-w-0">
-          <div className="flex items-baseline gap-3">
+          {/* phones: name on its own line, price under it — beside a 96px photo a shared row wrapped names to 3 lines */}
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
             <h3 className="min-w-0 font-[family-name:var(--font-display)] text-[1.2rem] leading-snug md:text-[1.3rem]">
               <Link href={href} {...linkProps} className="transition-colors duration-200 hover:text-[var(--color-brand-accent)]">
                 {item.name}
@@ -186,7 +187,7 @@ export function DishTile({
           <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-[var(--color-muted-ink)]">{item.description}</p>
         ) : null}
         {meta}
-        <p className={cn("tabular text-[15px] font-semibold", inlineAdd ? "mt-3" : "mt-auto pt-4")}>
+        <p className={cn("tabular text-[15px] font-semibold", "mt-auto", inlineAdd ? "pt-3" : "pt-4")}>
           {price}
           {was}
         </p>

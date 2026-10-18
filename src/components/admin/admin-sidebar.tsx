@@ -98,7 +98,7 @@ function NavList({
     <nav aria-label="Admin" className="space-y-6">
       {visibleGroups(permissions).map((group) => (
         <div key={group.title}>
-          <p className="px-3 text-[10.5px] font-semibold uppercase tracking-[0.2em] text-[color-mix(in_srgb,var(--color-muted-ink)_80%,transparent)]">
+          <p className="px-3 label-caps font-semibold text-[color-mix(in_srgb,var(--color-muted-ink)_80%,transparent)]">
             {group.title}
           </p>
           <ul className="mt-2 space-y-0.5">

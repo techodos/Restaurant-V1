@@ -294,6 +294,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
         photo: "Photo doors — tall photo tiles, one per service",
         capsule: "Capsule — one rounded selector bar",
         split: "Split — heading beside numbered rows",
+        float: "Floating cards — light cards resting on the hero's bottom edge",
       },
       wide: true,
     },

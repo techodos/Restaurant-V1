@@ -82,7 +82,7 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
         {result.rows.length === 0 ? (
           <AdminEmptyState icon={Users} title="No customers match this search." />
         ) : (
-          <div className="overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
+          <div className="relative overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
             <thead className={tableHead}>
               <tr>
                 <th className="px-4 py-3 font-medium">Customer</th>

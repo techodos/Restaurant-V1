@@ -177,11 +177,11 @@ async function renderReviews(
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:gap-x-4">
                       <RatingStars rating={review.rating} />
                       {review.isFeatured ? <Badge variant="soft">Featured</Badge> : null}
-                      <span className="text-[12.5px] text-[var(--color-muted-ink)]">{date(review.createdAt)}</span>
+                      <span className="text-[13px] text-[var(--color-muted-ink)]">{date(review.createdAt)}</span>
                     </div>
                     {review.title ? <h3 className="mt-3 break-words text-[1.05rem] font-semibold leading-snug md:text-[1.125rem]">{review.title}</h3> : null}
                     {review.comment ? (
-                      <p className="mt-2 max-w-[62ch] break-words text-[15px] leading-relaxed text-[var(--color-muted-ink)] md:text-[15.5px]">{review.comment}</p>
+                      <p className="mt-2 max-w-[62ch] break-words text-[15px] leading-relaxed text-[var(--color-muted-ink)] md:text-[16px]">{review.comment}</p>
                     ) : null}
                     <p className="mt-3.5 break-words text-[13px]">
                       <span className="font-semibold">{review.authorName}</span>

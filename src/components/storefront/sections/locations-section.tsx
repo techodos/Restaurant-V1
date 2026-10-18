@@ -46,12 +46,12 @@ export async function LocationsSection({ section, context }: { section: Location
                   {status.detail ? <span className="font-normal text-[var(--color-muted-ink)]">{status.detail}</span> : null}
                 </p>
               </div>
-              <p className="mt-4 flex items-start gap-2.5 text-[14.5px] text-[var(--color-muted-ink)]">
+              <p className="mt-4 flex items-start gap-2.5 text-[15px] text-[var(--color-muted-ink)]">
                 <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
                 <span>{[location.addressLine1, location.addressLine2, location.area, location.city].filter(Boolean).join(", ")}</span>
               </p>
               {location.phone ? (
-                <p className="mt-2 flex items-center gap-2.5 text-[14.5px]">
+                <p className="mt-2 flex items-center gap-2.5 text-[15px]">
                   <Phone className="size-4 text-[var(--color-brand-accent)]" aria-hidden />
                   <a href={`tel:${location.phone.replace(/\s+/g, "")}`} className="transition-colors hover:text-[var(--color-brand)]">
                     {location.phone}
@@ -59,7 +59,7 @@ export async function LocationsSection({ section, context }: { section: Location
                 </p>
               ) : null}
 
-              <dl className="mt-7 grid max-w-sm grid-cols-[auto_minmax(0,1fr)] gap-x-8 gap-y-2 text-[13.5px]">
+              <dl className="mt-7 grid max-w-sm grid-cols-[auto_minmax(0,1fr)] gap-x-8 gap-y-2 text-[14px]">
                 {hours.map((row) => (
                   <div
                     key={row.day}

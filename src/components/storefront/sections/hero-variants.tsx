@@ -60,7 +60,7 @@ export function FramedHero({ section, context }: HeroProps) {
   return (
     <section data-hero-light className="tone-paper relative isolate">
       <div className={cn("container-page pb-12 pt-4 md:pb-16 md:pt-6", UNDER_HEADER)}>
-        <div className="relative h-[min(54svh,520px)] min-h-[300px] overflow-hidden rounded-[var(--radius-panel)] bg-[var(--steel-2)]">
+        <div className="relative h-[min(34svh,300px)] min-h-[220px] md:h-[min(54svh,520px)] md:min-h-[300px] overflow-hidden rounded-[var(--radius-panel)] bg-[var(--steel-2)]">
           {image ? (
             <Image
               src={image}
@@ -72,7 +72,7 @@ export function FramedHero({ section, context }: HeroProps) {
             />
           ) : null}
           {status ? (
-            <p className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] items-center gap-2.5 rounded-full bg-[color-mix(in_srgb,var(--color-canvas)_90%,transparent)] px-4 py-2 text-[12.5px] font-semibold text-[var(--color-ink)] shadow-[0_10px_30px_-18px_rgb(0_0_0/0.6)] backdrop-blur-md md:bottom-5 md:left-5">
+            <p className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] items-center gap-2.5 rounded-full bg-[color-mix(in_srgb,var(--color-canvas)_90%,transparent)] px-4 py-2 text-[13px] font-semibold text-[var(--color-ink)] shadow-[0_10px_30px_-18px_rgb(0_0_0/0.6)] backdrop-blur-md md:bottom-5 md:left-5">
               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", DOT[status.state])} />
               <span className="truncate">
                 {status.headline}
@@ -81,7 +81,7 @@ export function FramedHero({ section, context }: HeroProps) {
             </p>
           ) : null}
         </div>
-        <div className="mt-9 grid gap-6 md:mt-12 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:items-end md:gap-14">
+        <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-4 md:mt-12 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:items-end md:gap-14">
           <HeroCopy section={section} />
           <div className="animate-rise [animation-delay:120ms]">
             {section.subtitle ? (

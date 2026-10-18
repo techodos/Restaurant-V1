@@ -51,9 +51,9 @@ function AddonRow({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-1 items-center gap-2">
-      <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Add-on name" className="h-9 w-40 text-sm" required />
-      <Input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="Price" className="h-9 w-24 text-sm" required />
+    <form onSubmit={submit} className="flex min-w-0 flex-1 items-center gap-2">
+      <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Add-on name" className="h-9 min-w-0 flex-1 text-sm sm:w-40 sm:flex-none" required />
+      <Input value={price} onChange={(event) => setPrice(event.target.value)} placeholder="Price" inputMode="decimal" className="h-9 w-20 shrink-0 text-sm sm:w-24" required />
       <Button type="submit" size="sm" variant={addon ? "outline" : "primary"} disabled={pending}>
         {pending ? (
           <Loader2 className="size-4 animate-spin" aria-hidden />

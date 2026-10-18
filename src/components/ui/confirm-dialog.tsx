@@ -75,7 +75,7 @@ export function useConfirm() {
             <div className="min-w-0 pt-0.5">
               <AlertDialog.Title className="text-[15px] font-semibold leading-snug">{state.title}</AlertDialog.Title>
               {state.description ? (
-                <AlertDialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--color-muted-ink)]">
+                <AlertDialog.Description className="mt-1.5 text-[14px] leading-relaxed text-[var(--color-muted-ink)]">
                   {state.description}
                 </AlertDialog.Description>
               ) : (

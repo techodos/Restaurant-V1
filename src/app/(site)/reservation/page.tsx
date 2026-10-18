@@ -110,7 +110,7 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
             </p>
           </div>
 
-          <ul className="hidden gap-3 border-t border-white/15 pt-6 text-[13.5px] text-white/75 sm:grid">
+          <ul className="hidden gap-3 border-t border-white/15 pt-6 text-[14px] text-white/75 sm:grid">
             <li className="flex gap-3">
               <Clock className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
               Tables are held for 15 minutes after your booking time.

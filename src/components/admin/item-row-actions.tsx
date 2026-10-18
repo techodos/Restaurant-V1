@@ -152,7 +152,7 @@ export function ItemRowActions({
       ) : (
         control
       )}
-      <Button size="icon" variant="ghost" className="size-9 text-[var(--color-muted-ink)] hover:text-[var(--color-danger)]" onClick={handleDelete} disabled={deleting} aria-label={`Delete ${itemName ?? "item"}`}>
+      <Button size="icon" variant="ghost" className="size-10 lg:size-9 text-[var(--color-muted-ink)] hover:text-[var(--color-danger)]" onClick={handleDelete} disabled={deleting} aria-label={`Delete ${itemName ?? "item"}`}>
         {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
       </Button>
     </div>

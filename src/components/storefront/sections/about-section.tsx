@@ -60,7 +60,7 @@ export function AboutSection({ section, context }: { section: AboutConfig; conte
             <dl className="grid grid-cols-2 gap-x-6 gap-y-6 border-t border-[var(--rule)] pt-6 xl:flex xl:flex-col xl:justify-center xl:gap-7 xl:border-l xl:border-t-0 xl:pl-10 xl:pt-0">
               {section.stats.map((stat) => (
                 <div key={`${stat.value}-${stat.label}`} className="flex flex-col-reverse">
-                  <dt className="mt-1.5 text-[12.5px] leading-snug text-[var(--color-muted-ink)]">{stat.label}</dt>
+                  <dt className="mt-1.5 text-[13px] leading-snug text-[var(--color-muted-ink)]">{stat.label}</dt>
                   <dd className="tabular font-[family-name:var(--font-display)] text-[2.1rem] leading-none text-[var(--color-brand-accent)]">
                     {stat.value}
                   </dd>
