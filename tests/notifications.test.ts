@@ -617,3 +617,15 @@ describe("FCM provider", () => {
     expect(outcome).toMatchObject({ ok: false, invalidToken: false, retryable: true });
   });
 });
+
+describe("WhatsApp checkout orders", () => {
+  it("sends no status email or push: the restaurant talks to the customer in WhatsApp", async () => {
+    for (const eventType of ["confirmed", "out_for_delivery", "completed", "cancelled"]) {
+      const h = harness({ context: makeContext({ order: { source: "whatsapp", status: "completed" } }) });
+      await h.service.processEvent(makeEvent(eventType));
+      expect(h.emails).toHaveLength(0);
+      expect(h.pushes).toHaveLength(0);
+      expect(h.saved[0]!.outcome).toMatchObject({ status: "done", emailState: "skipped", pushState: "skipped" });
+    }
+  });
+});
