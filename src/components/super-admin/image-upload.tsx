@@ -16,16 +16,19 @@ import { cn } from "@/shared/utils";
 
 type Upload = (file: File) => Promise<string | null>;
 type Browse = () => Promise<LibraryImage[] | null>;
+/** deletes an uploaded image everywhere (row + file); resolves false when refused (still in use) */
+type Remove = (mediaId: string) => Promise<boolean>;
 export type PickedImage = { url: string; alt?: string | null };
 
 interface MediaApi {
   upload: Upload;
   /** cached per editor; dropped after an upload so the new file shows up */
   library: () => Promise<LibraryImage[] | null>;
+  remove?: (mediaId: string) => Promise<boolean>;
 }
 const MediaContext = createContext<MediaApi | null>(null);
 
-export function ImageUploadProvider({ upload, browse, children }: { upload: Upload; browse: Browse; children: React.ReactNode }) {
+export function ImageUploadProvider({ upload, browse, remove, children }: { upload: Upload; browse: Browse; remove?: Remove; children: React.ReactNode }) {
   const cache = useRef<Promise<LibraryImage[] | null> | null>(null);
   const api = useMemo<MediaApi>(
     () => ({
@@ -41,8 +44,17 @@ export function ImageUploadProvider({ upload, browse, children }: { upload: Uplo
         });
         return cache.current;
       },
+      ...(remove
+        ? {
+            remove: async (mediaId: string) => {
+              const done = await remove(mediaId);
+              if (done) cache.current = null;
+              return done;
+            },
+          }
+        : {}),
     }),
-    [upload, browse],
+    [upload, browse, remove],
   );
   return <MediaContext.Provider value={api}>{children}</MediaContext.Provider>;
 }
@@ -209,6 +221,21 @@ function MediaLibraryDialog({ current, onClose, onPick }: { current: string; onC
   const [selected, setSelected] = useState<string | null>(current || null);
   const [container] = useState(() => (typeof document === "undefined" ? null : document.querySelector<HTMLElement>(".sa-root")));
   const fileInput = useRef<HTMLInputElement>(null);
+  // two-step delete: the first click arms the tile, the second one deletes
+  const [armed, setArmed] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function destroy(image: LibraryImage) {
+    if (!media?.remove || !image.id) return;
+    setDeleting(image.id);
+    const done = await media.remove(image.id);
+    setDeleting(null);
+    setArmed(null);
+    if (!done) return;
+    setImages((list) => list?.filter((entry) => entry.url !== image.url) ?? null);
+    setSelected((value) => (value === image.url ? null : value));
+    toast.success("Image deleted.");
+  }
 
   const load = useCallback(() => {
     if (!media) return;
@@ -299,7 +326,7 @@ function MediaLibraryDialog({ current, onClose, onPick }: { current: string; onC
                 {shown.map((image) => {
                   const active = image.url === selected;
                   return (
-                    <li key={image.url}>
+                    <li key={image.url} className="group/item relative">
                       <button
                         type="button"
                         role="option"
@@ -307,7 +334,7 @@ function MediaLibraryDialog({ current, onClose, onPick }: { current: string; onC
                         onClick={() => setSelected(image.url)}
                         onDoubleClick={() => onPick({ url: image.url, alt: image.alt })}
                         className={cn(
-                          "group/item relative block w-full overflow-hidden rounded-lg border text-left transition-[border-color,box-shadow] duration-150",
+                          "relative block w-full overflow-hidden rounded-lg border text-left transition-[border-color,box-shadow] duration-150",
                           active ? "border-[var(--color-brand)] ring-[3px] ring-[var(--sa-focus)]" : "border-[var(--color-hairline)] hover:border-[var(--sa-border-strong)]",
                         )}
                       >
@@ -320,11 +347,41 @@ function MediaLibraryDialog({ current, onClose, onPick }: { current: string; onC
                           {image.url === current ? <span className="shrink-0 text-[11px] font-medium text-[var(--color-brand)]">In use</span> : null}
                         </span>
                         {active ? (
-                          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-[var(--color-brand)] text-white shadow-sm" aria-hidden>
+                          <span className="absolute left-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-[var(--color-brand)] text-white shadow-sm" aria-hidden>
                             <Check className="size-3" />
                           </span>
                         ) : null}
                       </button>
+                      {image.id && media?.remove ? (
+                        armed === image.id ? (
+                          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-black/70 p-2 text-center text-white">
+                            <p className="text-xs font-medium">Delete this image for good?</p>
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                disabled={deleting === image.id}
+                                onClick={() => void destroy(image)}
+                                className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--color-danger)] px-2.5 text-xs font-semibold text-white disabled:opacity-60"
+                              >
+                                {deleting === image.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
+                                Delete
+                              </button>
+                              <button type="button" disabled={deleting === image.id} onClick={() => setArmed(null)} className={overlayButton}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label={`Delete ${image.name}`}
+                            onClick={() => setArmed(image.id)}
+                            className="absolute right-1.5 top-1.5 grid size-7 place-items-center rounded-md bg-white/95 text-[var(--color-danger)] shadow-sm transition-opacity hover:bg-white focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/item:opacity-100"
+                          >
+                            <Trash2 className="size-3.5" aria-hidden />
+                          </button>
+                        )
+                      ) : null}
                     </li>
                   );
                 })}

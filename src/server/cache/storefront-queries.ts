@@ -44,8 +44,8 @@ export function readHomePage(snapshot: StorefrontSnapshot): WebsitePage | null {
 }
 
 /** A published non-home page (about, contact, ...); the snapshot only holds published pages. */
-export function readPageBySlug(snapshot: StorefrontSnapshot, slug: string): WebsitePage | null {
-  return snapshot.pages.find((page) => page.slug === slug && !page.isHome) ?? null;
+export function readPageBySlug(snapshot: StorefrontSnapshot, slug: string, includeHome = false): WebsitePage | null {
+  return snapshot.pages.find((page) => page.slug === slug && (includeHome || !page.isHome)) ?? null;
 }
 
 export function readLocations(snapshot: StorefrontSnapshot, options: { activeOnly?: boolean } = {}): RestaurantLocation[] {

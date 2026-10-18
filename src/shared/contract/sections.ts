@@ -270,6 +270,10 @@ export const pageContentSectionSchema = z.object({
   enabled: z.boolean().default(true),
   title: z.string().trim().max(140).optional(),
   subtitle: z.string().trim().max(400).optional(),
+  /** menu page only: the search box placeholder (none = empty) */
+  searchPlaceholder: z.string().trim().max(80).optional(),
+  /** menu page only: strength of the hero photo's night gradient, 0 - 1 (absent = none) */
+  photoDarkening: z.coerce.number().min(0).max(1).optional().catch(undefined),
   /** the body's own hero photo (menu, reviews, locations, reservation); absent => the restaurant's cover photo */
   image: imageSchema.optional(),
   /**

@@ -357,7 +357,9 @@ export const FIELDS: Record<SectionType, Field[]> = {
     },
     { k: "title", label: "Heading override (optional)", t: "text" },
     { k: "subtitle", label: "Subtitle override (optional)", t: "text" },
+    { k: "searchPlaceholder", label: "Search box placeholder (menu page)", t: "text", page: "menu" },
     { k: "image", label: "Top background photo (optional, else the cover photo)", t: "image", wide: true },
+    { k: "photoDarkening", label: "Photo darkening, 0 - 1 (menu page; empty = none)", t: "number", min: 0, max: 1, step: 0.05, page: "menu" },
   ],
 };
 

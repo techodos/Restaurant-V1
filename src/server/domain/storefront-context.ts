@@ -9,7 +9,7 @@ import { themeSchema, type RestaurantTheme, type WebsiteConfig } from "@/shared/
 
 const DEFAULT_WEBSITE_CONFIG: WebsiteConfig = {
   announcement: { enabled: false, text: "" },
-  navigation: { items: [], showCart: true, sticky: true, tone: "dark", style: "classic" },
+  navigation: { items: [], showCart: true, sticky: true, tone: "dark", style: "classic", dock: { enabled: true } },
   footer: { columns: [], tagline: undefined, legalNote: undefined },
   ordering: {
     defaultOrderType: "delivery",
