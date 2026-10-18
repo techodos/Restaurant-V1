@@ -3,11 +3,12 @@ import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
 import { jsonObject, mapLocation, mapRestaurant, type Row } from '@/server/db/mappers';
 import type { Restaurant, RestaurantLocation } from '@/shared/contract/models';
+import type { CheckoutMode } from '@/shared/contract/enums';
 
 const RESTAURANT_COLUMNS = `
   id, name, slug, legal_name, description, short_description, cuisines, phone, whatsapp, email,
   website_url, logo_url, cover_url, primary_color, currency, currency_symbol, locale, timezone,
-  country, status, plan, plan_status, features, entitlements, settings, social, seo, created_at, updated_at
+  country, status, plan, plan_status, features, entitlements, settings, checkout_mode, social, seo, created_at, updated_at
 `;
 
 /** Every restaurant on the platform, newest first. Privileged read: the caller (services/platform.ts) checks super_admin. */
@@ -138,6 +139,8 @@ export async function updateRestaurant(
     features: unknown;
     /** platform-controlled (services/platform.ts); the owner's own save path never sets it */
     entitlements: unknown;
+    /** platform-controlled (services/platform.ts#saveCheckoutMode) */
+    checkoutMode: CheckoutMode;
     settings: unknown;
     social: unknown;
   }>,
@@ -166,7 +169,8 @@ export async function updateRestaurant(
          features = coalesce($18::jsonb, features),
          settings = coalesce($19::jsonb, settings),
          social = coalesce($20::jsonb, social),
-         entitlements = coalesce($21::jsonb, entitlements)
+         entitlements = coalesce($21::jsonb, entitlements),
+         checkout_mode = coalesce($22, checkout_mode)
        where id = $1
        returning ${RESTAURANT_COLUMNS}`,
       [
@@ -191,6 +195,7 @@ export async function updateRestaurant(
         patch.settings === undefined ? null : JSON.stringify(patch.settings),
         patch.social === undefined ? null : JSON.stringify(patch.social),
         patch.entitlements === undefined ? null : JSON.stringify(patch.entitlements),
+        patch.checkoutMode ?? null,
       ],
     );
     if (!row) throw new Error('Restaurant not found');
@@ -211,6 +216,8 @@ export interface LocationInput {
   postalCode?: string | null;
   country?: string;
   phone?: string | null;
+  /** "" clears it (the branch then uses the restaurant's number); undefined keeps it */
+  whatsapp?: string | null;
   email?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -236,11 +243,11 @@ export async function createLocation(
     const row = await tx.queryOne<Row>(
       `insert into restaurant1s
          (restaurant_id, name, slug, is_primary, is_active, address_line1, address_line2, area, city, state,
-          postal_code, country, phone, email, latitude, longitude, hours, settings, sort_order)
+          postal_code, country, phone, email, latitude, longitude, hours, settings, sort_order, whatsapp)
        values ($1, $2, coalesce($3, app.slugify($2)), coalesce($4, not exists (
                  select 1 from restaurant1s where restaurant_id = $1)), coalesce($5, true),
                $6, $7, $8, $9, $10, $11, coalesce($12, 'PK'), $13, $14, $15, $16, coalesce($17::jsonb, '{}'::jsonb),
-               coalesce($18::jsonb, '{}'::jsonb), coalesce($19, 0))
+               coalesce($18::jsonb, '{}'::jsonb), coalesce($19, 0), nullif($20, ''))
        returning *`,
       [
         restaurantId,
@@ -262,6 +269,7 @@ export async function createLocation(
         input.hours === undefined ? null : JSON.stringify(input.hours),
         input.settings === undefined ? null : JSON.stringify(input.settings),
         input.sortOrder ?? null,
+        input.whatsapp ?? null,
       ],
     );
     if (!row) throw new Error('Location insert failed');
@@ -305,7 +313,9 @@ export async function updateLocation(
          longitude = coalesce($15, longitude),
          hours = coalesce($16::jsonb, hours),
          settings = coalesce($17::jsonb, settings),
-         sort_order = coalesce($18, sort_order)
+         sort_order = coalesce($18, sort_order),
+         -- undefined keeps it, "" clears it (then the restaurant's own number is used)
+         whatsapp = case when $19::text is null then whatsapp else nullif($19, '') end
        where id = $1
        returning *`,
       [
@@ -327,6 +337,7 @@ export async function updateLocation(
         patch.hours === undefined ? null : JSON.stringify(patch.hours),
         patch.settings === undefined ? null : JSON.stringify(patch.settings),
         patch.sortOrder ?? null,
+        patch.whatsapp ?? null,
       ],
     );
     if (!row) throw new Error('Location not found');

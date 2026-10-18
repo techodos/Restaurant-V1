@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  ArrowRight, Banknote, Bike, Check, ChevronDown, ChevronRight, Clock, CreditCard, Landmark, Loader2, Lock, Mail, MapPin,
+  ArrowRight, Banknote, Bike, Check, ChevronDown, ChevronRight, Clock, CreditCard, Landmark, Loader2, Lock, Mail, MapPin, MessageCircle,
   Plus, ShieldCheck, ShoppingBag, Store, User, UtensilsCrossed, Wallet, type LucideIcon,
 } from "lucide-react";
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
@@ -20,7 +20,7 @@ import {
 } from "@/app/(site)/checkout/actions";
 import { ensureVerificationCodeAction } from "@/app/(site)/account/actions";
 import { GuestVerifyDialog } from "@/components/storefront/guest-verify-dialog";
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ORDER_TYPES, type CheckoutMode, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import { formatMoney, sumMoney } from "@/shared/money";
 import type { CustomerAddress, DeliveryZone, RestaurantLocation } from "@/shared/contract/models";
 import { cn } from "@/shared/utils";
@@ -127,6 +127,11 @@ interface CheckoutFormProps {
    * Absent with the feature off: the branch step below works exactly as before.
    */
   branch?: { name: string; menuHref: string; destination: DeliveryDestination | null } | null;
+  /**
+   * "whatsapp" (platform-set): no email/OTP step, email optional, and the order is handed to the restaurant's
+   * WhatsApp from the order page (`?wa=1`) instead of the usual confirmation. Cash methods only (server-filtered).
+   */
+  checkoutMode?: CheckoutMode;
 }
 
 /** Checkout look. Every colour, radius and shadow is a theme token (`web/theme.ts`), never a fixed palette. */
@@ -208,6 +213,7 @@ export function CheckoutForm({
   locale,
   isSignedIn,
   emailVerified,
+  checkoutMode = "standard",
   customerDefaults,
   defaultCity,
   accountEmail,
@@ -277,7 +283,8 @@ export function CheckoutForm({
   const [tip, setTip] = useState("");
   const [customTip, setCustomTip] = useState(false);
   const customTipInput = useRef<HTMLInputElement>(null);
-  const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified);
+  const whatsappMode = checkoutMode === "whatsapp";
+  const [needsVerification, setNeedsVerification] = useState(isSignedIn && !emailVerified && !whatsappMode);
   const [phone, setPhone] = useState(savedPhone ?? "");
   // Guest checkout OTP gate: a phone already tied to a real account (checked as they type), the
   // {phone, email} pair the guest last verified (so re-submitting doesn't re-prompt), and whether the
@@ -497,8 +504,10 @@ export function CheckoutForm({
     if (payload.fullName.length < 2) nextErrors.fullName = "Please enter your name.";
     if (!payload.phone) nextErrors.phone = "Please enter your mobile number.";
     else if (!isValidPhoneNumber(payload.phone)) nextErrors.phone = "That mobile number does not look right for the selected country.";
-    if (!payload.email) nextErrors.email = "Please enter your email.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) nextErrors.email = "That email looks incomplete.";
+    // WhatsApp checkout: email is optional (the WhatsApp message carries the customer's number)
+    if (!payload.email) {
+      if (!whatsappMode) nextErrors.email = "Please enter your email.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) nextErrors.email = "That email looks incomplete.";
     if (orderTypeState === "delivery") {
       if (!payload.addressLine1) nextErrors.addressLine1 = locationLocked ? "Add your house / flat number and street." : "Where should we deliver?";
       // the city decides which branch can deliver (the order re-checks it): ask before sending
@@ -531,7 +540,8 @@ export function CheckoutForm({
     // Guest, not yet verified for this exact phone+email: open the OTP modal instead of submitting.
     // The payload is kept so the modal's onDone finishes this same submission automatically.
     const verifiedForThis = guestVerifiedFor && guestVerifiedFor.phone === payload.phone && guestVerifiedFor.email === payload.email;
-    if (!isSignedIn && !verifiedForThis) {
+    // (WhatsApp checkout has no OTP step: the customer's own WhatsApp message is the proof of their number)
+    if (!isSignedIn && !verifiedForThis && !whatsappMode) {
       pendingGuestPayload.current = payload;
       setSendingGuestCode(true);
       void sendGuestVerificationCodeAction(restaurantSlug, { fullName: payload.fullName, phone: payload.phone, email: payload.email }).then(
@@ -575,6 +585,13 @@ export function CheckoutForm({
         // written to the real cart at the start of checkout) has done its job.
         clearLocalCart();
 
+        // WhatsApp checkout: the order page opens WhatsApp with the order typed in (`?wa=1`) and keeps a
+        // "Send on WhatsApp" button in case the app did not open
+        if (result.data.whatsapp) {
+          toast.success("Order saved", { description: "Opening WhatsApp so you can send it to the restaurant…" });
+          router.push(`/order/${result.data.orderNumber}?wa=1`);
+          return;
+        }
         // stays locked while we navigate away — either to the order page, or (an online payment)
         // on to the gateway's own hosted page first
         if (result.data.payment) {
@@ -659,10 +676,14 @@ export function CheckoutForm({
       <span className="flex items-center gap-2.5">
         {pending || sendingGuestCode ? (
           <Loader2 className="size-[18px] animate-spin" aria-hidden />
+        ) : whatsappMode ? (
+          <MessageCircle className="size-[18px] text-[var(--color-brand-foreground)]" aria-hidden />
         ) : (
           <Lock className="size-[18px] text-[var(--color-brand-foreground)]" aria-hidden />
         )}
-        {pending ? "Placing your order" : sendingGuestCode ? "Sending code…" : "Place order"}
+        {whatsappMode
+          ? pending ? "Saving your order" : "Send order on WhatsApp"
+          : pending ? "Placing your order" : sendingGuestCode ? "Sending code…" : "Place order"}
       </span>
       <span className="tabular flex items-center gap-2">
         {withTotal ? money(totalDue) : null}
@@ -807,6 +828,8 @@ export function CheckoutForm({
                 Email{" "}
                 {accountEmail ? (
                   <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span>
+                ) : whatsappMode ? (
+                  <span className="font-normal text-[var(--color-muted-ink)]">· optional</span>
                 ) : (
                   <span aria-hidden className="text-[var(--color-danger)]">*</span>
                 )}

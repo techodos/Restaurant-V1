@@ -140,6 +140,21 @@ export async function updateRestaurantFeatures(
   return restaurant;
 }
 
+/**
+ * The restaurant's WhatsApp number (admin → Settings, also the Contact button). "" clears it — refused while the
+ * platform has WhatsApp checkout on, since every order would then have nowhere to go.
+ */
+export async function updateRestaurantWhatsApp(restaurantId: string, whatsapp: string, ctx: RequestContext): Promise<Restaurant> {
+  const current = await requireCurrentRestaurant(restaurantId, ctx);
+  if (!whatsapp && current.checkoutMode === "whatsapp") {
+    throw errors.validation("WhatsApp checkout is on for this restaurant, so it needs a WhatsApp number.", { field: "whatsapp" });
+  }
+  const restaurant = await updateRestaurant(restaurantId, { whatsapp }, ctx);
+  getStorefrontCache().invalidate();
+  invalidateAdminRestaurants();
+  return restaurant;
+}
+
 /** Same whole-column-JSONB caveat as above, scoped to one settings section (tax, ordering, ...). */
 export async function updateRestaurantSettingsSection<K extends keyof RestaurantSettings>(
   restaurantId: string,

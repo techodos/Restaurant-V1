@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { whatsappNumberField } from "./common";
 import { DAY_KEYS } from "@/shared/contract/enums";
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 09:30.");
@@ -32,6 +33,8 @@ export const locationSchema = z.object({
   postalCode: z.string().trim().max(20).optional().or(z.literal("")),
   country: z.string().trim().max(2).optional().or(z.literal("")),
   phone: z.string().trim().max(24).optional().or(z.literal("")),
+  /** this branch's WhatsApp for WhatsApp checkout ("" = use the restaurant's number) */
+  whatsapp: whatsappNumberField.optional(),
   email: z.string().trim().email().max(160).optional().or(z.literal("")),
   sortOrder: z.coerce.number().int().optional(),
   /** the branch's map pin: distances, and the centre of a delivery radius */

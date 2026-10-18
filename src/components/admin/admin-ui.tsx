@@ -116,3 +116,25 @@ export function AdminSection({
 export const tableHead =
   "border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_2.5%,var(--color-surface))] text-left text-xs font-semibold tracking-[0.01em] text-[var(--color-muted-ink)]";
 export const tableRow = "transition-colors hover:bg-[color-mix(in_srgb,var(--color-ink)_2.5%,transparent)]";
+
+/**
+ * Marks a WhatsApp-checkout order and where it stands (the customer reports sending it; wa.me itself reports nothing):
+ * awaiting send (grey), sent (green), not sent / lapsed (red). Pass the stage from `shared/whatsapp-order#whatsappStage`.
+ */
+export function WhatsAppOrderBadge({ stage = "sent", className }: { stage?: "awaiting" | "sent" | "not_sent" | "cancelled" | null; className?: string }) {
+  const tone =
+    stage === "awaiting"
+      ? "bg-[var(--tint)] text-[var(--color-muted-ink)] ring-[var(--rule)]"
+      : stage === "not_sent"
+        ? "bg-[color-mix(in_srgb,var(--color-danger)_9%,var(--color-surface))] text-[color-mix(in_srgb,var(--color-danger)_85%,var(--color-ink))] ring-[color-mix(in_srgb,var(--color-danger)_22%,transparent)]"
+        : "bg-[color-mix(in_srgb,#25D366_15%,var(--color-surface))] text-[#146c38] ring-[color-mix(in_srgb,#25D366_35%,transparent)]";
+  const label = stage === "awaiting" ? "WhatsApp · awaiting send" : stage === "not_sent" ? "WhatsApp · not sent" : "WhatsApp";
+  return (
+    <span
+      title={stage === "awaiting" ? "Saved; the customer has not confirmed sending it on WhatsApp yet" : stage === "not_sent" ? "Never sent on WhatsApp — not a real order" : "Sent to the restaurant on WhatsApp"}
+      className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset", tone, className)}
+    >
+      {label}
+    </span>
+  );
+}

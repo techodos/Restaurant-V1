@@ -7,6 +7,7 @@ import {
   addPage,
   customizeLegalPage,
   removePage,
+  saveCheckoutMode,
   saveEntitlements,
   savePage,
   saveWebsite,
@@ -14,7 +15,7 @@ import {
   uploadWebsiteImage,
 } from "@/server/services/platform";
 import type { LibraryImage } from "@/shared/contract/models";
-import { entitlementsPatchSchema, newPageSchema, pageInputSchema, websiteInputSchema } from "@/server/validation/platform";
+import { checkoutModeSchema, entitlementsPatchSchema, newPageSchema, pageInputSchema, websiteInputSchema } from "@/server/validation/platform";
 import { requireSuperAdmin, signOutStaffSession } from "@/web/session";
 import { z } from "zod";
 
@@ -24,6 +25,14 @@ export async function saveEntitlementsAction(restaurantId: string, payload: unkn
   return action(async () => {
     const actor = await requireSuperAdmin();
     await saveEntitlements(actor, restaurantId, entitlementsPatchSchema.parse(payload));
+    return null;
+  });
+}
+
+export async function saveCheckoutModeAction(restaurantId: string, payload: unknown): Promise<ApiResult<null>> {
+  return action(async () => {
+    const actor = await requireSuperAdmin();
+    await saveCheckoutMode(actor, restaurantId, checkoutModeSchema.parse(payload));
     return null;
   });
 }

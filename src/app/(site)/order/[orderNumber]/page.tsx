@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle2, MapPin, Phone, Receipt, SearchX, Store } from "lucide-react";
 import { EmptyState } from "@/components/storefront/empty-state";
-import { ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
+import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
 import { getVisitorContext, guestOrderAccessToken } from "@/web/session";
 import { requireStorefront } from "@/web/storefront";
 import { trackOrder } from "@/server/services/orders";
@@ -12,6 +12,9 @@ import { canCustomerCancelOrder } from "@/shared/order-cancellation";
 import { formatMoney } from "@/shared/money";
 import { Button } from "@/components/ui/button";
 import { LiveOrderTimeline, OrderLiveProvider, OrderLiveStatus, OrderPass, OrderReceivedNotice } from "@/components/storefront/order-live-status";
+import { WhatsAppHandoff } from "@/components/storefront/whatsapp-handoff";
+import { getWhatsAppHandoff } from "@/server/services/whatsapp-checkout";
+import { whatsappSendDeadline, whatsappStage } from "@/shared/whatsapp-order";
 import { CancelOrderButton } from "@/components/storefront/cancel-order-button";
 import { PushOptIn } from "@/components/storefront/push-opt-in";
 import { ReorderButton } from "@/components/storefront/reorder-button";
@@ -21,7 +24,8 @@ import { instanceRestaurantSlug } from "@/web/instance";
 interface OrderPageProps {
   params: Promise<{ orderNumber: string }>;
   /** `t`: signed order-access token from a notification email; lets the link work from any device */
-  searchParams: Promise<{ t?: string }>;
+  /** `wa=1`: just placed through WhatsApp checkout — open WhatsApp with the order typed in (once) */
+  searchParams: Promise<{ t?: string; wa?: string }>;
 }
 
 export const dynamic = "force-dynamic";
@@ -37,7 +41,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
   const restaurantSlug = instanceRestaurantSlug();
   const { orderNumber: rawOrderNumber } = await params;
   const orderNumber = decodeURIComponent(rawOrderNumber);
-  const { t } = await searchParams;
+  const { t, wa } = await searchParams;
 
   const context = await requireStorefront(restaurantSlug);
 
@@ -79,10 +83,15 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
   // null unless Firebase is fully configured AND the restaurant has push on (features), in which case the opt-in is not offered
   const pushConfig = getPushClientConfigFor(restaurant);
   const money = (value: string) => formatMoney(value, { currency: restaurant.currencySymbol, locale: restaurant.locale });
+  // WhatsApp orders are timed in the chat, not here
   const eta =
-    order.status === "completed" || order.status === "cancelled" ? null : describeEta(order.estimatedReadyAt);
+    order.source === "whatsapp" || order.status === "completed" || order.status === "cancelled" ? null : describeEta(order.estimatedReadyAt);
   const placedAt = new Date(order.createdAt);
   const canCancel = canCustomerCancelOrder(order, restaurant.settings);
+  // WhatsApp checkout: the restaurant runs this order from its WhatsApp, not the admin, so the live timeline
+  // would sit at "Received" forever — the page shows the WhatsApp hand-off instead
+  const whatsappHandoff = order.source === "whatsapp" ? await getWhatsAppHandoff(restaurant, order) : null;
+  const waStage = whatsappStage(order);
 
   return (
     <OrderLiveProvider
@@ -129,13 +138,34 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
             </h1>
             {eta ? <p className="mt-3 text-[15px] font-medium">{eta}</p> : null}
           </div>
-          <OrderLiveStatus />
+          {whatsappHandoff ? null : <OrderLiveStatus />}
         </header>
 
-        <OrderPass />
-        <div className="pb-6">
-          <OrderReceivedNotice />
-        </div>
+        {whatsappHandoff ? (
+          <div className="pb-8">
+            <WhatsAppHandoff
+              restaurantSlug={restaurant.slug}
+              orderNumber={order.orderNumber}
+              accessToken={accessToken}
+              restaurantName={restaurant.name}
+              restaurantPhone={restaurant.phone}
+              link={whatsappHandoff.link}
+              chatLink={whatsappHandoff.chatLink}
+              message={whatsappHandoff.message}
+              autoOpen={wa === "1"}
+              stage={waStage ?? "awaiting"}
+              deadline={whatsappSendDeadline(order.createdAt).toISOString()}
+              staffStatus={order.status !== "pending" && order.status !== "cancelled" ? ORDER_STATUS_LABELS[order.status] : null}
+            />
+          </div>
+        ) : (
+          <>
+            <OrderPass />
+            <div className="pb-6">
+              <OrderReceivedNotice />
+            </div>
+          </>
+        )}
           </div>
         </section>
 
@@ -214,12 +244,14 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
               </dl>
             </section>
 
-            <section>
-              <h2 className="display-2">Timeline</h2>
-              <div className="mt-5">
-                <LiveOrderTimeline />
-              </div>
-            </section>
+            {whatsappHandoff ? null : (
+              <section>
+                <h2 className="display-2">Timeline</h2>
+                <div className="mt-5">
+                  <LiveOrderTimeline />
+                </div>
+              </section>
+            )}
           </div>
 
           <aside className="space-y-8 lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
@@ -260,11 +292,11 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
               </div>
             </section>
 
-            {canCancel ? (
+            {canCancel && waStage !== "not_sent" ? (
               <CancelOrderButton restaurantSlug={restaurant.slug} orderNumber={order.orderNumber} accessToken={accessToken} />
             ) : null}
 
-            {pushConfig && order.status !== "completed" && order.status !== "cancelled" ? (
+            {pushConfig && order.source !== "whatsapp" && order.status !== "completed" && order.status !== "cancelled" ? (
               <PushOptIn
                 restaurantSlug={restaurant.slug}
                 orderNumber={order.orderNumber}

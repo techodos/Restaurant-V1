@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CHECKOUT_MODES } from "@/shared/contract/enums";
+import { whatsappNumberField } from "./common";
 import { WEBSITE_STATUSES } from "@/shared/contract/enums";
 import { themeSchema, websiteConfigSchema } from "@/shared/contract/settings";
 import { sectionSchema } from "@/shared/contract/sections";
@@ -74,3 +76,11 @@ export const pageInputSchema = z.object({
   sections: jsonText("Sections", z.array(sectionSchema)),
 });
 export type PageInput = z.infer<typeof pageInputSchema>;
+
+/** Super admin → Checkout: how the restaurant takes orders, and (optionally) its WhatsApp number in the same save. */
+export const checkoutModeSchema = z.object({
+  checkoutMode: z.enum(CHECKOUT_MODES),
+  whatsapp: whatsappNumberField.optional(),
+});
+export type CheckoutModeInput = z.infer<typeof checkoutModeSchema>;
+

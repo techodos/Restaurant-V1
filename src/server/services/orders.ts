@@ -31,6 +31,7 @@ import {
 
 export type { OrderStatusChange };
 import { viewTray, type TrayLineView } from "@/server/services/cart";
+import { expireUnsentWhatsAppOrders } from "@/server/services/whatsapp-checkout";
 
 /**
  * Finds the order a visitor is entitled to see. Access is decided by one of two proofs:
@@ -168,11 +169,12 @@ export function cancelOrderByCustomer(
 }
 
 /** Staff-facing order list (admin). */
-export function listOrdersForStaff(
+export async function listOrdersForStaff(
   restaurantId: string,
   filters: OrderListFilters,
   ctx: RequestContext,
 ): Promise<Paginated<OrderSummary>> {
+  await expireUnsentWhatsAppOrders(restaurantId); // WhatsApp orders never sent show as cancelled "Not sent", not pending
   return listOrders(restaurantId, filters, ctx);
 }
 
@@ -233,7 +235,8 @@ export async function changePaymentStatus(orderId: string, status: PaymentStatus
 // owner's branch choice work and keeps branch staff scoped even if RLS were ever off.
 
 /** Status counters for the admin dashboard and order tabs. */
-export function getOrderStatusCounts(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<Record<OrderStatus, number>> {
+export async function getOrderStatusCounts(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<Record<OrderStatus, number>> {
+  await expireUnsentWhatsAppOrders(restaurantId);
   return countOrdersByStatus(restaurantId, ctx, locationId);
 }
 
@@ -243,29 +246,33 @@ export function getRecentOrdersForAdmin(restaurantId: string, ctx: RequestContex
 }
 
 /** Active orders for the kitchen display (admin). */
-export function getKitchenOrders(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<Order[]> {
+export async function getKitchenOrders(restaurantId: string, ctx: RequestContext, locationId: string | null = null): Promise<Order[]> {
+  await expireUnsentWhatsAppOrders(restaurantId);
   return listKitchenOrders(restaurantId, ctx, locationId);
 }
 
 /** Admin "Sales Reports" summary for one resolved date range. */
-export function getSalesReport(
+export async function getSalesReport(
   restaurantId: string,
   range: ReportRange,
   timezone: string,
   ctx: RequestContext,
   locationId: string | null = null,
 ): Promise<SalesAnalytics> {
+  // unsent WhatsApp orders become cancelled first, so they never count as sales
+  await expireUnsentWhatsAppOrders(restaurantId);
   return getSalesAnalytics(restaurantId, { fromDateKey: range.fromDateKey, toDateKey: range.toDateKey, timezone, locationId }, ctx);
 }
 
 /** Every order in the range, for the CSV export (no pagination cap below the admin UI's own page size). */
-export function getOrdersForExport(
+export async function getOrdersForExport(
   restaurantId: string,
   range: ReportRange,
   timezone: string,
   ctx: RequestContext,
   locationId: string | null = null,
 ): Promise<Paginated<OrderSummary>> {
+  await expireUnsentWhatsAppOrders(restaurantId);
   return listOrders(
     restaurantId,
     { dateFrom: range.fromDateKey, dateTo: range.toDateKey, timezone, status: "all", locationId: locationId ?? undefined, page: 1, pageSize: 5000 },

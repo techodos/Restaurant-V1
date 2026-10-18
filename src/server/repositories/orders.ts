@@ -4,7 +4,7 @@ import { acceptsOrdersAt, parseOpeningHours } from "@/shared/hours";
 import { effectiveOnlineProvider, entitledPaymentMethods } from "@/shared/feature-access";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
-import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, WHATSAPP_PAYMENT_METHODS, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary, SalesAnalytics } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
@@ -96,7 +96,7 @@ const IDEMPOTENCY_INDEX = "orders_idempotency_key_uidx";
  * Only what an order is decided from — on the hosted pooler a response's time grows with its size, and
  * the full rows (SEO, social, theme and customer metadata JSON) are dead weight here.
  */
-const ORDER_RESTAURANT_COLUMNS = "id, name, slug, status, currency, currency_symbol, locale, timezone, country, features, entitlements, settings";
+const ORDER_RESTAURANT_COLUMNS = "id, name, slug, status, currency, currency_symbol, locale, timezone, country, features, entitlements, settings, checkout_mode";
 const ORDER_CUSTOMER_COLUMNS = "id, restaurant_id, full_name, phone, email, is_email_verified, is_guest, auth_provider, created_at";
 
 /** `($1,$2,…),($n,…)` placeholders for a multi-row insert of `rows` × `width` parameters, starting after `offset`. */
@@ -241,8 +241,12 @@ async function placeInTransaction(
     if (!isOrderTypeEnabled(restaurant.features, input.orderType)) {
       throw errors.custom("ORDERING_DISABLED", "That order type is not available at the moment.");
     }
+    // WhatsApp checkout (platform-set): the order is handed to the restaurant's WhatsApp and settled in person, so
+    // cash methods only — whatever the owner's (never-visited) Payments settings say; the platform's switches still apply.
+    const whatsappCheckout = restaurant.checkoutMode === "whatsapp";
+    const offeredMethods = whatsappCheckout ? WHATSAPP_PAYMENT_METHODS : settings.payments.enabledMethods;
     if (
-      !entitledPaymentMethods(settings.payments.enabledMethods, restaurant.entitlements).includes(input.paymentMethod) ||
+      !entitledPaymentMethods(offeredMethods, restaurant.entitlements).includes(input.paymentMethod) ||
       // card/wallet need a gateway the platform allows; refused here, before the order exists, not at the intent
       ((input.paymentMethod === "card_online" || input.paymentMethod === "wallet") &&
         effectiveOnlineProvider(settings.payments.onlineProvider, restaurant.entitlements) === "none")
@@ -255,6 +259,8 @@ async function placeInTransaction(
     if (!PAYMENT_METHOD_ORDER_TYPES[input.paymentMethod].includes(input.orderType)) {
       throw errors.custom("PAYMENT_UNAVAILABLE", "That payment method is not available for this order type.");
     }
+    // no email/OTP for a WhatsApp checkout: the customer's WhatsApp message itself carries their number
+    const requireVerifiedEmail = Boolean(input.requireVerifiedEmail) && !whatsappCheckout;
     const requiresOnlinePayment = input.paymentMethod === "card_online" || input.paymentMethod === "wallet";
 
     // customer: the signed-in account's own row (now locked). Its verification and saved mobile/email
@@ -263,7 +269,7 @@ async function placeInTransaction(
     if (input.accountCustomerId) {
       if (!read?.customer) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
       const accountRow = read.customer as Row;
-      if (input.requireVerifiedEmail && !accountRow.is_email_verified) {
+      if (requireVerifiedEmail && !accountRow.is_email_verified) {
         throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
       }
       customer = mapCustomer(accountRow);
@@ -283,7 +289,7 @@ async function placeInTransaction(
       // A guest proves email ownership the same way an account does: the OTP step upserts this same
       // phone-keyed row and verifies it before checkout ever reaches here, so `customer.emailVerified`
       // is already true by the time this runs (unique on (restaurant_id, phone) — same row either way).
-      if (input.requireVerifiedEmail && !customer.emailVerified) {
+      if (requireVerifiedEmail && !customer.emailVerified) {
         throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
       }
     }
@@ -459,10 +465,10 @@ async function placeInTransaction(
           customer_phone, delivery_address, delivery_zone_id, table_number, guests, scheduled_for, coupon_id,
           coupon_code, subtotal, discount_amount, delivery_fee, tax_amount, service_fee, tip_amount, total, currency,
           tax_rate, pricing_breakdown, payment_method, payment_status, notes, special_instructions, placed_by,
-          estimated_ready_at, idempotency_key)
+          estimated_ready_at, idempotency_key, source)
        values ($1,$2,$3,null,$4,'pending',$5,$6,$7,$8::jsonb,$9,$10,$11,$12::timestamptz,$13,$14,
                $15::numeric,$16::numeric,$17::numeric,$18::numeric,$19::numeric,$20::numeric,$21::numeric,$22,
-               $23::numeric,$24::jsonb,$25,'pending',$26,$27,'customer',$28::timestamptz,$29::uuid)
+               $23::numeric,$24::jsonb,$25,'pending',$26,$27,'customer',$28::timestamptz,$29::uuid,$30)
        returning *`,
       [
         input.restaurantId,
@@ -495,6 +501,7 @@ async function placeInTransaction(
         estimatedReadyAt.toISOString(),
         // only a signed-in customer's checkout is keyed (the replay read is scoped to their own orders)
         input.accountCustomerId ? (input.idempotencyKey ?? null) : null,
+        whatsappCheckout ? "whatsapp" : "web",
       ],
     );
     if (!orderRow) throw errors.internal("Unable to create the order");
@@ -668,7 +675,7 @@ export async function listOrders(
     // the page and the total in ONE statement (`count(*) over ()` counts every match before LIMIT);
     // only a page past the end (no rows to carry the total) needs the separate count
     const rows = await tx.query<Row>(
-      `select o.id, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
+      `select o.id, o.source, o.whatsapp_sent_at, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
               o.payment_status, o.payment_method, o.created_at, o.subtotal, o.discount_amount, o.tax_amount, l.name as location_name,
               (select coalesce(sum(oi.quantity),0) from order_items oi where oi.order_id = o.id) as item_count,
               (select coalesce(json_agg(oi.item_name order by oi.position, oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview,
@@ -689,6 +696,8 @@ export async function listOrders(
 
     const summaries: OrderSummary[] = rows.map((row) => ({
       id: str(row.id),
+      source: row.source === "whatsapp" ? "whatsapp" : "web",
+      whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
       orderNumber: str(row.order_number),
       status: str(row.status) as OrderStatus,
       orderType: str(row.order_type) as OrderType,
@@ -1072,6 +1081,8 @@ export async function listKitchenOrders(restaurantId: string, ctx: RequestContex
        left join restaurant1s l on l.id = o.location_id
        left join delivery_zones dz on dz.id = o.delivery_zone_id
       where o.restaurant_id = $1 and o.status in ('pending','confirmed','preparing','ready')
+        -- WhatsApp checkout: not a ticket until the customer confirmed sending it (or staff moved it on)
+        and not (o.source = 'whatsapp' and o.status = 'pending' and o.whatsapp_sent_at is null)
         and ${branchFilter("o", "$2")}
       order by o.created_at asc
       limit 60`,
@@ -1093,7 +1104,7 @@ export async function listCustomerOrders(
   const db = getDb(ctx);
   const rows = await db.read({ ...ctx, customerId }, async (tx) =>
     tx.query<Row>(
-      `select o.id, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
+      `select o.id, o.source, o.whatsapp_sent_at, o.order_number, o.status, o.order_type, o.customer_name, o.customer_phone, o.total, o.currency,
               o.payment_status, o.payment_method, o.created_at,
               (select coalesce(sum(oi.quantity),0) from order_items oi where oi.order_id = o.id) as item_count,
               (select coalesce(json_agg(oi.item_name order by oi.position, oi.created_at), '[]'::json) from order_items oi where oi.order_id = o.id) as item_preview
@@ -1106,6 +1117,8 @@ export async function listCustomerOrders(
   );
   return rows.map((row) => ({
     id: str(row.id),
+    source: row.source === "whatsapp" ? "whatsapp" : "web",
+      whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
     orderNumber: str(row.order_number),
     status: str(row.status) as OrderStatus,
     orderType: str(row.order_type) as OrderType,
@@ -1346,3 +1359,50 @@ export async function buildReorderLines(orderId: string, ctx: RequestContext): P
 export async function sumOrderTotals(items: { lineTotal: string }[]): Promise<string> {
   return toMoney(sumMoney(items.map((item) => dec(item.lineTotal))));
 }
+
+// ─── WhatsApp checkout lifecycle (0044) ────────────────────────────────────────────────────────────────────
+
+/**
+ * The customer's "Yes, I sent it": only for a pending, unconfirmed WhatsApp order still inside the send window.
+ * Ownership is proven by the caller (findVisitorOrder); runs privileged and scoped to the order's restaurant.
+ */
+export async function markWhatsAppOrderSent(orderId: string, restaurantId: string, windowMinutes: number): Promise<boolean> {
+  const db = getDb({ restaurantId });
+  const row = await db.write({ restaurantId, userId: null }, (tx) =>
+    tx.queryOne<Row>(
+      `update orders set whatsapp_sent_at = now()
+        where id = $1 and restaurant_id = $2 and source = 'whatsapp' and status = 'pending'
+          and whatsapp_sent_at is null and created_at > now() - make_interval(mins => $3::int)
+       returning id`,
+      [orderId, restaurantId, windowMinutes],
+    ),
+  );
+  return Boolean(row);
+}
+
+/**
+ * Cancels WhatsApp orders that were never confirmed sent: past the send window ("Not sent on WhatsApp"), and — when
+ * `phone` is given — every other still-unconfirmed one from that phone (the customer started over: "Replaced by a newer
+ * WhatsApp order"). One statement; the status triggers record history as usual (their notifications are skipped for
+ * WhatsApp orders). Returns how many were cancelled.
+ */
+export async function cancelUnsentWhatsAppOrders(
+  restaurantId: string,
+  options: { windowMinutes: number; notSentReason: string; replacedReason: string; phone?: string | null; keepOrderId?: string | null },
+): Promise<number> {
+  const db = getDb({ restaurantId });
+  const rows = await db.write({ restaurantId, userId: null, actor: "WhatsApp checkout" }, (tx) =>
+    tx.query<Row>(
+      `update orders set
+         status = 'cancelled'::order_status,
+         cancel_reason = case when created_at <= now() - make_interval(mins => $2::int) then $3 else $4 end
+        where restaurant_id = $1 and source = 'whatsapp' and status = 'pending' and whatsapp_sent_at is null
+          and (created_at <= now() - make_interval(mins => $2::int)
+               or ($5::text is not null and customer_phone = $5 and id <> coalesce($6::uuid, '00000000-0000-0000-0000-000000000000'::uuid)))
+       returning id`,
+      [restaurantId, options.windowMinutes, options.notSentReason, options.replacedReason, options.phone ?? null, options.keepOrderId ?? null],
+    ),
+  );
+  return rows.length;
+}
+

@@ -97,6 +97,8 @@ export function mapRestaurant(row: Row): Restaurant {
     planStatus: str(row.plan_status) || "active",
     ...resolveFeatures(jsonObject(row.features), jsonObject(row.entitlements)),
     settings: restaurantSettingsSchema.parse(migrateServiceFeeShape(jsonObject(row.settings))),
+    // absent on narrow reads that predate 0043 / don't select it: standard checkout
+    checkoutMode: row.checkout_mode === "whatsapp" ? "whatsapp" : "standard",
     social: Object.fromEntries(
       Object.entries(jsonObject(row.social)).filter(([, value]) => typeof value === "string"),
     ) as Record<string, string>,
@@ -122,6 +124,7 @@ export function mapLocation(row: Row): RestaurantLocation {
     postalCode: strOrNull(row.postal_code),
     country: str(row.country) || "PK",
     phone: strOrNull(row.phone),
+    whatsapp: strOrNull(row.whatsapp),
     email: strOrNull(row.email),
     latitude: numOrNull(row.latitude),
     longitude: numOrNull(row.longitude),
@@ -472,6 +475,8 @@ export function mapDelivery(row: Row): Delivery {
 export function mapOrder(row: Row): Order {
   return {
     id: str(row.id),
+    source: row.source === "whatsapp" ? "whatsapp" : "web",
+    whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
     restaurantId: str(row.restaurant_id),
     locationId: strOrNull(row.location_id),
     locationName: strOrNull(row.location_name),

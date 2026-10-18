@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { WhatsAppSettingsSection } from "@/components/admin/whatsapp-settings-section";
 import { getAdminRestaurantFresh } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { entitledPaymentMethods } from "@/shared/feature-access";
@@ -24,6 +25,7 @@ const SECTIONS = [
   { id: "serviceFee", label: "Service fee" },
   { id: "payments", label: "Payments" },
   { id: "ordering", label: "Ordering" },
+  { id: "whatsapp", label: "WhatsApp" },
   { id: "reservations", label: "Reservations" },
   { id: "delivery", label: "Delivery" },
   { id: "loyalty", label: "Loyalty" },
@@ -70,6 +72,7 @@ export default async function AdminSettingsPage() {
             enabledPaymentMethods={entitledPaymentMethods(restaurant.settings.payments.enabledMethods, restaurant.entitlements)}
             readOnly={readOnly}
           />
+          <WhatsAppSettingsSection whatsapp={restaurant.whatsapp} checkoutMode={restaurant.checkoutMode} readOnly={readOnly} />
           <ReservationsSettingsSection reservations={restaurant.settings.reservations} readOnly={readOnly} />
           <DeliverySettingsSection delivery={restaurant.settings.delivery} readOnly={readOnly} />
           <LoyaltySection loyalty={restaurant.settings.loyalty} readOnly={readOnly} />

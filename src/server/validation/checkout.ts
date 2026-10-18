@@ -28,7 +28,8 @@ export const placeOrderSchema = z.object({
   orderType: z.enum(ORDER_TYPES),
   fullName: z.string().trim().min(2, "Please enter your name.").max(120),
   phone: e164Phone,
-  email: z.string().trim().email("That email address looks incomplete.").max(160),
+  // optional here: the standard checkout requires it (services/checkout.ts#placeOrder), WhatsApp checkout does not
+  email: z.string().trim().email("That email address looks incomplete.").max(160).optional().or(z.literal("")),
   addressLine1: z.string().trim().max(200).optional().or(z.literal("")),
   addressLine2: z.string().trim().max(200).optional().or(z.literal("")),
   area: z.string().trim().max(120).optional().or(z.literal("")),

@@ -1,4 +1,4 @@
-import { ORDER_TYPES, PAYMENT_METHOD_ORDER_TYPES, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { ORDER_TYPES, PAYMENT_METHOD_ORDER_TYPES, WHATSAPP_PAYMENT_METHODS, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Restaurant } from "@/shared/contract/models";
 import { enabledOrderTypes } from "@/shared/ordering";
 import { config, isPaymentProviderConfigured } from "@/server/config";
@@ -11,6 +11,7 @@ import { createOrder, getOrderForAccessGrant, setOrderPaymentStatus } from "@/se
 import type { PlaceOrderInput } from "@/server/validation/checkout";
 import type { Tray } from "@/shared/tray";
 import { assertTrayOrderable } from "./cart";
+import { expireUnsentWhatsAppOrders, resolveWhatsAppNumber } from "./whatsapp-checkout";
 
 /**
  * Checkout (a signed-in account, or a guest who verified the checkout email via the OTP modal —
@@ -24,6 +25,8 @@ import { assertTrayOrderable } from "./cart";
 export interface PlaceOrderResult {
   orderNumber: string;
   requiresOnlinePayment: boolean;
+  /** WhatsApp checkout: the browser goes to the order page, which hands the order to the restaurant's WhatsApp */
+  whatsapp?: boolean;
   /** Set only when `requiresOnlinePayment`: how the browser gets to the gateway's own page. */
   payment?:
     | { kind: "redirect"; redirectUrl: string } // a plain GET (Stripe Checkout)
@@ -41,6 +44,16 @@ export async function placeOrder(
   assertTrayOrderable(restaurant, { ...tray, orderType: input.orderType });
   if (input.orderType === "delivery" && !input.addressLine1) {
     throw errors.validation("Please add a delivery address.", { field: "addressLine1" });
+  }
+  const whatsappCheckout = restaurant.checkoutMode === "whatsapp";
+  if (whatsappCheckout) {
+    // refuse BEFORE the order exists: an order nobody can send to the restaurant would just sit there
+    if (!(await resolveWhatsAppNumber(restaurant, tray.locationId))) {
+      throw errors.custom("ORDERING_DISABLED", "This restaurant is not taking WhatsApp orders right now. Please call them instead.");
+    }
+  } else if (!input.email) {
+    // the standard checkout verifies an email (OTP / account) and sends updates there; only WhatsApp skips it
+    throw errors.validation("Please enter your email address.", { field: "email" });
   }
 
   // ONE transaction does everything: the signed-in customer's own row (locked; its saved mobile and
@@ -99,6 +112,11 @@ export async function placeOrder(
     );
   }
 
+  if (order.source === "whatsapp") {
+    // the customer started over: their older still-unsent WhatsApp orders are replaced by this one (and stale ones expire)
+    if (!replayed) await expireUnsentWhatsAppOrders(restaurant.id, { phone: order.customerPhone, keepOrderId: order.id });
+    return { orderNumber: order.orderNumber, requiresOnlinePayment: false, whatsapp: true };
+  }
   if (!requiresOnlinePayment) return { orderNumber: order.orderNumber, requiresOnlinePayment };
   // a retried checkout whose order is already paid (or refunded) must not start another payment
   if (replayed && order.paymentStatus !== "pending" && order.paymentStatus !== "failed") {
@@ -182,7 +200,9 @@ export interface CheckoutOptions {
 export function getCheckoutOptions(restaurant: Restaurant, orderType?: OrderType): CheckoutOptions {
   const { features, settings } = restaurant;
   const onlineProvider = effectiveOnlineProvider(settings.payments.onlineProvider, restaurant.entitlements);
-  const enabled = entitledPaymentMethods(settings.payments.enabledMethods, restaurant.entitlements).filter((method) => {
+  // WhatsApp checkout offers the cash methods only, whatever the owner's Payments settings say (createOrder agrees)
+  const offered = restaurant.checkoutMode === "whatsapp" ? WHATSAPP_PAYMENT_METHODS : settings.payments.enabledMethods;
+  const enabled = entitledPaymentMethods(offered, restaurant.entitlements).filter((method) => {
     // "wallet" (JazzCash) is gated exactly like "card_online" (Stripe) — both need the restaurant's
     // chosen online provider to actually be configured server-side, or the option would show at
     // checkout and then fail (or worse, silently record an unpaid order as if payment were possible).

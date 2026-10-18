@@ -1,6 +1,6 @@
 import type {
-  CouponDiscountType, DeliveryStatus, MediaPurpose, OrderStatus, OrderType,
-  PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus,
+  CheckoutMode, CouponDiscountType, DeliveryStatus, MediaPurpose, OrderStatus, OrderType,
+  OrderSource, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus,
   TeamRole, WebsiteStatus,
 } from "./enums";
 import type { RestaurantEntitlements } from "../feature-access";
@@ -46,6 +46,8 @@ export interface Restaurant {
   /** what the platform (super admin) allows this restaurant */
   entitlements: RestaurantEntitlements;
   settings: RestaurantSettings;
+  /** platform-set (super admin): standard online checkout, or hand the order to WhatsApp */
+  checkoutMode: CheckoutMode;
   social: Record<string, string>;
   seo: Record<string, unknown>;
   createdAt: string;
@@ -67,6 +69,8 @@ export interface RestaurantLocation {
   postalCode: string | null;
   country: string;
   phone: string | null;
+  /** this branch's WhatsApp for WhatsApp checkout; null = use the restaurant's number */
+  whatsapp: string | null;
   email: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -479,6 +483,10 @@ export interface Payment {
 
 export interface Order {
   id: string;
+  /** "whatsapp" when the customer was handed to the restaurant's WhatsApp to send it (0043) */
+  source: OrderSource;
+  /** WhatsApp checkout: when the customer confirmed "Yes, I sent it" (self-reported, 0044); null = not confirmed */
+  whatsappSentAt: string | null;
   restaurantId: string;
   locationId: string | null;
   locationName?: string | null;
@@ -524,6 +532,8 @@ export interface Order {
 
 export interface OrderSummary {
   id: string;
+  source: OrderSource;
+  whatsappSentAt: string | null;
   orderNumber: string;
   status: OrderStatus;
   orderType: OrderType;

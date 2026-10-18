@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { whatsappStage } from "@/shared/whatsapp-order";
 import { Suspense } from "react";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
@@ -19,7 +20,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
-import { StatusPill, orderStatusTone, tableHead, tableRow } from "@/components/admin/admin-ui";
+import { StatusPill, WhatsAppOrderBadge, orderStatusTone, tableHead, tableRow } from "@/components/admin/admin-ui";
 import { OrderNextStepButton } from "@/components/admin/order-next-step-button";
 import { OrderBulkProvider, OrderSelectAll, OrderSelectBox, type BulkOrder } from "@/components/admin/order-bulk-actions";
 import { instanceRestaurantSlug } from "@/web/instance";
@@ -199,6 +200,7 @@ async function OrdersResults({
                           {next ? <span className="pt-1"><OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /></span> : null}
                           <div>
                             <Link href={href} prefetch={false} className="tabular font-semibold text-[var(--color-ink)]">{order.orderNumber}</Link>
+                            {order.source === "whatsapp" ? <WhatsAppOrderBadge stage={whatsappStage(order)} className="ml-2 align-middle" /> : null}
                             <p className="text-xs text-[var(--color-muted-ink)]">{placed(order.createdAt)} · {ORDER_TYPE_LABELS[order.orderType]}</p>
                           </div>
                         </div>
@@ -250,6 +252,7 @@ async function OrdersResults({
                             <Link href={href} prefetch={false} className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-brand)] hover:underline">
                               {order.orderNumber}
                             </Link>
+                            {order.source === "whatsapp" ? <WhatsAppOrderBadge stage={whatsappStage(order)} className="ml-2 align-middle" /> : null}
                             <p className="text-xs text-[var(--color-muted-ink)]">{placed(order.createdAt)}</p>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">

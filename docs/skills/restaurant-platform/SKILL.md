@@ -1084,6 +1084,8 @@ Home (no add buttons, tiles -> /menu#<category>)
 
 **Who:** the developers who run the product. Role `super_admin` (`team_role` enum, 0031). No extra table: it is ONE `team_members` row in a "home" restaurant (keep that restaurant stable; deleting it deletes the login). Create it with `npm run db:create-staff -- --email … --name … --role super_admin --password … [--restaurant <home-slug>]`; nothing in the app can assign the role (`permissions.ts#assignableRoles` never lists it) and `repositories/team.ts#listTeamMembers` hides it from every restaurant's Staff screen.
 
+**Existing platform login (2026-10-18):** `superadmin@techodos.com` (home restaurant `zaytoun`, created with `db:create-staff … --role super_admin --restaurant zaytoun`; same dev password as the other demo staff). Never make a seeded restaurant the home: every `db:seed:*` deletes its own tenant on re-run, which would delete the login.
+
 **Login:** the SAME admin login (`/admin/login`). `auth-service.ts#signInStaff` tries the restaurant's own member, then a `super_admin` row anywhere. The token is anchored to the home restaurant; `authenticateStaff` widens it for a super admin to whichever restaurant the URL names (`actingMember`: restaurant-wide, owner-level permissions). The cookie is `rp_super_admin_session`, path `/` (`web/cookies.ts`), because one login serves `/super-admin` and `/admin`; a restaurant-scoped `rp_admin_session` wins when both exist. After login the form sends a super admin to `/super-admin`; the restaurant admin header has a "Platform admin" link back.
 
 **RLS:** `app.has_permission/is_team_member/team_role` (0032) treat a user with an active `super_admin` row (`app.is_super_admin()`) as a restaurant-wide member of EVERY restaurant; a real row at the asked restaurant still wins. So admin reads work in any restaurant without touching a policy. `super_admin` permissions = owner's, in SQL (`app.role_permissions`) and TS (`ROLE_PERMISSIONS`, parity test needs a DB).
@@ -1407,4 +1409,51 @@ phone is locked at checkout, so mask it on screen with `DEMO_REDACT` (display-on
 only emits frames on change, so the recorder forces a repaint on every cut (`live()`) and animates cards only after capture
 resumes; cursor/scroll motion must be time-based (per-step CDP latency stretched 1 s glides to 5 s). Observed: the cart
 said "Ordering from Mall 1" but the order was filed under Walton Branch (main) after the address was typed — worth checking.
+
+## 40. WhatsApp checkout (phase 1, 2026-10-18, migration 0043)
+
+For small restaurants that never open the admin: the customer checks out on the website and the order is handed to
+the restaurant's WhatsApp. **Mode is platform-set**: `restaurants.checkout_mode` `'standard'|'whatsapp'` (default standard)
+in super admin → Features → **Checkout** panel (`checkout-mode-form.tsx` → `saveCheckoutModeAction` →
+`services/platform.ts#saveCheckoutMode`, refuses WhatsApp without a usable number). **Number**: `restaurants.whatsapp`
+(admin → Settings → **WhatsApp ordering**, `whatsapp-settings-section.tsx` → `updateWhatsAppNumberAction` →
+`services/restaurants.ts#updateRestaurantWhatsApp`; clearing it is refused while the mode is whatsapp) with an optional
+per-branch override `restaurant1s.whatsapp` (Locations form). All three forms normalise via
+`shared/whatsapp-order.ts#normalizeWhatsAppNumber` ("0300 1234567" → "+923001234567"; `validation/common.ts#whatsappNumberField`).
+**Flow**: checkout form (`checkoutMode` prop) skips the email OTP, email optional, button "Send order on WhatsApp";
+`placeOrder` refuses before writing if `resolveWhatsAppNumber` (branch → restaurant) finds none, standard mode now
+requires email in the service (the schema made it optional); `createOrder` (the boundary) reads `checkout_mode`: cash
+methods only (`WHATSAPP_PAYMENT_METHODS` = cash_on_delivery/cash, regardless of the owner's Payments settings, still
+entitlement-filtered — `getCheckoutOptions` agrees), no `requireVerifiedEmail`, stores `orders.source = 'whatsapp'`.
+The browser goes to `/order/<n>?wa=1`; the page builds the message ON THE SERVER from the saved order
+(`services/whatsapp-checkout.ts#getWhatsAppHandoff` → `whatsappOrderMessage`, cut to `WHATSAPP_MESSAGE_MAX` keeping totals,
+address and order link) and `WhatsAppHandoff` opens `wa.me` once (sessionStorage; `wa=1` removed from the URL), keeps
+"Send on WhatsApp" + "Copy order message", and replaces the live timeline/status pill (nobody updates status).
+Admin: `WhatsAppOrderBadge` on the orders list + detail. Notifications: `NotificationService.deliver` skips email/push
+for `source = 'whatsapp'`. Status stays Pending unless an agent moves it (decision: honest data, no auto-close).
+**Test restaurant**: Smash Stop (`npm run db:seed:smash-stop`, slug `smash-stop`, `owner@smashstop.pk` / `SmashStop#1`,
+`SEED_WHATSAPP=` to receive orders; borrows Bun Intended's theme/sections/menu/images, own ids, starts with no orders).
+Run with `NEXT_PUBLIC_DEFAULT_RESTAURANT=smash-stop`. Verified end to end 2026-10-18 (guest pickup, no email → wa.me
+message correct; revisit does not re-open; admin badge; number save/normalise; clearing refused). Tests:
+`tests/whatsapp-checkout.test.ts`, `tests/notifications.test.ts` ("WhatsApp checkout orders"). Phase 2 idea: WhatsApp
+Business API (orders posted automatically, Confirm/Ready buttons updating status).
+
+**Lifecycle without the API (2026-10-19, migration 0044 `orders.whatsapp_sent_at` + partial index).** wa.me reports
+nothing back, so "sent" is the customer's own answer. `shared/whatsapp-order.ts#whatsappStage`: **awaiting** (pending,
+unconfirmed, inside `WHATSAPP_SEND_WINDOW_MINUTES` = 30) → **sent** (customer tapped "Yes, I sent it", or staff moved it past
+pending) → **not_sent** (window passed, or cancelled with `WHATSAPP_NOT_SENT_REASON` / `WHATSAPP_REPLACED_REASON`) /
+**cancelled** (cancelled after sending). Order page (`WhatsAppHandoff`): auto-opens WhatsApp once (sessionStorage
+`wa-handoff:<n>`); on coming back (`visibilitychange`/`pageshow`, or a reload after the hand-off) it asks **"Did you press
+Send in WhatsApp?"** → `confirmWhatsAppSentAction` (ownership via `findVisitorOrder`) → `confirmWhatsAppSent` →
+`repositories/orders.ts#markWhatsAppOrderSent` (guarded update: pending, unconfirmed, inside the window; idempotent; else
+`CONFLICT`). Sent view = "Open chat with <restaurant>" (`wa.me/<digits>`) + Call + "Restaurant update: <status>" if staff
+moved it; no timeline/ETA/push opt-in. Not-sent view = Reorder. Countdown refreshes at zero. **No scheduler**:
+`services/whatsapp-checkout.ts#expireUnsentWhatsAppOrders` → `cancelUnsentWhatsAppOrders` (one UPDATE; cancels stale ones,
+and — after a new WhatsApp order — the same phone's older unconfirmed ones) runs lazily before `listOrdersForStaff`,
+`getOrderStatusCounts`, `getKitchenOrders`, `getSalesReport`, `getOrdersForExport`, and in `placeOrder`; never throws.
+Kitchen also hides awaiting ones (`listKitchenOrders` predicate). Reports exclude them because they become cancelled
+(they do show in the Cancelled count, reason "Not sent on WhatsApp"). Admin badge `WhatsAppOrderBadge stage=…`:
+"awaiting send" grey / "not sent" red / "WhatsApp" green. Verified end to end 2026-10-19 on Smash Stop (return → ask →
+Yes → Sent survives reload; same-phone reorder replaces the first; kitchen hides awaiting; 40-min-old order → not sent
+for customer + admin). **Phone layout (fixed 2026-10-19):** `Button` is `whitespace-nowrap`, so a button row indented beside the card's icon overflowed at 390px ("Not yet, open WhatsApp" ran past the card). The card now puts icon + title on one row and the body full width below on phones (`sm:pl-[3.625rem]` indent from sm up), and every action is `w-full sm:w-auto` in a `flex-col sm:flex-row` row. Checked at 390px: no button outside the card, no horizontal page scroll, in all three states.
 

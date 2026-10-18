@@ -167,6 +167,12 @@ export class NotificationService {
       return { status: "dead", emailState: "skipped", pushState: "skipped", lastError: "order not found for this restaurant" };
     }
 
+    // WhatsApp checkout: the restaurant talks to this customer in its WhatsApp chat; status emails/push from a
+    // system it does not use would contradict that conversation (an agent tidying statuses later must not spam them)
+    if (context.order.source === "whatsapp") {
+      return { status: "done", emailState: "skipped", pushState: "skipped", lastError: null };
+    }
+
     // the event type decides what is sent; the restaurant's own switches decide whether it may be
     const rule = channelsFor(event.eventType);
     const enabled = context.restaurant.channels;

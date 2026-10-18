@@ -23,6 +23,7 @@ function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantL
   const [area, setArea] = useState(location?.area ?? "");
   const [city, setCity] = useState(location?.city ?? "");
   const [phone, setPhone] = useState(location?.phone ?? "");
+  const [whatsapp, setWhatsapp] = useState(location?.whatsapp ?? "");
   const [email, setEmail] = useState(location?.email ?? "");
   const [isActive, setIsActive] = useState(location?.isActive ?? true);
   const [isPrimary, setIsPrimary] = useState(location?.isPrimary ?? false);
@@ -44,7 +45,7 @@ function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantL
   function submit(event: React.FormEvent) {
     event.preventDefault();
     setErrors({});
-    const payload = { id: location?.id, name, addressLine1, area, city, phone, email, isActive, isPrimary, hours, ...(pin ?? {}) };
+    const payload = { id: location?.id, name, addressLine1, area, city, phone, whatsapp, email, isActive, isPrimary, hours, ...(pin ?? {}) };
     startTransition(() => {
       saveLocationAction(payload).then((result) => {
         if (!result.success) {
@@ -103,6 +104,18 @@ function LocationEditForm({ location, maps, onCancel }: { location?: RestaurantL
         <div>
           <Label htmlFor="locPhone">Phone</Label>
           <Input id="locPhone" value={phone} onChange={(event) => setPhone(event.target.value)} />
+        </div>
+        <div>
+          <Label htmlFor="locWhatsapp">WhatsApp</Label>
+          <Input
+            id="locWhatsapp"
+            inputMode="tel"
+            placeholder="Uses the restaurant's number"
+            value={whatsapp}
+            onChange={(event) => setWhatsapp(event.target.value)}
+          />
+          <p className="mt-1 text-xs text-[var(--color-muted-ink)]">WhatsApp checkout sends this branch's orders here. Leave empty to use the restaurant's number.</p>
+          <FieldError>{errors.whatsapp}</FieldError>
         </div>
         <div>
           <Label htmlFor="locEmail">Email</Label>

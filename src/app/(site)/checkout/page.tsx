@@ -9,6 +9,7 @@ import { getBranching, readPlacedOrder, readTrayView, requireStorefront } from "
 import { branchesFor } from "@/shared/branching";
 import { branchClosedLabel, priceTray, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
+import { resolveWhatsAppNumber } from "@/server/services/whatsapp-checkout";
 import { getDeliveryZones } from "@/server/services/restaurants";
 import { config } from "@/server/config";
 import { CheckoutForm } from "@/components/storefront/checkout-form";
@@ -79,10 +80,16 @@ export default async function CheckoutPage() {
   const emailVerified = profile.emailVerified;
   const couponCode = pricingResult.coupon?.code ?? null;
 
-  if (!pricingResult.pricing || pricingResult.blockers.length > 0 || (!availability.acceptsOrders && !closedLabel)) {
+  // WhatsApp checkout with no usable number (restaurant's or this branch's): an order could not reach anyone
+  const whatsappUnavailable =
+    restaurant.checkoutMode === "whatsapp" && !(await resolveWhatsAppNumber(restaurant, tray.locationId ?? orderLocation?.id ?? null));
+
+  if (whatsappUnavailable || !pricingResult.pricing || pricingResult.blockers.length > 0 || (!availability.acceptsOrders && !closedLabel)) {
     // no delivery zone at all for this branch is a real "no", not a missing choice: say what to do instead
     const noDeliveryZones = tray.orderType === "delivery" && zones.length === 0 && restaurant.settings.delivery.enabled;
-    const reason = noDeliveryZones
+    const reason = whatsappUnavailable
+      ? `${restaurant.name} isn't taking WhatsApp orders right now. Please call them to order.`
+      : noDeliveryZones
       ? `${orderLocation?.name ?? restaurant.name} isn't delivering online right now. Switch your order to pickup in the cart to continue.`
       : (pricingResult.blockers[0] ?? availability.message);
     return (
@@ -166,6 +173,7 @@ export default async function CheckoutPage() {
 
       <div className="mt-8 md:mt-10">
         <CheckoutForm
+          checkoutMode={restaurant.checkoutMode}
           restaurantSlug={restaurant.slug}
           closedLabel={closedLabel}
           orderType={tray.orderType}

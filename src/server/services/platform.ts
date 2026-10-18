@@ -9,7 +9,8 @@ import { createPage, deletePage, getPageById, getWebsite, listPages, updatePage,
 import { invalidateAdminRestaurants } from "@/server/services/restaurants";
 import { getLegalDocument } from "@/server/services/legal";
 import { legalDocumentSections, type LegalKind } from "@/shared/legal";
-import type { entitlementsPatchSchema, PageInput, WebsiteInput } from "@/server/validation/platform";
+import type { CheckoutModeInput, entitlementsPatchSchema, PageInput, WebsiteInput } from "@/server/validation/platform";
+import { whatsappDigits } from "@/shared/whatsapp-order";
 import { parseEntitlements } from "@/shared/feature-access";
 import type { LibraryImage, MediaAsset, Restaurant, Website, WebsitePage } from "@/shared/contract/models";
 import { createMedia, listMedia } from "@/server/repositories/media";
@@ -56,6 +57,28 @@ export async function saveEntitlements(
   const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
   const entitlements = parseEntitlements({ ...current.entitlements, ...defined });
   const restaurant = await updateRestaurant(restaurantId, { entitlements }, ctx);
+  invalidate();
+  return restaurant;
+}
+
+/**
+ * Super admin → Checkout: standard online checkout, or WhatsApp hand-off (phase 1). Switching to WhatsApp needs a
+ * usable number — the one sent with this save, or the restaurant's current one.
+ */
+export async function saveCheckoutMode(actor: StaffActor, restaurantId: string, input: CheckoutModeInput): Promise<Restaurant> {
+  assertSuperAdmin(actor);
+  const ctx = ctxFor(actor, restaurantId);
+  const current = (await listAllRestaurants(ctx)).find((r) => r.id === restaurantId);
+  if (!current) throw errors.notFound("Restaurant");
+  const number = input.whatsapp !== undefined ? input.whatsapp : current.whatsapp ?? "";
+  if (input.checkoutMode === "whatsapp" && !whatsappDigits(number)) {
+    throw errors.validation("Add the restaurant's WhatsApp number before switching to WhatsApp checkout.", { field: "whatsapp" });
+  }
+  const restaurant = await updateRestaurant(
+    restaurantId,
+    { checkoutMode: input.checkoutMode, ...(input.whatsapp !== undefined ? { whatsapp: input.whatsapp } : {}) },
+    ctx,
+  );
   invalidate();
   return restaurant;
 }

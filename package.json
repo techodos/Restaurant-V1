@@ -15,6 +15,7 @@
     "db:seed:blue-hour": "tsx scripts/db/blue-hour/seed/seed.ts",
     "db:seed:villa": "tsx scripts/db/villa-grand-buffet/seed/seed.ts",
     "db:seed:bun-intended": "tsx scripts/db/bun-intended/seed/seed.ts",
+    "db:seed:smash-stop": "tsx scripts/db/smash-stop/seed/seed.ts",
     "db:create-staff": "tsx scripts/db/create-staff.ts",
     "db:reset": "node --env-file=.env.local scripts/db/migrate.mjs --fresh && tsx scripts/db/seed.ts",
     "db:copy-data": "node --env-file=.env.local scripts/db/copy-data.mjs",

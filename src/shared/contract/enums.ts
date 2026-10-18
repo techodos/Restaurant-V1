@@ -106,6 +106,21 @@ export const PAYMENT_METHOD_ORDER_TYPES: Record<PaymentMethod, readonly OrderTyp
   bank_transfer: ORDER_TYPES,
 };
 
+/**
+ * How a restaurant takes orders (platform-set, super admin): "standard" = the full online checkout; "whatsapp" =
+ * the customer checks out without email/OTP and the order is handed to the restaurant's WhatsApp (for small
+ * restaurants that never open the admin). Stored on `restaurants.checkout_mode` (0043).
+ */
+export const CHECKOUT_MODES = ["standard", "whatsapp"] as const;
+export type CheckoutMode = (typeof CHECKOUT_MODES)[number];
+
+/** Where an order came from (`orders.source`, 0043): the website's own checkout, or a WhatsApp hand-off. */
+export const ORDER_SOURCES = ["web", "whatsapp"] as const;
+export type OrderSource = (typeof ORDER_SOURCES)[number];
+
+/** WhatsApp checkout settles in person: nothing online, nothing a portal-less restaurant would have to reconcile. */
+export const WHATSAPP_PAYMENT_METHODS: readonly PaymentMethod[] = ["cash_on_delivery", "cash"];
+
 export const PAYMENT_STATUSES = [
   "pending", "authorized", "paid", "failed", "refunded", "cancelled",
 ] as const;

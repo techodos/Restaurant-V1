@@ -9,6 +9,7 @@ import { action, errors } from "@/server/errors";
 import { dispatchDueNotifications, registerPushToken } from "@/server/services/notifications";
 import { cancelOrderByCustomer, findVisitorOrder, reorderLines, type ReorderResult } from "@/server/services/orders";
 import { requireRestaurant } from "@/server/services/restaurants";
+import { confirmWhatsAppSent } from "@/server/services/whatsapp-checkout";
 import { registerPushTokenSchema } from "@/server/validation/notifications";
 import { cancelOrderSchema } from "@/server/validation/orders";
 import type { TrayLine, TrayLineDisplay } from "@/shared/tray";
@@ -102,3 +103,21 @@ export async function cancelOrderAction(
     return { status: updated.status };
   });
 }
+
+/**
+ * WhatsApp checkout: the customer's "Yes, I sent it" after coming back from WhatsApp. Ownership is proven like every
+ * other order action (findVisitorOrder); the window/stage rules live in `confirmWhatsAppSent`.
+ */
+export async function confirmWhatsAppSentAction(slug: string, orderNumber: string, accessToken?: string): Promise<ApiResult<{ sent: true }>> {
+  return action(async () => {
+    const restaurant = await requireRestaurant(assertInstanceRestaurant(slug));
+    const visitor = await getVisitorContext(restaurant.id);
+    const order = await findVisitorOrder(restaurant.id, orderNumber, visitor, accessToken);
+    if (!order) throw errors.notFound("Order");
+    await confirmWhatsAppSent(restaurant, order);
+    revalidatePath(`/order/${encodeURIComponent(orderNumber)}`);
+    revalidatePath(`/current-orders`);
+    return { sent: true as const };
+  });
+}
+

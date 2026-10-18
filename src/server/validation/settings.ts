@@ -1,4 +1,6 @@
+import { z } from "zod";
 import { restaurantFeaturesSchema, restaurantSettingsSchema } from "@/shared/contract/settings";
+import { whatsappNumberField } from "./common";
 
 /**
  * Admin edit schemas. No field lists are duplicated here — every schema is
@@ -32,3 +34,7 @@ export const SETTINGS_SECTION_SCHEMAS = {
 } as const;
 
 export type SettingsSection = keyof typeof SETTINGS_SECTION_SCHEMAS;
+
+/** Admin → Settings → WhatsApp ordering: the restaurant's WhatsApp ("" clears it, refused while WhatsApp checkout is on). */
+export const updateWhatsAppNumberSchema = z.object({ whatsapp: whatsappNumberField });
+

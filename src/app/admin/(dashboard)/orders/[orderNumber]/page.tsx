@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { whatsappStage } from "@/shared/whatsapp-order";
 import { adminPath } from "@/shared/utils";
 import { notFound } from "next/navigation";
 import { MapPin, Phone, Receipt, Store } from "lucide-react";
@@ -12,7 +13,7 @@ import { PaymentStatusControl } from "@/components/admin/payment-status-control"
 import { canAccessBranch } from "@/server/auth/branch-scope";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { StatusPill, orderStatusTone } from "@/components/admin/admin-ui";
+import { StatusPill, WhatsAppOrderBadge, orderStatusTone } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,12 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
         backHref={adminPath("/orders")}
         backLabel="Back to orders"
         title={`Order ${order.orderNumber}`}
-        badge={<StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>}
+        badge={
+          <span className="inline-flex items-center gap-2">
+            <StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>
+            {order.source === "whatsapp" ? <WhatsAppOrderBadge stage={whatsappStage(order)} /> : null}
+          </span>
+        }
         description={`${ORDER_TYPE_LABELS[order.orderType]} · placed ${formatDateTime(order.createdAt)}`}
       />
 
