@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   // A second build/dev server (e.g. a verification run) can use its own output folder so it never
   // replaces the .next that a running `next start` serves from. Unset = the normal .next.
   distDir: process.env.NEXT_DIST_DIR || '.next',
+  deprecated: { looseRouteMatching: true },
   reactStrictMode: true,
   poweredByHeader: false,
   // Dev only: lets `next dev` serve its HMR/dev assets to an ngrok tunnel (used to test payment-gateway returns

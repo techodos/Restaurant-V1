@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/components/storefront/configured-page";
 import type { StorefrontContext } from "@/shared/contract/models";
 import { ORDER_TYPES, type OrderType } from "@/shared/contract/enums";
@@ -11,7 +11,7 @@ import { MenuOrderTypeSync } from "@/components/storefront/branch-bar";
 import { DishTile } from "@/components/storefront/dish-tile";
 import { MenuListItem } from "@/components/storefront/menu-list-item";
 import { Rail } from "@/components/storefront/rail";
-import { PageHero } from "@/components/storefront/page-hero";
+import { MenuHero } from "@/components/storefront/menu-hero";
 import { StationNav } from "@/components/storefront/station-nav";
 import { Button } from "@/components/ui/button";
 import { breadcrumbJsonLd } from "@/web/seo";
@@ -19,6 +19,12 @@ import { JsonLd } from "@/components/storefront/json-ld";
 import { cn } from "@/shared/utils";
 import { getMenuCategories, searchMenu } from "@/server/services/catalog";
 import { instanceRestaurantSlug } from "@/web/instance";
+
+const SORTS = [
+  ["menu", "Menu order"],
+  ["price_asc", "Price, low first"],
+  ["price_desc", "Price, high first"],
+] as const;
 
 interface MenuPageProps {
   searchParams: Promise<{ category?: string; q?: string; orderType?: string; sort?: string }>;
@@ -159,65 +165,25 @@ async function renderMenu(
         ])}
       />
 
-      <PageHero
-        overlay={heading.leading}
+      <MenuHero
         image={heroImage}
-        size={isBuffetOnly ? "lg" : "md"}
-        eyebrowRule="double"
-        eyebrow={
-          isBuffetOnly
-            ? "Buffet dining"
-            : restaurant.cuisines.length
-              ? `${restaurant.cuisines.slice(0, 2).join(" · ")} menu`
-              : "Our menu"
-        }
-        title={heading.title ?? (isBuffetOnly ? "The Buffet" : "The Menu")}
-        subtitle={
-          heading.subtitle ??
-          `${grouped.length} categories, ${items.length} dishes today${
-            restaurant.settings.ordering.preparationTimeMinutes
-              ? `, around ${restaurant.settings.ordering.preparationTimeMinutes} minutes to prepare`
-              : ""
-          }.`
-        }
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <form
-            action={base}
-            // one row at every width: wrapped into two rows inside a pill radius, the button poked out of the curve
-            className="flex items-center gap-1 rounded-[var(--radius-control)] border border-white/20 bg-black/30 py-1.5 pl-4 pr-1.5 backdrop-blur-md transition-colors focus-within:border-white/60 sm:py-2 sm:pl-5 sm:pr-2 lg:max-w-2xl"
-          >
-            <input type="hidden" name="orderType" value={activeOrderType} />
-            {category ? <input type="hidden" name="category" value={category} /> : null}
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Search className="size-[18px] shrink-0 text-white/70" aria-hidden />
-              <input
-                name="q"
-                type="search"
-                defaultValue={search}
-                placeholder="Search dishes or ingredients…"
-                aria-label="Search the menu"
-                className="h-11 min-w-0 flex-1 bg-transparent px-1 text-[16px] text-white outline-none placeholder:text-white/55 sm:px-3"
-              />
-            </div>
-            <span aria-hidden className="hidden h-6 w-px shrink-0 bg-white/20 sm:block" />
-            <select
-              name="sort"
-              defaultValue={sort ?? "menu"}
-              aria-label="Sort"
-              className="hidden h-11 cursor-pointer rounded-[var(--radius-control)] bg-transparent px-3 text-sm font-medium text-white outline-none sm:block [&>option]:text-black"
-            >
-              <option value="menu">Menu order</option>
-              <option value="price_asc">Price, low first</option>
-              <option value="price_desc">Price, high first</option>
-            </select>
-            <Button type="submit" size="md" aria-label="Search" className="h-11 w-11 shrink-0 px-0 sm:w-auto sm:px-7">
-              <Search className="sm:hidden" aria-hidden />
-              <span className="hidden sm:inline">Search</span>
-            </Button>
-          </form>
-        </div>
-      </PageHero>
+        title={heading.title}
+        subtitle={heading.subtitle}
+        dim={heading.photoDarkening}
+        search={{
+          action: base,
+          hidden: { orderType: activeOrderType, ...(category ? { category } : {}) },
+          q: search,
+          sort: sort ?? "menu",
+          placeholder: heading.searchPlaceholder,
+          options: SORTS.map(([value, label]) => ({
+            value,
+            label,
+            href: keep({ sort: value === "menu" ? undefined : value }),
+            active: (sort ?? "menu") === value,
+          })),
+        }}
+      />
 
       <MenuOrderTypeSync orderType={activeOrderType} explicit={explicitOrderType} />
 

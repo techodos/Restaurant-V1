@@ -12,7 +12,7 @@ import { legalDocumentSections, type LegalKind } from "@/shared/legal";
 import type { entitlementsPatchSchema, PageInput, WebsiteInput } from "@/server/validation/platform";
 import { parseEntitlements } from "@/shared/feature-access";
 import type { LibraryImage, MediaAsset, Restaurant, Website, WebsitePage } from "@/shared/contract/models";
-import { createMedia, listMedia } from "@/server/repositories/media";
+import { createMedia, deleteMedia, findMediaUsage, getMedia, listMedia } from "@/server/repositories/media";
 import { deleteStoredMedia, uploadMedia } from "@/server/integrations/storage";
 
 /**
@@ -184,6 +184,25 @@ export async function uploadWebsiteImage(
   }
 }
 
+/**
+ * Deletes an uploaded image for good: the `media` row AND the stored file. Refused while the picture is still used
+ * somewhere (a page section, the logo, a dish ...), because that would leave a broken image on the live site.
+ */
+export async function deleteWebsiteImage(actor: StaffActor, restaurantId: string, mediaId: string): Promise<void> {
+  assertSuperAdmin(actor);
+  const ctx = ctxFor(actor, restaurantId);
+  const media = await getMedia(restaurantId, mediaId, ctx);
+  if (!media) throw errors.notFound("Image");
+  const usage = await findMediaUsage(restaurantId, media.url, ctx);
+  if (usage.length) {
+    const shown = usage.slice(0, 4).join(", ") + (usage.length > 4 ? ` and ${usage.length - 4} more` : "");
+    throw errors.validation(`This image is still used (${shown}). Replace or remove it there first.`);
+  }
+  await deleteMedia(media.id, ctx);
+  await deleteStoredMedia(media.bucket, media.path);
+  invalidate();
+}
+
 /** Every `{ url, alt }` image object inside the section JSON (hero/about/cta images, gallery photos, ...). */
 export function sectionImages(value: unknown, found: { url: string; alt: string | null }[] = []): { url: string; alt: string | null }[] {
   if (Array.isArray(value)) for (const entry of value) sectionImages(entry, found);
@@ -209,12 +228,12 @@ export async function listWebsiteLibrary(actor: StaffActor, restaurantId: string
   for (const item of media) {
     if (!item.mimeType.startsWith("image/") || seen.has(item.url)) continue;
     seen.add(item.url);
-    library.push({ url: item.url, name: item.fileName, alt: item.altText, source: "upload", createdAt: item.createdAt });
+    library.push({ id: item.id, url: item.url, name: item.fileName, alt: item.altText, source: "upload", createdAt: item.createdAt });
   }
   for (const image of sectionImages(pages.map((page) => page.sections))) {
     if (seen.has(image.url)) continue;
     seen.add(image.url);
-    library.push({ url: image.url, name: image.url.split("/").pop() || image.url, alt: image.alt, source: "website", createdAt: null });
+    library.push({ id: null, url: image.url, name: image.url.split("/").pop() || image.url, alt: image.alt, source: "website", createdAt: null });
   }
   return library;
 }

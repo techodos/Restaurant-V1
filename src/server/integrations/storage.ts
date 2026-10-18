@@ -101,10 +101,12 @@ export async function uploadMedia(
 export async function deleteStoredMedia(bucket: string, objectPath: string): Promise<void> {
   const supabase = config.storage.supabase;
   if (supabase) {
-    await fetch(`${supabase.url}/storage/v1/object/${bucket}/${objectPath}`, {
+    const response = await fetch(`${supabase.url}/storage/v1/object/${bucket}/${objectPath}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${supabase.serviceRoleKey}` },
     });
+    // never fails the caller (the database row is already gone) but an orphaned file must not go unnoticed
+    if (!response.ok) logger.error("storage", `supabase delete failed (${response.status})`, objectPath);
     return;
   }
   try {

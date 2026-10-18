@@ -16,6 +16,9 @@ import { SectionRenderer } from "@/components/storefront/section-renderer";
  */
 
 export interface PageHeading {
+  searchPlaceholder: string | undefined;
+  /** menu page only: 0 - 1 flat darkening of the hero photo; undefined = the page decides */
+  photoDarkening: number | undefined;
   title: string | undefined;
   subtitle: string | undefined;
   /** configured hero photo URL (already resolved); undefined => the page falls back to the restaurant's cover */
@@ -43,13 +46,15 @@ interface ConfiguredPageProps {
 
 export async function ConfiguredPage({ restaurantSlug, pageSlug, render, ownContent }: ConfiguredPageProps) {
   const context = await requireStorefront(restaurantSlug);
-  const page = await getPageContent(context.restaurant.id, pageSlug);
+  const page = await getPageContent(context.restaurant.id, pageSlug, { includeHome: true });
   const visible = parseSections(page?.sections).filter((section) => section.enabled);
   const marker = visible.find((section) => section.type === "page_content");
   if (ownContent && page && visible.length > 0 && !marker) {
     return ownContent(context, page, <SectionRenderer context={context} sections={page.sections} />);
   }
   const body = await render(context, {
+    searchPlaceholder: marker?.searchPlaceholder,
+    photoDarkening: marker?.photoDarkening,
     title: marker?.title,
     subtitle: marker?.subtitle,
     image: resolveImage(marker?.image?.url) ?? undefined,
@@ -65,7 +70,7 @@ export async function configuredPageMetadata(
   pageSlug: FunctionalPageSlug,
   fallback: { title: string; description: string },
 ): Promise<Pick<Metadata, "title" | "description">> {
-  const page: WebsitePage | null = await getPageContent(restaurantId, pageSlug);
+  const page: WebsitePage | null = await getPageContent(restaurantId, pageSlug, { includeHome: true });
   const seo = (page?.seo ?? {}) as Record<string, string | undefined>;
   return {
     title: seo.title ?? page?.title ?? fallback.title,

@@ -48,13 +48,15 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
     return (
       <button
         type="button"
+        aria-label={hint}
+        title={hint}
         aria-disabled={noService || undefined}
         onClick={() => (noService ? undefined : branching.resolveGate(orderType))}
-        className="flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[var(--color-brand)] px-3 py-2 text-center text-[13px] font-semibold leading-snug text-[var(--color-brand-foreground)] disabled:opacity-45"
+        className="flex min-h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[var(--color-brand)] px-3 py-2 text-center text-[13px] font-semibold leading-snug text-[var(--color-brand-foreground)] disabled:opacity-45"
         disabled={noService}
       >
-        <MapPin aria-hidden className="size-4 shrink-0" />
-        {hint}
+        <MapPin aria-hidden className="hidden size-4 shrink-0 min-[400px]:block" />
+        {noService ? "Not available here" : gate === "need-branch" ? "Choose branch" : "Set location"}
       </button>
     );
   }
@@ -65,7 +67,7 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
         href={`/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`}
         scroll={false}
         aria-label={`Customize ${item.name}`}
-        className="ml-auto flex h-11 shrink-0 items-center gap-1.5 rounded-full border-[1.5px] border-[var(--color-brand)] bg-[var(--color-surface)] pl-4 pr-3 text-sm font-medium text-[var(--color-brand)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_8%,transparent)]"
+        className="flex h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-full border-[1.5px] sm:ml-auto sm:h-11 sm:w-auto sm:justify-start border-[var(--color-brand)] bg-[var(--color-surface)] pl-4 pr-3 text-sm font-medium text-[var(--color-brand)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_8%,transparent)]"
       >
         Customize
         <ChevronRight aria-hidden className="size-4" />
@@ -96,7 +98,6 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
     }
     const plateImage = event.currentTarget.closest("[data-dish]")?.querySelector("img") ?? null;
     flyToTray(plateImage);
-    toast.success(`${item.name} added to your order`);
   };
 
   if (!line) {
@@ -105,7 +106,7 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
         type="button"
         onClick={add}
         aria-label={`Add ${item.name} to cart`}
-        className="ml-auto flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-brand)] pl-3.5 pr-5 text-sm font-medium text-[var(--color-brand-foreground)] shadow-[0_6px_16px_-6px_color-mix(in_srgb,var(--color-brand)_55%,transparent)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)]"
+        className="flex h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-[var(--color-brand)] pl-3.5 pr-5 sm:ml-auto sm:h-11 sm:w-auto text-sm font-medium text-[var(--color-brand-foreground)] shadow-[0_6px_16px_-6px_color-mix(in_srgb,var(--color-brand)_55%,transparent)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_86%,black)]"
       >
         <Plus aria-hidden className="size-4" />
         Add
@@ -117,13 +118,13 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
     <div
       role="group"
       aria-label={`${item.name} in your cart`}
-      className="ml-auto flex h-11 shrink-0 items-center gap-1 rounded-full bg-[var(--color-brand)] p-1 text-[var(--color-brand-foreground)] shadow-[0_6px_16px_-6px_color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
+      className="flex h-10 w-full shrink-0 items-center justify-between gap-1 rounded-full bg-[var(--color-brand)] p-1 sm:ml-auto sm:h-11 sm:w-auto sm:justify-start text-[var(--color-brand-foreground)] shadow-[0_6px_16px_-6px_color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
     >
       <button
         type="button"
         aria-label={line.quantity === 1 ? `Remove ${item.name} from cart` : `Remove one ${item.name}`}
         onClick={() => updateQuantity(line.id, line.quantity - 1)}
-        className="grid size-9 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand-foreground)_12%,transparent)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand-foreground)_22%,transparent)]"
+        className="grid size-8 place-items-center rounded-full sm:size-9 bg-[color-mix(in_srgb,var(--color-brand-foreground)_12%,transparent)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand-foreground)_22%,transparent)]"
       >
         {line.quantity === 1 ? <Trash2 aria-hidden className="size-4" /> : <Minus aria-hidden className="size-4" />}
       </button>
@@ -135,7 +136,7 @@ export function GridAddBar({ restaurantSlug, item, orderType }: GridAddBarProps)
         aria-label={`Add one more ${item.name}`}
         disabled={line.quantity >= 99}
         onClick={() => updateQuantity(line.id, line.quantity + 1)}
-        className="grid size-9 place-items-center rounded-full bg-[var(--color-brand-foreground)] text-[var(--color-brand)] transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="grid size-8 place-items-center rounded-full sm:size-9 bg-[var(--color-brand-foreground)] text-[var(--color-brand)] transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         <Plus aria-hidden className="size-4" />
       </button>

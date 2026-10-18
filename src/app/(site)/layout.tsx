@@ -188,6 +188,9 @@ export default async function StorefrontLayout({
           activeOrders={activeOrderCount}
           reservationsEnabled={restaurant.features.reservations && restaurant.settings.reservations.enabled}
           signedIn={Boolean(customer?.signedIn)}
+          disabledLinks={config.navigation.items.filter((link) => !link.enabled).map((link) => link.href)}
+          dock={config.navigation.dock}
+          labels={Object.fromEntries(config.navigation.items.filter((link) => link.enabled && link.label).map((link) => [link.href, link.label]))}
         />
        </BranchingProvider>
       </LocalCartProvider>

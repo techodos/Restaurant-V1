@@ -190,7 +190,7 @@ export function DishTile({
         {inlineAdd ? (
           <div className="mt-auto pt-4">
             <div className="h-px bg-[var(--color-hairline)]" />
-            <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-3">
+            <div className="flex min-h-14 flex-col gap-2.5 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
               <div className="flex flex-col">
                 {item.requiresSelection ? <span className="label-caps text-[var(--color-muted-ink)]">From</span> : null}
                 <p className="tabular font-[family-name:var(--font-display)] text-[1.25rem] font-medium leading-tight text-[var(--color-brand)]">

@@ -745,6 +745,8 @@ export const CONTACT_SECTIONS = [
 export const MENU_SECTIONS = [
   {
     type: "page_content", enabled: true, title: "Our menu",
+    searchPlaceholder: "Search dishes or ingredients…",
+    image: { url: `${IMG}/hero.jpg`, alt: "Charcoal-grilled skewers, roasted pepper and flatbread at Zaytoun" },
     subtitle: "Charcoal grill, mezze and slow-cooked plates, made fresh to order every day.",
   },
   {
