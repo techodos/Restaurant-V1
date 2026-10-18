@@ -102,6 +102,34 @@ export async function deleteMedia(mediaId: string, ctx: RequestContext): Promise
   });
 }
 
+export async function getMedia(restaurantId: string, mediaId: string, ctx: RequestContext = {}): Promise<MediaAsset | null> {
+  const row = await getDb({ restaurantId }).queryOne<Row>(ctx, `select * from media where id = $1 and restaurant_id = $2`, [mediaId, restaurantId]);
+  return row ? mapMedia(row) : null;
+}
+
+/**
+ * Where an image address is still referenced: website pages (sections, config, seo), the website itself (config,
+ * theme, seo), the restaurant's logo / cover, and menu items and categories. Names only, for the refusal message.
+ */
+export async function findMediaUsage(restaurantId: string, url: string, ctx: RequestContext = {}): Promise<string[]> {
+  const rows = await getDb({ restaurantId }).query<Row>(
+    ctx,
+    `select 'Page: ' || title as label from website_pages
+       where restaurant_id = $1 and (position($2 in sections::text) > 0 or position($2 in config::text) > 0 or position($2 in seo::text) > 0)
+     union all
+     select 'Website settings' from websites
+       where restaurant_id = $1 and (position($2 in config::text) > 0 or position($2 in theme::text) > 0 or position($2 in seo::text) > 0)
+     union all
+     select 'Restaurant logo / cover photo' from restaurants where id = $1 and (logo_url = $2 or cover_url = $2)
+     union all
+     select 'Dish: ' || name from menu_items where restaurant_id = $1 and image_url = $2
+     union all
+     select 'Category: ' || name from menu_categories where restaurant_id = $1 and image_url = $2`,
+    [restaurantId, url],
+  );
+  return rows.map((row) => str(row.label));
+}
+
 export async function mediaUsageCounts(restaurantId: string, ctx: RequestContext = {}): Promise<Record<string, number>> {
   const rows = await getDb({ restaurantId }).query<Row>(
     ctx,

@@ -167,7 +167,6 @@ export function ItemCustomizer({
     }
 
     flyToTray(document.querySelector<HTMLImageElement>(`img[data-dish-image="${item.slug}"]`));
-    toast.success(`${quantity} × ${item.name} is in your cart`);
     setNotes("");
     setQuantity(1);
     if (inSheet) window.dispatchEvent(new CustomEvent(CLOSE_ROUTE_SHEET_EVENT));

@@ -125,6 +125,8 @@ export interface WebsitePage {
 
 /** One image the super-admin media picker offers (a `media` row, or an image already used on the website). */
 export interface LibraryImage {
+  /** the `media` row, so the picture can be deleted; null for images only referenced by a page (no row) */
+  id: string | null;
   url: string;
   name: string;
   alt: string | null;

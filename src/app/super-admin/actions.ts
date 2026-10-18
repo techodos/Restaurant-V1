@@ -11,6 +11,7 @@ import {
   saveEntitlements,
   savePage,
   saveWebsite,
+  deleteWebsiteImage,
   listWebsiteLibrary,
   uploadWebsiteImage,
 } from "@/server/services/platform";
@@ -92,6 +93,14 @@ export async function uploadWebsiteImageAction(restaurantId: string, formData: F
 /** The images the page editor's library offers (uploads + images already on the website). Loaded when the picker opens. */
 export async function listWebsiteLibraryAction(restaurantId: string): Promise<ApiResult<LibraryImage[]>> {
   return action(async () => listWebsiteLibrary(await requireSuperAdmin(), restaurantId));
+}
+
+/** Deletes an uploaded image (database row and stored file); refused while the image is still in use. */
+export async function deleteWebsiteImageAction(restaurantId: string, mediaId: string): Promise<ApiResult<null>> {
+  return action(async () => {
+    await deleteWebsiteImage(await requireSuperAdmin(), restaurantId, mediaId);
+    return null;
+  });
 }
 
 export async function signOutSuperAdminAction(): Promise<ApiResult<{ loginSlug: string }>> {

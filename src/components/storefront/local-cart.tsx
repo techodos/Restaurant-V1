@@ -230,6 +230,12 @@ interface LocalCartContextValue {
   removeLine: (lineId: string) => void;
   clear: () => void;
   setOrderType: (orderType: OrderType) => void;
+  /**
+   * true once the visitor has chosen an order type themselves (a door, or a link carrying ?orderType=). The cart
+   * always HAS a type (the restaurant default), but the order-type doors show none selected until a real choice.
+   * Remembered per restaurant in localStorage; false on the server and the first client render (no hydration flash).
+   */
+  orderTypeChosen: boolean;
   setLocationId: (locationId: string | null) => void;
   setCoupon: (code: string | null, discount: string | null) => void;
 }
@@ -299,6 +305,16 @@ export function LocalCartProvider({
   // Only for a NEW reading: the state already started from this one, and children's effects run before
   // this one on mount — the branch provider's first-visit auto-pick commits a branch there, and adopting
   // the mount-time reading again would silently undo it (the tray kept its old, possibly wrong-city branch).
+  const chosenKey = `rp_order_type_chosen_${restaurantSlug}`;
+  const [orderTypeChosen, setOrderTypeChosen] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(chosenKey) === "1") setOrderTypeChosen(true);
+    } catch {
+      // storage blocked (private mode): the doors simply start unselected
+    }
+  }, [chosenKey]);
+
   const adoptedInitial = useRef(initial);
   useEffect(() => {
     if (adoptedInitial.current === initial) return;
@@ -350,7 +366,18 @@ export function LocalCartProvider({
   );
   const removeLine = useCallback((lineId: string) => commit(removeLocalLine(cartRef.current, lineId)), [commit]);
   const clear = useCallback(() => commit(clearLocalCart(cartRef.current)), [commit]);
-  const setOrderType = useCallback((orderType: OrderType) => commit(setLocalOrderType(cartRef.current, orderType)), [commit]);
+  const setOrderType = useCallback(
+    (orderType: OrderType) => {
+      commit(setLocalOrderType(cartRef.current, orderType));
+      setOrderTypeChosen(true);
+      try {
+        window.localStorage.setItem(chosenKey, "1");
+      } catch {
+        // storage blocked: remembered for this page only
+      }
+    },
+    [commit, chosenKey],
+  );
   const setLocationId = useCallback(
     (locationId: string | null) => commit(setLocalLocationId(cartRef.current, locationId)),
     [commit],
@@ -371,10 +398,11 @@ export function LocalCartProvider({
       removeLine,
       clear,
       setOrderType,
+      orderTypeChosen,
       setLocationId,
       setCoupon,
     }),
-    [cart, addLine, addLines, updateQuantity, removeLine, clear, setOrderType, setLocationId, setCoupon],
+    [cart, addLine, addLines, updateQuantity, removeLine, clear, setOrderType, orderTypeChosen, setLocationId, setCoupon],
   );
 
   return <LocalCartContext.Provider value={value}>{children}</LocalCartContext.Provider>;

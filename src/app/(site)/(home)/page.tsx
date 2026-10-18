@@ -6,6 +6,7 @@ import { JsonLd } from "@/components/storefront/json-ld";
 import { SectionRenderer } from "@/components/storefront/section-renderer";
 import { getReviewSummary } from "@/server/services/reviews";
 import { instanceRestaurantSlug } from "@/web/instance";
+import MenuPage from "@/app/(site)/menu/page";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * website_pages.sections for the page flagged is_home, rendered by the shared
  * SectionRenderer (unknown sections are skipped, never fatal).
  */
-export default async function RestaurantHomePage() {
+export default async function RestaurantHomePage(props: { searchParams: Parameters<typeof MenuPage>[0]["searchParams"] }) {
   const restaurantSlug = instanceRestaurantSlug();
 
   const context = await requireStorefront(restaurantSlug);
@@ -39,6 +40,9 @@ export default async function RestaurantHomePage() {
     getHomePageContent(context.restaurant.id),
     getReviewSummary(context.restaurant.id),
   ]);
+
+  // the owner made the Menu page the home page: "/" IS the menu (a page_content body only exists in its own page)
+  if (page?.slug === "menu") return <MenuPage searchParams={props.searchParams} />;
 
   const sections = page?.sections ?? [];
 

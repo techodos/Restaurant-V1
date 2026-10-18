@@ -4,7 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   ExternalLink,
   FileText,
   Globe,
@@ -20,6 +22,7 @@ import {
   Share2,
   ShieldCheck,
   ShoppingBag,
+  Smartphone,
   Trash2,
   Type,
 } from "lucide-react";
@@ -27,8 +30,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input, Select, Textarea } from "@/components/ui/input";
-import { addPageAction, customizeLegalPageAction, deletePageAction, listWebsiteLibraryAction, savePageAction, saveWebsiteAction, uploadWebsiteImageAction } from "@/app/super-admin/actions";
+import { addPageAction, customizeLegalPageAction, deletePageAction, deleteWebsiteImageAction, listWebsiteLibraryAction, savePageAction, saveWebsiteAction, uploadWebsiteImageAction } from "@/app/super-admin/actions";
 import { Check, ColorField, Field, RowList } from "@/components/super-admin/form-parts";
+import { DOCK_TABS, type DockTab } from "@/shared/contract/settings";
 import { SectionsEditor } from "@/components/super-admin/section-editor";
 import { ImageUploadProvider, ImageUploadTile } from "@/components/super-admin/image-upload";
 import { EmptyState, Panel, SaveBar, SettingRow, StatusBadge } from "@/components/super-admin/ui";
@@ -291,6 +295,78 @@ function initialWebsiteState(website: Website): WebsiteState {
   };
 }
 
+const DOCK_LABELS: Record<DockTab, string> = {
+  home: "Home",
+  menu: "Menu",
+  about: "About",
+  contact: "Contact",
+  book: "Book a table (only while reservations are on)",
+  reviews: "Reviews",
+  locations: "Locations",
+  account: "Account: Track order / My Orders / Sign in (changes by situation)",
+};
+const DEFAULT_DOCK: DockTab[] = ["home", "menu", "book", "account"];
+
+/** Show / hide the phones' bottom bar and choose its tabs (at most 5) and their order. */
+function DockEditor({ dock, onChange }: { dock: Obj; onChange: (dock: Obj) => void }) {
+  const enabled = dock.enabled !== false;
+  const chosen: DockTab[] = Array.isArray(dock.tabs) ? (dock.tabs as DockTab[]) : DEFAULT_DOCK;
+  const rest = DOCK_TABS.filter((key) => !chosen.includes(key));
+  const save = (tabs: DockTab[]) => onChange({ ...dock, enabled, tabs });
+  const move = (index: number, by: -1 | 1) => {
+    const next = [...chosen];
+    const target = index + by;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target] as DockTab, next[index] as DockTab];
+    save(next);
+  };
+  return (
+    <div className="space-y-4">
+      <SettingRow
+        id="dock-enabled"
+        title="Show the bottom bar on phones"
+        description="Off hides the whole bar on phones. Desktop and tablets never show it."
+        checked={enabled}
+        onChange={(value) => onChange({ ...dock, enabled: value })}
+      />
+      <div className={enabled ? "space-y-2" : "pointer-events-none space-y-2 opacity-50"} aria-disabled={!enabled}>
+        <p className="text-[13px] text-[var(--color-muted-ink)]">
+          Tabs shown ({chosen.length} of 5), in order. Tick to add one, use the arrows to reorder.
+        </p>
+        <ul className="divide-y divide-[var(--color-hairline)] rounded-lg border border-[var(--color-hairline)]">
+          {chosen.map((key, index) => (
+            <li key={key} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="w-5 text-center text-xs tabular-nums text-[var(--color-muted-ink)]">{index + 1}</span>
+              <div className="min-w-0 flex-1">
+                <Check label={DOCK_LABELS[key]} checked onChange={() => save(chosen.filter((entry) => entry !== key))} />
+              </div>
+              <div className="flex shrink-0">
+                <button type="button" aria-label={`Move ${key} up`} disabled={index === 0} onClick={() => move(index, -1)} className="grid size-8 place-items-center rounded-md text-[var(--color-muted-ink)] hover:bg-[var(--sa-subtle)] disabled:opacity-30">
+                  <ArrowUp className="size-4" aria-hidden />
+                </button>
+                <button type="button" aria-label={`Move ${key} down`} disabled={index === chosen.length - 1} onClick={() => move(index, 1)} className="grid size-8 place-items-center rounded-md text-[var(--color-muted-ink)] hover:bg-[var(--sa-subtle)] disabled:opacity-30">
+                  <ArrowDown className="size-4" aria-hidden />
+                </button>
+              </div>
+            </li>
+          ))}
+          {rest.map((key) => (
+            <li key={key} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="w-5" />
+              <div className="min-w-0 flex-1">
+                <Check label={DOCK_LABELS[key]} checked={false} onChange={() => (chosen.length < 5 ? save([...chosen, key]) : toast.error("The bar holds at most 5 tabs. Untick one first."))} />
+              </div>
+            </li>
+          ))}
+        </ul>
+        {dock.tabs === undefined ? (
+          <p className="text-xs text-[var(--color-muted-ink)]">Not customised yet: the bar shows Home, Menu, Book and Account, minus any link switched off under Header &amp; navigation.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /** The website media library for the image fields: upload stores the file + its media row now; the URL lands in the form and is saved with it. */
 function websiteMedia(restaurantId: string) {
   return {
@@ -312,11 +388,19 @@ function websiteMedia(restaurantId: string) {
       }
       return result.data;
     },
+    async removeImage(mediaId: string): Promise<boolean> {
+      const result = await deleteWebsiteImageAction(restaurantId, mediaId);
+      if (!result.success) {
+        toast.error(result.error.message);
+        return false;
+      }
+      return true;
+    },
   };
 }
 
 export function WebsiteForm({ restaurantId, website }: { restaurantId: string; website: Website }) {
-  const { uploadImage, browseLibrary } = websiteMedia(restaurantId);
+  const { uploadImage, browseLibrary, removeImage } = websiteMedia(restaurantId);
   const [saved, setSaved] = useState(() => initialWebsiteState(website));
   const [form, setForm] = useState(saved);
   const [pending, startTransition] = useTransition();
@@ -458,7 +542,7 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
                   </>
                 )}
               />
-              <ImageUploadProvider upload={uploadImage} browse={browseLibrary}>
+              <ImageUploadProvider upload={uploadImage} browse={browseLibrary} remove={removeImage}>
                 <div className="grid gap-4 border-t border-[var(--color-hairline)] pt-4 sm:grid-cols-2">
                   {(
                     [
@@ -503,6 +587,13 @@ export function WebsiteForm({ restaurantId, website }: { restaurantId: string; w
                 </div>
               </div>
             </div>
+          </Panel>
+
+          <Panel title="Phone bottom bar" description="The tab bar at the bottom of the storefront on phones." icon={Smartphone} collapsible defaultOpen={false}>
+            <DockEditor
+              dock={(nav.dock as Obj | undefined) ?? {}}
+              onChange={(dock) => setC("navigation", { dock })}
+            />
           </Panel>
 
           <Panel title="Footer" description="Tagline, link columns and legal note." icon={PanelBottom} collapsible defaultOpen={false}>
@@ -714,7 +805,7 @@ export function PageEditor({ restaurantId, slug, page }: { restaurantId: string;
   const set = (patch: Partial<PageState>) => setForm((current) => ({ ...current, ...patch }));
   const storefrontHref = page.isHome ? "/" : `/${page.slug}`;
 
-  const { uploadImage, browseLibrary } = websiteMedia(restaurantId);
+  const { uploadImage, browseLibrary, removeImage } = websiteMedia(restaurantId);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -770,8 +861,22 @@ export function PageEditor({ restaurantId, slug, page }: { restaurantId: string;
               <Input type="number" min={0} value={form.sortOrder} onChange={(event) => set({ sortOrder: event.target.value })} />
             </Field>
             <div className="divide-y divide-[var(--color-hairline)] border-t border-[var(--color-hairline)] pt-4">
-              <SettingRow id="page-published" title="Published" description="Visible on the storefront." checked={form.isPublished} onChange={(value) => set({ isPublished: value })} />
-              <SettingRow id="page-home" title="Home page" description="The storefront's landing page." checked={form.isHome} onChange={(value) => set({ isHome: value })} />
+              <SettingRow
+                id="page-published"
+                title="Published"
+                description={page.isHome ? "The home page is always published. Make another page the home page to hide this one." : "Visible on the storefront."}
+                checked={form.isPublished}
+                disabled={page.isHome}
+                onChange={(value) => set({ isPublished: value })}
+              />
+              <SettingRow
+                id="page-home"
+                title="Home page"
+                description={page.isHome ? "This is the home page. To change it, open the page that should be home, tick this switch there and save: this page then stops being home." : "The storefront's landing page. Ticking it and saving replaces the current home page."}
+                checked={form.isHome}
+                disabled={page.isHome}
+                onChange={(value) => set({ isHome: value })}
+              />
             </div>
           </div>
         </Panel>
@@ -782,7 +887,7 @@ export function PageEditor({ restaurantId, slug, page }: { restaurantId: string;
           icon={Layers}
           meta={<span className="text-[13px] text-[var(--color-muted-ink)]">{form.sections.length}</span>}
         >
-          <ImageUploadProvider upload={uploadImage} browse={browseLibrary}>
+          <ImageUploadProvider upload={uploadImage} browse={browseLibrary} remove={removeImage}>
             <SectionsEditor key={revision} initial={form.sections} pageSlug={page.slug} onChange={(sections) => set({ sections })} />
           </ImageUploadProvider>
         </Panel>

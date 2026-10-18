@@ -30,6 +30,10 @@ export function migrateServiceFeeShape(settings: unknown): unknown {
   return { ...(settings as Record<string, unknown>), serviceFee };
 }
 
+/** Tabs the phones' bottom bar can show (website.config.navigation.dock.tabs) */
+export const DOCK_TABS = ["home", "menu", "about", "contact", "book", "reviews", "locations", "account"] as const;
+export type DockTab = (typeof DOCK_TABS)[number];
+
 export const restaurantSettingsSchema = z.object({
   tax: z
     .object({
@@ -284,6 +288,18 @@ export const websiteConfigSchema = z.object({
        */
       logoOnLight: z.string().trim().max(600).optional().catch(undefined),
       logoOnDark: z.string().trim().max(600).optional().catch(undefined),
+      /**
+       * The phones' bottom bar. `enabled: false` hides it. `tabs` = which tabs show, in this order (max 5);
+       * absent = Home, Menu, Book, Account minus the links switched off above (the original behaviour).
+       * "account" is the smart slot: Track while an order is live, else My Orders (signed in) or Sign in.
+       */
+      dock: z
+        .object({
+          enabled: z.boolean().default(true),
+          tabs: z.array(z.enum(DOCK_TABS)).max(5).optional().catch(undefined),
+        })
+        .catch({ enabled: true })
+        .default({ enabled: true }),
     })
     .default({}),
   footer: z

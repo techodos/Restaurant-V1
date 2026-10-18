@@ -174,7 +174,6 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
         const plateImage = event.currentTarget.closest("[data-dish]")?.querySelector("img") ?? null;
         if (!addOne()) return cartFull();
         flyToTray(plateImage);
-        toast.success(`${item.name} added to your order`);
       }}
     >
       <Plus aria-hidden />

@@ -3,7 +3,7 @@ import { cn } from "@/shared/utils";
 
 interface PageHeroProps {
   eyebrow?: string | undefined;
-  title: string;
+  title?: string | undefined;
   subtitle?: string | undefined;
   /** already-resolved image URL (web/media), or null for a plain night ground */
   image: string | null;
@@ -65,7 +65,7 @@ export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md"
                 </p>
               ) : null}
               {/* the short hero heads a working page (orders, reviews, locations): one step quieter than the menu's */}
-              <h1
+              {title ? <h1
                 className={cn(
                   "display-hero animate-rise [animation-delay:80ms]",
                   size === "sm"
@@ -74,7 +74,7 @@ export function PageHero({ eyebrow, title, subtitle, image, overlay, size = "md"
                 )}
               >
                 {title}
-              </h1>
+              </h1> : null}
               {subtitle ? (
                 <p className="animate-rise mt-3 max-w-[40rem] text-[16px] leading-relaxed text-white/80 [animation-delay:160ms] md:text-[17px]">
                   {subtitle}

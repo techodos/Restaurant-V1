@@ -305,7 +305,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
       options: ["auto", "night", "paper"],
       labels: { auto: "Layout's own", night: "Dark", paper: "Light" },
     },
-    { k: "showEta", label: "Show delivery time", t: "bool" },
+    { k: "showEta", label: "Show times (delivery ETA; pickup prep time in Floating cards)", t: "bool" },
     { k: "showHeading", label: "Show heading (not in the Band layout)", t: "bool" },
     title("Heading"),
     subtitle,
@@ -357,7 +357,9 @@ export const FIELDS: Record<SectionType, Field[]> = {
     },
     { k: "title", label: "Heading override (optional)", t: "text" },
     { k: "subtitle", label: "Subtitle override (optional)", t: "text" },
+    { k: "searchPlaceholder", label: "Search box placeholder (menu page)", t: "text", page: "menu" },
     { k: "image", label: "Top background photo (optional, else the cover photo)", t: "image", wide: true },
+    { k: "photoDarkening", label: "Photo darkening, 0 - 1 (menu page; empty = none)", t: "number", min: 0, max: 1, step: 0.05, page: "menu" },
   ],
 };
 
@@ -594,23 +596,61 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
       );
     }
     case "orderTypes": {
+      // The saved array IS the storefront order of the doors. Ticked types are listed first in that order
+      // with ↑ ↓; unticked ones follow, and ticking one appends it (as it is saved).
       const selected = (value as OrderType[] | undefined) ?? ["delivery", "pickup"];
+      const rows = [...selected, ...ORDER_TYPES.filter((type) => !selected.includes(type))];
+      const move = (from: number, to: number) => {
+        const next = selected.slice();
+        const [type] = next.splice(from, 1);
+        next.splice(to, 0, type!);
+        onChange(next);
+      };
       return (
         <div role="group" aria-label={field.label} className={cn("space-y-2", wide)}>
           <span className="block text-[13px] font-medium text-[var(--color-ink)]">{field.label}</span>
-          <div className="flex flex-wrap gap-4">
-            {ORDER_TYPES.map((type) => (
-              <Check
-                key={type}
-                label={ORDER_TYPE_LABELS[type]}
-                checked={selected.includes(type)}
-                onChange={(on) => {
-                  const next = on ? [...selected, type] : selected.filter((entry) => entry !== type);
-                  if (next.length > 0) onChange(next); // the schema needs at least one
-                }}
-              />
-            ))}
-          </div>
+          <span className="block text-xs text-[var(--color-muted-ink)]">Shown on the storefront in this order, top first.</span>
+          <ol className="divide-y divide-[var(--color-hairline)] rounded-[var(--radius-control)] border border-[var(--color-hairline)]">
+            {rows.map((type) => {
+              const index = selected.indexOf(type);
+              const on = index !== -1;
+              return (
+                <li key={type} className="flex min-h-11 items-center gap-3 px-3">
+                  <span className="tabular w-4 text-xs text-[var(--color-muted-ink)]">{on ? index + 1 : ""}</span>
+                  <Check
+                    label={ORDER_TYPE_LABELS[type]}
+                    checked={on}
+                    onChange={(checked) => {
+                      const next = checked ? [...selected, type] : selected.filter((entry) => entry !== type);
+                      if (next.length > 0) onChange(next); // the schema needs at least one
+                    }}
+                  />
+                  {on ? (
+                    <span className="ml-auto flex shrink-0 items-center">
+                      <button
+                        type="button"
+                        className={iconButton}
+                        onClick={() => move(index, index - 1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${ORDER_TYPE_LABELS[type]} up`}
+                      >
+                        <ArrowUp className="size-4" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className={iconButton}
+                        onClick={() => move(index, index + 1)}
+                        disabled={index === selected.length - 1}
+                        aria-label={`Move ${ORDER_TYPE_LABELS[type]} down`}
+                      >
+                        <ArrowDown className="size-4" aria-hidden />
+                      </button>
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
         </div>
       );
     }
