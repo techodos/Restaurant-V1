@@ -19,6 +19,27 @@ const TONE: Record<StatusTone, string> = {
   neutral: "text-[var(--color-muted-ink)] bg-[var(--tint)] ring-[var(--rule)]",
 };
 
+/** The raw colour of each tone (for edges, washes and solid icon discs). */
+export const TONE_VAR: Record<StatusTone, string> = {
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
+  info: "var(--color-info)",
+  brand: "var(--color-brand)",
+  neutral: "color-mix(in srgb, var(--color-ink) 28%, transparent)",
+};
+
+/**
+ * A 4px status edge on the left of a card or row (pending amber, ready brand, cancelled red …), so a list can
+ * be scanned by state. A pseudo-element, because `.admin-main` repaints every card border (globals.css).
+ * Pass the result as `className` plus `style={statusEdgeStyle(tone)}`.
+ */
+export const statusEdge =
+  "relative overflow-hidden before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[var(--edge)] before:content-['']";
+export function statusEdgeStyle(tone: StatusTone): React.CSSProperties {
+  return { "--edge": TONE_VAR[tone] } as React.CSSProperties;
+}
+
 /** Compact status pill: a dot plus the word, so the state never rests on colour alone. */
 export function StatusPill({ tone, children, dot = true, className }: { tone: StatusTone; children: React.ReactNode; dot?: boolean; className?: string }) {
   return (
@@ -96,7 +117,7 @@ export function AdminSection({
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-hairline)] px-5 py-4">
         <div className="flex min-w-0 items-start gap-3">
           {Icon ? (
-            <span aria-hidden className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--tint-strong)] text-[var(--color-muted-ink)]">
+            <span aria-hidden className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--color-brand)_12%,var(--color-surface))] text-[var(--color-brand)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-brand)_18%,transparent)]">
               <Icon className="size-4" />
             </span>
           ) : null}
@@ -140,25 +161,63 @@ export function StatTile({
   className?: string;
 }) {
   return (
-    <div className={cn("surface-card flex min-w-0 flex-col gap-3 p-4 sm:p-5", className)}>
+    <div
+      className={cn("surface-card @container relative isolate flex min-w-0 flex-col gap-3 overflow-hidden p-4 sm:p-5", className)}
+      style={{ "--tile": TONE_VAR[tone] } as React.CSSProperties}
+    >
+      {/* the tone's own wash: a soft corner glow and a 3px top rule, so a row of figures reads by colour */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(120%_90%_at_100%_0%,color-mix(in_srgb,var(--tile)_14%,transparent),transparent_60%)]"
+      />
+      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[var(--tile)] opacity-80" />
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-[12px] font-semibold uppercase leading-snug tracking-[0.08em] text-[var(--color-muted-ink)]">{label}</p>
         {Icon ? (
-          <span aria-hidden className={cn("grid size-8 shrink-0 place-items-center rounded-full ring-1 ring-inset", TONE[tone])}>
-            <Icon className="size-4" />
+          <span
+            aria-hidden
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--tile)] text-[var(--color-surface)] shadow-[0_6px_14px_-6px_var(--tile)]"
+          >
+            <Icon className="size-[17px]" />
           </span>
         ) : null}
       </div>
+      {/* never "…": the figure is sized from its own length and the tile's width (cqi), so a short figure stays
+          big and a long amount shrinks only as far as it must; the currency code is set small, and a figure that
+          still does not fit wraps between code and number (`anywhere` is only the last resort) */}
       <p
-        className={cn(
-          "tabular truncate font-semibold leading-none tracking-[-0.02em]",
-          size === "lg" ? "mt-auto text-[1.9rem] sm:text-[2.6rem]" : "text-[1.5rem] sm:text-[1.75rem]",
-        )}
+        title={typeof value === "string" ? value : undefined}
+        className="tabular min-w-0 font-semibold leading-[1.05] tracking-[-0.02em] [overflow-wrap:anywhere]"
+        style={{ fontSize: figureSize(value, size), marginTop: size === "lg" ? "auto" : undefined }}
       >
-        {value}
+        <StatFigure value={value} />
       </p>
       {note ? <p className="text-[12.5px] text-[var(--color-muted-ink)]">{note}</p> : null}
     </div>
+  );
+}
+
+/** "PKR 112,474.39" / "Rs 2,450" / "$12.50": a currency code or symbol, then the number. Words ("Oct 18") don't match. */
+const MONEY = /^([A-Z]{2,4}|Rs\.?|[$€£¥₹₨])\s?(-?\d[\d.,]*)$/;
+
+/** CSS font size that fits the figure on one line where it can: ~0.6em per digit, the small code ~2em. */
+function figureSize(value: React.ReactNode, size: "md" | "lg"): string {
+  const text = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+  const money = MONEY.exec(text);
+  const units = money ? money[2]!.length + 2.2 : Math.max(text.length, 1);
+  const [min, max, factor] = size === "lg" ? ["1.4rem", "2.6rem", 1.55] : ["0.95rem", "1.75rem", 1.55];
+  return `clamp(${min}, calc(100cqi * ${factor} / ${units}), ${max})`;
+}
+
+/** a small currency code, then the number; anything else as given */
+function StatFigure({ value }: { value: React.ReactNode }) {
+  const money = typeof value === "string" ? MONEY.exec(value.trim()) : null;
+  if (!money) return <>{value}</>;
+  return (
+    <>
+      <span className="mr-[0.25em] text-[0.55em] font-semibold tracking-[0.02em] text-[var(--color-muted-ink)]">{money[1]}</span>{" "}
+      <span className="whitespace-nowrap">{money[2]}</span>
+    </>
   );
 }
 
@@ -166,14 +225,21 @@ export function StatTile({
 export const addTileClass =
   "group flex min-h-[4.5rem] w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-[color-mix(in_srgb,var(--color-ink)_22%,transparent)] px-4 py-3 text-[14px] font-semibold text-[var(--color-muted-ink)] transition-colors hover:border-[var(--color-brand)] hover:bg-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] hover:text-[var(--color-brand)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]";
 
-/** Initials in a tinted disc (people lists: customers, staff). */
+/** Theme colours an avatar can take; a name always gets the same one, so people are told apart at a glance. */
+const AVATAR_HUES = ["var(--color-brand)", "var(--color-brand-accent)", "var(--color-info)", "var(--color-success)", "var(--color-warning)", "var(--color-danger)"];
+
+/** Initials in a tinted disc (people lists: customers, staff, reviews). */
 export function Avatar({ name, className }: { name: string; className?: string }) {
   const letters = name.trim().split(/\s+/).filter(Boolean).map((part) => part.charAt(0)).join("").slice(0, 2).toUpperCase() || "?";
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  const hue = AVATAR_HUES[hash % AVATAR_HUES.length]!;
   return (
     <span
       aria-hidden
+      style={{ "--hue": hue } as React.CSSProperties}
       className={cn(
-        "grid size-10 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_12%,var(--color-surface))] text-[13px] font-semibold text-[var(--color-brand)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]",
+        "grid size-10 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--hue)_16%,var(--color-surface))] text-[13px] font-semibold text-[color-mix(in_srgb,var(--hue)_80%,var(--color-ink))] ring-1 ring-inset ring-[color-mix(in_srgb,var(--hue)_28%,transparent)]",
         className,
       )}
     >

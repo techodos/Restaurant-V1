@@ -65,7 +65,7 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
             <Input name="q" defaultValue={q ?? ""} placeholder="Search name, phone or email" className="h-11 pl-10" />
           </label>
-          <Button type="submit" variant="secondary" className="h-11 shrink-0">
+          <Button type="submit" className="h-11 shrink-0">
             Search
           </Button>
         </Form>

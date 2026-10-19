@@ -779,6 +779,15 @@
   --admin-shadow-hover: 0 1px 2px color-mix(in srgb, var(--color-ink) 6%, transparent),
     0 20px 40px -22px color-mix(in srgb, var(--color-ink) 30%, transparent);
 }
+/* the restaurant's own colours behind the top of every admin page: a brand wash fading into the paper, and the
+   accent glowing in the top-right corner (echoes the sidebar's accent), then plain paper for the working area */
+.admin-column {
+  background-color: var(--color-canvas-muted);
+  background-image:
+    radial-gradient(56rem 24rem at 100% 0%, color-mix(in srgb, var(--color-brand-accent) 26%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 17%, var(--color-canvas-muted)) 0, var(--color-canvas-muted) 24rem);
+  background-repeat: no-repeat;
+}
 .admin-main .surface-card,
 .admin-main .surface-flat {
   border-color: var(--admin-line);

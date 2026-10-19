@@ -9,7 +9,7 @@ import { Check, Field, RowList } from "@/components/super-admin/form-parts";
 import { EmptyState, StatusBadge, Switch } from "@/components/super-admin/ui";
 import { ImageUploadTile } from "@/components/super-admin/image-upload";
 import { ORDER_TYPES, ORDER_TYPE_LABELS, type OrderType } from "@/shared/contract/enums";
-import { ORDER_SWITCH_LAYOUTS, SECTION_LABELS, SECTION_TYPES, defaultSection, type SectionType } from "@/shared/contract/sections";
+import { MOBILE_BANNER_HEIGHTS, MOBILE_BANNER_LABELS, ORDER_SWITCH_LAYOUTS, SECTION_LABELS, SECTION_TYPES, defaultSection, type SectionType } from "@/shared/contract/sections";
 import { cn } from "@/shared/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSONB edited field by field; the server validates against sectionSchema on save
@@ -359,6 +359,15 @@ export const FIELDS: Record<SectionType, Field[]> = {
     { k: "subtitle", label: "Subtitle override (optional)", t: "text" },
     { k: "searchPlaceholder", label: "Search box placeholder (menu page)", t: "text", page: "menu" },
     { k: "image", label: "Top background photo (optional, else the cover photo)", t: "image", wide: true },
+    {
+      k: "mobileBannerHeight",
+      label: "Phone banner height (menu page)",
+      t: "select",
+      options: MOBILE_BANNER_HEIGHTS,
+      labels: MOBILE_BANNER_LABELS,
+      hint: "Phones only. Taller trims a little more off the photo's left and right edges; tablets and desktop always show the whole photo.",
+      page: "menu",
+    },
     { k: "photoDarkening", label: "Photo darkening, 0 - 1 (menu page; empty = none)", t: "number", min: 0, max: 1, step: 0.05, page: "menu" },
   ],
 };

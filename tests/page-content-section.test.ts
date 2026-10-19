@@ -15,8 +15,15 @@ const render = (sections: unknown) => renderToStaticMarkup(createElement(Section
 describe("page_content section (menu / reservation / reviews / locations pages)", () => {
   it("parses with optional heading overrides and defaults to enabled", () => {
     expect(parseSections([{ type: "page_content", title: "Our menu", subtitle: "Fresh daily" }])).toEqual([
-      { type: "page_content", enabled: true, title: "Our menu", subtitle: "Fresh daily", menuLayout: "editorial" },
+      { type: "page_content", enabled: true, title: "Our menu", subtitle: "Fresh daily", menuLayout: "editorial", mobileBannerHeight: "medium" },
     ]);
+  });
+
+  it("keeps the phone banner height, defaulting a missing or unknown value to medium", () => {
+    expect(parseSections([{ type: "page_content", mobileBannerHeight: "extra-tall" }])[0]).toMatchObject({ mobileBannerHeight: "extra-tall" });
+    expect(parseSections([{ type: "page_content", mobileBannerHeight: "original" }])[0]).toMatchObject({ mobileBannerHeight: "original" });
+    expect(parseSections([{ type: "page_content" }])[0]).toMatchObject({ mobileBannerHeight: "medium" });
+    expect(parseSections([{ type: "page_content", mobileBannerHeight: "huge" }])[0]).toMatchObject({ mobileBannerHeight: "medium" });
   });
 
   it("keeps an optional hero image (the body's own top photo, separate from a closing cta banner)", () => {

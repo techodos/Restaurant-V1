@@ -361,7 +361,7 @@ export function DeliveryZoneManager({
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0 bg-[var(--color-surface)] px-3 py-2.5">
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-muted-ink)]">{label}</dt>
-                  <dd className="tabular mt-0.5 truncate text-[14px] font-semibold">{value}</dd>
+                  <dd className="tabular mt-0.5 text-[14px] font-semibold leading-snug [overflow-wrap:anywhere]">{value}</dd>
                 </div>
               ))}
             </dl>

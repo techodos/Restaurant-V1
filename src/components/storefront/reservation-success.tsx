@@ -61,7 +61,7 @@ export function ReservationSuccess({ restaurantSlug, booking, onBookAnother }: R
             {facts.map(([label, value]) => (
               <div key={label} className="min-w-0 bg-[var(--color-surface)] px-4 py-3.5">
                 <dt className="label-caps text-[var(--color-muted-ink)]">{label}</dt>
-                <dd className="mt-1 truncate text-[16px] font-semibold tabular-nums">{value}</dd>
+                <dd className="mt-1 text-[16px] font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]">{value}</dd>
               </div>
             ))}
           </dl>

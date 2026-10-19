@@ -15,6 +15,7 @@ import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { adminPath } from "@/shared/utils";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { ReportRangePicker } from "@/components/admin/report-range-picker";
 import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminStatSkeleton } from "@/components/admin/admin-skeleton";
@@ -80,16 +81,38 @@ export default async function AdminReportsPage({ searchParams }: ReportsPageProp
           active={range.preset === "custom" ? ("today" as ReportRangePreset) : range.preset}
           linkFor={linkFor}
         />
-        <Form action={adminPath("/reports")} className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        {/* phones: one button -> a calendar sheet (tap From, then To) */}
+        <div className="w-full sm:hidden">
+          <ReportRangePicker
+            action={adminPath("/reports")}
+            today={resolveReportRange("today", null, null, restaurant.timezone).toDateKey}
+            initialFrom={range.preset === "custom" ? range.fromDateKey : undefined}
+            initialTo={range.preset === "custom" ? range.toDateKey : undefined}
+          />
+        </div>
+        {/* sm+: a compact "from – to" pill with the browser's own date fields */}
+        <Form action={adminPath("/reports")} className="hidden items-center gap-2 sm:flex">
           <input type="hidden" name="preset" value="custom" />
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-[var(--color-surface)] px-2 shadow-[0_1px_2px_color-mix(in_srgb,var(--color-ink)_6%,transparent)] ring-1 ring-[var(--admin-line,var(--color-hairline))] sm:flex-none">
-            <Label htmlFor="from" className="sr-only">From</Label>
-            <Input id="from" name="from" type="date" defaultValue={range.preset === "custom" ? range.fromDateKey : undefined} className="h-10 min-w-0 flex-1 border-0! bg-transparent px-2 shadow-none! sm:w-[9.5rem] sm:flex-none" />
+          <div className="flex items-center gap-1.5 rounded-full bg-[var(--color-surface)] px-2 shadow-[0_1px_2px_color-mix(in_srgb,var(--color-ink)_6%,transparent)] ring-1 ring-[var(--admin-line,var(--color-hairline))]">
+            <Input
+              id="from"
+              name="from"
+              type="date"
+              aria-label="From"
+              defaultValue={range.preset === "custom" ? range.fromDateKey : undefined}
+              className="h-10 w-[9.5rem] border-0! bg-transparent px-2 shadow-none!"
+            />
             <span aria-hidden className="text-[var(--color-muted-ink)]">–</span>
-            <Label htmlFor="to" className="sr-only">To</Label>
-            <Input id="to" name="to" type="date" defaultValue={range.preset === "custom" ? range.toDateKey : undefined} className="h-10 min-w-0 flex-1 border-0! bg-transparent px-2 shadow-none! sm:w-[9.5rem] sm:flex-none" />
+            <Input
+              id="to"
+              name="to"
+              type="date"
+              aria-label="To"
+              defaultValue={range.preset === "custom" ? range.toDateKey : undefined}
+              className="h-10 w-[9.5rem] border-0! bg-transparent px-2 shadow-none!"
+            />
           </div>
-          <Button type="submit" size="sm" variant={range.preset === "custom" ? "primary" : "secondary"} className="h-10 rounded-full px-4">
+          <Button type="submit" size="sm" className="h-10 rounded-full px-4">
             Apply
           </Button>
         </Form>

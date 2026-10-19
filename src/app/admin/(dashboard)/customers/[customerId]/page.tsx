@@ -11,7 +11,7 @@ import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
-import { StatTile, StatusPill, orderStatusTone } from "@/components/admin/admin-ui";
+import { StatTile, StatusPill, orderStatusTone, statusEdge, statusEdgeStyle } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 interface CustomerDetailPageProps {
@@ -80,7 +80,8 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
                 <Link
                   href={`${adminPath()}/orders/${order.orderNumber}`}
                   prefetch={false}
-                  className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)]"
+                  style={statusEdgeStyle(orderStatusTone(order.status))}
+                  className={`group ${statusEdge} flex items-center gap-4 py-3.5 pl-6 pr-5 transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)]`}
                 >
                   <span className="min-w-0 flex-1">
                     <span className="tabular block whitespace-nowrap font-semibold group-hover:text-[var(--color-brand)]">{order.orderNumber}</span>

@@ -39,6 +39,10 @@ function ChartTooltip({
 }
 
 /** Daily sales (line) over the selected range. */
+/** 100000 -> "100K": full figures did not fit the axis and were cut ("00000") */
+const COMPACT = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+const compact = (value: number) => COMPACT.format(value);
+
 export function SalesTrendChart({ data, currency }: { data: { date: string; sales: string }[]; currency: string }) {
   const points = data.map((point) => ({ date: point.date, sales: Number(point.sales) }));
   return (
@@ -46,7 +50,7 @@ export function SalesTrendChart({ data, currency }: { data: { date: string; sale
       <LineChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke="var(--rule)" vertical={false} />
         <XAxis dataKey="date" tickFormatter={shortDate} tick={TICK_STYLE} tickLine={false} axisLine={{ stroke: "var(--rule)" }} />
-        <YAxis tick={TICK_STYLE} tickLine={false} axisLine={false} width={40} />
+        <YAxis tick={TICK_STYLE} tickLine={false} axisLine={false} width={44} tickFormatter={compact} />
         <Tooltip content={<ChartTooltip currency={currency} />} />
         <Line type="monotone" dataKey="sales" stroke="var(--color-brand-accent)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
       </LineChart>
