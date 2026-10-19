@@ -1,8 +1,9 @@
 "use client";
 
+import { AdminFormPanel, AdminFormSection, FormToggle } from "@/components/admin/admin-form-panel";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CircleDot, Loader2, MapPinned, PenTool, Pencil, Plus, TextCursorInput, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import type { DeliveryZone, RestaurantLocation } from "@/shared/contract/models"
 import type { Polygon } from "@/shared/geo";
 import { cn } from "@/shared/utils";
 import { ZoneCoverageMap } from "@/components/admin/zone-coverage-map";
-import { StatusPill } from "@/components/admin/admin-ui";
+import { StatusPill, addTileClass } from "@/components/admin/admin-ui";
 import { DeliveryPricingEditor } from "@/components/admin/delivery-pricing-editor";
 import { parseDeliveryPricing, type DeliverySlab } from "@/shared/delivery-pricing";
 
@@ -119,65 +120,83 @@ function ZoneEditForm({
   }
 
   return (
-    <form
+    <AdminFormPanel
+      title={zone ? `Edit ${zone.name || "zone"}` : "New delivery zone"}
+      description={branch ? `Delivers from ${branch.name}` : "Where a branch delivers, and what it charges."}
+      icon={MapPinned}
       onSubmit={submit}
-      className="space-y-4 surface-flat p-4"
+      onCancel={onCancel}
+      pending={pending}
+      submitLabel={zone ? "Save zone" : "Create zone"}
+      toggles={<FormToggle id="zoneActive" label="Active" checked={isActive} onChange={setIsActive} />}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="zoneName">Name</Label>
-          <Input id="zoneName" value={name} onChange={(event) => setName(event.target.value)} required />
-          <FieldError>{errors.name}</FieldError>
+      <AdminFormSection title="Zone" description="A name staff recognise, and the branch that delivers it.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="zoneName">Name</Label>
+            <Input id="zoneName" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Walton 8 km" required />
+            <FieldError>{errors.name}</FieldError>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="zoneLocation">Branch</Label>
+            <Select id="zoneLocation" value={locationId} onChange={(event) => changeBranch(event.target.value)} required>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </Select>
+            <FieldError>{errors.locationId}</FieldError>
+          </div>
         </div>
-        <div>
-          <Label htmlFor="zoneLocation">Location</Label>
-          <Select id="zoneLocation" value={locationId} onChange={(event) => changeBranch(event.target.value)} required>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </Select>
-          <FieldError>{errors.locationId}</FieldError>
-        </div>
-      </div>
+      </AdminFormSection>
 
-      <div>
-        <Label>Where this zone delivers</Label>
-        <div role="radiogroup" aria-label="Coverage" className="mt-1.5 inline-flex rounded-[var(--radius-control)] border border-[var(--rule)] p-0.5">
-          {(Object.keys(COVERAGE_LABELS) as Coverage[]).map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="radio"
-              aria-checked={coverage === option}
-              disabled={option !== "areas" && !mapsKey}
-              onClick={() => setCoverage(option)}
-              className={cn(
-                "rounded-[calc(var(--radius-control)-2px)] px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-40",
-                coverage === option ? "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]" : "text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]",
-              )}
-            >
-              {COVERAGE_LABELS[option]}
-            </button>
-          ))}
+      <AdminFormSection title="Coverage" description="How the zone decides whether an address is inside it.">
+        <div role="radiogroup" aria-label="Coverage" className="grid grid-cols-3 gap-2">
+          {(Object.keys(COVERAGE_LABELS) as Coverage[]).map((option) => {
+            const Icon = option === "areas" ? TextCursorInput : option === "radius" ? CircleDot : PenTool;
+            const on = coverage === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                disabled={option !== "areas" && !mapsKey}
+                onClick={() => setCoverage(option)}
+                className={cn(
+                  "flex min-h-[4.25rem] flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-center text-[13px] font-semibold ring-1 ring-inset transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                  on
+                    ? "bg-[color-mix(in_srgb,var(--color-brand)_9%,var(--color-surface))] text-[var(--color-brand)] ring-2 ring-[var(--color-brand)]"
+                    : "bg-[var(--color-surface)] text-[var(--color-muted-ink)] ring-[var(--admin-line,var(--color-hairline))] hover:text-[var(--color-ink)] hover:ring-[color-mix(in_srgb,var(--color-ink)_25%,transparent)]",
+                )}
+              >
+                <Icon className="size-[18px]" aria-hidden />
+                {COVERAGE_LABELS[option]}
+              </button>
+            );
+          })}
         </div>
-        <p className="mt-1.5 text-xs text-[var(--color-muted-ink)]">
+        <p className="text-[13px] leading-snug text-[var(--color-muted-ink)]">
           {coverage === "areas"
             ? "Matches the area / postal code customers type. Simple, but names repeat across cities and areas have no exact edge."
             : coverage === "radius"
               ? "Delivers to every map pin within this distance of the branch (straight line), in the branch's city."
               : "Delivers to every map pin inside the area you draw, in the branch's city. The most accurate option."}
+          {!mapsKey ? " Radius and drawing need a Google Maps key." : ""}
         </p>
         {coverage === "radius" ? (
-          <div className="mt-3 max-w-[12rem]">
-            <Label htmlFor="radiusKm">Radius (km)</Label>
-            <Input id="radiusKm" type="number" min={0.2} max={100} step={0.1} value={radiusKm} onChange={(event) => setRadiusKm(event.target.value)} required />
+          <div className="max-w-[12rem] space-y-1.5">
+            <Label htmlFor="radiusKm">Radius</Label>
+            <div className="relative">
+              <Input id="radiusKm" type="number" min={0.2} max={100} step={0.1} value={radiusKm} onChange={(event) => setRadiusKm(event.target.value)} required className="pr-12" />
+              <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] text-[var(--color-muted-ink)]">km</span>
+            </div>
             <FieldError>{errors.radiusKm}</FieldError>
           </div>
         ) : null}
         {coverage !== "areas" && mapsKey ? (
-          <div className="mt-3">
+          <div className="overflow-hidden rounded-xl ring-1 ring-[var(--admin-line,var(--color-hairline))]">
             <ZoneCoverageMap
               key={`${coverage}:${locationId}`}
               apiKey={mapsKey}
@@ -187,78 +206,73 @@ function ZoneEditForm({
               initialPolygon={coverage === "polygon" && polygon.length ? polygon : null}
               onPolygonChange={setPolygon}
             />
-            <FieldError>{errors.polygon}</FieldError>
           </div>
         ) : null}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="areas">{coverage === "areas" ? "Areas (comma separated)" : "Areas (only for a typed address without a map pin)"}</Label>
-          <Input id="areas" value={areas} onChange={(event) => setAreas(event.target.value)} placeholder="Gulberg, DHA" />
-          <FieldError>{errors.areas}</FieldError>
-        </div>
-        <div>
-          <Label htmlFor="postalCodes">Postal codes (comma separated)</Label>
-          <Input id="postalCodes" value={postalCodes} onChange={(event) => setPostalCodes(event.target.value)} placeholder="54000, 54600" />
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-4">
-        <div>
-          <Label htmlFor="deliveryFee">{deliverySlabs.length > 0 ? "Default fee (no distance match)" : "Delivery fee"}</Label>
-          <Input id="deliveryFee" value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} required />
-          {deliverySlabs.length > 0 ? (
-            <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
-              Charged when distance pricing below cannot apply — no pin from the customer, or no pin on this branch.
-            </p>
-          ) : null}
-          <FieldError>{errors.deliveryFee}</FieldError>
-        </div>
-        <div>
-          <Label htmlFor="minOrderAmount">Min. order</Label>
-          <Input id="minOrderAmount" value={minOrderAmount} onChange={(event) => setMinOrderAmount(event.target.value)} />
-        </div>
-        <div>
-          <Label htmlFor="freeDeliveryOver">Free over (optional)</Label>
-          <Input id="freeDeliveryOver" value={freeDeliveryOver} onChange={(event) => setFreeDeliveryOver(event.target.value)} />
-        </div>
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <Label htmlFor="etaMinMinutes">ETA min</Label>
-            <Input id="etaMinMinutes" type="number" min={1} value={etaMinMinutes} onChange={(event) => setEtaMinMinutes(event.target.value)} />
+        <FieldError>{errors.polygon}</FieldError>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="areas">{coverage === "areas" ? "Areas" : "Areas (typed address without a pin)"}</Label>
+            <Input id="areas" value={areas} onChange={(event) => setAreas(event.target.value)} placeholder="Gulberg, DHA" />
+            <p className="text-xs text-[var(--color-muted-ink)]">Comma separated.</p>
+            <FieldError>{errors.areas}</FieldError>
           </div>
-          <div className="flex-1">
-            <Label htmlFor="etaMaxMinutes">ETA max</Label>
-            <Input id="etaMaxMinutes" type="number" min={1} value={etaMaxMinutes} onChange={(event) => setEtaMaxMinutes(event.target.value)} />
+          <div className="space-y-1.5">
+            <Label htmlFor="postalCodes">Postal codes</Label>
+            <Input id="postalCodes" value={postalCodes} onChange={(event) => setPostalCodes(event.target.value)} placeholder="54000, 54600" />
+            <p className="text-xs text-[var(--color-muted-ink)]">Comma separated.</p>
           </div>
         </div>
-      </div>
+      </AdminFormSection>
 
-      <div>
-        <Label>Distance pricing for this branch (optional)</Label>
-        <p className="mb-2 text-xs text-[var(--color-muted-ink)]">
-          Fixed fees by straight-line distance from {branch?.name ?? "this branch"}'s pin, instead of a zone's own flat fee above — only
-          applies when the customer places a pin at checkout. {!branchPin ? "This branch has no map pin yet; set one on the Locations page first." : ""}
-        </p>
+      <AdminFormSection title="Fees & timing" description="What delivery costs here and how long it takes.">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="deliveryFee">{deliverySlabs.length > 0 ? "Default fee" : "Delivery fee"}</Label>
+            <Input id="deliveryFee" inputMode="decimal" value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} required />
+            {deliverySlabs.length > 0 ? (
+              <p className="text-xs leading-snug text-[var(--color-muted-ink)]">Used when distance pricing can&apos;t apply (no pin).</p>
+            ) : null}
+            <FieldError>{errors.deliveryFee}</FieldError>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="minOrderAmount">Minimum order</Label>
+            <Input id="minOrderAmount" inputMode="decimal" value={minOrderAmount} onChange={(event) => setMinOrderAmount(event.target.value)} placeholder="0" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="freeDeliveryOver">
+              Free delivery over <span className="font-normal text-[var(--color-muted-ink)]">(optional)</span>
+            </Label>
+            <Input id="freeDeliveryOver" inputMode="decimal" value={freeDeliveryOver} onChange={(event) => setFreeDeliveryOver(event.target.value)} />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="etaMinMinutes">Delivery time</Label>
+          <div className="flex max-w-[18rem] items-center gap-2">
+            <Input id="etaMinMinutes" aria-label="Fastest, minutes" type="number" min={1} value={etaMinMinutes} onChange={(event) => setEtaMinMinutes(event.target.value)} />
+            <span className="text-[var(--color-muted-ink)]">to</span>
+            <Input id="etaMaxMinutes" aria-label="Slowest, minutes" type="number" min={1} value={etaMaxMinutes} onChange={(event) => setEtaMaxMinutes(event.target.value)} />
+            <span className="shrink-0 text-[13px] text-[var(--color-muted-ink)]">min</span>
+          </div>
+        </div>
+      </AdminFormSection>
+
+      <AdminFormSection
+        title="Distance pricing"
+        description={
+          <>
+            Optional, for {branch?.name ?? "this branch"}: fixed fees by straight-line distance from its pin, used instead of the flat fee
+            when the customer drops a pin at checkout.
+          </>
+        }
+      >
+        {!branchPin ? (
+          <p className="rounded-xl bg-[color-mix(in_srgb,var(--color-warning)_10%,var(--color-surface))] px-3.5 py-2.5 text-[13px] text-[color-mix(in_srgb,var(--color-warning)_80%,var(--color-ink))] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-warning)_24%,transparent)]">
+            This branch has no map pin yet. Set one on the Locations page first.
+          </p>
+        ) : null}
         <DeliveryPricingEditor slabs={deliverySlabs} onChange={setDeliverySlabs} />
-      </div>
-
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active
-        </label>
-        <div className="flex gap-2">
-          <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-            <X className="size-4" aria-hidden />
-          </Button>
-          <Button type="submit" size="sm" disabled={pending}>
-            {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-            {zone ? "Save" : "Create"}
-          </Button>
-        </div>
-      </div>
-    </form>
+      </AdminFormSection>
+    </AdminFormPanel>
   );
 }
 
@@ -305,56 +319,67 @@ export function DeliveryZoneManager({
   const locationName = (id: string) => allLocations.find((location) => location.id === id)?.name ?? "—";
 
   return (
-    <div className="space-y-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2">
       {dialog}
       {zones.map((zone) =>
         editingId === zone.id ? (
-          <ZoneEditForm key={zone.id} zone={zone} locations={locations} mapsKey={mapsKey} onCancel={() => setEditingId(null)} />
-        ) : (
-          <div
-            key={zone.id}
-            className="flex flex-wrap items-center justify-between gap-3 surface-flat px-3.5 py-2.5"
-          >
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{zone.name}</span>
-                <StatusPill tone="brand" dot={false}>{locationName(zone.locationId)}</StatusPill>
-                {!zone.isActive ? <StatusPill tone="neutral">Inactive</StatusPill> : null}
-              </div>
-              <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
-                {zone.polygon ? "Drawn area · " : zone.radiusKm != null ? `Within ${zone.radiusKm} km · ` : ""}
-                Fee {zone.deliveryFee} · ETA {zone.etaMinMinutes}-{zone.etaMaxMinutes}m
-                {zone.areas.length ? ` · ${zone.areas.join(", ")}` : ""}
-              </p>
-            </div>
-            {canManage ? (
-            <div className="flex items-center gap-1">
-              <Button size="icon" variant="ghost" onClick={() => setEditingId(zone.id)} aria-label="Edit zone">
-                <Pencil className="size-4" aria-hidden />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => handleDelete(zone)}
-                disabled={deletingId === zone.id}
-                aria-label="Delete zone"
-              >
-                {deletingId === zone.id ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
-              </Button>
-            </div>
-            ) : null}
+          <div key={zone.id} className="col-span-full">
+            <ZoneEditForm zone={zone} locations={locations} mapsKey={mapsKey} onCancel={() => setEditingId(null)} />
           </div>
+        ) : (
+          <article key={zone.id} className={cn("surface-card flex min-w-0 flex-col gap-4 p-4 sm:p-5", !zone.isActive && "opacity-70")}>
+            <div className="flex items-start gap-3.5">
+              <span
+                aria-hidden
+                className="grid size-11 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_10%,var(--color-surface))] text-[var(--color-brand)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-brand)_18%,transparent)]"
+              >
+                <MapPinned className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-[family-name:var(--font-heading)] text-[1.1rem] font-semibold leading-tight">{zone.name}</h3>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <StatusPill tone="brand" dot={false}>{locationName(zone.locationId)}</StatusPill>
+                  {!zone.isActive ? <StatusPill tone="neutral">Inactive</StatusPill> : null}
+                </div>
+              </div>
+              {canManage ? (
+                <div className="-mr-2 -mt-2 flex shrink-0 items-center">
+                  <Button size="icon" variant="ghost" onClick={() => setEditingId(zone.id)} aria-label={`Edit ${zone.name}`}>
+                    <Pencil className="size-4" aria-hidden />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => handleDelete(zone)} disabled={deletingId === zone.id} aria-label={`Delete ${zone.name}`}>
+                    {deletingId === zone.id ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+            <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-[var(--admin-line,var(--color-hairline))] ring-1 ring-[var(--admin-line,var(--color-hairline))]">
+              {[
+                ["Coverage", zone.polygon ? "Drawn area" : zone.radiusKm != null ? `${zone.radiusKm} km` : "Areas"],
+                ["Fee", zone.deliveryFee],
+                ["ETA", `${zone.etaMinMinutes}–${zone.etaMaxMinutes} min`],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0 bg-[var(--color-surface)] px-3 py-2.5">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-muted-ink)]">{label}</dt>
+                  <dd className="tabular mt-0.5 truncate text-[14px] font-semibold">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            {zone.areas.length ? <p className="text-[13px] leading-snug text-[var(--color-muted-ink)]">Areas: {zone.areas.join(", ")}</p> : null}
+          </article>
         ),
       )}
 
       {!canManage ? null : locations.length === 0 ? (
-        <p className="text-sm text-[var(--color-muted-ink)]">Add a location first.</p>
+        <p className="col-span-full text-sm text-[var(--color-muted-ink)]">Add a location first.</p>
       ) : adding ? (
-        <ZoneEditForm locations={locations} mapsKey={mapsKey} onCancel={() => setAdding(false)} />
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-          <Plus className="size-4" aria-hidden /> Add zone
-        </Button>
+        <div className="col-span-full">
+          <ZoneEditForm locations={locations} mapsKey={mapsKey} onCancel={() => setAdding(false)} />
+        </div>
+      ) : editingId ? null : (
+        <button type="button" onClick={() => setAdding(true)} className={cn(addTileClass, "md:min-h-[9rem]")}>
+          <Plus className="size-4" aria-hidden /> Add delivery zone
+        </button>
       )}
     </div>
   );

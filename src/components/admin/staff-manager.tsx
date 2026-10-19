@@ -1,8 +1,9 @@
 "use client";
 
+import { AdminFormPanel, AdminFormSection, FormToggle } from "@/components/admin/admin-form-panel";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Power, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Power, Trash2, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ROLE_LABELS, isBranchRole } from "@/server/auth/permissions";
 import type { TeamRole } from "@/shared/contract/enums";
 import type { TeamMember } from "@/shared/contract/models";
-import { StatusPill } from "@/components/admin/admin-ui";
+import { Avatar, StatusPill, addTileClass } from "@/components/admin/admin-ui";
 
 /** What the signed-in member may do on this screen. Only shapes the UI — services/team.ts re-checks all of it. */
 interface StaffRules {
@@ -81,93 +82,80 @@ function StaffEditForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4 surface-flat p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="staffEmail">Email</Label>
-          <Input
-            id="staffEmail"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            disabled={Boolean(member)}
-            required
-          />
-          <FieldError>{errors.email}</FieldError>
-        </div>
-        <div>
-          <Label htmlFor="staffName">Full name</Label>
-          <Input id="staffName" value={fullName} onChange={(event) => setFullName(event.target.value)} required />
-          <FieldError>{errors.fullName}</FieldError>
-        </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="staffPhone">Phone (optional)</Label>
-          <Input id="staffPhone" value={phone} onChange={(event) => setPhone(event.target.value)} />
-        </div>
-        <div>
-          <Label htmlFor="staffRole">Role</Label>
-          <Select id="staffRole" value={role} onChange={(event) => setRole(event.target.value as TeamRole)} disabled={isSelf}>
-            {roleOptions.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </Select>
-          {isSelf ? <p className="mt-1 text-xs text-[var(--color-muted-ink)]">You can&apos;t change your own role or branch.</p> : null}
-        </div>
-      </div>
-      {needsBranch ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="staffBranch">Branch</Label>
-            {fixedBranch ? (
-              <Input
-                id="staffBranch"
-                value={rules.branches.find((branch) => branch.id === (rules.lockedBranchId ?? locationId))?.name ?? "—"}
-                disabled
-              />
-            ) : (
-              <Select id="staffBranch" value={locationId} onChange={(event) => setLocationId(event.target.value)} required>
-                {rules.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </Select>
-            )}
-            <FieldError>{errors.locationId}</FieldError>
+    <AdminFormPanel
+      title={member ? `Edit ${member.fullName}` : "Add a staff member"}
+      description={member ? member.email : "They sign in at this restaurant's staff portal."}
+      icon={UserPlus}
+      onSubmit={submit}
+      onCancel={onCancel}
+      pending={pending}
+      submitLabel={member ? "Save" : "Add staff member"}
+    >
+      <AdminFormSection title="Person" description="Name and how to reach them.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="staffName">Full name</Label>
+            <Input id="staffName" value={fullName} onChange={(event) => setFullName(event.target.value)} required />
+            <FieldError>{errors.fullName}</FieldError>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="staffEmail">Work email</Label>
+            <Input id="staffEmail" type="email" value={email} onChange={(event) => setEmail(event.target.value)} disabled={Boolean(member)} required />
+            {member ? <p className="text-xs text-[var(--color-muted-ink)]">The sign-in email can&apos;t be changed.</p> : null}
+            <FieldError>{errors.email}</FieldError>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="staffPhone">
+              Phone <span className="font-normal text-[var(--color-muted-ink)]">(optional)</span>
+            </Label>
+            <Input id="staffPhone" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
           </div>
         </div>
-      ) : null}
-      {!member ? (
-        <div>
-          <Label htmlFor="staffPassword">Temporary password</Label>
-          <Input
-            id="staffPassword"
-            type="text"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="At least 8 characters — share it with them directly"
-            required
-            minLength={8}
-          />
-          <p className="mt-1 text-xs text-[var(--color-muted-ink)]">If this email already has a staff login, it keeps its existing password.</p>
-          <FieldError>{errors.password}</FieldError>
-        </div>
-      ) : null}
+      </AdminFormSection>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          <X className="size-4" aria-hidden />
-        </Button>
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-          {member ? "Save" : "Create"}
-        </Button>
-      </div>
-    </form>
+      <AdminFormSection title="Access" description="What they can see and change.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="staffRole">Role</Label>
+            <Select id="staffRole" value={role} onChange={(event) => setRole(event.target.value as TeamRole)} disabled={isSelf}>
+              {roleOptions.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABELS[r]}
+                </option>
+              ))}
+            </Select>
+            {isSelf ? <p className="text-xs text-[var(--color-muted-ink)]">You can&apos;t change your own role or branch.</p> : null}
+          </div>
+          {needsBranch ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="staffBranch">Branch</Label>
+              {fixedBranch ? (
+                <Input id="staffBranch" value={rules.branches.find((branch) => branch.id === (rules.lockedBranchId ?? locationId))?.name ?? "—"} disabled />
+              ) : (
+                <Select id="staffBranch" value={locationId} onChange={(event) => setLocationId(event.target.value)} required>
+                  {rules.branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              <FieldError>{errors.locationId}</FieldError>
+            </div>
+          ) : null}
+        </div>
+      </AdminFormSection>
+
+      {!member ? (
+        <AdminFormSection title="Sign-in" description="Share it with them directly. If this email already has a staff login, it keeps its password.">
+          <div className="max-w-md space-y-1.5">
+            <Label htmlFor="staffPassword">Temporary password</Label>
+            <Input id="staffPassword" type="text" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" required minLength={8} />
+            <FieldError>{errors.password}</FieldError>
+          </div>
+        </AdminFormSection>
+      ) : null}
+    </AdminFormPanel>
   );
 }
 
@@ -231,19 +219,27 @@ export function StaffManager({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 2xl:grid-cols-3">
       {dialog}
       {members.map((member) => {
         const isSelf = member.userId === currentUserId;
         const manageable = manageableIds.includes(member.id);
         const branchName = member.locationId ? branchNames[member.locationId] : null;
         return editingId === member.id ? (
-          <StaffEditForm key={member.id} member={member} isSelf={isSelf} rules={rules} onCancel={() => setEditingId(null)} />
+          <div key={member.id} className="col-span-full">
+            <StaffEditForm member={member} isSelf={isSelf} rules={rules} onCancel={() => setEditingId(null)} />
+          </div>
         ) : (
-          <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 surface-flat px-3.5 py-2.5">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{member.fullName}</span>
+          <article key={member.id} className={`surface-card flex min-w-0 flex-col gap-3 p-4 sm:p-5 ${member.isActive ? "" : "opacity-70"}`}>
+            <div className="flex items-start gap-3.5">
+              <Avatar name={member.fullName} className="size-11 text-[14px]" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-semibold">{member.fullName}</p>
+                <p className="truncate text-[13px] text-[var(--color-muted-ink)]">{member.email}</p>
+                {member.phone ? <p className="tabular truncate text-[13px] text-[var(--color-muted-ink)]">{member.phone}</p> : null}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
                 <StatusPill tone="brand" dot={false}>{ROLE_LABELS[member.role]}</StatusPill>
                 {multiBranch ? (
                   branchName ? (
@@ -256,14 +252,9 @@ export function StaffManager({
                 ) : null}
                 {!member.isActive ? <StatusPill tone="neutral">Disabled</StatusPill> : null}
                 {isSelf ? <StatusPill tone="info" dot={false}>You</StatusPill> : null}
-              </div>
-              <p className="mt-1 text-xs text-[var(--color-muted-ink)]">
-                {member.email}
-                {member.phone ? ` · ${member.phone}` : ""}
-              </p>
             </div>
             {canManage && (manageable || isSelf) ? (
-              <div className="flex items-center gap-1">
+              <div className="-mx-2 -mb-2 mt-auto flex items-center justify-end gap-1 border-t border-[var(--admin-line,var(--color-hairline))] pt-2">
                 <Button size="icon" variant="ghost" onClick={() => setEditingId(member.id)} aria-label="Edit staff member">
                   <Pencil className="size-4" aria-hidden />
                 </Button>
@@ -293,17 +284,19 @@ export function StaffManager({
                 </Button>
               </div>
             ) : null}
-          </div>
+          </article>
         );
       })}
 
       {canManage && assignableRoles.length > 0 ? (
         adding ? (
-          <StaffEditForm rules={rules} onCancel={() => setAdding(false)} />
-        ) : (
-          <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-            <Plus className="size-4" aria-hidden /> Add staff
-          </Button>
+          <div className="col-span-full">
+            <StaffEditForm rules={rules} onCancel={() => setAdding(false)} />
+          </div>
+        ) : editingId ? null : (
+          <button type="button" onClick={() => setAdding(true)} className={`${addTileClass} md:min-h-[9rem]`}>
+            <Plus className="size-4" aria-hidden /> Add staff member
+          </button>
         )
       ) : null}
     </div>

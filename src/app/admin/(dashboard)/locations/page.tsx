@@ -21,7 +21,7 @@ export default async function AdminLocationsPage() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader title="Locations" description={`${locations.length} branches`} />
+      <AdminPageHeader title="Locations" description={`${locations.length} ${locations.length === 1 ? "branch" : "branches"}`} />
       <LocationManager
         locations={locations}
         canManage={actor.permissions.includes("locations.manage")}

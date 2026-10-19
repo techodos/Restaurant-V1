@@ -2,13 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Banknote, Check, Eye, FileText, Image as ImageIcon, Leaf, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/input";
 import { saveMenuItemAction } from "@/app/admin/(dashboard)/menu/items/actions";
 import type { MenuCategory, MenuItem } from "@/shared/contract/models";
 import { adminPath } from "@/shared/utils";
+import { AdminSection } from "@/components/admin/admin-ui";
+import { AdminSwitchRow } from "@/components/admin/admin-switch";
 
 function slugify(value: string): string {
   return value
@@ -41,6 +43,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
   const [description, setDescription] = useState(item?.description ?? "");
   const [shortDescription, setShortDescription] = useState(item?.shortDescription ?? "");
   const [imageUrl, setImageUrl] = useState(item?.imageUrl ?? "");
+  const [imageBroken, setImageBroken] = useState(false);
   const [basePrice, setBasePrice] = useState(item?.basePrice ?? "");
   const [compareAtPrice, setCompareAtPrice] = useState(item?.compareAtPrice ?? "");
   const [prepTimeMinutes, setPrepTimeMinutes] = useState(String(item?.prepTimeMinutes ?? 15));
@@ -93,146 +96,183 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
     });
   }
 
+  const field = "space-y-1.5";
+
   return (
-    <form
-      onSubmit={submit}
-      className="space-y-5 surface-flat p-6"
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="name">Name</Label>
-          <Input
-            id="name"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value);
-              if (!slugTouched) setSlug(slugify(event.target.value));
-            }}
-            required
-          />
-          <FieldError>{errors.name}</FieldError>
+    <form onSubmit={submit} className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="space-y-5">
+        <AdminSection title="Details" description="What guests see on the menu." icon={FileText}>
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className={field}>
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    if (!slugTouched) setSlug(slugify(event.target.value));
+                  }}
+                  required
+                />
+                <FieldError>{errors.name}</FieldError>
+              </div>
+              <div className={field}>
+                <Label htmlFor="categoryId">Category</Label>
+                <Select id="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </Select>
+                <FieldError>{errors.categoryId}</FieldError>
+              </div>
+            </div>
+            <div className={field}>
+              <Label htmlFor="slug">Web address</Label>
+              <div className="flex min-w-0 items-center overflow-hidden rounded-[var(--radius-brand)] border border-[var(--color-hairline)] bg-[var(--color-surface)] focus-within:border-[var(--color-brand)] focus-within:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-brand)_14%,transparent)]">
+                <span className="shrink-0 self-stretch border-r border-[var(--color-hairline)] bg-[var(--tint)] px-3 py-2.5 text-[13px] text-[var(--color-muted-ink)]">/menu/</span>
+                <Input
+                  id="slug"
+                  value={slug}
+                  onChange={(event) => {
+                    setSlug(event.target.value);
+                    setSlugTouched(true);
+                  }}
+                  required
+                  className="border-0! shadow-none!"
+                />
+              </div>
+              <FieldError>{errors.slug}</FieldError>
+            </div>
+            <div className={field}>
+              <Label htmlFor="shortDescription">Short description</Label>
+              <Input
+                id="shortDescription"
+                value={shortDescription}
+                onChange={(event) => setShortDescription(event.target.value)}
+                maxLength={240}
+                placeholder="One line under the name"
+              />
+              <p className="text-right text-xs tabular-nums text-[var(--color-muted-ink)]">{shortDescription.length}/240</p>
+            </div>
+            <div className={field}>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={isBuffetPackage ? 14 : 4}
+                placeholder={isBuffetPackage ? BUFFET_DESCRIPTION_EXAMPLE : undefined}
+              />
+              {isBuffetPackage ? (
+                <p className="text-xs text-[var(--color-muted-ink)]">
+                  Buffet card: write a section heading ending in a colon (e.g. <strong>B.B.Q.:</strong>), then one dish per line — or
+                  put the dishes after the colon separated by commas. A line starting with <strong>Note:</strong> appears under the
+                  card. Add <strong>Adult</strong> / <strong>Children (3–10 years)</strong> as variants for per-head prices.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </AdminSection>
+
+        <AdminSection title="Pricing & kitchen" icon={Banknote}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className={field}>
+              <Label htmlFor="basePrice">Base price</Label>
+              <Input id="basePrice" inputMode="decimal" value={basePrice} onChange={(event) => setBasePrice(event.target.value)} placeholder="450" required />
+              <FieldError>{errors.basePrice}</FieldError>
+            </div>
+            <div className={field}>
+              <Label htmlFor="compareAtPrice">
+                Compare-at price <span className="font-normal text-[var(--color-muted-ink)]">(optional, shown struck through)</span>
+              </Label>
+              <Input id="compareAtPrice" inputMode="decimal" value={compareAtPrice} onChange={(event) => setCompareAtPrice(event.target.value)} placeholder="550" />
+              <FieldError>{errors.compareAtPrice}</FieldError>
+            </div>
+            <div className={field}>
+              <Label htmlFor="prepTimeMinutes">Prep time (minutes)</Label>
+              <Input id="prepTimeMinutes" type="number" min={0} value={prepTimeMinutes} onChange={(event) => setPrepTimeMinutes(event.target.value)} />
+            </div>
+            <div className={field}>
+              <Label htmlFor="spiceLevel">Spice level</Label>
+              <Select id="spiceLevel" value={spiceLevel} onChange={(event) => setSpiceLevel(event.target.value)}>
+                <option value="0">None</option>
+                <option value="1">Mild</option>
+                <option value="2">Medium</option>
+                <option value="3">Hot</option>
+              </Select>
+            </div>
+          </div>
+        </AdminSection>
+
+        <AdminSection title="Dietary & allergens" description="Separate entries with commas." icon={Leaf}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className={field}>
+              <Label htmlFor="dietaryTags">Dietary tags</Label>
+              <Input id="dietaryTags" value={dietaryTags} onChange={(event) => setDietaryTags(event.target.value)} placeholder="vegetarian, halal" />
+            </div>
+            <div className={field}>
+              <Label htmlFor="allergens">Allergens</Label>
+              <Input id="allergens" value={allergens} onChange={(event) => setAllergens(event.target.value)} placeholder="nuts, dairy" />
+            </div>
+          </div>
+        </AdminSection>
+      </div>
+
+      <aside className="space-y-5 xl:sticky xl:top-24">
+        <AdminSection title="Photo" icon={ImageIcon} bodyClassName="space-y-3">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[var(--steel-2)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-ink)_8%,transparent)]">
+            {imageUrl && !imageBroken ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a live preview of whatever address is typed
+              <img src={imageUrl} alt="" className="size-full object-cover" onError={() => setImageBroken(true)} />
+            ) : (
+              <span className="grid size-full place-items-center text-center text-[13px] text-[var(--color-muted-ink)]">
+                <span className="flex flex-col items-center gap-2">
+                  <ImageIcon className="size-6" aria-hidden />
+                  {imageUrl ? "This address does not load an image" : "No photo yet"}
+                </span>
+              </span>
+            )}
+          </div>
+          <div className={field}>
+            <Label htmlFor="imageUrl">Image address</Label>
+            <Input
+              id="imageUrl"
+              value={imageUrl}
+              onChange={(event) => {
+                setImageUrl(event.target.value);
+                setImageBroken(false);
+              }}
+              placeholder="https://..."
+            />
+            <FieldError>{errors.imageUrl}</FieldError>
+          </div>
+        </AdminSection>
+
+        <AdminSection title="Visibility" icon={Eye}>
+          <div className="divide-y divide-[var(--admin-line,var(--color-hairline))]">
+            <AdminSwitchRow id="isActive" title="Active" description="Shown on the menu." checked={isActive} onChange={setIsActive} />
+            <AdminSwitchRow id="isAvailable" title="Available" description="In stock and orderable today." checked={isAvailable} onChange={setIsAvailable} />
+            <AdminSwitchRow id="isFeatured" title="Featured" description="Marked as featured on the storefront." checked={isFeatured} onChange={setIsFeatured} />
+            <AdminSwitchRow
+              id="isBuffetPackage"
+              title="Buffet package"
+              description="Priced per head; also shows “Reserve a table”."
+              checked={isBuffetPackage}
+              onChange={setIsBuffetPackage}
+            />
+          </div>
+        </AdminSection>
+
+        <div className="sticky bottom-0 z-10 -mx-4 border-t border-[var(--admin-line,var(--color-hairline))] bg-[color-mix(in_srgb,var(--color-canvas-muted)_92%,transparent)] px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:backdrop-blur-none">
+          <Button type="submit" size="lg" disabled={pending} className="w-full">
+            {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
+            {item ? "Save changes" : "Create item"}
+          </Button>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="slug">Slug</Label>
-          <Input
-            id="slug"
-            value={slug}
-            onChange={(event) => {
-              setSlug(event.target.value);
-              setSlugTouched(true);
-            }}
-            required
-          />
-          <FieldError>{errors.slug}</FieldError>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="categoryId">Category</Label>
-        <Select id="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} required>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </Select>
-        <FieldError>{errors.categoryId}</FieldError>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="shortDescription">Short description</Label>
-        <Input id="shortDescription" value={shortDescription} onChange={(event) => setShortDescription(event.target.value)} maxLength={240} />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          rows={isBuffetPackage ? 14 : undefined}
-          placeholder={isBuffetPackage ? BUFFET_DESCRIPTION_EXAMPLE : undefined}
-        />
-        {isBuffetPackage ? (
-          <p className="text-xs text-[var(--color-muted-ink)]">
-            Buffet card: write a section heading ending in a colon (e.g. <strong>B.B.Q.:</strong>), then one dish per line — or
-            put the dishes after the colon separated by commas. A line starting with <strong>Note:</strong> appears under the
-            card. Add <strong>Adult</strong> / <strong>Children (3–10 years)</strong> as variants for per-head prices.
-          </p>
-        ) : null}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="imageUrl">Image URL</Label>
-        <Input id="imageUrl" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://..." />
-        <FieldError>{errors.imageUrl}</FieldError>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="basePrice">Base price</Label>
-          <Input id="basePrice" value={basePrice} onChange={(event) => setBasePrice(event.target.value)} placeholder="450" required />
-          <FieldError>{errors.basePrice}</FieldError>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="compareAtPrice">Compare-at price (optional)</Label>
-          <Input id="compareAtPrice" value={compareAtPrice} onChange={(event) => setCompareAtPrice(event.target.value)} placeholder="550" />
-          <FieldError>{errors.compareAtPrice}</FieldError>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="prepTimeMinutes">Prep time (minutes)</Label>
-          <Input
-            id="prepTimeMinutes"
-            type="number"
-            min={0}
-            value={prepTimeMinutes}
-            onChange={(event) => setPrepTimeMinutes(event.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="spiceLevel">Spice level</Label>
-          <Select id="spiceLevel" value={spiceLevel} onChange={(event) => setSpiceLevel(event.target.value)}>
-            <option value="0">None</option>
-            <option value="1">Mild</option>
-            <option value="2">Medium</option>
-            <option value="3">Hot</option>
-          </Select>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="dietaryTags">Dietary tags (comma separated)</Label>
-          <Input id="dietaryTags" value={dietaryTags} onChange={(event) => setDietaryTags(event.target.value)} placeholder="vegetarian, halal" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="allergens">Allergens (comma separated)</Label>
-          <Input id="allergens" value={allergens} onChange={(event) => setAllergens(event.target.value)} placeholder="nuts, dairy" />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-5">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active (visible in menu)
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isAvailable} onChange={(event) => setIsAvailable(event.target.checked)} /> Available (in stock)
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isFeatured} onChange={(event) => setIsFeatured(event.target.checked)} /> Featured
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isBuffetPackage} onChange={(event) => setIsBuffetPackage(event.target.checked)} /> Buffet package (priced per head; shows &quot;Reserve a table&quot; too)
-        </label>
-      </div>
-
-      <Button type="submit" disabled={pending}>
-        {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-        {item ? "Save changes" : "Create item"}
-      </Button>
+      </aside>
     </form>
   );
 }

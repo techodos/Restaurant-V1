@@ -169,7 +169,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
           </div>
         </section>
 
-        <div className="container-page mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
+        <div className="container-page mt-8 grid grid-cols-[minmax(0,1fr)] gap-8 md:mt-10 md:gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
           <div className="space-y-10">
             <section>
               <h2 className="display-2">Your order</h2>
@@ -254,7 +254,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
             )}
           </div>
 
-          <aside className="space-y-8 lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
+          <aside className="order-first space-y-8 lg:order-none lg:sticky lg:top-[calc(var(--header-h,4.5rem)+1.5rem)] lg:self-start">
             <section className="rounded-[var(--radius-panel)] bg-[var(--steel-1)] p-6">
               <h2 className="font-[family-name:var(--font-sans)] text-sm font-semibold">
                 {order.orderType === "delivery" ? "Delivering to" : order.orderType === "pickup" ? "Pickup from" : "Dine-in"}
@@ -263,7 +263,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 {order.orderType === "delivery" && order.deliveryAddress ? (
                   <p className="flex items-start gap-2">
                     <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-                    <span>
+                    <span className="font-medium text-[var(--color-ink)]">
                       {[order.deliveryAddress.line1, order.deliveryAddress.line2, order.deliveryAddress.area, order.deliveryAddress.city]
                         .filter(Boolean)
                         .join(", ")}
@@ -273,7 +273,7 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 {order.orderType !== "delivery" ? (
                   <p className="flex items-start gap-2">
                     <Store className="mt-0.5 size-4 shrink-0" aria-hidden />
-                    <span>
+                    <span className="font-medium text-[var(--color-ink)]">
                       {order.locationName ?? context.primaryLocation?.name ?? restaurant.name}
                       {order.tableNumber ? `, table ${order.tableNumber}` : ""}
                     </span>

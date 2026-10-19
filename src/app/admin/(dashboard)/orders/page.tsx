@@ -183,18 +183,18 @@ async function OrdersResults({
       </div>
 
       <OrderBulkProvider orders={bulkOrders}>
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden max-xl:overflow-visible max-xl:border-0! max-xl:bg-transparent! max-xl:shadow-none!">
           {result.rows.length === 0 ? (
-            <AdminEmptyState icon={ClipboardList} title={q ? "No orders match this search." : "No orders match this filter."} />
+            <AdminEmptyState icon={ClipboardList} title={q ? "No orders match this search." : "No orders match this filter."} className="max-xl:surface-card" />
           ) : (
             <>
-              {/* phones and tablets: one card per order (touch-sized actions) */}
-              <ul className="divide-y divide-[var(--color-hairline)] lg:hidden">
+              {/* phones, tablets and small laptops: one card per order (touch-sized actions), two columns from md */}
+              <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 xl:hidden">
                 {result.rows.map((order) => {
                   const next = canUpdate ? nextOrderStep(order.status, order.orderType) : null;
                   const href = `${adminPath()}/orders/${order.orderNumber}`;
                   return (
-                    <li key={order.id} className="space-y-2.5 px-4 py-4">
+                    <li key={order.id} className="surface-card flex flex-col gap-2.5 px-4 py-4 md:px-5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
                           {next ? <span className="pt-1"><OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /></span> : null}
@@ -210,8 +210,13 @@ async function OrdersResults({
                         <p className="font-medium">{order.customerName}</p>
                         <p className="truncate text-xs text-[var(--color-muted-ink)]">{order.itemPreview.join(", ")}</p>
                       </div>
-                      <div className="flex items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-3">
-                        <span className="tabular font-semibold">{formatMoney(order.total, { currency: restaurant.currency })}</span>
+                      <div className="mt-auto flex items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-3">
+                        <span className="tabular">
+                          <span className="block font-semibold">{formatMoney(order.total, { currency: restaurant.currency })}</span>
+                          <span className="block text-xs text-[var(--color-muted-ink)]">
+                            {PAYMENT_METHOD_LABELS[order.paymentMethod]} · {PAYMENT_STATE[order.paymentStatus] ?? order.paymentStatus}
+                          </span>
+                        </span>
                         {next ? (
                           <OrderNextStepButton orderId={order.id} orderNumber={order.orderNumber} next={next.status} label={next.label} />
                         ) : (
@@ -223,16 +228,15 @@ async function OrdersResults({
                 })}
               </ul>
 
-              {/* laptop and up: the table */}
-              <div className="relative hidden overflow-x-auto lg:block">
-                <table className="tabular w-full min-w-[52rem] text-sm">
+              {/* wide laptops and up: the table */}
+              <div className="relative hidden overflow-x-auto xl:block">
+                <table className="tabular w-full min-w-[50rem] text-sm">
                   <thead className={tableHead}>
                     <tr>
                       {bulkOrders.length > 0 ? <th className="w-10 py-3 pl-4"><OrderSelectAll /></th> : null}
                       <th className="px-4 py-3 font-semibold">Order</th>
                       <th className="px-4 py-3 font-semibold">Customer</th>
                       <th className="px-4 py-3 font-semibold">Items</th>
-                      <th className="px-4 py-3 font-semibold">Payment</th>
                       <th className="px-4 py-3 text-right font-semibold">Total</th>
                       <th className="px-4 py-3 font-semibold">Status</th>
                       <th className="px-4 py-3"><span className="sr-only">Actions</span></th>
@@ -263,17 +267,17 @@ async function OrdersResults({
                               {allBranches && order.locationName ? ` · ${order.locationName}` : ""}
                             </p>
                           </td>
-                          <td className="max-w-[18rem] px-4 py-3">
+                          <td className="max-w-[13rem] px-4 py-3">
                             <p className="truncate" title={order.itemPreview.join(", ")}>{order.itemPreview.join(", ") || "—"}</p>
                             <p className="text-xs text-[var(--color-muted-ink)]">
                               {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
                             </p>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            <p>{PAYMENT_METHOD_LABELS[order.paymentMethod]}</p>
+                          <td className="whitespace-nowrap px-4 py-3 text-right">
+                            <p className="font-semibold">{formatMoney(order.total, { currency: restaurant.currency })}</p>
+                            <p className="text-xs text-[var(--color-muted-ink)]">{PAYMENT_METHOD_LABELS[order.paymentMethod]}</p>
                             <p className="text-xs text-[var(--color-muted-ink)]">{PAYMENT_STATE[order.paymentStatus] ?? order.paymentStatus}</p>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{formatMoney(order.total, { currency: restaurant.currency })}</td>
                           <td className="px-4 py-3">
                             <StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>
                           </td>
@@ -295,7 +299,7 @@ async function OrdersResults({
             </>
           )}
           {result.totalPages > 1 ? (
-            <div className="border-t border-[var(--color-hairline)] px-4 py-3">
+            <div className="border-t border-[var(--color-hairline)] px-4 py-3 max-xl:mt-3 max-xl:border-0 max-xl:px-0">
               <AdminPagination page={pageNum} totalPages={result.totalPages} total={result.total} pageSize={PAGE_SIZE} linkFor={(page) => linkFor({ page })} />
             </div>
           ) : null}

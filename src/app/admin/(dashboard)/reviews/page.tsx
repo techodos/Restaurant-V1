@@ -16,7 +16,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminCardListSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
-import { StatusPill, badgeTone } from "@/components/admin/admin-ui";
+import { Avatar, StatusPill, badgeTone } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +98,7 @@ async function ReviewsResults({
 
   return (
     <>
-      <AdminPageHeader title="Reviews" description={`${result.total} total`} />
+      <AdminPageHeader title="Reviews" description={`${result.total} ${result.total === 1 ? "review" : "reviews"} in this view`} />
 
       <AdminStatusTabs options={TABS} active={activeStatus} linkFor={(key) => linkFor({ status: key })} />
 
@@ -109,27 +109,36 @@ async function ReviewsResults({
       ) : (
         <div className="space-y-4">
           {result.rows.map((review) => (
-            <Card key={review.id} className="p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <RatingStars rating={review.rating} size="sm" />
-                    <span className="font-medium">{review.authorName}</span>
-                    <StatusPill tone={badgeTone(badgeVariant(review.status))}>{REVIEW_STATUS_LABELS[review.status]}</StatusPill>
-                    {review.isFeatured ? <StatusPill tone="brand" dot={false}>Featured</StatusPill> : null}
+            <Card key={review.id} className="p-5 sm:p-6">
+              <div className="flex items-start gap-3.5">
+                <Avatar name={review.authorName} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="truncate font-semibold">{review.authorName}</span>
+                      <StatusPill tone={badgeTone(badgeVariant(review.status))}>{REVIEW_STATUS_LABELS[review.status]}</StatusPill>
+                      {review.isFeatured ? <StatusPill tone="brand" dot={false}>Featured</StatusPill> : null}
+                    </div>
+                    <span className="text-xs text-[var(--color-muted-ink)]">
+                      {new Date(review.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
                   </div>
-                  {review.itemName ? <p className="mt-1 text-xs text-[var(--color-muted-ink)]">{review.itemName}</p> : null}
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--color-muted-ink)]">
+                    <RatingStars rating={review.rating} size="sm" />
+                    {review.itemName ? <span>· {review.itemName}</span> : null}
+                  </div>
                 </div>
-                <span className="text-xs text-[var(--color-muted-ink)]">
-                  {new Date(review.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-                </span>
               </div>
 
-              {review.title ? <p className="mt-3 font-medium">{review.title}</p> : null}
-              {review.comment ? <p className="mt-1 text-sm text-[var(--color-muted-ink)]">{review.comment}</p> : null}
+              {review.title || review.comment ? (
+                <blockquote className="mt-4 border-l-2 border-[var(--color-brand-accent)] pl-4">
+                  {review.title ? <p className="font-[family-name:var(--font-heading)] text-[1.1rem] font-semibold leading-snug">{review.title}</p> : null}
+                  {review.comment ? <p className="mt-1 text-[14px] leading-relaxed text-[var(--color-muted-ink)]">{review.comment}</p> : null}
+                </blockquote>
+              ) : null}
 
               {review.response ? (
-                <p className="mt-3 rounded-[var(--radius-brand)] bg-[color-mix(in_srgb,var(--color-ink)_4%,transparent)] p-3 text-sm">
+                <p className="mt-4 rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_6%,var(--color-surface))] p-3.5 text-sm ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-brand)_14%,transparent)]">
                   <span className="font-medium">{restaurant.name} replied: </span>
                   {review.response}
                 </p>

@@ -39,6 +39,12 @@ interface ReservationFormProps {
 }
 
 /** "2026-09-26" -> weekday / day / month parts, read in UTC because the key is already the restaurant's local date. */
+/** "Mon 19 Oct" for the phone summary bar */
+function shortDay(value: string): string {
+  const parts = dayParts(value);
+  return `${parts.weekday} ${parts.day} ${parts.month}`;
+}
+
 function dayParts(dateKey: string) {
   const date = new Date(`${dateKey}T12:00:00Z`);
   const part = (options: Intl.DateTimeFormatOptions) => date.toLocaleDateString(undefined, { timeZone: "UTC", ...options });
@@ -218,7 +224,7 @@ export function ReservationForm({
         {locations.length > 1 ? (
           <div className="space-y-2.5">
             <p id="location-label" className="text-sm font-medium">Location</p>
-            <div role="radiogroup" aria-labelledby="location-label" className="grid gap-2 sm:grid-cols-2">
+            <div role="radiogroup" aria-labelledby="location-label" className="grid grid-cols-2 gap-2">
               {locations.map((option) => {
                 const on = option.id === locationId;
                 return (
@@ -231,11 +237,11 @@ export function ReservationForm({
                       setLocationId(option.id);
                       setTime("");
                     }}
-                    className={cn(chip, "flex items-center gap-3 rounded-[var(--radius-card)] px-4 py-3 text-left", on ? chipOn : chipIdle)}
+                    className={cn(chip, "flex min-w-0 items-center gap-3 rounded-[var(--radius-card)] px-3 py-3 text-left sm:px-4", on ? chipOn : chipIdle)}
                   >
-                    <MapPin className="size-4 shrink-0 opacity-80" aria-hidden />
+                    <MapPin className="hidden size-4 shrink-0 opacity-80 min-[400px]:block" aria-hidden />
                     <span className="min-w-0">
-                      <span className="block font-semibold">{option.name}</span>
+                      <span className="block truncate font-semibold">{option.name}</span>
                       {option.area || option.city ? (
                         <span className="block truncate text-[13px] opacity-75">{[option.area, option.city].filter(Boolean).join(", ")}</span>
                       ) : null}
@@ -293,7 +299,7 @@ export function ReservationForm({
                   <span className="label-caps font-semibold opacity-75">
                     {index === 0 ? "Today" : parts.weekday}
                   </span>
-                  <span className="tabular font-[family-name:var(--font-display)] text-[1.45rem] leading-tight">{parts.day}</span>
+                  <span className="tabular my-0.5 text-[1.3rem] font-semibold leading-tight">{parts.day}</span>
                   <span className="text-xs opacity-75">{parts.month}</span>
                 </button>
               );
@@ -322,7 +328,7 @@ export function ReservationForm({
                 max={maxGuests}
                 value={guests}
                 onChange={(event) => setGuests(Math.min(maxGuests, Math.max(minGuests, Number(event.target.value) || minGuests)))}
-                className="tabular w-12 bg-transparent text-center font-[family-name:var(--font-display)] text-[1.35rem] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                className="tabular w-12 bg-transparent text-center text-[1.15rem] font-semibold outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
               />
               <button
                 type="button"
@@ -476,9 +482,17 @@ export function ReservationForm({
           </p>
         </div>
         <div className="flex items-center gap-3 md:shrink-0">
-          <p className="min-w-0 flex-1 truncate text-[13px] font-medium md:hidden">{summary}</p>
+          <div className="min-w-0 flex-1 md:hidden" aria-live="polite">
+            <p className="truncate text-[14px] font-semibold">
+              {time ? `${shortDay(date)} · ${time}` : <span className="text-[var(--color-muted-ink)]">Choose a time</span>}
+            </p>
+            <p className="truncate text-[12px] text-[var(--color-muted-ink)]">
+              {guests} guest{guests === 1 ? "" : "s"}
+              {location && locations.length > 1 ? ` · ${location.name}` : ""}
+            </p>
+          </div>
           <Button type="submit" size="lg" data-testid="request-table" disabled={pending || !timeOptions.length}>
-            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <CalendarCheck aria-hidden />}
+            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <CalendarCheck className="max-[359px]:hidden" aria-hidden />}
             {pending ? "Submitting…" : "Request table"}
           </Button>
         </div>

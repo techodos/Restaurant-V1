@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Layers, ListPlus, Store } from "lucide-react";
+import { AdminSection } from "@/components/admin/admin-ui";
 import { adminPath } from "@/shared/utils";
 import { notFound } from "next/navigation";
 import { getItemLocationOverridesForAdmin, getMenuItemForAdmin, listCategoriesForAdmin } from "@/server/services/menu-admin";
@@ -39,27 +41,25 @@ export default async function EditMenuItemPage({ params }: EditItemPageProps) {
 
       <MenuItemForm item={item} categories={categories} />
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Variants</h2>
-        <p className="mb-3 text-sm text-[var(--color-muted-ink)]">Optional. Leave empty if this item has one fixed price.</p>
-        <VariantManager menuItemId={item.id} variants={item.variants} />
-      </section>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+        <AdminSection title="Variants" description="Optional. Leave empty if this item has one fixed price." icon={Layers}>
+          <VariantManager menuItemId={item.id} variants={item.variants} />
+        </AdminSection>
 
-      {locations.length > 1 && (
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Branch availability</h2>
-          <p className="mb-3 text-sm text-[var(--color-muted-ink)]">
-            Off at a branch means it can&apos;t be ordered from that branch, even though it stays on the restaurant-wide menu above.
-          </p>
-          <BranchAvailabilityManager menuItemId={item.id} locations={locations} overrides={Object.fromEntries([...overrides].sort(([a], [b]) => a.localeCompare(b)))} />
-        </section>
-      )}
+        {locations.length > 1 ? (
+          <AdminSection
+            title="Branch availability"
+            description="Off at a branch means it can't be ordered there, even though it stays on the restaurant-wide menu."
+            icon={Store}
+          >
+            <BranchAvailabilityManager menuItemId={item.id} locations={locations} overrides={Object.fromEntries([...overrides].sort(([a], [b]) => a.localeCompare(b)))} />
+          </AdminSection>
+        ) : null}
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Add-on groups</h2>
-        <p className="mb-3 text-sm text-[var(--color-muted-ink)]">Optional extras a customer can add (e.g. toppings, sides).</p>
-        <AddonGroupManager menuItemId={item.id} groups={item.addonGroups} />
-      </section>
+        <AdminSection title="Add-on groups" description="Optional extras a customer can add (e.g. toppings, sides)." icon={ListPlus}>
+          <AddonGroupManager menuItemId={item.id} groups={item.addonGroups} />
+        </AdminSection>
+      </div>
     </div>
   );
 }

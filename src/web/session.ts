@@ -233,9 +233,11 @@ export const getStorefrontCustomer = cache(async (restaurantId: string): Promise
 });
 
 /** Signs the customer in for this browser. Only valid in Server Actions and Route Handlers. */
-export async function setCustomerSession(token: string, maxAge: number): Promise<void> {
+export async function setCustomerSession(token: string, maxAge: number, options: { persistent?: boolean } = {}): Promise<void> {
   const store = await cookies();
-  store.set(CUSTOMER_COOKIE, token, await cookieOptions(maxAge));
+  const cookie = await cookieOptions(maxAge);
+  // not persistent ("Keep me signed in" unticked): no maxAge, so the browser drops it when it closes
+  store.set(CUSTOMER_COOKIE, token, options.persistent === false ? { ...cookie, maxAge: undefined } : cookie);
 }
 
 /**

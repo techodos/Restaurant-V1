@@ -61,6 +61,8 @@ interface PhoneInputProps {
   /** locked: shows the value (like a read-only account field, with a lock) and blocks both the country picker and the number, e.g. the account's saved mobile */
   disabled?: boolean;
   required?: boolean;
+  /** extra classes on BOTH the country trigger and the number field (e.g. the 54px auth-page field) */
+  fieldClassName?: string;
 }
 
 /** Splits an existing E.164 value back into {country, local} so editing an already-filled field keeps its country. */
@@ -72,7 +74,7 @@ function splitValue(value: string): { country: CountryCode; local: string } {
   return { country: "PK", local: "" };
 }
 
-export function PhoneInput({ id, value, onChange, defaultCountry = "PK", className, disabled, ...rest }: PhoneInputProps) {
+export function PhoneInput({ id, value, onChange, defaultCountry = "PK", className, fieldClassName, disabled, ...rest }: PhoneInputProps) {
   const initial = useMemo(() => (value ? splitValue(value) : { country: defaultCountry, local: "" }), [value, defaultCountry]);
   const [country, setCountry] = useState<CountryCode>(initial.country);
   const [local, setLocal] = useState(initial.local);
@@ -111,6 +113,7 @@ export function PhoneInput({ id, value, onChange, defaultCountry = "PK", classNa
           className={cn(
             inputStyles,
             "w-[7.25rem] shrink-0 cursor-pointer items-center justify-between gap-1",
+            fieldClassName,
             disabled && "cursor-not-allowed text-[var(--color-muted-ink)] disabled:opacity-100",
           )}
         >
@@ -161,7 +164,7 @@ export function PhoneInput({ id, value, onChange, defaultCountry = "PK", classNa
           inputMode="numeric"
           autoComplete="tel-national"
           placeholder="3001234567"
-          className={cn("w-full", disabled && "pr-10 text-[var(--color-muted-ink)]")}
+          className={cn("w-full", fieldClassName, disabled && "pr-10 text-[var(--color-muted-ink)]")}
           value={local}
           readOnly={disabled}
           aria-readonly={disabled || undefined}

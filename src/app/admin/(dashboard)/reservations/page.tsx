@@ -119,44 +119,46 @@ async function ReservationsResults({
         <div className="space-y-5">
           {days.map((day) => (
             <section key={day.date} aria-label={formatDateKey(day.date, undefined, { weekday: "long", day: "numeric", month: "long" })}>
-              <h2 className="mb-2 px-0.5 label-caps font-semibold text-[var(--color-muted-ink)]">
-                {formatDateKey(day.date, undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                <span className="ml-2 font-medium normal-case tracking-normal">
-                  · {day.rows.length} {day.rows.length === 1 ? "booking" : "bookings"}
+              <h2 className="mb-2.5 flex items-baseline gap-2 px-0.5">
+                <span className="font-[family-name:var(--font-heading)] text-[1.15rem] font-semibold">
+                  {formatDateKey(day.date, undefined, { weekday: "long", day: "numeric", month: "long" })}
+                </span>
+                <span className="text-[13px] text-[var(--color-muted-ink)]">
+                  {day.rows.length} {day.rows.length === 1 ? "booking" : "bookings"}
                 </span>
               </h2>
-              <Card className="divide-y divide-[var(--color-hairline)] overflow-hidden">
+              <Card className="divide-y divide-[var(--admin-line,var(--color-hairline))] overflow-hidden">
                 {day.rows.map((reservation) => (
                   <div
                     key={reservation.id}
-                    className={cn(
-                      "grid items-center gap-x-4 gap-y-2 px-4 py-3.5 transition-colors hover:bg-[color-mix(in_srgb,var(--color-ink)_2.5%,transparent)]",
-                      canManage ? "grid-cols-[4rem_1fr] md:grid-cols-[4rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_8rem_auto]" : "grid-cols-[4rem_1fr] md:grid-cols-[4rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_8rem]",
-                    )}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)] sm:px-5"
                   >
-                    <p className="tabular text-[15px] font-semibold">{reservation.reservationTime.slice(0, 5)}</p>
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{reservation.guestName}</p>
-                      <p className="truncate text-xs text-[var(--color-muted-ink)]">
-                        {reservation.guestPhone} · #{reservation.confirmationCode}
-                      </p>
-                    </div>
-                    <p className="col-start-2 flex items-center gap-1.5 text-sm md:col-start-auto">
-                      <Users className="size-4 text-[var(--color-muted-ink)]" aria-hidden />
-                      {reservation.guests} {reservation.guests === 1 ? "guest" : "guests"}
-                    </p>
-                    <p className="col-start-2 flex min-w-0 items-center gap-1.5 text-sm md:col-start-auto">
-                      <Armchair className="size-4 shrink-0 text-[var(--color-muted-ink)]" aria-hidden />
-                      <span className={cn("truncate", reservation.tableNumber ? "" : "text-[var(--color-muted-ink)]")}>
-                        {reservation.tableNumber ? `Table ${reservation.tableNumber}` : "No table yet"}
-                        {reservation.locationName ? <span className="text-[var(--color-muted-ink)]"> · {reservation.locationName}</span> : null}
+                    <p className="grid h-14 w-16 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_9%,var(--color-surface))] text-center ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-brand)_16%,transparent)]">
+                      <span className="tabular text-[17px] font-semibold leading-none text-[var(--color-brand)]">
+                        {reservation.reservationTime.slice(0, 5)}
                       </span>
                     </p>
-                    <div className="col-start-2 md:col-start-auto">
-                      <StatusPill tone={reservationStatusTone(reservation.status)}>{RESERVATION_STATUS_LABELS[reservation.status]}</StatusPill>
+                    <div className="min-w-0 flex-1 basis-[14rem]">
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                        <p className="truncate text-[15px] font-semibold">{reservation.guestName}</p>
+                        <StatusPill tone={reservationStatusTone(reservation.status)}>{RESERVATION_STATUS_LABELS[reservation.status]}</StatusPill>
+                      </div>
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-[var(--color-muted-ink)]">
+                        <span className="inline-flex items-center gap-1.5 text-[var(--color-ink)]">
+                          <Users className="size-3.5" aria-hidden />
+                          {reservation.guests} {reservation.guests === 1 ? "guest" : "guests"}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Armchair className="size-3.5" aria-hidden />
+                          {reservation.tableNumber ? `Table ${reservation.tableNumber}` : "No table yet"}
+                          {reservation.locationName ? ` · ${reservation.locationName}` : ""}
+                        </span>
+                        <span className="tabular">{reservation.guestPhone}</span>
+                        <span className="tabular">#{reservation.confirmationCode}</span>
+                      </p>
                     </div>
                     {canManage ? (
-                      <div className="col-start-2 md:col-start-auto md:justify-self-end">
+                      <div className="w-full sm:ml-auto sm:w-auto">
                         <ReservationStatusControl reservationId={reservation.id} currentStatus={reservation.status} />
                       </div>
                     ) : null}

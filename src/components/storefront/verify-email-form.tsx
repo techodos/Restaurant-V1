@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input, FieldError, FieldHint } from '@/components/ui/input';
+import { CheckCircle2, RotateCw } from 'lucide-react';
+import { AuthMessage, AuthSubmit, AuthTextButton, CodeInput } from '@/components/storefront/auth-fields';
 import {
   sendVerificationCodeAction,
   verifyEmailCodeAction,
@@ -24,6 +24,8 @@ const RESEND_COOLDOWN_SECONDS = 60;
  * cache), so server components already see the verified state. A refresh on top was a second full
  * server render, and the sign-in / sign-up callers then navigated and refreshed again (three renders
  * before the next screen). `onVerified` is for a caller that changes what is on screen or navigates.
+ *
+ * A complete code (typed, pasted or filled from the phone's one-time-code suggestion) submits itself.
  */
 export function VerifyEmailForm({
   restaurantSlug,
@@ -43,6 +45,7 @@ export function VerifyEmailForm({
   const [resending, setResending] = useState(false);
   // A code was just sent by the caller before this form ever renders, so the cooldown starts immediately.
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
+  const busy = useRef(false);
 
   // One interval for the form's lifetime; `resend()` just resets the count it decrements.
   useEffect(() => {
@@ -53,11 +56,13 @@ export function VerifyEmailForm({
     return () => clearInterval(timer);
   }, []);
 
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
+  async function verify(value: string) {
+    if (busy.current || verified || value.length !== 6) return;
+    busy.current = true;
     setWorking(true);
     setError(null);
-    const result = await verifyAction(restaurantSlug, { code });
+    const result = await verifyAction(restaurantSlug, { code: value });
+    busy.current = false;
     if (!result.success) {
       setWorking(false);
       setError(result.error.message);
@@ -76,6 +81,8 @@ export function VerifyEmailForm({
     setResending(false);
     if (result.success) {
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
+      setCode('');
+      setError(null);
       toast.success('Code sent', {
         description: 'Check your inbox for a new 6-digit code.',
       });
@@ -85,51 +92,58 @@ export function VerifyEmailForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className='space-y-3'>
-      <div className='space-y-1.5'>
-        <Input
-          aria-label='6-digit verification code'
-          inputMode='numeric'
-          autoComplete='one-time-code'
-          maxLength={6}
-          placeholder='123456'
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void verify(code);
+      }}
+      noValidate
+      className='flex flex-col gap-4'
+    >
+      <div className='flex flex-col gap-2'>
+        <CodeInput
+          id='verify-code'
+          label='6-digit verification code'
           value={code}
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-          onPaste={(event) => {
-            // Native maxLength truncates a raw paste (e.g. "123 456") before non-digits are
-            // stripped, dropping digits. Read the clipboard ourselves and keep only digits.
-            const digits = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-            if (digits) {
-              event.preventDefault();
-              setCode(digits);
-            }
+          autoFocus
+          disabled={verified}
+          invalid={Boolean(error)}
+          describedBy='verify-code-message'
+          onChange={(next) => {
+            setCode(next);
+            setError(null);
+            if (next.length === 6) void verify(next);
           }}
-          className='text-center text-lg tracking-[0.5em]'
         />
-        <FieldHint>
-          Enter the 6-digit code we emailed you. It expires in 10 minutes.
-        </FieldHint>
-        <FieldError>{error}</FieldError>
+        {error ? (
+          <AuthMessage id='verify-code-message'>{error}</AuthMessage>
+        ) : (
+          <AuthMessage id='verify-code-message' tone='hint'>
+            Check your inbox (and spam folder). The code expires in 10 minutes.
+          </AuthMessage>
+        )}
       </div>
-      <Button
-        type='submit'
-        className='w-full'
-        disabled={working || verified || code.length !== 6}
-      >
-        {verified ? 'Verified' : working ? 'Verifying…' : 'Verify email'}
-      </Button>
-      <button
-        type='button'
-        onClick={resend}
-        disabled={resending || secondsLeft > 0}
-        className='w-full text-center text-sm text-[var(--color-muted-ink)] underline underline-offset-2 disabled:no-underline disabled:opacity-60'
-      >
-        {resending
-          ? 'Sending…'
-          : secondsLeft > 0
-            ? `Resend code in ${secondsLeft}s`
-            : 'Resend code'}
-      </button>
+      {verified ? (
+        <p role='status' className='flex h-14 items-center justify-center gap-2 rounded-2xl bg-[color-mix(in_srgb,var(--color-success)_12%,transparent)] text-[15px] font-semibold text-[var(--color-success)]'>
+          <CheckCircle2 className='size-5' aria-hidden />
+          Verified
+        </p>
+      ) : (
+        <AuthSubmit working={working} workingLabel='Verifying…' disabled={code.length !== 6}>
+          Verify email
+        </AuthSubmit>
+      )}
+      <p className='flex flex-wrap items-center justify-center gap-x-1 text-center text-[14px] text-[var(--color-muted-ink)]'>
+        Didn&apos;t get it?
+        <AuthTextButton onClick={resend} disabled={resending || secondsLeft > 0 || verified} className='font-semibold text-[var(--color-brand)] hover:text-[var(--color-brand)] disabled:text-[var(--color-muted-ink)]'>
+          <RotateCw className={resending ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden />
+          {resending ? 'Sending…' : secondsLeft > 0 ? (
+            <span>
+              Resend in <span className='tabular-nums'>0:{String(secondsLeft).padStart(2, '0')}</span>
+            </span>
+          ) : 'Resend code'}
+        </AuthTextButton>
+      </p>
     </form>
   );
 }

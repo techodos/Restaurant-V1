@@ -65,15 +65,17 @@ export function CurrentOrderCard({ order, restaurant }: { order: Order; restaura
       orderType={order.orderType}
     >
       <article className={cardClass} data-testid="current-order" aria-label={`Order ${order.orderNumber}`}>
-        <header className="flex flex-wrap items-start justify-between gap-3">
+        <header>
           <div>
             <p className="eyebrow mb-2">{ORDER_TYPE_LABELS[order.orderType]}</p>
-            <h3 className="display-3 tabular">Order {order.orderNumber}</h3>
+            <h3 className="tabular font-[family-name:var(--font-sans)] text-[1.2rem] font-semibold tracking-[0.03em] md:text-[1.35rem]">Order {order.orderNumber}</h3>
             <p className="mt-1 text-sm text-[var(--color-muted-ink)]">
               {restaurant.name} · {whenPlaced(order, restaurant)}
             </p>
           </div>
-          <OrderLiveStatus />
+          <div className="mt-3">
+            <OrderLiveStatus />
+          </div>
         </header>
 
         <ul className="mt-5 divide-y divide-[var(--rule)] border-y border-[var(--rule)] text-sm">
@@ -135,7 +137,7 @@ export function PreviousOrderCard({ order, restaurant }: { order: Order; restaur
       </p>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h3 className="tabular text-[15px] font-semibold">Order {order.orderNumber}</h3>
+          <h3 className="tabular font-[family-name:var(--font-sans)] text-[15px] font-semibold tracking-[0.03em]">Order {order.orderNumber}</h3>
           <OrderStatusBadge status={order.status} />
         </div>
         <p className="mt-1.5 truncate text-sm text-[var(--color-muted-ink)]">

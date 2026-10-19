@@ -74,7 +74,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Items</CardTitle>
@@ -196,9 +196,12 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
               {(order.statusHistory ?? []).length === 0 ? (
                 <p className="text-sm text-[var(--color-muted-ink)]">No history yet.</p>
               ) : (
-                <ol className="space-y-3 text-sm">
-                  {(order.statusHistory ?? []).map((event) => (
-                    <li key={event.id} className="flex items-start justify-between gap-3">
+                <ol className="text-sm">
+                  {(order.statusHistory ?? []).map((event, index, all) => (
+                    <li key={event.id} className="relative flex items-start justify-between gap-3 pb-4 pl-6 last:pb-0">
+                      {/* the timeline: a dot per change, joined by a line */}
+                      <span aria-hidden className={`absolute left-0 top-1 size-2.5 rounded-full ring-4 ring-[var(--color-surface)] ${index === all.length - 1 ? "bg-[var(--color-brand)]" : "bg-[color-mix(in_srgb,var(--color-ink)_28%,transparent)]"}`} />
+                      {index < all.length - 1 ? <span aria-hidden className="absolute bottom-0 left-[4.5px] top-3.5 w-px bg-[var(--admin-line,var(--color-hairline))]" /> : null}
                       <div>
                         <p className="font-medium">{ORDER_STATUS_LABELS[event.toStatus]}</p>
                         {event.changedByName ? <p className="text-xs text-[var(--color-muted-ink)]">by {event.changedByName}</p> : null}

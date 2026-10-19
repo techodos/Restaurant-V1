@@ -5,13 +5,13 @@ import { ArrowLeft } from "lucide-react";
 import { getAdminRestaurant } from "@/web/admin";
 import { getCurrentStaff } from "@/web/session";
 import { adminPath } from "@/shared/utils";
-import { AuthShell } from "@/components/storefront/auth-shell";
+import { StaffAuthShell } from "@/components/storefront/auth-shell";
 import { AdminLoginForm } from "@/components/admin/admin-login-form";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const metadata: Metadata = { title: "Staff sign in" };
 
-/** The restaurant's own staff sign-in: its cover photo, name and theme (from the admin layout), like its customer sign-in. */
+/** The restaurant's own staff sign-in, in its theme (from the admin layout): the customer sign-in's look, staff copy. */
 export default async function AdminLoginPage() {
   const restaurantSlug = instanceRestaurantSlug();
   const restaurant = await getAdminRestaurant(restaurantSlug);
@@ -19,23 +19,19 @@ export default async function AdminLoginPage() {
   if (await getCurrentStaff(restaurantSlug)) redirect(adminPath());
 
   return (
-    // no storefront header here: the shell fills the viewport. `grid` stretches AuthShell to the full height —
-    // its own lg:min-h caps at 46rem for the storefront pages (header + footer around it), which left a blank strip here.
-    <div className="grid min-h-dvh [--header-h:0px]">
-      <AuthShell
-        restaurant={restaurant}
-        title="Staff sign in"
-        description={`Sign in with your ${restaurant.name} staff account to manage orders, the menu and the restaurant.`}
-      >
-        <AdminLoginForm restaurantSlug={restaurant.slug} />
+    <StaffAuthShell
+      restaurantName={restaurant.name}
+      back={
         <Link
-          href={"/"}
-          className="mt-6 inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
+          href="/"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-[14px] text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)] focus-visible:outline-2 focus-visible:outline-[var(--color-brand)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
           Back to {restaurant.name}
         </Link>
-      </AuthShell>
-    </div>
+      }
+    >
+      <AdminLoginForm restaurantSlug={restaurant.slug} />
+    </StaffAuthShell>
   );
 }
