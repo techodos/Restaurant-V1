@@ -7,7 +7,7 @@ describe("menu page layout (page_content.menuLayout)", () => {
     expect(parseSection({ type: "page_content" })).toMatchObject({ menuLayout: "editorial" });
     expect(parseSection({ type: "page_content", menuLayout: "grid" })).toMatchObject({ menuLayout: "grid" });
     expect(parseSection({ type: "page_content", menuLayout: "bogus" })).toMatchObject({ menuLayout: "editorial" });
-    for (const menuLayout of ["list", "sidebar", "rows"]) {
+    for (const menuLayout of ["list", "sidebar", "rows", "cards"]) {
       expect(parseSection({ type: "page_content", menuLayout })).toMatchObject({ menuLayout });
     }
   });

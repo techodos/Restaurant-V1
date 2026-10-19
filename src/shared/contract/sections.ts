@@ -296,7 +296,7 @@ export const pageContentSectionSchema = z.object({
    * Menu page only: "editorial" (default) = alternating photo/rows and dark/light chapters; "grid" = every
    * category a light card grid with the stepper + Add to Cart bar. Ignored on the other pages.
    */
-  menuLayout: z.enum(["editorial", "grid", "list", "sidebar", "rows"]).catch("editorial").default("editorial"),
+  menuLayout: z.enum(["editorial", "grid", "list", "sidebar", "rows", "cards"]).catch("editorial").default("editorial"),
 });
 
 export const sectionSchema = z.discriminatedUnion("type", [

@@ -10,6 +10,7 @@ import { resolveImage, resolveMenuImage } from "@/web/media";
 import { MenuOrderTypeSync } from "@/components/storefront/branch-bar";
 import { DishTile } from "@/components/storefront/dish-tile";
 import { MenuListItem } from "@/components/storefront/menu-list-item";
+import { ProductCard } from "@/components/storefront/product-card";
 import { Rail } from "@/components/storefront/rail";
 import { MenuHero } from "@/components/storefront/menu-hero";
 import { StationNav } from "@/components/storefront/station-nav";
@@ -391,6 +392,42 @@ async function renderMenu(
                       ))}
                     </Rail>
                   </section>
+                ))}
+              </div>
+            </section>
+          ) : layout === "cards" ? (
+            // product cards: a raised card per dish (photo left, price tag, Add to Cart) on a light grey page,
+            // one column on phones, two from md, three from xl
+            <section className="tone-muted section-y">
+              <div className="container-page">
+                {grouped.map((group, index) => (
+                  <div
+                    key={group.category.id}
+                    {...chapterProps(group)}
+                    className={cn("scroll-mt-[calc(var(--header-h,4.25rem)+3rem)]", index > 0 && "mt-9 md:mt-12")}
+                  >
+                    <div className="flex items-baseline justify-between gap-4">
+                      <h2 id={`${group.category.slug}-title`} className="text-[1.35rem] font-bold leading-tight tracking-[-0.01em] md:text-[1.6rem]" style={{ fontFamily: "var(--font-sans)" }}>
+                        {group.category.name}
+                      </h2>
+                      <p className="shrink-0 text-xs text-[var(--color-muted-ink)]">{group.items.length} item{group.items.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <ul className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
+                      {group.items.map((item) => (
+                        <li key={item.id}>
+                          <ProductCard
+                            item={item}
+                            restaurantSlug={restaurant.slug}
+                            currencySymbol={restaurant.currencySymbol}
+                            locale={restaurant.locale}
+                            showPrepTime={context.config.ordering.showPrepTime}
+                            orderType={activeOrderType}
+                            offAtBranch={offHere.has(item.id)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
               </div>
             </section>
