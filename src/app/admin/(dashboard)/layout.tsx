@@ -56,7 +56,7 @@ export default async function AdminDashboardLayout({ children }: AdminDashboardL
       </Suspense>
       {canOrders ? <OrderActivityWatcher restaurantSlug={restaurant.slug} /> : null}
       <AdminSidebar {...nav} />
-      <div className="flex min-w-0 flex-1 flex-col bg-[var(--color-canvas-muted)]">
+      <div className="admin-column flex min-w-0 flex-1 flex-col">
         <AdminHeader
           restaurantSlug={restaurant.slug}
           restaurantName={restaurant.name}

@@ -34,13 +34,20 @@ export function AdminStatusTabs<K extends string>({
               className={cn(
                 "inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[calc(var(--radius-card)-3px)] px-3.5 py-1.5 text-[14px] sm:min-h-0 sm:px-3 sm:text-[13px] font-medium transition-[background-color,color,box-shadow] duration-150",
                 on
-                  ? "bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
+                  ? "bg-[var(--color-surface)] font-semibold text-[var(--color-brand)] shadow-[0_1px_2px_rgb(0_0_0/0.08),inset_0_-2px_0_var(--color-brand-accent)]"
                   : "text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]",
               )}
             >
               {option.label}
               {option.count !== undefined ? (
-                <span className={cn("tabular text-xs", on ? "text-[var(--color-brand)]" : "opacity-70")}>{option.count}</span>
+                <span
+                  className={cn(
+                    "tabular min-w-5 rounded-full px-1.5 text-center text-[11.5px] font-semibold leading-5",
+                    on ? "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]" : option.count > 0 ? "bg-[var(--tint-strong)] text-[var(--color-ink)]" : "opacity-60",
+                  )}
+                >
+                  {option.count}
+                </span>
               ) : null}
             </Link>
           );

@@ -14,7 +14,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
-import { StatusPill, reservationStatusTone } from "@/components/admin/admin-ui";
+import { StatusPill, reservationStatusTone, statusEdge, statusEdgeStyle } from "@/components/admin/admin-ui";
 import { adminPath, cn } from "@/shared/utils";
 import { instanceRestaurantSlug } from "@/web/instance";
 
@@ -131,7 +131,8 @@ async function ReservationsResults({
                 {day.rows.map((reservation) => (
                   <div
                     key={reservation.id}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)] sm:px-5"
+                    style={statusEdgeStyle(reservationStatusTone(reservation.status))}
+                    className={`${statusEdge} flex flex-wrap items-center gap-x-4 gap-y-3 py-4 pl-5 pr-4 transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)] sm:pl-6 sm:pr-5`}
                   >
                     <p className="grid h-14 w-16 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_9%,var(--color-surface))] text-center ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-brand)_16%,transparent)]">
                       <span className="tabular text-[17px] font-semibold leading-none text-[var(--color-brand)]">

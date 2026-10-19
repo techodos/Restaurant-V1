@@ -16,7 +16,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
-import { StatusPill, badgeTone, tableHead, tableRow } from "@/components/admin/admin-ui";
+import { StatusPill, badgeTone, statusEdge, statusEdgeStyle, tableHead, tableRow } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
@@ -122,7 +122,7 @@ async function PaymentsResults({
           {/* phones, tablets, small laptops: one card per payment */}
           <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 xl:hidden">
             {result.rows.map((payment) => (
-              <li key={payment.id} className="surface-card flex flex-col gap-3 p-4">
+              <li key={payment.id} className={`surface-card ${statusEdge} flex flex-col gap-3 py-4 pl-5 pr-4`} style={statusEdgeStyle(badgeTone(badgeVariant(payment.status)))}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link
@@ -170,7 +170,7 @@ async function PaymentsResults({
                 </thead>
                 <tbody className="divide-y divide-[var(--admin-line,var(--color-hairline))]">
                   {result.rows.map((payment) => (
-                    <tr key={payment.id} className={tableRow}>
+                    <tr key={payment.id} className={`${tableRow} ${statusEdge}`} style={statusEdgeStyle(badgeTone(badgeVariant(payment.status)))}>
                       <td className="whitespace-nowrap px-5 py-3.5">
                         <Link
                           href={`${adminPath()}/orders/${payment.orderNumber}`}

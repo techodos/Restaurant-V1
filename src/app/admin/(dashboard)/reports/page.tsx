@@ -112,7 +112,7 @@ export default async function AdminReportsPage({ searchParams }: ReportsPageProp
               className="h-10 w-[9.5rem] border-0! bg-transparent px-2 shadow-none!"
             />
           </div>
-          <Button type="submit" size="sm" variant={range.preset === "custom" ? "primary" : "secondary"} className="h-10 rounded-full px-4">
+          <Button type="submit" size="sm" className="h-10 rounded-full px-4">
             Apply
           </Button>
         </Form>

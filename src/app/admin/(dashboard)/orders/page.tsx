@@ -20,7 +20,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
-import { StatusPill, WhatsAppOrderBadge, orderStatusTone, tableHead, tableRow } from "@/components/admin/admin-ui";
+import { StatusPill, WhatsAppOrderBadge, orderStatusTone, statusEdge, statusEdgeStyle, tableHead, tableRow } from "@/components/admin/admin-ui";
 import { OrderNextStepButton } from "@/components/admin/order-next-step-button";
 import { OrderBulkProvider, OrderSelectAll, OrderSelectBox, type BulkOrder } from "@/components/admin/order-bulk-actions";
 import { instanceRestaurantSlug } from "@/web/instance";
@@ -176,7 +176,7 @@ async function OrdersResults({
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
             <Input name="q" type="search" defaultValue={q ?? ""} aria-label="Search orders" placeholder="Order #, name or phone" className="h-10 pl-9" />
           </div>
-          <Button type="submit" variant="outline" className="h-10">
+          <Button type="submit" className="h-10">
             Search
           </Button>
         </Form>
@@ -194,7 +194,7 @@ async function OrdersResults({
                   const next = canUpdate ? nextOrderStep(order.status, order.orderType) : null;
                   const href = `${adminPath()}/orders/${order.orderNumber}`;
                   return (
-                    <li key={order.id} className="surface-card flex flex-col gap-2.5 px-4 py-4 md:px-5">
+                    <li key={order.id} className={`surface-card ${statusEdge} flex flex-col gap-2.5 py-4 pl-5 pr-4 md:pl-6 md:pr-5`} style={statusEdgeStyle(orderStatusTone(order.status))}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
                           {next ? <span className="pt-1"><OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /></span> : null}
@@ -248,7 +248,7 @@ async function OrdersResults({
                       const href = `${adminPath()}/orders/${order.orderNumber}`;
                       const TypeIcon = TYPE_ICON[order.orderType];
                       return (
-                        <tr key={order.id} className={tableRow}>
+                        <tr key={order.id} className={`${tableRow} ${statusEdge}`} style={statusEdgeStyle(orderStatusTone(order.status))}>
                           {bulkOrders.length > 0 ? (
                             <td className="py-3 pl-4">{next ? <OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /> : null}</td>
                           ) : null}
