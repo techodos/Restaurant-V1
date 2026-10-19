@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { MobileBannerHeight } from "@/shared/contract/sections";
 import { Search } from "lucide-react";
 import { MenuSortButton, type SortOption } from "./menu-hero-controls";
 
@@ -12,6 +13,8 @@ interface MenuHeroProps {
   subtitle: string | undefined;
   /** 0 - 1 strength of the photo's gradient (super admin "Photo darkening"); undefined / 0 = the photo as uploaded */
   dim: number | undefined;
+  /** phones only: the banner frame (super admin "Phone banner height"); default medium */
+  mobileHeight?: MobileBannerHeight;
   search: {
     action: string;
     hidden: Record<string, string>;
@@ -28,11 +31,21 @@ interface MenuHeroProps {
  * height from its own proportions at every screen size, so a banner with the headline baked into the
  * picture stays whole. It starts below the header (running under it hid the top of the picture). The search row sits below it, never over it, so it cannot cover text in the picture.
  */
+/** static class strings (Tailwind must see them whole), one per phone banner height */
+const PHONE_FRAME: Record<MobileBannerHeight, string> = {
+  original: "",
+  short: "max-md:aspect-[3/1] max-md:object-cover max-md:object-center",
+  medium: "max-md:aspect-[2.6/1] max-md:object-cover max-md:object-center",
+  tall: "max-md:aspect-[2.2/1] max-md:object-cover max-md:object-center",
+  "extra-tall": "max-md:aspect-[1.8/1] max-md:object-cover max-md:object-center",
+};
+
 export function MenuHero({
   image,
   title,
   subtitle,
   dim,
+  mobileHeight = "medium",
   search,
 }: MenuHeroProps) {
   return (
@@ -47,7 +60,9 @@ export function MenuHero({
               height={640}
               priority
               sizes="100vw"
-              className="block h-auto w-full"
+              // phones: the super admin's frame (page_content.mobileBannerHeight), centred so only the side edges are
+              // trimmed; md+ keeps the whole upload at its own proportions (owner's no-crop rule)
+              className={`block h-auto w-full ${PHONE_FRAME[mobileHeight]}`}
             />
           ) : null}
           {dim ? (

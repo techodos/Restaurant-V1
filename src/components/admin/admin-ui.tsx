@@ -140,7 +140,7 @@ export function StatTile({
   className?: string;
 }) {
   return (
-    <div className={cn("surface-card flex min-w-0 flex-col gap-3 p-4 sm:p-5", className)}>
+    <div className={cn("surface-card @container flex min-w-0 flex-col gap-3 p-4 sm:p-5", className)}>
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-[12px] font-semibold uppercase leading-snug tracking-[0.08em] text-[var(--color-muted-ink)]">{label}</p>
         {Icon ? (
@@ -149,16 +149,42 @@ export function StatTile({
           </span>
         ) : null}
       </div>
+      {/* never "…": the figure is sized from its own length and the tile's width (cqi), so a short figure stays
+          big and a long amount shrinks only as far as it must; the currency code is set small, and a figure that
+          still does not fit wraps between code and number (`anywhere` is only the last resort) */}
       <p
-        className={cn(
-          "tabular truncate font-semibold leading-none tracking-[-0.02em]",
-          size === "lg" ? "mt-auto text-[1.9rem] sm:text-[2.6rem]" : "text-[1.5rem] sm:text-[1.75rem]",
-        )}
+        title={typeof value === "string" ? value : undefined}
+        className="tabular min-w-0 font-semibold leading-[1.05] tracking-[-0.02em] [overflow-wrap:anywhere]"
+        style={{ fontSize: figureSize(value, size), marginTop: size === "lg" ? "auto" : undefined }}
       >
-        {value}
+        <StatFigure value={value} />
       </p>
       {note ? <p className="text-[12.5px] text-[var(--color-muted-ink)]">{note}</p> : null}
     </div>
+  );
+}
+
+/** "PKR 112,474.39" / "Rs 2,450" / "$12.50": a currency code or symbol, then the number. Words ("Oct 18") don't match. */
+const MONEY = /^([A-Z]{2,4}|Rs\.?|[$€£¥₹₨])\s?(-?\d[\d.,]*)$/;
+
+/** CSS font size that fits the figure on one line where it can: ~0.6em per digit, the small code ~2em. */
+function figureSize(value: React.ReactNode, size: "md" | "lg"): string {
+  const text = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+  const money = MONEY.exec(text);
+  const units = money ? money[2]!.length + 2.2 : Math.max(text.length, 1);
+  const [min, max, factor] = size === "lg" ? ["1.4rem", "2.6rem", 1.55] : ["0.95rem", "1.75rem", 1.55];
+  return `clamp(${min}, calc(100cqi * ${factor} / ${units}), ${max})`;
+}
+
+/** a small currency code, then the number; anything else as given */
+function StatFigure({ value }: { value: React.ReactNode }) {
+  const money = typeof value === "string" ? MONEY.exec(value.trim()) : null;
+  if (!money) return <>{value}</>;
+  return (
+    <>
+      <span className="mr-[0.25em] text-[0.55em] font-semibold tracking-[0.02em] text-[var(--color-muted-ink)]">{money[1]}</span>{" "}
+      <span className="whitespace-nowrap">{money[2]}</span>
+    </>
   );
 }
 

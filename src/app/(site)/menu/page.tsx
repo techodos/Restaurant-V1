@@ -170,6 +170,7 @@ async function renderMenu(
         title={heading.title}
         subtitle={heading.subtitle}
         dim={heading.photoDarkening}
+        mobileHeight={heading.mobileBannerHeight}
         search={{
           action: base,
           hidden: { orderType: activeOrderType, ...(category ? { category } : {}) },

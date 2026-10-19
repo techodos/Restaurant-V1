@@ -350,6 +350,8 @@ function subPageLabel(rest: string): string | null {
   if (rest === "/items/new") return "New item";
   if (rest.startsWith("/items/")) return "Edit item";
   const segment = decodeURIComponent(rest.split("/").filter(Boolean)[0] ?? "");
+  // a database id (a customer's page) means nothing to staff: name the screen instead
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) return "Details";
   return segment || null;
 }
 

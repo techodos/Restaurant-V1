@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { parseSections } from "@/shared/contract/sections";
+import { parseSections, type MobileBannerHeight } from "@/shared/contract/sections";
 import type { StorefrontContext, WebsitePage } from "@/shared/contract/models";
 import { getPageContent } from "@/server/services/storefront";
 import { requireStorefront } from "@/web/storefront";
@@ -17,6 +17,8 @@ import { SectionRenderer } from "@/components/storefront/section-renderer";
 
 export interface PageHeading {
   searchPlaceholder: string | undefined;
+  /** menu page only: the photo banner's height on phones */
+  mobileBannerHeight: MobileBannerHeight;
   /** menu page only: 0 - 1 flat darkening of the hero photo; undefined = the page decides */
   photoDarkening: number | undefined;
   title: string | undefined;
@@ -55,6 +57,7 @@ export async function ConfiguredPage({ restaurantSlug, pageSlug, render, ownCont
   const body = await render(context, {
     searchPlaceholder: marker?.searchPlaceholder,
     photoDarkening: marker?.photoDarkening,
+    mobileBannerHeight: marker?.mobileBannerHeight ?? "medium",
     title: marker?.title,
     subtitle: marker?.subtitle,
     image: resolveImage(marker?.image?.url) ?? undefined,

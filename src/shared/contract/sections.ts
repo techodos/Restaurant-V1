@@ -261,6 +261,20 @@ export const statsBandSectionSchema = z.object({
 });
 
 /**
+ * Menu page banner height on phones. "original" = the whole upload at its own proportions (no crop); the rest
+ * are fixed frames, centred, so a wide banner gives up only its side edges. Desktop is never cropped.
+ */
+export const MOBILE_BANNER_HEIGHTS = ["original", "short", "medium", "tall", "extra-tall"] as const;
+export type MobileBannerHeight = (typeof MOBILE_BANNER_HEIGHTS)[number];
+export const MOBILE_BANNER_LABELS: Record<MobileBannerHeight, string> = {
+  original: "Original — the whole photo, no cropping",
+  short: "Short — 3 : 1",
+  medium: "Medium — 2.6 : 1 (default)",
+  tall: "Tall — 2.2 : 1",
+  "extra-tall": "Extra tall — 1.8 : 1",
+};
+
+/**
  * Marks where a functional page's built-in body (the menu list, the booking form, the reviews list, the
  * location cards) sits among the other sections of its website page. `title` / `subtitle` override the body's
  * own heading; when the marker is absent (or disabled) the body renders after every other section.
@@ -272,6 +286,8 @@ export const pageContentSectionSchema = z.object({
   subtitle: z.string().trim().max(400).optional(),
   /** menu page only: the search box placeholder (none = empty) */
   searchPlaceholder: z.string().trim().max(80).optional(),
+  /** menu page only: how tall the photo banner is on PHONES (tablet/desktop always show the whole photo) */
+  mobileBannerHeight: z.enum(MOBILE_BANNER_HEIGHTS).catch("medium").default("medium"),
   /** menu page only: strength of the hero photo's night gradient, 0 - 1 (absent = none) */
   photoDarkening: z.coerce.number().min(0).max(1).optional().catch(undefined),
   /** the body's own hero photo (menu, reviews, locations, reservation); absent => the restaurant's cover photo */
