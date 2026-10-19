@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import Form from "next/form";
-import { Users } from "lucide-react";
+import { ChevronRight, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,8 @@ import { isRestaurantWide } from "@/server/auth/branch-scope";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
-import { StatusPill, tableHead } from "@/components/admin/admin-ui";
+import { Avatar, StatusPill, tableHead, tableRow } from "@/components/admin/admin-ui";
+import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
@@ -47,84 +48,142 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
     return `${adminPath()}/customers?${search.toString()}`;
   };
 
+  const sortHref = (key: "recent" | "spend") =>
+    `${adminPath()}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: key }).toString()}`;
+  const lastOrder = (value: string | null) =>
+    value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "No orders yet";
+
   return (
     <div className="space-y-6">
-      <AdminPageHeader title="Customers" description={`${result.total} total`} />
+      <AdminPageHeader title="Customers" description={`${result.total} ${result.total === 1 ? "customer" : "customers"} in your directory`} />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Form action={adminPath("/customers")} className="flex max-w-md flex-1 gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Form action={adminPath("/customers")} className="flex w-full gap-2 sm:max-w-md">
           <input type="hidden" name="sort" value={activeSort} />
-          <Input name="q" defaultValue={q ?? ""} placeholder="Search name, phone or email" />
-          <Button type="submit" variant="secondary">
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">Search customers</span>
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
+            <Input name="q" defaultValue={q ?? ""} placeholder="Search name, phone or email" className="h-11 pl-10" />
+          </label>
+          <Button type="submit" variant="secondary" className="h-11 shrink-0">
             Search
           </Button>
         </Form>
         {showTotals ? (
-        <div className="flex gap-2 text-sm">
-          <Link
-            href={`${adminPath()}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: "recent" }).toString()}`}
-            className={activeSort === "recent" ? "font-medium text-[var(--color-brand)]" : "text-[var(--color-muted-ink)]"}
-          >
-            Recent
-          </Link>
-          <span className="text-[var(--color-hairline)]">·</span>
-          <Link
-            href={`${adminPath()}/customers?${new URLSearchParams({ ...(q ? { q } : {}), sort: "spend" }).toString()}`}
-            className={activeSort === "spend" ? "font-medium text-[var(--color-brand)]" : "text-[var(--color-muted-ink)]"}
-          >
-            Top spenders
-          </Link>
-        </div>
+          <AdminStatusTabs
+            label="Sort customers"
+            options={[
+              { key: "recent", label: "Recent" },
+              { key: "spend", label: "Top spenders" },
+            ]}
+            active={activeSort}
+            linkFor={sortHref}
+          />
         ) : null}
       </div>
 
-      <Card className="overflow-hidden">
-        {result.rows.length === 0 ? (
-          <AdminEmptyState icon={Users} title="No customers match this search." />
-        ) : (
-          <div className="relative overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
-            <thead className={tableHead}>
-              <tr>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                {showTotals ? (
-                  <>
-                    <th className="px-4 py-3 font-medium">Orders</th>
-                    <th className="px-4 py-3 font-medium">Total spent</th>
-                  </>
-                ) : null}
-                <th className="px-4 py-3 font-medium">Last order</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-hairline)]">
-              {result.rows.map((customer) => (
-                <tr key={customer.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
-                  <td className="px-4 py-3">
-                    <Link href={`${adminPath()}/customers/${customer.id}`} prefetch={false} className="font-medium text-[var(--color-brand)] hover:underline">
-                      {customer.fullName}
-                    </Link>
-                    <p className="text-xs text-[var(--color-muted-ink)]">{customer.phone}</p>
-                    <div className="mt-1 flex gap-1.5">
+      {result.rows.length === 0 ? (
+        <Card>
+          <AdminEmptyState icon={Users} title={q ? "No customers match this search." : "No customers yet. They appear here after their first order or sign-up."} />
+        </Card>
+      ) : (
+        <>
+          {/* phones: one card per customer */}
+          <ul className="grid gap-3 md:hidden">
+            {result.rows.map((customer) => (
+              <li key={customer.id}>
+                <Link
+                  href={`${adminPath()}/customers/${customer.id}`}
+                  prefetch={false}
+                  className="surface-card flex items-center gap-3.5 p-4 transition-shadow hover:shadow-[var(--admin-shadow-hover)]"
+                >
+                  <Avatar name={customer.fullName} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="truncate text-[15px] font-semibold">{customer.fullName}</span>
                       {customer.isGuest ? <StatusPill tone="neutral">Guest</StatusPill> : null}
                       {customer.isBlocked ? <StatusPill tone="danger">Blocked</StatusPill> : null}
-                    </div>
-                  </td>
-                  {showTotals ? (
-                    <>
-                      <td className="px-4 py-3">{customer.totalOrders}</td>
-                      <td className="px-4 py-3 font-medium">{formatMoney(customer.totalSpent, { currency: restaurant.currency })}</td>
-                    </>
-                  ) : null}
-                  <td className="px-4 py-3 text-[var(--color-muted-ink)]">
-                    {customer.lastOrderAt
-                      ? new Date(customer.lastOrderAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-        )}
-      </Card>
+                    </span>
+                    <span className="tabular block text-[13px] text-[var(--color-muted-ink)]">{customer.phone}</span>
+                    <span className="tabular mt-1 block text-[12.5px] text-[var(--color-muted-ink)]">
+                      {customer.lastOrderAt ? (
+                        <>
+                          {showTotals ? (
+                            <>
+                              <span className="font-semibold text-[var(--color-ink)]">{formatMoney(customer.totalSpent, { currency: restaurant.currency })}</span>
+                              {` · ${customer.totalOrders} ${customer.totalOrders === 1 ? "order" : "orders"} · `}
+                            </>
+                          ) : "Last order "}
+                          {lastOrder(customer.lastOrderAt)}
+                        </>
+                      ) : (
+                        "No orders yet"
+                      )}
+                    </span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-[var(--color-muted-ink)]" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {/* tablets and up: the table */}
+          <Card className="hidden overflow-hidden md:block">
+            <div className="relative overflow-x-auto">
+              <table className="tabular w-full min-w-[40rem] text-sm">
+                <thead className={tableHead}>
+                  <tr>
+                    <th className="px-5 py-3">Customer</th>
+                    {showTotals ? (
+                      <>
+                        <th className="px-5 py-3 text-right">Orders</th>
+                        <th className="px-5 py-3 text-right">Total spent</th>
+                      </>
+                    ) : null}
+                    <th className="px-5 py-3">Last order</th>
+                    <th className="w-10 px-3 py-3"><span className="sr-only">Open</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--admin-line,var(--color-hairline))]">
+                  {result.rows.map((customer) => (
+                    <tr key={customer.id} className={`${tableRow} group relative`}>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <Avatar name={customer.fullName} className="size-9 text-[12px]" />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Link
+                                href={`${adminPath()}/customers/${customer.id}`}
+                                prefetch={false}
+                                className="font-semibold text-[var(--color-ink)] after:absolute after:inset-0 group-hover:text-[var(--color-brand)]"
+                              >
+                                {customer.fullName}
+                              </Link>
+                              {customer.isGuest ? <StatusPill tone="neutral">Guest</StatusPill> : null}
+                              {customer.isBlocked ? <StatusPill tone="danger">Blocked</StatusPill> : null}
+                            </div>
+                            <p className="text-xs text-[var(--color-muted-ink)]">{customer.phone}</p>
+                          </div>
+                        </div>
+                      </td>
+                      {showTotals ? (
+                        <>
+                          <td className="px-5 py-3.5 text-right">{customer.totalOrders}</td>
+                          <td className="px-5 py-3.5 text-right font-semibold">{formatMoney(customer.totalSpent, { currency: restaurant.currency })}</td>
+                        </>
+                      ) : null}
+                      <td className="px-5 py-3.5 text-[var(--color-muted-ink)]">{customer.lastOrderAt ? lastOrder(customer.lastOrderAt) : "—"}</td>
+                      <td className="px-3 py-3.5 text-[var(--color-muted-ink)]">
+                        <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
 
       <AdminPagination page={pageNum} totalPages={result.totalPages} linkFor={(page) => linkFor({ page })} />
     </div>

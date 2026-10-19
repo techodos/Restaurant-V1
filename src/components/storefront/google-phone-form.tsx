@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Label, FieldError } from "@/components/ui/input";
+import { AuthLabel, AuthMessage, AuthSubmit } from "@/components/storefront/auth-fields";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { finishGoogleSignupAction } from "@/app/(site)/account/actions";
 import { afterAuthPath } from "@/shared/return-to";
@@ -38,15 +37,25 @@ export function GooglePhoneForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="google-phone">Phone number</Label>
-        <PhoneInput id="google-phone" value={phone} onChange={setPhone} />
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1.5">
+        <AuthLabel htmlFor="google-phone">Mobile number</AuthLabel>
+        <PhoneInput
+          id="google-phone"
+          value={phone}
+          onChange={(value) => {
+            setPhone(value);
+            setError(null);
+          }}
+          fieldClassName="auth-field h-[54px] rounded-[14px] text-[16px] sm:text-[16px]"
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={error ? "google-phone-message" : undefined}
+        />
+        <AuthMessage id="google-phone-message">{error}</AuthMessage>
       </div>
-      <FieldError>{error}</FieldError>
-      <Button type="submit" className="w-full" disabled={working || !phone}>
-        {working ? "Finishing…" : "Continue"}
-      </Button>
+      <AuthSubmit working={working} workingLabel="Finishing…" disabled={!phone}>
+        Continue
+      </AuthSubmit>
     </form>
   );
 }

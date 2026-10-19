@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input, Label, FieldError } from "@/components/ui/input";
+import { Lock, Mail, MailCheck } from "lucide-react";
+import { cn } from "@/shared/utils";
 import { signInAction } from "@/app/(site)/account/actions";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { ForgotPasswordForm } from "@/components/storefront/forgot-password-form";
+import { AUTH_LINK, AuthDivider, AuthField, AuthStep, AuthSubmit, GoogleButton, PasswordField } from "@/components/storefront/auth-fields";
 import { afterAuthPath, signInHref } from "@/shared/return-to";
 
 interface SignInFormProps {
@@ -20,14 +21,21 @@ interface SignInFormProps {
   onSwitchToSignUp?: () => void;
   /** already-sanitized path to land on after signing in (e.g. checkout); defaults to the storefront home */
   returnTo?: string | null;
+  /** "New to <name>?"; without it "New here?" */
+  restaurantName?: string;
 }
 
-export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignUp, returnTo = null }: SignInFormProps) {
+const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
+
+export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignUp, returnTo = null, restaurantName }: SignInFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [remember, setRemember] = useState(true);
   const [working, setWorking] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [forgotPassword, setForgotPassword] = useState(false);
@@ -54,9 +62,15 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    setWorking(true);
+    // the same checks the server makes, shown under each field before a round trip
+    const nextEmailError = !email.trim() ? "Enter your email address." : EMAIL_SHAPE.test(email.trim()) ? null : "That email address looks incomplete.";
+    const nextPasswordError = password ? null : "Enter your password.";
+    setEmailError(nextEmailError);
+    setPasswordError(nextPasswordError);
     setError(null);
-    const result = await signInAction(restaurantSlug, { email, password });
+    if (nextEmailError || nextPasswordError) return;
+    setWorking(true);
+    const result = await signInAction(restaurantSlug, { email, password, remember });
     if (!result.success) {
       setWorking(false);
       setError(result.error.message);
@@ -73,10 +87,11 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
 
   if (needsVerification) {
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-[var(--color-muted-ink)]">
-          Your email isn't verified yet. We sent a 6-digit code to <strong>{email}</strong>.
-        </p>
+      <div className="flex flex-col gap-6">
+        <AuthStep icon={MailCheck} title="Verify your email">
+          Your email isn&apos;t verified yet. We sent a 6-digit code to{" "}
+          <strong className="break-all font-semibold text-[var(--color-ink)]">{email.trim()}</strong>.
+        </AuthStep>
         <VerifyEmailForm restaurantSlug={restaurantSlug} onVerified={finish} />
       </div>
     );
@@ -96,52 +111,87 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
     );
   }
 
+  const googleHref = `/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="signin-email">Email</Label>
-        <Input id="signin-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <div className="flex items-baseline justify-between gap-3">
-          <Label htmlFor="signin-password">Password</Label>
-          <button
-            type="button"
-            onClick={() => setForgotPassword(true)}
-            className="text-sm text-[var(--color-muted-ink)] underline underline-offset-2 transition-colors hover:text-[var(--color-ink)]"
-          >
-            Forgot password?
-          </button>
-        </div>
-        <Input
-          id="signin-password"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </div>
-      <FieldError>{error}</FieldError>
-      <Button type="submit" className="w-full" disabled={working}>
-        {working ? "Signing in…" : "Sign in"}
-      </Button>
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+      {/* On the desktop split page (AuthShell, data-auth-split) Google comes first, then "or with email". */}
       {googleEnabled ? (
-        <a
-          href={`/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] text-sm font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
-        >
-          Continue with Google
-        </a>
+        <div className="hidden flex-col gap-4 lg:in-data-auth-split:flex">
+          <GoogleButton href={googleHref} />
+          <AuthDivider>Or with email</AuthDivider>
+        </div>
       ) : null}
-      <p className="text-center text-sm text-[var(--color-muted-ink)]">
-        New here?{" "}
+
+      <AuthField
+        id="signin-email"
+        label="Email"
+        icon={Mail}
+        type="email"
+        name="email"
+        autoComplete="email"
+        inputMode="email"
+        placeholder="you@example.com"
+        value={email}
+        onChange={(event) => {
+          setEmail(event.target.value);
+          setEmailError(null);
+        }}
+        error={emailError}
+      />
+
+      <PasswordField
+        id="signin-password"
+        label="Password"
+        icon={Lock}
+        name="password"
+        autoComplete="current-password"
+        placeholder="Your password"
+        value={password}
+        onChange={(event) => {
+          setPassword(event.target.value);
+          setPasswordError(null);
+          setError(null);
+        }}
+        error={passwordError ?? error}
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-[14px] text-[var(--color-ink)]">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+            className="size-[18px] shrink-0 cursor-pointer accent-[var(--color-brand)]"
+          />
+          Keep me signed in
+        </label>
+        <button type="button" onClick={() => setForgotPassword(true)} className={cn(AUTH_LINK, "min-h-11 shrink-0 text-[14px]")}>
+          Forgot<span className="max-[359px]:hidden"> password</span>?
+        </button>
+      </div>
+
+      <AuthSubmit working={working} workingLabel="Signing in…">
+        Sign in
+      </AuthSubmit>
+
+      {googleEnabled ? (
+        <div className="flex flex-col gap-4 lg:in-data-auth-split:hidden">
+          <AuthDivider />
+          <GoogleButton href={googleHref} />
+        </div>
+      ) : null}
+
+      <p className="text-center text-[14px] text-[var(--color-muted-ink)]">
+        {restaurantName ? `New to ${restaurantName}?` : "New here?"}{" "}
         {onSwitchToSignUp ? (
-          <button type="button" onClick={onSwitchToSignUp} className="font-medium underline">
+          <button type="button" onClick={onSwitchToSignUp} className={cn(AUTH_LINK, "min-h-11")}>
             Create an account
           </button>
         ) : (
-          <Link href={signInHref(returnTo, "sign-up")} className="font-medium underline">Create an account</Link>
+          <Link href={signInHref(returnTo, "sign-up")} className={cn(AUTH_LINK, "inline-flex min-h-11 items-center")}>
+            Create an account
+          </Link>
         )}
       </p>
     </form>

@@ -3,10 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input, Label, FieldError } from "@/components/ui/input";
+import { Lock, Mail, MailCheck, User } from "lucide-react";
+import { cn } from "@/shared/utils";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
+import {
+  AUTH_LINK,
+  AuthDivider,
+  AuthField,
+  AuthLabel,
+  AuthMessage,
+  AuthStep,
+  AuthSubmit,
+  GoogleButton,
+  PasswordField,
+  PasswordRule,
+} from "@/components/storefront/auth-fields";
 import { signUpAction } from "@/app/(site)/account/actions";
 import { afterAuthPath, signInHref } from "@/shared/return-to";
 
@@ -19,15 +31,30 @@ interface SignUpFormProps {
   onSwitchToSignIn?: () => void;
   /** already-sanitized path to land on after verifying (e.g. checkout); defaults to the storefront home */
   returnTo?: string | null;
+  /** the restaurant's country, for the phone field's default calling code */
+  defaultCountry?: React.ComponentProps<typeof PhoneInput>["defaultCountry"];
 }
 
-export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignIn, returnTo = null }: SignUpFormProps) {
+type Field = "fullName" | "email" | "phone" | "password";
+const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
+const MIN_PASSWORD = 8;
+
+/** The same rules `signUpSchema` enforces, checked before the round trip so each field says what is wrong. */
+function check(values: Record<Field, string>): Partial<Record<Field, string>> {
+  const errors: Partial<Record<Field, string>> = {};
+  if (values.fullName.trim().length < 2) errors.fullName = "Please enter your name.";
+  if (!values.email.trim()) errors.email = "Enter your email address.";
+  else if (!EMAIL_SHAPE.test(values.email.trim())) errors.email = "That email address looks incomplete.";
+  if (!values.phone) errors.phone = "Enter your mobile number.";
+  if (values.password.length < MIN_PASSWORD) errors.password = `Use at least ${MIN_PASSWORD} characters.`;
+  return errors;
+}
+
+export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onSwitchToSignIn, returnTo = null, defaultCountry }: SignUpFormProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const [values, setValues] = useState<Record<Field, string>>({ fullName: "", email: "", phone: "", password: "" });
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [awaitingCode, setAwaitingCode] = useState(false);
@@ -37,14 +64,29 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
     if (!onAuthenticated) router.prefetch(afterAuthPath(returnTo));
   }, [router, restaurantSlug, returnTo, onAuthenticated]);
 
+  function set(field: Field, value: string) {
+    setValues((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: undefined }));
+    setError(null);
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    setWorking(true);
+    const local = check(values);
+    setErrors(local);
     setError(null);
-    const result = await signUpAction(restaurantSlug, { fullName, email, phone, password });
+    if (Object.keys(local).length) return;
+    setWorking(true);
+    const result = await signUpAction(restaurantSlug, values);
     setWorking(false);
     if (!result.success) {
-      setError(result.error.message);
+      // a field-level reason (validation) goes under its field; anything else (account exists, rate limit) above the button
+      const details = result.error.details ?? {};
+      const fieldErrors = Object.fromEntries(
+        Object.entries(details).filter(([key]) => key in values).map(([key, value]) => [key, String(value)]),
+      ) as Partial<Record<Field, string>>;
+      setErrors(fieldErrors);
+      if (!Object.keys(fieldErrors).length) setError(result.error.message);
       return;
     }
     setAwaitingCode(true);
@@ -52,10 +94,11 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
 
   if (awaitingCode) {
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-[var(--color-muted-ink)]">
-          We sent a 6-digit code to <strong>{email}</strong>.
-        </p>
+      <div className="flex flex-col gap-6">
+        <AuthStep icon={MailCheck} title="Check your email">
+          We sent a 6-digit code to <strong className="break-all font-semibold text-[var(--color-ink)]">{values.email.trim()}</strong>. Enter it
+          to finish creating your account.
+        </AuthStep>
         <VerifyEmailForm
           restaurantSlug={restaurantSlug}
           onVerified={() => {
@@ -72,51 +115,98 @@ export function SignUpForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
     );
   }
 
+  const googleHref = `/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-name">Full name</Label>
-        <Input id="signup-name" required value={fullName} onChange={(event) => setFullName(event.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-email">Email</Label>
-        <Input id="signup-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-phone">Phone number</Label>
-        <PhoneInput id="signup-phone" value={phone} onChange={setPhone} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-password">Password</Label>
-        <Input
-          id="signup-password"
-          type="password"
-          required
-          minLength={8}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </div>
-      <FieldError>{error}</FieldError>
-      <Button type="submit" className="w-full" disabled={working}>
-        {working ? "Creating account…" : "Create account"}
-      </Button>
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       {googleEnabled ? (
-        <a
-          href={`/account/google?returnTo=${encodeURIComponent(returnTo ?? pathname)}`}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-brand)] border border-[var(--color-hairline)] text-sm font-medium hover:bg-[color-mix(in_srgb,var(--color-ink)_6%,transparent)]"
-        >
-          Continue with Google
-        </a>
+        <div className="hidden flex-col gap-4 lg:in-data-auth-split:flex">
+          <GoogleButton href={googleHref} />
+          <AuthDivider>Or with email</AuthDivider>
+        </div>
       ) : null}
-      <p className="text-center text-sm text-[var(--color-muted-ink)]">
+
+      <AuthField
+        id="signup-name"
+        label="Full name"
+        icon={User}
+        name="name"
+        autoComplete="name"
+        autoCapitalize="words"
+        placeholder="Your name"
+        value={values.fullName}
+        onChange={(event) => set("fullName", event.target.value)}
+        error={errors.fullName}
+      />
+      <AuthField
+        id="signup-email"
+        label="Email"
+        icon={Mail}
+        type="email"
+        name="email"
+        autoComplete="email"
+        inputMode="email"
+        placeholder="you@example.com"
+        value={values.email}
+        onChange={(event) => set("email", event.target.value)}
+        error={errors.email}
+        hint="Your verification code and order updates go here."
+      />
+      <div className="flex flex-col gap-1.5">
+        <AuthLabel htmlFor="signup-phone">Mobile number</AuthLabel>
+        <PhoneInput
+          id="signup-phone"
+          value={values.phone}
+          onChange={(value) => set("phone", value)}
+          defaultCountry={defaultCountry}
+          fieldClassName="auth-field h-[54px] rounded-[14px] text-[16px] sm:text-[16px]"
+          aria-invalid={Boolean(errors.phone) || undefined}
+          aria-describedby={errors.phone ? "signup-phone-message" : undefined}
+        />
+        <AuthMessage id="signup-phone-message">{errors.phone}</AuthMessage>
+      </div>
+      <PasswordField
+        id="signup-password"
+        label="Password"
+        icon={Lock}
+        name="new-password"
+        autoComplete="new-password"
+        placeholder="Create a password"
+        value={values.password}
+        onChange={(event) => set("password", event.target.value)}
+        error={errors.password}
+        hint={<PasswordRule met={values.password.length >= MIN_PASSWORD} min={MIN_PASSWORD} />}
+      />
+
+      {error ? (
+        <p role="alert" className="rounded-[14px] border border-[color-mix(in_srgb,var(--color-danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] px-4 py-3 text-[14px] font-medium leading-snug text-[var(--color-danger)]">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="pt-1">
+        <AuthSubmit working={working} workingLabel="Creating account…">
+          Create account
+        </AuthSubmit>
+      </div>
+
+      {googleEnabled ? (
+        <div className="flex flex-col gap-4 lg:in-data-auth-split:hidden">
+          <AuthDivider />
+          <GoogleButton href={googleHref} />
+        </div>
+      ) : null}
+
+      <p className="text-center text-[14px] text-[var(--color-muted-ink)]">
         Already have an account?{" "}
         {onSwitchToSignIn ? (
-          <button type="button" onClick={onSwitchToSignIn} className="font-medium underline">
+          <button type="button" onClick={onSwitchToSignIn} className={cn(AUTH_LINK, "min-h-11")}>
             Sign in
           </button>
         ) : (
-          <Link href={signInHref(returnTo)} className="font-medium underline">Sign in</Link>
+          <Link href={signInHref(returnTo)} className={cn(AUTH_LINK, "inline-flex min-h-11 items-center")}>
+            Sign in
+          </Link>
         )}
       </p>
     </form>

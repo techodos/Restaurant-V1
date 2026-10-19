@@ -19,12 +19,19 @@ export default async function GooglePhonePage({ searchParams }: Props) {
   if (!token) redirect(`/account/sign-in`);
 
   return (
-    <AuthShell restaurant={context.restaurant} title="One more step" description="We need a phone number to finish setting up your account.">
-      <GooglePhoneForm
-        restaurantSlug={restaurantSlug}
-        pendingToken={token}
-        returnTo={safeReturnTo(returnTo)}
-      />
+    <AuthShell
+      eyebrow={context.restaurant.name}
+      title="One more step"
+      description="We need a mobile number to finish setting up your account."
+      panelTitle={
+        <>
+          Almost
+          <br />
+          there.
+        </>
+      }
+    >
+      <GooglePhoneForm restaurantSlug={restaurantSlug} pendingToken={token} returnTo={safeReturnTo(returnTo)} />
     </AuthShell>
   );
 }

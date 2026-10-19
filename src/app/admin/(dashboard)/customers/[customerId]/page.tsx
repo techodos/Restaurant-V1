@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipboardList } from "lucide-react";
+import { Banknote, CalendarClock, ChevronRight, ClipboardList, Receipt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCustomerForAdmin, getCustomerOrderHistory, getCustomerStatsForAdmin } from "@/server/services/customers";
 import { ORDER_STATUS_LABELS } from "@/shared/contract/enums";
@@ -11,7 +11,7 @@ import { getAdminBranchScope, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
-import { StatusPill, orderStatusTone, tableHead } from "@/components/admin/admin-ui";
+import { StatTile, StatusPill, orderStatusTone } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 interface CustomerDetailPageProps {
@@ -54,74 +54,47 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
         description={`${customer.phone}${customer.email ? ` · ${customer.email}` : ""}`}
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card>
-          <CardContent className="py-5">
-            <p className="text-sm text-[var(--color-muted-ink)]">Orders</p>
-            <p className="text-2xl font-semibold">{stats.orders}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-5">
-            <p className="text-sm text-[var(--color-muted-ink)]">Total spent</p>
-            <p className="text-2xl font-semibold">{money(stats.spent)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-5">
-            <p className="text-sm text-[var(--color-muted-ink)]">Avg. order</p>
-            <p className="text-2xl font-semibold">{money(stats.averageOrderValue)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-5">
-            <p className="text-sm text-[var(--color-muted-ink)]">Last order</p>
-            <p className="text-lg font-semibold">
-              {stats.lastOrderAt
-                ? new Date(stats.lastOrderAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })
-                : "—"}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatTile icon={ClipboardList} label="Orders" value={String(stats.orders)} tone="info" />
+        <StatTile icon={Banknote} label="Total spent" value={money(stats.spent)} />
+        <StatTile icon={Receipt} label="Avg. order" value={money(stats.averageOrderValue)} tone="neutral" />
+        <StatTile
+          icon={CalendarClock}
+          label="Last order"
+          value={stats.lastOrderAt ? new Date(stats.lastOrderAt).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—"}
+          tone="neutral"
+        />
       </div>
 
       <Card className="overflow-hidden">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--admin-line,var(--color-hairline))] px-5 py-4">
+          <h2 className="text-[15px] font-semibold">Order history</h2>
+          <span className="tabular text-[13px] text-[var(--color-muted-ink)]">{orders.length} shown</span>
+        </div>
         {orders.length === 0 ? (
           <AdminEmptyState icon={ClipboardList} title="No orders yet." />
         ) : (
-          <div className="relative overflow-x-auto"><table className="tabular w-full min-w-[42rem] text-sm">
-            <thead className={tableHead}>
-              <tr>
-                <th className="px-4 py-3 font-medium">Order</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Placed</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-hairline)]">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
-                  <td className="px-4 py-3">
-                    <Link href={`${adminPath()}/orders/${order.orderNumber}`} prefetch={false} className="font-medium text-[var(--color-brand)] hover:underline">
-                      {order.orderNumber}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 font-medium">{money(order.total)}</td>
-                  <td className="px-4 py-3">
-                    <StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-muted-ink)]">
-                    {new Date(order.createdAt).toLocaleString(undefined, {
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+          <ul className="divide-y divide-[var(--admin-line,var(--color-hairline))]">
+            {orders.map((order) => (
+              <li key={order.id}>
+                <Link
+                  href={`${adminPath()}/orders/${order.orderNumber}`}
+                  prefetch={false}
+                  className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)]"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="tabular block whitespace-nowrap font-semibold group-hover:text-[var(--color-brand)]">{order.orderNumber}</span>
+                    <span className="block text-xs text-[var(--color-muted-ink)]">
+                      {new Date(order.createdAt).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </span>
+                  <StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>
+                  <span className="tabular w-28 shrink-0 text-right font-semibold">{money(order.total)}</span>
+                  <ChevronRight className="hidden size-4 shrink-0 text-[var(--color-muted-ink)] sm:block" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </Card>
     </div>

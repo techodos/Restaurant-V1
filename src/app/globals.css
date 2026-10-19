@@ -147,11 +147,12 @@
     font-family: var(--font-display);
     font-weight: 500;
     letter-spacing: -0.015em;
-    text-wrap: balance;
+    text-wrap-style: balance;
   }
 
   p {
-    text-wrap: pretty;
+    /* longhand: the `text-wrap` shorthand also resets text-wrap-mode, which undid every `whitespace-nowrap` parent */
+    text-wrap-style: pretty;
   }
 
   a, button {
@@ -254,7 +255,7 @@
   font-size: clamp(2.125rem, 1.25rem + 4.2vw, 5.25rem);
   line-height: 1;
   letter-spacing: -0.025em;
-  text-wrap: balance;
+  text-wrap-style: balance;
 }
 
 @utility display-1 {
@@ -263,7 +264,7 @@
   font-size: clamp(1.75rem, 1.2rem + 2.3vw, 3.25rem);
   line-height: 1.05;
   letter-spacing: -0.02em;
-  text-wrap: balance;
+  text-wrap-style: balance;
 }
 
 @utility display-2 {
@@ -272,7 +273,7 @@
   font-size: clamp(1.4rem, 1.2rem + 1.1vw, 2.2rem);
   line-height: 1.1;
   letter-spacing: -0.015em;
-  text-wrap: balance;
+  text-wrap-style: balance;
 }
 
 @utility display-3 {
@@ -757,4 +758,34 @@
       animation-name: depth-rise;
     }
   }
+}
+
+/* auth fields: browser autofill must not paint its own blue/yellow ground over the theme's field */
+.auth-field:-webkit-autofill,
+.auth-field:-webkit-autofill:hover,
+.auth-field:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-surface) inset;
+  -webkit-text-fill-color: var(--color-ink);
+  caret-color: var(--color-ink);
+}
+
+/* ── Restaurant admin content area (2026-10-19 premium pass). Scoped to `.admin-main`, so the storefront and the
+   night header/sidebar are untouched. Cards float on the paper canvas with a soft two-layer shadow instead of a
+   hard grey outline; colours are theme tokens only. */
+.admin-main {
+  --admin-line: color-mix(in srgb, var(--color-ink) 8%, var(--color-surface));
+  --admin-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 5%, transparent),
+    0 14px 32px -20px color-mix(in srgb, var(--color-ink) 22%, transparent);
+  --admin-shadow-hover: 0 1px 2px color-mix(in srgb, var(--color-ink) 6%, transparent),
+    0 20px 40px -22px color-mix(in srgb, var(--color-ink) 30%, transparent);
+}
+.admin-main .surface-card,
+.admin-main .surface-flat {
+  border-color: var(--admin-line);
+  box-shadow: var(--admin-shadow);
+}
+.admin-main .surface-card .surface-card,
+.admin-main .surface-card .surface-flat,
+.admin-main .surface-flat .surface-flat {
+  box-shadow: none;
 }

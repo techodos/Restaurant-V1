@@ -14,6 +14,8 @@ export type SignUpInput = z.infer<typeof signUpSchema>;
 export const signInSchema = z.object({
   email: z.string().trim().email("That email address looks incomplete.").max(160),
   password: z.string().min(1, "Enter your password."),
+  /** "Keep me signed in": false = the cookie ends with the browser session (the token itself is unchanged) */
+  remember: z.boolean().default(true),
 });
 export type SignInInput = z.infer<typeof signInSchema>;
 

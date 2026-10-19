@@ -278,6 +278,18 @@ export function OrderPass() {
           );
         })}
       </ol>
+      {/* phones show only the current station's label, so say where it sits and what comes next */}
+      {!cancelled && doneIndex < steps.length - 1 ? (
+        <p className="mt-4 flex justify-center gap-2 text-[13px] text-[var(--color-muted-ink)] sm:hidden">
+          <span className="tabular">
+            Step {doneIndex + 1} of {steps.length}
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            Next: <span className="font-medium text-[var(--color-ink)]">{SHORT_LABELS[steps[doneIndex + 1]!.status] ?? steps[doneIndex + 1]!.label}</span>
+          </span>
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -114,8 +114,73 @@ export function AdminSection({
 
 /** Table header cell / row classes shared by the admin lists, so every table reads the same. */
 export const tableHead =
-  "border-b border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-ink)_2.5%,var(--color-surface))] text-left text-xs font-semibold tracking-[0.01em] text-[var(--color-muted-ink)]";
-export const tableRow = "transition-colors hover:bg-[color-mix(in_srgb,var(--color-ink)_2.5%,transparent)]";
+  "border-b border-[var(--admin-line,var(--color-hairline))] bg-[color-mix(in_srgb,var(--color-ink)_2.5%,var(--color-surface))] text-left text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[var(--color-muted-ink)]";
+export const tableRow = "transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)]";
+
+/**
+ * One KPI: label, big figure, optional note, an icon disc that never collides with the label (the label wraps
+ * beside it, the figure sits on its own line below). `tone` tints the disc (brand accent by default).
+ */
+export function StatTile({
+  label,
+  value,
+  note,
+  icon: Icon,
+  tone = "brand",
+  size = "md",
+  className,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  /** lg: the headline figure of a bento grid (bigger number, pushed to the bottom) */
+  size?: "md" | "lg";
+  note?: React.ReactNode;
+  icon?: LucideIcon;
+  tone?: StatusTone;
+  className?: string;
+}) {
+  return (
+    <div className={cn("surface-card flex min-w-0 flex-col gap-3 p-4 sm:p-5", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-[12px] font-semibold uppercase leading-snug tracking-[0.08em] text-[var(--color-muted-ink)]">{label}</p>
+        {Icon ? (
+          <span aria-hidden className={cn("grid size-8 shrink-0 place-items-center rounded-full ring-1 ring-inset", TONE[tone])}>
+            <Icon className="size-4" />
+          </span>
+        ) : null}
+      </div>
+      <p
+        className={cn(
+          "tabular truncate font-semibold leading-none tracking-[-0.02em]",
+          size === "lg" ? "mt-auto text-[1.9rem] sm:text-[2.6rem]" : "text-[1.5rem] sm:text-[1.75rem]",
+        )}
+      >
+        {value}
+      </p>
+      {note ? <p className="text-[12.5px] text-[var(--color-muted-ink)]">{note}</p> : null}
+    </div>
+  );
+}
+
+/** A dashed "add" tile that ends a grid or list of cards (opens the manager's create form). */
+export const addTileClass =
+  "group flex min-h-[4.5rem] w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-[color-mix(in_srgb,var(--color-ink)_22%,transparent)] px-4 py-3 text-[14px] font-semibold text-[var(--color-muted-ink)] transition-colors hover:border-[var(--color-brand)] hover:bg-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] hover:text-[var(--color-brand)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]";
+
+/** Initials in a tinted disc (people lists: customers, staff). */
+export function Avatar({ name, className }: { name: string; className?: string }) {
+  const letters = name.trim().split(/\s+/).filter(Boolean).map((part) => part.charAt(0)).join("").slice(0, 2).toUpperCase() || "?";
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-10 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_12%,var(--color-surface))] text-[13px] font-semibold text-[var(--color-brand)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]",
+        className,
+      )}
+    >
+      {letters}
+    </span>
+  );
+}
 
 /**
  * Marks a WhatsApp-checkout order and where it stands (the customer reports sending it; wa.me itself reports nothing):

@@ -23,7 +23,10 @@ export default async function AdminCouponsPage() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader title="Coupons" description={`${coupons.length} coupons`} />
+      <AdminPageHeader
+        title="Coupons"
+        description={`${coupons.length} ${coupons.length === 1 ? "code" : "codes"} · ${coupons.filter((coupon) => coupon.isActive).length} active`}
+      />
       {/* coupons apply at every branch: owner/admin change them (the actions enforce it too) */}
       <CouponManager
         coupons={coupons}

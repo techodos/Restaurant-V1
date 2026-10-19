@@ -87,7 +87,7 @@ export async function signInAction(slug: string, payload: unknown): Promise<ApiR
     const identifier = await callerIdentifier();
     const restaurant = await requireStorefrontRestaurant(slug);
     const result = await signInCustomerAccount(restaurant, input, identifier);
-    await setCustomerSession(result.token, result.maxAge);
+    await setCustomerSession(result.token, result.maxAge, { persistent: input.remember });
     // an unverified account goes straight to the code step: send the code here, after the response,
     // instead of the form calling `ensureVerificationCodeAction` (a second request + an account read)
     if (!result.emailVerified) {

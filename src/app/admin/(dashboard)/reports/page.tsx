@@ -19,7 +19,8 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminStatSkeleton } from "@/components/admin/admin-skeleton";
 import { OrdersTrendChart, PaymentBreakdownList, SalesTrendChart } from "@/components/admin/sales-charts";
-import { StatusPill, orderStatusTone, tableHead } from "@/components/admin/admin-ui";
+import { StatTile, StatusPill, orderStatusTone, tableHead, tableRow } from "@/components/admin/admin-ui";
+import { formatDateKey } from "@/shared/hours";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
@@ -29,33 +30,11 @@ interface ReportsPageProps {
   searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  tone = "neutral",
-}: {
-  icon: typeof Banknote;
-  label: string;
-  value: string;
-  tone?: "neutral" | "danger";
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-5">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-ink)]">{label}</p>
-          <p className={`tabular mt-1.5 text-[1.6rem] font-semibold leading-none ${tone === "danger" ? "text-[var(--color-danger)]" : ""}`}>
-            {value}
-          </p>
-        </div>
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--tint-strong)] text-[var(--color-muted-ink)]">
-          <Icon className="size-[18px]" aria-hidden />
-        </span>
-      </CardContent>
-    </Card>
-  );
-}
+const EXPORTS = [
+  { format: "csv", label: "CSV" },
+  { format: "xlsx", label: "Excel" },
+  { format: "pdf", label: "PDF" },
+] as const;
 
 export default async function AdminReportsPage({ searchParams }: ReportsPageProps) {
   const restaurantSlug = instanceRestaurantSlug();
@@ -74,27 +53,23 @@ export default async function AdminReportsPage({ searchParams }: ReportsPageProp
     <div className="space-y-6">
       <AdminPageHeader
         title="Sales Reports"
-        description={`${range.fromDateKey === range.toDateKey ? range.fromDateKey : `${range.fromDateKey} – ${range.toDateKey}`} · ${restaurant.name}`}
+        description={`${range.fromDateKey === range.toDateKey ? formatDateKey(range.fromDateKey, undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : `${formatDateKey(range.fromDateKey, undefined, { day: "numeric", month: "short" })} – ${formatDateKey(range.toDateKey, undefined, { day: "numeric", month: "short", year: "numeric" })}`}`}
         actions={
           <div className="flex items-center gap-2">
-            <Button asChild variant="secondary" size="sm">
-              <a href={`${exportHref}&format=csv`} download>
-                <Download className="size-4" aria-hidden />
-                CSV
-              </a>
-            </Button>
-            <Button asChild variant="secondary" size="sm">
-              <a href={`${exportHref}&format=xlsx`} download>
-                <Download className="size-4" aria-hidden />
-                Excel
-              </a>
-            </Button>
-            <Button asChild variant="secondary" size="sm">
-              <a href={`${exportHref}&format=pdf`} download>
-                <Download className="size-4" aria-hidden />
-                PDF
-              </a>
-            </Button>
+            <span className="hidden text-[13px] font-medium text-[var(--color-muted-ink)] sm:inline">Export</span>
+            <div className="inline-flex overflow-hidden rounded-full bg-[var(--color-surface)] shadow-[0_1px_2px_color-mix(in_srgb,var(--color-ink)_8%,transparent)] ring-1 ring-[var(--admin-line,var(--color-hairline))]">
+              {EXPORTS.map((entry, index) => (
+                <a
+                  key={entry.format}
+                  href={`${exportHref}&format=${entry.format}`}
+                  download
+                  className={`inline-flex min-h-10 items-center gap-1.5 px-3.5 text-[13px] font-semibold transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_7%,transparent)] hover:text-[var(--color-brand)] ${index > 0 ? "border-l border-[var(--admin-line,var(--color-hairline))]" : ""}`}
+                >
+                  <Download className="size-3.5" aria-hidden />
+                  {entry.label}
+                </a>
+              ))}
+            </div>
           </div>
         }
       />
@@ -105,17 +80,16 @@ export default async function AdminReportsPage({ searchParams }: ReportsPageProp
           active={range.preset === "custom" ? ("today" as ReportRangePreset) : range.preset}
           linkFor={linkFor}
         />
-        <Form action={adminPath("/reports")} className="flex flex-wrap items-end gap-2">
+        <Form action={adminPath("/reports")} className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <input type="hidden" name="preset" value="custom" />
-          <div>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-[var(--color-surface)] px-2 shadow-[0_1px_2px_color-mix(in_srgb,var(--color-ink)_6%,transparent)] ring-1 ring-[var(--admin-line,var(--color-hairline))] sm:flex-none">
             <Label htmlFor="from" className="sr-only">From</Label>
-            <Input id="from" name="from" type="date" defaultValue={range.preset === "custom" ? range.fromDateKey : undefined} className="h-10 w-auto" />
-          </div>
-          <div>
+            <Input id="from" name="from" type="date" defaultValue={range.preset === "custom" ? range.fromDateKey : undefined} className="h-10 min-w-0 flex-1 border-0! bg-transparent px-2 shadow-none! sm:w-[9.5rem] sm:flex-none" />
+            <span aria-hidden className="text-[var(--color-muted-ink)]">–</span>
             <Label htmlFor="to" className="sr-only">To</Label>
-            <Input id="to" name="to" type="date" defaultValue={range.preset === "custom" ? range.toDateKey : undefined} className="h-10 w-auto" />
+            <Input id="to" name="to" type="date" defaultValue={range.preset === "custom" ? range.toDateKey : undefined} className="h-10 min-w-0 flex-1 border-0! bg-transparent px-2 shadow-none! sm:w-[9.5rem] sm:flex-none" />
           </div>
-          <Button type="submit" size="sm" variant="secondary">
+          <Button type="submit" size="sm" variant={range.preset === "custom" ? "primary" : "secondary"} className="h-10 rounded-full px-4">
             Apply
           </Button>
         </Form>
@@ -153,12 +127,12 @@ async function ReportsResults({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard icon={Banknote} label="Total sales" value={formatMoney(report.totalSales, { currency: restaurant.currency })} />
-        <StatCard icon={ClipboardList} label="Total orders" value={String(report.totalOrders)} />
-        <StatCard icon={ReceiptText} label="Completed" value={String(report.completedOrders)} />
-        <StatCard icon={XCircle} label="Cancelled" value={String(report.cancelledOrders)} tone={report.cancelledOrders > 0 ? "danger" : "neutral"} />
-        <StatCard icon={Percent} label="Avg. order value" value={formatMoney(report.averageOrderValue, { currency: restaurant.currency })} />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatTile size="lg" className="col-span-2 lg:row-span-2" icon={Banknote} label="Total sales" value={formatMoney(report.totalSales, { currency: restaurant.currency })} note="Completed orders" />
+        <StatTile icon={ClipboardList} label="Orders" value={String(report.totalOrders)} tone="info" />
+        <StatTile icon={ReceiptText} label="Completed" value={String(report.completedOrders)} tone="success" />
+        <StatTile icon={XCircle} label="Cancelled" value={String(report.cancelledOrders)} tone={report.cancelledOrders > 0 ? "danger" : "neutral"} />
+        <StatTile icon={Percent} label="Avg. order" value={formatMoney(report.averageOrderValue, { currency: restaurant.currency })} tone="neutral" />
       </div>
 
       {report.totalDiscounts !== "0.00" ? (
@@ -230,9 +204,9 @@ async function ReportsResults({
                   <th className="px-4 py-3 font-medium">Placed</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--color-hairline)]">
+              <tbody className="divide-y divide-[var(--admin-line,var(--color-hairline))]">
                 {recentInRange.rows.map((order) => (
-                  <tr key={order.id} className="hover:bg-[color-mix(in_srgb,var(--color-ink)_3%,transparent)]">
+                  <tr key={order.id} className={tableRow}>
                     <td className="px-4 py-3">
                       <Link href={`${adminPath()}/orders/${order.orderNumber}`} prefetch={false} className="font-medium text-[var(--color-brand)] hover:underline">
                         {order.orderNumber}

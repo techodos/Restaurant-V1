@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, KeyRound, Lock, Mail, MailCheck, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { FieldError, FieldHint, Input, Label } from "@/components/ui/input";
+import { AuthField, AuthMessage, AuthStep, AuthSubmit, AuthTextButton, CodeInput, PasswordField, PasswordRule } from "@/components/storefront/auth-fields";
 import {
   requestPasswordResetAction,
   resetPasswordAction,
@@ -130,41 +129,37 @@ export function ForgotPasswordForm({
   }
 
   const back = (
-    <button
-      type="button"
-      onClick={step === "email" ? onBack : startOver}
-      className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-ink)] transition-colors hover:text-[var(--color-ink)]"
-    >
+    <AuthTextButton onClick={step === "email" ? onBack : startOver} className="self-center">
       <ArrowLeft className="size-4" aria-hidden />
       {step === "email" ? "Back to sign in" : "Use a different email"}
-    </button>
+    </AuthTextButton>
   );
 
   if (step === "email") {
     return (
-      <form onSubmit={onSubmitEmail} className="space-y-4">
-        <div>
-          <p className="font-semibold">Reset your password</p>
-          <p className="mt-1 text-sm text-[var(--color-muted-ink)]">
-            Enter the email you signed up with and we will send you a 6-digit code.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="reset-email">Email</Label>
-          <Input
-            id="reset-email"
-            type="email"
-            autoComplete="email"
-            required
-            autoFocus
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </div>
-        <FieldError>{error}</FieldError>
-        <Button type="submit" className="w-full" disabled={working || !email.trim()}>
-          {working ? "Sending code…" : "Send code"}
-        </Button>
+      <form onSubmit={onSubmitEmail} noValidate className="flex flex-col gap-5">
+        <AuthStep icon={KeyRound} title="Reset your password">
+          Enter the email you signed up with and we will send you a 6-digit code.
+        </AuthStep>
+        <AuthField
+          id="reset-email"
+          label="Email"
+          icon={Mail}
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          placeholder="you@example.com"
+          autoFocus
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setError(null);
+          }}
+          error={error}
+        />
+        <AuthSubmit working={working} workingLabel="Sending code…" disabled={!email.trim()}>
+          Send code
+        </AuthSubmit>
         {back}
       </form>
     );
@@ -172,86 +167,95 @@ export function ForgotPasswordForm({
 
   if (step === "code") {
     return (
-      <form onSubmit={onSubmitCode} className="space-y-4">
-        <p className="text-sm text-[var(--color-muted-ink)]">
-          If an account exists for <strong className="text-[var(--color-ink)]">{email}</strong>, we sent it a 6-digit code.
-        </p>
-        <div className="space-y-1.5">
-          <Input
-            aria-label="6-digit reset code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
+      <form onSubmit={onSubmitCode} noValidate className="flex flex-col gap-5">
+        <AuthStep icon={MailCheck} title="Check your email">
+          If an account exists for <strong className="break-all font-semibold text-[var(--color-ink)]">{email.trim()}</strong>, we sent it a
+          6-digit code.
+        </AuthStep>
+        <div className="flex flex-col gap-2">
+          <CodeInput
+            id="reset-code"
+            label="6-digit reset code"
             autoFocus
-            maxLength={6}
-            placeholder="123456"
             value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-            onPaste={(event) => {
-              // Native maxLength truncates a raw paste (e.g. "123 456") before non-digits are
-              // stripped, dropping digits. Read the clipboard ourselves and keep only digits.
-              const digits = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-              if (digits) {
-                event.preventDefault();
-                setCode(digits);
-              }
+            invalid={Boolean(error)}
+            describedBy="reset-code-message"
+            onChange={(next) => {
+              setCode(next);
+              setError(null);
             }}
-            className="text-center text-lg tracking-[0.5em]"
           />
-          <FieldHint>Enter the code from the email. It expires in 10 minutes.</FieldHint>
-          <FieldError>{error}</FieldError>
+          {error ? (
+            <AuthMessage id="reset-code-message">{error}</AuthMessage>
+          ) : (
+            <AuthMessage id="reset-code-message" tone="hint">
+              Enter the code from the email. It expires in 10 minutes.
+            </AuthMessage>
+          )}
         </div>
-        <Button type="submit" className="w-full" disabled={working || code.length !== 6}>
-          {working ? "Checking…" : "Verify code"}
-        </Button>
-        <button
-          type="button"
-          onClick={resend}
-          disabled={working || secondsLeft > 0}
-          className="w-full text-center text-sm text-[var(--color-muted-ink)] underline underline-offset-2 disabled:no-underline disabled:opacity-60"
-        >
-          {secondsLeft > 0 ? `Resend code in ${secondsLeft}s` : "Resend code"}
-        </button>
+        <AuthSubmit working={working} workingLabel="Checking…" disabled={code.length !== 6}>
+          Verify code
+        </AuthSubmit>
+        <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-[14px] text-[var(--color-muted-ink)]">
+          Didn&apos;t get it?
+          <AuthTextButton
+            onClick={resend}
+            disabled={working || secondsLeft > 0}
+            className="font-semibold text-[var(--color-brand)] hover:text-[var(--color-brand)] disabled:text-[var(--color-muted-ink)]"
+          >
+            {secondsLeft > 0 ? (
+              <span>
+                Resend in <span className="tabular-nums">0:{String(secondsLeft).padStart(2, "0")}</span>
+              </span>
+            ) : (
+              "Resend code"
+            )}
+          </AuthTextButton>
+        </p>
         {back}
       </form>
     );
   }
 
+  const lengthError = error?.startsWith("Use at least") ? error : null;
+  const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
+
   return (
-    <form onSubmit={onSubmitPassword} className="space-y-4">
-      <div>
-        <p className="font-semibold">Choose a new password</p>
-        <p className="mt-1 text-sm text-[var(--color-muted-ink)]">You will be signed in straight after.</p>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="reset-password">New password</Label>
-        <Input
-          id="reset-password"
-          type="password"
-          autoComplete="new-password"
-          required
-          autoFocus
-          minLength={MIN_PASSWORD_LENGTH}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-        <FieldHint>At least {MIN_PASSWORD_LENGTH} characters.</FieldHint>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="reset-password-confirm">Confirm new password</Label>
-        <Input
-          id="reset-password-confirm"
-          type="password"
-          autoComplete="new-password"
-          required
-          value={confirmPassword}
-          onChange={(event) => setConfirmPassword(event.target.value)}
-        />
-      </div>
-      <FieldError>{error}</FieldError>
-      <Button type="submit" className="w-full" disabled={working || done}>
-        {done ? "Signed in" : working ? "Saving…" : "Save and sign in"}
-      </Button>
+    <form onSubmit={onSubmitPassword} noValidate className="flex flex-col gap-5">
+      <AuthStep icon={ShieldCheck} title="Choose a new password">
+        You will be signed in straight after.
+      </AuthStep>
+      <PasswordField
+        id="reset-password"
+        label="New password"
+        icon={Lock}
+        autoComplete="new-password"
+        autoFocus
+        value={password}
+        onChange={(event) => {
+          setPassword(event.target.value);
+          setError(null);
+        }}
+        hint={<PasswordRule met={password.length >= MIN_PASSWORD_LENGTH} min={MIN_PASSWORD_LENGTH} />}
+        error={lengthError}
+      />
+      <PasswordField
+        id="reset-password-confirm"
+        label="Confirm new password"
+        icon={Lock}
+        autoComplete="new-password"
+        value={confirmPassword}
+        onChange={(event) => {
+          setConfirmPassword(event.target.value);
+          setError(null);
+        }}
+        error={mismatch ? "The passwords do not match." : lengthError ? null : error}
+      />
+      <AuthSubmit working={working || done} workingLabel={done ? "Signing you in…" : "Saving…"}>
+        Save and sign in
+      </AuthSubmit>
       {back}
     </form>
   );
 }
+

@@ -304,7 +304,7 @@ export function AdminMobileNav({ permissions, restaurantName, restaurantSlug, us
         onClick={() => setOpen(true)}
         aria-label="Open navigation"
         aria-expanded={open}
-        className="grid size-9 place-items-center rounded-[var(--radius-brand)] border border-[var(--rule-strong)] hover:bg-[var(--tint)]"
+        className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--tint-strong)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-on-night)_14%,transparent)] focus-visible:outline-2 focus-visible:outline-[var(--color-brand-accent)] sm:size-9 sm:rounded-[var(--radius-brand)] sm:border sm:border-[var(--rule-strong)] sm:bg-transparent"
       >
         <MenuIcon className="size-5" aria-hidden />
       </button>
@@ -354,7 +354,8 @@ function subPageLabel(rest: string): string | null {
 }
 
 /** "Group › Page" (› sub-page) for the header, from the same navigation the sidebar shows. */
-export function AdminBreadcrumb({ restaurantSlug }: { restaurantSlug: string }) {
+/** `compact`: just the current screen's name as text (the phone header's second line). */
+export function AdminBreadcrumb({ restaurantSlug, compact = false, group = false }: { restaurantSlug: string; compact?: boolean; /** just the nav group ("Service"), the page header's eyebrow */ group?: boolean }) {
   const pathname = usePathname();
   const base = adminPath();
   let found: { group: string; item: NavItem; rest: string } | null = null;
@@ -372,6 +373,8 @@ export function AdminBreadcrumb({ restaurantSlug }: { restaurantSlug: string }) 
     { label: found.item.label, href: sub ? `${base}${found.item.href}` : undefined },
     ...(sub ? [{ label: sub }] : []),
   ];
+  if (group) return <>{found.group}</>;
+  if (compact) return <span aria-current="page">{sub ?? found.item.label}</span>;
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">
       <ol className="flex min-w-0 items-center gap-1.5 text-[13px]">

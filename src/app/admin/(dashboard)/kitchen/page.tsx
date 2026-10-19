@@ -98,7 +98,7 @@ export default async function AdminKitchenPage() {
 
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {lanes.map((lane) => (
-          <div key={lane.key} className="rounded-[var(--radius-card,14px)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 py-3">
+          <div key={lane.key} className="surface-card px-4 py-3">
             <dt className="flex items-center gap-2 text-[13px] font-medium text-[var(--color-muted-ink)]">
               <span aria-hidden className={cn("size-2 rounded-full", lane.dot)} />
               {lane.title}
@@ -127,9 +127,9 @@ export default async function AdminKitchenPage() {
           <AdminEmptyState icon={ChefHat} title="No active orders right now. New orders appear here automatically." className="py-16" />
         </Card>
       ) : (
-        <div className="grid items-start gap-5 lg:grid-cols-3">
+        <div className="scrollbar-none -mx-4 grid snap-x snap-mandatory items-start gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 md:grid-flow-col md:auto-cols-[minmax(19rem,1fr)] xl:mx-0 xl:grid-flow-row xl:grid-cols-3 xl:overflow-visible xl:px-0">
           {lanes.map((lane) => (
-            <section key={lane.key} aria-labelledby={`lane-${lane.key}`} className="rounded-[calc(var(--radius-card,14px)+4px)] bg-[var(--color-canvas-muted)] p-3">
+            <section key={lane.key} aria-labelledby={`lane-${lane.key}`} className="snap-start rounded-[calc(var(--radius-card,14px)+4px)] bg-[color-mix(in_srgb,var(--color-ink)_4.5%,var(--color-canvas-muted))] p-3 ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-ink)_5%,transparent)]">
               <header className="mb-3 flex items-center justify-between gap-2 px-1">
                 <div className="flex items-center gap-2">
                   <span aria-hidden className={cn("size-2.5 rounded-full", lane.dot)} />
@@ -182,14 +182,13 @@ function KitchenTicket({ order, formatTime }: { order: Order; formatTime: (value
       <div className="space-y-3.5 p-4 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-mono text-[17px] font-semibold tracking-tight">{order.orderNumber}</h3>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[var(--color-muted-ink)]">
+            <h3 className="whitespace-nowrap font-mono text-[17px] font-semibold tracking-tight">{order.orderNumber}</h3>
+            <p className="mt-1 flex flex-col gap-0.5 text-[13px] text-[var(--color-muted-ink)]">
               <span className="inline-flex items-center gap-1 font-medium text-[var(--color-ink)]">
                 <TypeIcon className="size-3.5" aria-hidden />
                 {ORDER_TYPE_LABELS[order.orderType]}
                 {order.tableNumber ? ` · Table ${order.tableNumber}` : ""}
               </span>
-              <span aria-hidden>·</span>
               <span className="truncate">{order.customerName}</span>
             </p>
           </div>

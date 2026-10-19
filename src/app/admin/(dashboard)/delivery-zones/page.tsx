@@ -30,7 +30,7 @@ export default async function AdminDeliveryZonesPage() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader title="Delivery zones" description={`${zones.length} zones`} />
+      <AdminPageHeader title="Delivery zones" description={`${zones.length} ${zones.length === 1 ? "zone" : "zones"}`} />
       <DeliveryZoneManager
         zones={zones}
         locations={zoneBranches}

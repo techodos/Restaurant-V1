@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { FolderPlus } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { adminPath } from "@/shared/utils";
 import { listCategoriesForAdmin } from "@/server/services/menu-admin";
 import { getAdminRestaurant } from "@/web/admin";
@@ -20,7 +25,17 @@ export default async function NewMenuItemPage() {
     <div className="space-y-6">
       <AdminPageHeader backHref={adminPath("/menu")} backLabel="Back to menu" title="New item" />
       {categories.length === 0 ? (
-        <p className="text-sm text-[var(--color-muted-ink)]">Add a category first.</p>
+        <Card>
+          <AdminEmptyState
+            icon={FolderPlus}
+            title="Add a category first, then create items inside it."
+            action={
+              <Button asChild size="sm" variant="outline">
+                <Link href={adminPath("/menu")}>Go to categories</Link>
+              </Button>
+            }
+          />
+        </Card>
       ) : (
         <MenuItemForm categories={categories} />
       )}

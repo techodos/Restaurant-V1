@@ -1,20 +1,20 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Sign-in / sign-up / Google phone step: the AuthShell split (cover photo + form). */
+/** Sign-in / sign-up / Google phone step: the AuthShell outline (night band / split card + form). */
 export default function AccountLoading() {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] lg:min-h-[min(calc(100dvh-var(--header-h,4.5rem)),46rem)] lg:grid-cols-2" aria-busy="true">
-      <div className="hidden bg-[var(--color-brand-secondary)] lg:block" />
-      <div className="flex items-center justify-center px-5 py-10 sm:px-10 lg:py-12">
-        <div className="w-full max-w-[26rem]">
-          <Skeleton className="h-9 w-48" />
-          <Skeleton className="mt-3 h-4 w-64 max-w-full" />
-          <Skeleton className="mt-8 h-12 w-full rounded-full" />
-          <Skeleton className="mt-6 h-4 w-16" />
-          <Skeleton className="mt-2 h-12 w-full" />
-          <Skeleton className="mt-4 h-4 w-20" />
-          <Skeleton className="mt-2 h-12 w-full" />
-          <Skeleton className="mt-6 h-12 w-full rounded-full" />
+    <div className="pb-6 md:pb-16 lg:px-6 lg:py-14 xl:py-16" aria-busy="true">
+      <div className="lg:mx-auto lg:flex lg:max-w-[1080px] lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-[var(--color-hairline)]">
+        <div className="min-h-[248px] bg-[var(--color-night)] md:min-h-[272px] lg:min-h-[600px] lg:flex-[1_1_46%]" />
+        <div className="relative -mt-[30px] rounded-t-[28px] bg-[var(--color-canvas)] px-6 py-[26px] md:mx-auto md:max-w-[440px] md:rounded-[28px] md:px-8 md:py-8 lg:mx-0 lg:mt-0 lg:flex lg:max-w-none lg:flex-[1_1_54%] lg:flex-col lg:justify-center lg:rounded-none lg:px-14">
+          <div className="lg:mx-auto lg:w-full lg:max-w-[400px]">
+            <Skeleton className="mb-7 hidden h-11 w-40 lg:block" />
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="mt-2 h-[54px] w-full rounded-[14px]" />
+            <Skeleton className="mt-4 h-4 w-20" />
+            <Skeleton className="mt-2 h-[54px] w-full rounded-[14px]" />
+            <Skeleton className="mt-6 h-14 w-full rounded-2xl" />
+          </div>
         </div>
       </div>
     </div>

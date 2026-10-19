@@ -162,7 +162,7 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-transparent transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50",
+        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-transparent transition-colors before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] duration-150 disabled:cursor-not-allowed disabled:opacity-50",
         checked ? "bg-[var(--color-brand)]" : "bg-[var(--sa-border-strong)]",
       )}
     >

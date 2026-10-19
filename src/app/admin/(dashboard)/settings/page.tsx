@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SettingsNav } from "@/components/admin/settings-nav";
 import { WhatsAppSettingsSection } from "@/components/admin/whatsapp-settings-section";
 import { getAdminRestaurantFresh } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
@@ -44,22 +45,9 @@ export default async function AdminSettingsPage() {
     <div className="space-y-5">
       <AdminPageHeader title="Settings" description={`How ${restaurant.name} takes orders, charges and books tables. Each section saves on its own.`} />
 
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[12.5rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)]">
         {/* jump links to each section's anchor (SectionForm renders id="settings-<section>") */}
-        <nav aria-label="Settings sections" className="scrollbar-none -mx-4 overflow-x-auto px-4 lg:sticky lg:top-24 lg:mx-0 lg:overflow-visible lg:px-0">
-          <ul className="flex gap-1 lg:surface-card lg:flex-col lg:p-1.5">
-            {SECTIONS.map((section) => (
-              <li key={section.id}>
-                <a
-                  href={`#settings-${section.id}`}
-                  className="block whitespace-nowrap rounded-[var(--radius-brand)] px-3 py-2 text-[13px] font-medium text-[var(--color-muted-ink)] transition-colors hover:bg-[var(--tint)] hover:text-[var(--color-ink)]"
-                >
-                  {section.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <SettingsNav sections={SECTIONS} />
 
         <div className="min-w-0 space-y-6">
           <FeaturesSection features={restaurant.ownerFeatures} entitlements={restaurant.entitlements} readOnly={readOnly} />

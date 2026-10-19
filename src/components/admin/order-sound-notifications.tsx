@@ -124,7 +124,7 @@ export function SoundToggleButton() {
     <Button
       variant="outline"
       size="icon"
-      className="size-9 rounded-[var(--radius-brand)] border-[var(--rule-strong)]"
+      className="size-10 shrink-0 rounded-full border-transparent bg-[var(--tint-strong)] sm:size-9 sm:rounded-[var(--radius-brand)] sm:border-[var(--rule-strong)] sm:bg-transparent"
       aria-pressed={enabled}
       aria-label={enabled ? "Order sound notifications on" : "Order sound notifications off"}
       title={enabled ? "Order sound notifications: on" : "Order sound notifications: off"}

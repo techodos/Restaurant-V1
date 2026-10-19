@@ -32,7 +32,7 @@ export function AdminStatusTabs<K extends string>({
               prefetch={false}
               aria-current={on ? "page" : undefined}
               className={cn(
-                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-[calc(var(--radius-card)-3px)] px-3 py-1.5 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-150",
+                "inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[calc(var(--radius-card)-3px)] px-3.5 py-1.5 text-[14px] sm:min-h-0 sm:px-3 sm:text-[13px] font-medium transition-[background-color,color,box-shadow] duration-150",
                 on
                   ? "bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
                   : "text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]",

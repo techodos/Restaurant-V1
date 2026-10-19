@@ -3,7 +3,7 @@ import { adminPath } from "@/shared/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { resolveMenuImage } from "@/web/media";
-import { Info, Pencil, Plus, UtensilsCrossed } from "lucide-react";
+import { ChevronDown, Info, Pencil, Plus, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getLocationItemOverridesForAdmin, listBranchUnavailableItemsForAdmin, listCategoriesForAdmin, listMenuItemsForAdmin } from "@/server/services/menu-admin";
@@ -94,8 +94,47 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
         </p>
       ) : null}
 
+      {/* phones/tablets: categories as a swipe row of chips, management folded away below them */}
+      <div className="space-y-3 lg:hidden">
+        <nav aria-label="Categories" className="scrollbar-none -mx-4 overflow-x-auto px-4 sm:-mx-6 sm:px-6">
+          <ul className="flex min-w-max gap-2 pb-1">
+            {[{ id: null as string | null, name: "All items", itemCount: totalItems || items.length }, ...categories].map((entry) => {
+              const on = (entry.id ?? null) === (category ?? null);
+              return (
+                <li key={entry.id ?? "all"}>
+                  <Link
+                    href={menuHref({ category: entry.id ?? undefined })}
+                    prefetch={false}
+                    aria-current={on ? "page" : undefined}
+                    className={
+                      on
+                        ? "inline-flex min-h-10 items-center gap-2 rounded-full bg-[var(--color-brand)] px-4 text-[14px] font-semibold text-[var(--color-brand-foreground)] shadow-[var(--shadow-brand)]"
+                        : "inline-flex min-h-10 items-center gap-2 rounded-full bg-[var(--color-surface)] px-4 text-[14px] font-medium text-[var(--color-ink)] ring-1 ring-inset ring-[var(--admin-line,var(--color-hairline))] transition-colors hover:ring-[var(--color-brand)]"
+                    }
+                  >
+                    {entry.name}
+                    <span className={on ? "tabular text-[12px] opacity-80" : "tabular text-[12px] text-[var(--color-muted-ink)]"}>{entry.itemCount ?? 0}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        {canManage ? (
+          <details className="group surface-card overflow-hidden">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-[14px] font-semibold [&::-webkit-details-marker]:hidden">
+              Manage categories
+              <ChevronDown className="size-4 text-[var(--color-muted-ink)] transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-[var(--admin-line,var(--color-hairline))] p-2">
+              <CategoryManager categories={categories} activeId={category ?? null} baseHref={menuHref({})} totalItems={totalItems || undefined} canManage={canManage} />
+            </div>
+          </details>
+        ) : null}
+      </div>
+
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <Card className="p-2 lg:sticky lg:top-24">
+        <Card className="hidden p-2 lg:sticky lg:top-24 lg:block">
           <p className="px-2.5 pb-2 pt-1.5 label-caps font-semibold text-[var(--color-muted-ink)]">Categories</p>
           <CategoryManager
             categories={categories}
@@ -142,17 +181,17 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
                   <li
                     key={item.id}
                     data-filter-text={`${item.name} ${item.categoryName ?? ""}`}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-[color-mix(in_srgb,var(--color-ink)_2.5%,transparent)]"
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_3.5%,transparent)] sm:px-5"
                   >
                     {/* the dish photo: staff scan a menu by picture as much as by name */}
-                    <span className={`relative h-11 w-14 shrink-0 overflow-hidden rounded-[var(--radius-brand)] bg-[var(--steel-2)] ${offHere ? "opacity-50 grayscale" : ""}`}>
+                    <span className={`relative size-14 shrink-0 overflow-hidden rounded-xl bg-[var(--steel-2)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-ink)_8%,transparent)] ${offHere ? "opacity-50 grayscale" : ""}`}>
                       {image ? <Image src={image} alt="" fill sizes="56px" className="object-cover" /> : null}
                     </span>
                     {/* min width: on a phone the name keeps its line and price + controls wrap below it */}
                     <div className="min-w-[11rem] flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         {canManage ? (
-                          <Link href={editHref} prefetch={false} className="truncate font-medium hover:text-[var(--color-brand)] hover:underline">
+                          <Link href={editHref} prefetch={false} className="truncate text-[15px] font-semibold hover:text-[var(--color-brand)] hover:underline">
                             {item.name}
                           </Link>
                         ) : (

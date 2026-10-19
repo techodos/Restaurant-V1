@@ -7,7 +7,7 @@ import { googleAuthAvailable } from "@/server/services/customer-auth";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 interface Props {
-  /** where to go afterwards (only a path inside this storefront is honoured) */
+  /** where to go after signing in (only a path inside this storefront is honoured) */
   searchParams: Promise<{ returnTo?: string }>;
 }
 
@@ -20,8 +20,24 @@ export default async function SignInPage({ searchParams }: Props) {
   const forCheckout = returnTo === `/checkout`;
 
   return (
-    <AuthShell restaurant={context.restaurant} title="Sign in" description={forCheckout ? "Orders are placed from your account. Sign in and we will bring you straight back to checkout." : "Welcome back. Sign in to see your orders and check out faster."}>
-      <SignInForm restaurantSlug={restaurantSlug} googleEnabled={googleAuthAvailable()} returnTo={returnTo} />
+    <AuthShell
+      eyebrow={context.restaurant.name}
+      title="Sign in"
+      mobileTitle="Welcome back"
+      description={
+        forCheckout
+          ? "Orders are placed from your account. Sign in and we will bring you straight back to checkout."
+          : "Sign in to reorder your favourites and check out faster."
+      }
+      panelTitle={
+        <>
+          Welcome back
+          <br />
+          to the table.
+        </>
+      }
+    >
+      <SignInForm restaurantSlug={restaurantSlug} restaurantName={context.restaurant.name} googleEnabled={googleAuthAvailable()} returnTo={returnTo} />
     </AuthShell>
   );
 }

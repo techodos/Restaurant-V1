@@ -50,20 +50,21 @@ export default async function AdminDashboardLayout({ children }: AdminDashboardL
   };
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="admin-shell flex min-h-dvh">
       <Suspense fallback={null}>
         <NavigationProgress />
       </Suspense>
       {canOrders ? <OrderActivityWatcher restaurantSlug={restaurant.slug} /> : null}
       <AdminSidebar {...nav} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col bg-[var(--color-canvas-muted)]">
         <AdminHeader
           restaurantSlug={restaurant.slug}
+          restaurantName={restaurant.name}
           mobileNav={<AdminMobileNav key="mobile-nav" {...nav} />}
           branch={branch}
           showSoundToggle={canOrders}
         />
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+        <main className="admin-main mx-auto w-full max-w-[1400px] flex-1 px-4 pb-10 pt-6 sm:px-6 lg:px-10 lg:pb-14 lg:pt-9">
           {canOrders ? <OrderActivityBanner /> : null}
           {children}
         </main>
