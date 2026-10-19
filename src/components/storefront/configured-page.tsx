@@ -28,7 +28,7 @@ export interface PageHeading {
   /** true when the body opens the page (no configured section above it), so it may run under the header */
   leading: boolean;
   /** menu page only: the `page_content` section's layout choice; no marker => "editorial" */
-  menuLayout: "editorial" | "grid" | "list" | "sidebar" | "rows";
+  menuLayout: "editorial" | "grid" | "list" | "sidebar" | "rows" | "cards";
 }
 
 export type FunctionalPageSlug = "menu" | "reservation" | "reviews" | "locations" | "privacy" | "terms";

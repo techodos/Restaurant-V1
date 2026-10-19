@@ -174,7 +174,27 @@ export function DishTile({
           )}
         </Link>
         {badge}
-        {inlineAdd ? null : <div className="absolute bottom-3 right-3">{add}</div>}
+        {inlineAdd ? (
+          // the add control lives on the photo's bottom-right corner, so the footer is only the price: it never
+          // wraps, and a card in the cart (wider stepper) lines up with the card beside it
+          <div className="absolute bottom-2.5 right-2.5 max-w-[calc(100%-1.25rem)]">
+            <GridAddBar
+                restaurantSlug={restaurantSlug}
+                item={{
+                  id: item.id,
+                  name: item.name,
+                  slug: item.slug,
+                  requiresSelection: item.requiresSelection,
+                  isAvailable: item.isAvailable,
+                  basePrice: item.basePrice,
+                  imageUrl: image,
+                }}
+                orderType={orderType}
+              />
+          </div>
+        ) : (
+          <div className="absolute bottom-3 right-3">{add}</div>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col p-4 md:p-5">
@@ -190,27 +210,14 @@ export function DishTile({
         {inlineAdd ? (
           <div className="mt-auto pt-4">
             <div className="h-px bg-[var(--color-hairline)]" />
-            <div className="flex min-h-14 flex-col gap-2.5 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
-              <div className="flex flex-col">
+            <div className="flex items-end pt-3">
+              <div className="flex min-w-0 flex-col">
                 {item.requiresSelection ? <span className="label-caps text-[var(--color-muted-ink)]">From</span> : null}
-                <p className="tabular font-[family-name:var(--font-display)] text-[1.25rem] font-medium leading-tight text-[var(--color-brand)]">
+                <p className="tabular font-[family-name:var(--font-display)] text-[1.15rem] font-medium leading-tight text-[var(--color-brand)] sm:text-[1.25rem]">
                   {price}
                   {was}
                 </p>
               </div>
-              <GridAddBar
-                restaurantSlug={restaurantSlug}
-                item={{
-                  id: item.id,
-                  name: item.name,
-                  slug: item.slug,
-                  requiresSelection: item.requiresSelection,
-                  isAvailable: item.isAvailable,
-                  basePrice: item.basePrice,
-                  imageUrl: image,
-                }}
-                orderType={orderType}
-              />
             </div>
           </div>
         ) : (
