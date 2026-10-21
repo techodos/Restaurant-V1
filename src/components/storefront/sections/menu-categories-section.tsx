@@ -7,7 +7,7 @@ import { resolveImage, resolveMenuImage } from "@/web/media";
 import { cn } from "@/shared/utils";
 import { SectionIcon } from "@/components/storefront/icon";
 import { SectionHeading } from "@/components/storefront/section-heading";
-import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
 import { getMenuCategories, searchMenu } from "@/server/services/catalog";
 
 /**
@@ -19,9 +19,11 @@ import { getMenuCategories, searchMenu } from "@/server/services/catalog";
 export async function MenuCategoriesSection({
   section,
   context,
+  tone,
 }: {
   section: CategoriesConfig;
   context: StorefrontContext;
+  tone?: SectionTone;
 }) {
   const [allCategories, items] = await Promise.all([
     getMenuCategories(context.restaurant.id, { withCounts: true }),
@@ -49,7 +51,7 @@ export async function MenuCategoriesSection({
   const lastSpan = `${phoneSpan} ${tabletSpan}`;
 
   return (
-    <SectionShell tone="muted">
+    <SectionShell tone={tone ?? "muted"}>
       <SectionHeading
         eyebrow="The menu"
         title={section.title}

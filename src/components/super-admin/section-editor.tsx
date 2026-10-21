@@ -99,6 +99,13 @@ export const FIELDS: Record<SectionType, Field[]> = {
       options: ["left", "center"],
     },
     {
+      k: "phonePhoto",
+      label: "Photo on phones (Cinematic layout only)",
+      t: "select",
+      options: ["cover", "whole"],
+      labels: { cover: "Fill the hero (sides are cropped)", whole: "Whole photo, text below it" },
+    },
+    {
       k: "height",
       label: "Height (Cinematic layout only)",
       t: "select",
@@ -135,6 +142,8 @@ export const FIELDS: Record<SectionType, Field[]> = {
     },
   ],
   featured_items: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
+    { k: "eyebrow", label: "Small line above the title (default: Signature dishes)", t: "text" },
     title(),
     subtitle,
     { k: "limit", label: "How many dishes", t: "number", min: 1, max: 12 },
@@ -154,12 +163,14 @@ export const FIELDS: Record<SectionType, Field[]> = {
     { k: "cta", label: "Button", t: "cta" },
   ],
   menu_categories: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     subtitle,
     { k: "limit", label: "How many categories", t: "number", min: 1, max: 24 },
     { k: "showImages", label: "Show category photos", t: "bool" },
   ],
   menu_preview: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     subtitle,
     { k: "categorySlug", label: "Category slug (optional)", t: "text" },
@@ -173,6 +184,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
     },
   ],
   about: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     { k: "eyebrow", label: "Small line above the title", t: "text" },
     title(),
     { k: "body", label: "Story", t: "textarea", wide: true },
@@ -198,6 +210,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
     { k: "cta", label: "Button", t: "cta" },
   ],
   gallery: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     subtitle,
     { k: "columns", label: "Columns", t: "number", min: 2, max: 4 },
@@ -216,6 +229,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
     },
   ],
   why_choose_us: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     subtitle,
     {
@@ -233,6 +247,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
     },
   ],
   reviews: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     subtitle,
     { k: "limit", label: "How many reviews", t: "number", min: 1, max: 12 },
@@ -252,12 +267,14 @@ export const FIELDS: Record<SectionType, Field[]> = {
     { k: "cta", label: "Button", t: "cta" },
   ],
   locations: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     subtitle,
     { k: "limit", label: "How many branches", t: "number", min: 1, max: 20 },
     { k: "showMap", label: "Show the map", t: "bool" },
   ],
   contact: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     subtitle,
     { k: "email", label: "Email", t: "text" },
@@ -278,6 +295,7 @@ export const FIELDS: Record<SectionType, Field[]> = {
     { k: "secondaryCta", label: "Second button", t: "cta" },
   ],
   rich_text: [
+    { k: "background", label: "Background (auto, paper, muted or night = dark)", t: "select", options: ["auto", "paper", "muted", "night"] },
     title(),
     { k: "body", label: "Text", t: "textarea", wide: true },
     { k: "width", label: "Width", t: "select", options: ["narrow", "wide"] },

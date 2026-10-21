@@ -75,6 +75,11 @@ const COLOR_GROUPS: { title: string; colors: { key: keyof RestaurantTheme; label
       { key: "border", label: "Borders" },
     ],
   },
+  {
+    // leave blank: the admin pages keep the automatic brand/accent wash behind every page
+    title: "Admin portal",
+    colors: [{ key: "adminBackground", label: "Page background (blank = automatic)" }],
+  },
 ];
 
 const statusLabel = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);

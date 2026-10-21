@@ -3,11 +3,11 @@ import type { StorefrontContext } from "@/shared/contract/models";
 import type { ContactSection as ContactConfig } from "@/shared/contract/sections";
 import { formatHours, zonedNow } from "@/shared/hours";
 import { SectionHeading } from "@/components/storefront/section-heading";
-import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
 import { ContactForm } from "@/components/storefront/contact-form";
 
 /** How to reach the restaurant: heading on one side, a ledger of real contact routes (and the form, when enabled) on the other. */
-export function ContactSection({ section, context }: { section: ContactConfig; context: StorefrontContext }) {
+export function ContactSection({ section, context, tone }: { section: ContactConfig; context: StorefrontContext; tone?: SectionTone }) {
   const { restaurant, primaryLocation, config } = context;
   const email = section.email ?? config.contact.email ?? restaurant.email;
   const phone = section.phone ?? primaryLocation?.phone ?? restaurant.phone;
@@ -33,7 +33,7 @@ export function ContactSection({ section, context }: { section: ContactConfig; c
   ].filter((route): route is NonNullable<typeof route> => Boolean(route));
 
   return (
-    <SectionShell tone="muted">
+    <SectionShell tone={tone ?? "muted"}>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14">
         <SectionHeading eyebrow="Contact" title={section.title} subtitle={section.subtitle} />
         <div className="space-y-8">

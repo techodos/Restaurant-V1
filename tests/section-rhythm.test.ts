@@ -5,6 +5,18 @@ import { sectionTones } from "@/components/storefront/section-rhythm";
 const tones = (types: object[]) => sectionTones(parseSections(types.map((s) => ({ enabled: true, ...s }))));
 
 describe("section rhythm", () => {
+  it("lets any section pin its own background", () => {
+    expect(
+      tones([
+        { type: "featured_items", background: "night" },
+        { type: "menu_categories", background: "paper" },
+        { type: "reviews", background: "muted" },
+        { type: "why_choose_us", items: [{ title: "a" }], background: "night" },
+        { type: "about", background: "auto" },
+      ]),
+    ).toEqual(["night", "paper", "muted", "night", "night"]);
+  });
+
   it("breaks a run of light text sections with a night band", () => {
     expect(
       tones([

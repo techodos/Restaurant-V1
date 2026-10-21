@@ -236,6 +236,9 @@ export const themeSchema = z.object({
   warning: optionalHex(),
   danger: optionalHex(),
   info: optionalHex(),
+  /** the admin portal's page background. Unset (default) = the automatic brand/accent wash (web/theme.ts); set
+   * this to pin a flat colour instead, e.g. for a restaurant whose brand wash reads too strong or too busy. */
+  adminBackground: optionalHex(),
 });
 
 function optionalHex() {

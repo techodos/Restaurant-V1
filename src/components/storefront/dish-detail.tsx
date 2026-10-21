@@ -21,7 +21,7 @@ interface DishDetailProps {
 export function DishDetail({ context, item, orderType, variant }: DishDetailProps) {
   const { restaurant } = context;
   const image = resolveMenuImage(item.imageUrl, null);
-  const money = (value: string) => formatMoney(value, { currency: restaurant.currencySymbol, locale: restaurant.locale });
+  const money = (value: string) => formatMoney(value, { currency: restaurant.currencySymbol, locale: restaurant.locale, compact: true });
   const sheet = variant === "sheet";
 
   const facts = [

@@ -34,7 +34,7 @@ export function ProductCard({
   if (offAtBranch) item = { ...item, isAvailable: false };
   const image = resolveMenuImage(item.imageUrl, item.categorySlug);
   const href = `/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
-  const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: false });
+  const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: true });
   const was = item.compareAtPrice ? formatMoney(item.compareAtPrice, { currency: currencySymbol, locale }) : null;
   const hasMeta = item.spiceLevel > 0 || item.dietaryTags.length > 0 || showPrepTime;
 
@@ -76,7 +76,7 @@ export function ProductCard({
         ) : null}
 
         <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <p className="tabular inline-flex items-baseline gap-1.5 rounded-md bg-[color-mix(in_srgb,var(--color-brand-accent)_24%,var(--color-surface))] px-2 py-0.5 text-[13px] font-bold text-[color-mix(in_srgb,var(--color-brand)_55%,var(--color-ink))]">
+          <p className="tabular inline-flex items-baseline gap-1.5 rounded-md bg-[color-mix(in_srgb,var(--color-brand-accent)_24%,var(--color-surface))] px-2 py-0.5 text-[13px] font-bold text-[var(--color-ink)]">
             {item.requiresSelection ? <span className="text-[11px] font-semibold uppercase tracking-wide opacity-75">From</span> : null}
             {price}
             {was ? <span className="text-[11px] font-normal text-[var(--color-muted-ink)] line-through">{was}</span> : null}

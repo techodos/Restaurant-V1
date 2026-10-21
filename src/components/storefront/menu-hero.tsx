@@ -50,7 +50,8 @@ export function MenuHero({
 }: MenuHeroProps) {
   return (
     <>
-      <div>
+      {/* the banner opens the page, so the header floats transparent over it and turns solid on scroll (like a home hero) */}
+      <div data-hero-overlay className="-mt-[var(--header-h,4.25rem)]">
         <section className="tone-night relative isolate overflow-hidden bg-[var(--color-night)]">
           {image ? (
             <Image

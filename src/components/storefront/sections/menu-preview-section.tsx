@@ -4,15 +4,17 @@ import type { StorefrontContext } from "@/shared/contract/models";
 import type { MenuPreviewSection as PreviewConfig } from "@/shared/contract/sections";
 import { DishTile } from "@/components/storefront/dish-tile";
 import { SectionHeading } from "@/components/storefront/section-heading";
-import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
 import { searchMenu } from "@/server/services/catalog";
 
 export async function MenuPreviewSection({
   section,
   context,
+  tone,
 }: {
   section: PreviewConfig;
   context: StorefrontContext;
+  tone?: SectionTone;
 }) {
   const items = await searchMenu(context.restaurant.id, {
       ...(section.itemSlugs.length ? { slugs: section.itemSlugs } : {}),
@@ -29,7 +31,7 @@ export async function MenuPreviewSection({
     : items;
 
   return (
-    <SectionShell tone="paper">
+    <SectionShell tone={tone ?? "paper"}>
       <SectionHeading
         title={section.title}
         subtitle={section.subtitle}

@@ -57,7 +57,7 @@ export function DishTile({
     : `/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`;
   // the dish sheet opens over the page (no scroll); a jump to the menu chapter must scroll to its anchor
   const linkProps = browseOnly ? {} : { scroll: false as const };
-  const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: false });
+  const price = formatMoney(item.priceFrom, { currency: currencySymbol, locale, compact: true });
   const AddControl = browseOnly ? BranchReadyQuickAdd : QuickAddButton;
   const add = (
     <AddControl
