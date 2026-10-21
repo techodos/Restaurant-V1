@@ -41,7 +41,7 @@ describe("verifyEmailCode", () => {
     db.row = { found: true, locked: false, matched: true };
     await expect(verifyEmailCode("cust-1", "123456")).resolves.toBeUndefined();
     expect(db.transactions).toBe(1);
-    expect(db.params).toEqual(["cust-1", hash("123456"), 5]);
+    expect(db.params).toEqual(["cust-1", hash("123456"), 5, 10]);
     expect(db.params).not.toContain("123456");
     // consume + mark verified happen in the same statement, and the code row is locked
     expect(db.sql).toMatch(/for update/);

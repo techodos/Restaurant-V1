@@ -1,5 +1,6 @@
 import type { Order, OrderSummary, Restaurant, SalesAnalytics } from "@/shared/contract/models";
 import type { OrderStatus, PaymentStatus } from "@/shared/contract/enums";
+import { isSessionCurrent } from "@/server/services/customer-auth";
 import { isManualPaymentMethod, manualPaymentTargets } from "@/shared/payment-flow";
 import type { Paginated } from "@/shared/contract/api";
 import type { RequestContext } from "@/server/context";
@@ -97,6 +98,11 @@ export async function getMyOrders(
   options: { history?: boolean } = {},
 ): Promise<MyOrders> {
   const signedIn = Boolean(visitor.customerId);
+  // a session ended by a password reset sees nothing; an account whose email is not verified yet sees no
+  // order history (someone who only knows a guest's phone + email can sign up for that row, 2026-10-21)
+  if (signedIn && (visitor.customerEmailVerified === false || !(await isSessionCurrent(restaurantId, visitor)))) {
+    return { signedIn: visitor.customerEmailVerified === false, current: [], previous: [] };
+  }
   const { orders } = await listVisitorOrders(restaurantId, visitor, options.history === false ? { historyLimit: 0 } : {});
   const isActive = (order: Order) => ACTIVE_ORDER_STATUSES.includes(order.status);
   return {

@@ -15,6 +15,9 @@ vi.mock("@/server/db/registry", () => {
   return { getDb: () => ({ write: count, read: count, asRuntime: count, queryOne: count, query: count }) };
 });
 
+// the shared limiter is its own store (counted in security-hardening.test.ts); this file counts sign-in's transactions
+vi.mock("@/server/repositories/rate-limits", () => ({ hitRateLimit: async () => 1 }));
+
 import { hashPassword } from "@/server/auth/password";
 import { resolveCustomer, signInCustomer } from "@/server/auth/auth-service";
 import { verifyCustomerSession } from "@/server/auth/tokens";

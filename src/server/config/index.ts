@@ -103,6 +103,8 @@ const paymentsSchema = z.object({
   // "demo" = simulated JazzCash for demos: checkout goes to an in-app imitation of the payment page instead of
   // JazzCash, and works without the three values above. Marks orders paid with no money moved — never in production.
   JAZZCASH_ENV: z.preprocess(emptyToUndefined, z.enum(["sandbox", "live", "demo"]).default("sandbox")),
+  // "true" lets JAZZCASH_ENV=demo run when NODE_ENV=production (a public demo site). Without it demo is off in production.
+  ALLOW_PAYMENT_DEMO: z.preprocess(emptyToUndefined, z.string().optional()),
 });
 
 const emailSchema = z.object({
@@ -228,7 +230,8 @@ const payments = lazy(() => {
           }
         : null,
     jazzcash:
-      env.JAZZCASH_ENV === "demo"
+      // the simulator marks orders paid without money: never on a production deployment unless explicitly allowed (a public demo site)
+      env.JAZZCASH_ENV === "demo" && (process.env.NODE_ENV !== "production" || env.ALLOW_PAYMENT_DEMO === "true")
         ? {
             // the simulator signs and verifies with the same scheme, so any salt works; real credentials are optional
             merchantId: env.JAZZCASH_MERCHANT_ID ?? "DEMO",
@@ -236,7 +239,7 @@ const payments = lazy(() => {
             integritySalt: env.JAZZCASH_INTEGRITY_SALT ?? "jazzcash-demo-salt",
             env: env.JAZZCASH_ENV,
           }
-        : env.JAZZCASH_MERCHANT_ID && env.JAZZCASH_PASSWORD && env.JAZZCASH_INTEGRITY_SALT
+        : env.JAZZCASH_ENV !== "demo" && env.JAZZCASH_MERCHANT_ID && env.JAZZCASH_PASSWORD && env.JAZZCASH_INTEGRITY_SALT
           ? {
               merchantId: env.JAZZCASH_MERCHANT_ID,
               password: env.JAZZCASH_PASSWORD,

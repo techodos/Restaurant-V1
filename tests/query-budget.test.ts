@@ -14,6 +14,9 @@ const { db } = vi.hoisted(() => ({
   },
 }));
 
+// the session-epoch read (0046) is its own check, covered in otp-hardening.test.ts; this file counts the orders queries
+vi.mock("@/server/services/customer-auth", () => ({ isSessionCurrent: async () => true }));
+
 vi.mock("@/server/db/registry", () => {
   const record = (sql: string, params: readonly unknown[] = []) => {
     db.statements.push({ sql, params });

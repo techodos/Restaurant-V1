@@ -10,6 +10,9 @@ vi.mock("@/server/repositories/orders", () => ({
   listVisitorOrders,
 }));
 
+// the session-epoch read (0046) is its own check, covered in otp-hardening.test.ts; this file counts the orders queries
+vi.mock("@/server/services/customer-auth", () => ({ isSessionCurrent: async () => true }));
+
 import { getMyOrders } from "@/server/services/orders";
 
 const order = (id: string, status: OrderStatus): Order => ({ id, status, orderNumber: `ORD-${id}` }) as Order;

@@ -2,7 +2,7 @@ import { createHmac, randomInt, randomUUID } from "node:crypto";
 import { config } from "@/server/config";
 import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
-import { checkRateLimit } from "@/server/rate-limit";
+import { checkRateLimit, checkSharedRateLimit } from "@/server/rate-limit";
 import {
   createCustomerAccount,
   findPasswordResetAccount,
@@ -33,6 +33,7 @@ import {
   getCustomerById,
   getCustomerByGoogleSubOrEmail,
   linkGoogleToCustomer,
+  getSessionEpoch,
   createGoogleCustomer,
   findAccountByPhone,
   getCustomerByEmail,
@@ -49,6 +50,8 @@ import type { SignInInput, SignUpInput } from "@/server/validation/customer-auth
 
 const CODE_TTL_MINUTES = 10;
 const MAX_CODE_ATTEMPTS = 5;
+/** Wrong guesses allowed across every code issued to one customer in 15 minutes (a resend does not reset this). */
+const MAX_RECENT_CODE_ATTEMPTS = 10;
 
 export async function signUpCustomer(restaurant: Pick<Restaurant, "id">, input: SignUpInput, identifier: string): Promise<CustomerSignInResult> {
   return createCustomerAccount(
@@ -79,8 +82,8 @@ export async function sendVerificationCode(
   restaurant: Pick<Restaurant, "name" | "logoUrl" | "primaryColor" | "email" | "phone"> | null,
   purpose: CodeEmailPurpose = "verify",
 ): Promise<void> {
-  checkRateLimit({ key: "email-verify-send", identifier: customerId, limit: 3, windowMs: 5 * 60_000 });
-  checkRateLimit({ key: "email-verify-send-ip", identifier, limit: 8, windowMs: 15 * 60_000 });
+  await checkSharedRateLimit({ key: "email-verify-send", identifier: customerId, limit: 3, windowMs: 5 * 60_000 });
+  await checkSharedRateLimit({ key: "email-verify-send-ip", identifier, limit: 8, windowMs: 15 * 60_000 });
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await createVerificationCode({
@@ -124,14 +127,14 @@ export async function ensureVerificationCode(
   identifier: string,
   restaurant: Parameters<typeof sendVerificationCode>[3],
 ): Promise<void> {
-  const active = await getActiveVerificationCode(customerId);
+  const active = await getActiveVerificationCode(customerId, email);
   if (active) return;
   await sendVerificationCode(customerId, email, identifier, restaurant);
 }
 
 /** One transaction: check, count, consume and mark verified together (`attemptVerificationCode`). */
 export async function verifyEmailCode(customerId: string, code: string): Promise<void> {
-  const outcome = await attemptVerificationCode(customerId, hashCode(code), MAX_CODE_ATTEMPTS);
+  const outcome = await attemptVerificationCode(customerId, hashCode(code), MAX_CODE_ATTEMPTS, MAX_RECENT_CODE_ATTEMPTS);
   if (outcome === "expired") throw errors.validation("That code has expired. Request a new one.");
   if (outcome === "locked") throw errors.validation("Too many attempts. Request a new code.");
   if (outcome === "wrong") throw errors.validation("That code is not correct.");
@@ -238,7 +241,7 @@ export async function requestPasswordReset(
   email: string,
   identifier: string,
 ): Promise<void> {
-  checkRateLimit({ key: "password-reset-request-ip", identifier, limit: 5, windowMs: 15 * 60_000 });
+  await checkSharedRateLimit({ key: "password-reset-request-ip", identifier, limit: 5, windowMs: 15 * 60_000 });
   const account = await findPasswordResetAccount(restaurant, email);
   if (!account) return;
   await sendVerificationCode(account.customerId, account.email, identifier, restaurant, "reset");
@@ -251,7 +254,7 @@ export async function verifyPasswordResetCode(
   code: string,
   identifier: string,
 ): Promise<string> {
-  checkRateLimit({ key: "password-reset-verify-ip", identifier, limit: 20, windowMs: 15 * 60_000 });
+  await checkSharedRateLimit({ key: "password-reset-verify-ip", identifier, limit: 20, windowMs: 15 * 60_000 });
   const account = await findPasswordResetAccount(restaurant, email);
   // unknown email: the same answer as a wrong code, so this step can't be used to probe for accounts
   if (!account) throw errors.validation("That code is not correct.");
@@ -317,6 +320,7 @@ export async function completeGoogleAuth(restaurant: Pick<Restaurant, "id">, cod
       restaurantId: restaurant.id,
       name: identity.name,
       emailVerified: true,
+      epoch: (await getSessionEpoch(existing.id, restaurant.id)) ?? 0,
     });
     return { status: "signed-in", token, maxAge: SESSION_TTL.customer, customerId: existing.id };
   }
@@ -351,6 +355,16 @@ export async function finishGoogleSignup(pendingToken: string, phone: string): P
   return { token, maxAge: SESSION_TTL.customer, customerId, emailVerified: true };
 }
 
+/**
+ * Is this visitor's session still the account's current one? False after a password reset raised the
+ * account's epoch (0046) or when the account is gone. Anyone not signed in is trivially "current".
+ * One small read: call it where a session ACTS on the account, not on page views.
+ */
+export async function isSessionCurrent(restaurantId: string, visitor: Pick<RequestContext, "customerId" | "sessionEpoch">): Promise<boolean> {
+  if (!visitor.customerId) return true;
+  return (await getSessionEpoch(visitor.customerId, restaurantId)) === (visitor.sessionEpoch ?? 0);
+}
+
 export function currentCustomerUserId(session: CustomerSessionPayload | null, restaurantId: string): string | null {
   if (!session) return null;
   return resolveCustomer(session, restaurantId)?.userId ?? null;
@@ -366,6 +380,7 @@ export function reissueCustomerSession(
     customerId: session.customerId,
     restaurantId: session.restaurantId,
     name: patch.name ?? session.name,
+    ...(session.epoch !== undefined ? { epoch: session.epoch } : {}),
     ...(patch.emailVerified !== undefined ? { emailVerified: patch.emailVerified } : session.emailVerified !== undefined ? { emailVerified: session.emailVerified } : {}),
   });
 }

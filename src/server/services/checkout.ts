@@ -72,6 +72,7 @@ export async function placeOrder(
         email: input.email || null,
       },
       accountCustomerId: visitor.customerId ?? null,
+      sessionEpoch: visitor.sessionEpoch ?? 0,
       saveAccountPhone: Boolean(visitor.customerId),
       // Guests verify too now (the checkout OTP modal), not just accounts — createOrder checks it
       // against whichever row the order resolves to (the account, or the phone-keyed guest row).

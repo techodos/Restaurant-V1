@@ -32,9 +32,15 @@ export async function createVerificationCode(
   input: { customerId: string; email: string; codeHash: string; expiresAt: Date },
   ctx: RequestContext = {},
 ): Promise<VerificationCodeRecord> {
+  // A fresh code retires every earlier one (expires_at = now(), never consumed_at: that column means "verified"),
+  // so only the newest code can ever be redeemed. Same statement, so two racing sends cannot leave two live codes.
   const row = await getDb(ctx).write(ctx, (tx) =>
     tx.queryOne<Row>(
-      `insert into email_verification_codes (customer_id, email, code_hash, expires_at)
+      `with retired as (
+         update email_verification_codes set expires_at = now()
+          where customer_id = $1 and consumed_at is null and expires_at > now()
+       )
+       insert into email_verification_codes (customer_id, email, code_hash, expires_at)
        values ($1,$2,$3,$4) returning *`,
       [input.customerId, input.email.trim().toLowerCase(), input.codeHash, input.expiresAt.toISOString()],
     ),
@@ -51,13 +57,15 @@ export async function createVerificationCode(
  * timing — every code looked "expired" the instant it was checked (fixed
  * 2026-09-23; the other functions in this file already used `write`).
  */
-export async function getActiveVerificationCode(customerId: string, ctx: RequestContext = {}): Promise<VerificationCodeRecord | null> {
+export async function getActiveVerificationCode(customerId: string, email?: string, ctx: RequestContext = {}): Promise<VerificationCodeRecord | null> {
   const row = await getDb(ctx).write(ctx, (tx) =>
     tx.queryOne<Row>(
+      // `email` (when given): a code sent to another address does not count, so changing the email re-sends
       `select * from email_verification_codes
         where customer_id = $1 and consumed_at is null and expires_at > now()
+          and ($2::text is null or lower(email) = lower($2))
         order by created_at desc limit 1`,
-      [customerId],
+      [customerId, email?.trim() ?? null],
     ),
   );
   return row ? mapRecord(row) : null;
@@ -78,22 +86,30 @@ export async function attemptVerificationCode(
   customerId: string,
   codeHash: string,
   maxAttempts: number,
+  maxRecentAttempts: number,
   ctx: RequestContext = {},
 ): Promise<VerificationAttemptOutcome> {
   const row = await getDb(ctx).write(ctx, (tx) =>
     tx.queryOne<Row>(
       `with active as (
-         select id, code_hash, attempts, max_attempts
-           from email_verification_codes
-          where customer_id = $1 and consumed_at is null and expires_at > now()
-          order by created_at desc limit 1
-          for update
+         -- the code must have been sent to the address the account has NOW (a guest can change it after a send)
+         select c.id, c.code_hash, c.attempts, c.max_attempts
+           from email_verification_codes c
+           join customers u on u.id = c.customer_id
+          where c.customer_id = $1 and c.consumed_at is null and c.expires_at > now()
+            and lower(c.email) = lower(u.email)
+          order by c.created_at desc limit 1
+          for update of c
+       ), recent as (
+         -- failed guesses across ALL of this customer's recent codes: asking for a new code must not reset the counter
+         select coalesce(sum(attempts), 0) as n from email_verification_codes
+          where customer_id = $1 and created_at > now() - interval '15 minutes'
        ), attempt as (
          update email_verification_codes c
             set attempts = c.attempts + 1,
                 consumed_at = case when a.code_hash = $2 and a.attempts + 1 <= $3 then now() end
            from active a
-          where c.id = a.id and a.attempts < a.max_attempts
+          where c.id = a.id and a.attempts < a.max_attempts and (select n from recent) < $4
          returning c.consumed_at is not null as matched
        ), verified as (
          update customers set is_email_verified = true
@@ -101,9 +117,9 @@ export async function attemptVerificationCode(
          returning id
        )
        select exists (select 1 from active) as found,
-              coalesce((select attempts >= max_attempts from active), false) as locked,
+              coalesce((select attempts >= max_attempts from active), false) or (select n from recent) >= $4 as locked,
               coalesce((select matched from attempt), false) as matched`,
-      [customerId, codeHash, maxAttempts],
+      [customerId, codeHash, maxAttempts, maxRecentAttempts],
     ),
   );
   if (!row?.found) return "expired";

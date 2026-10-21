@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { errors } from '@/server/errors';
-import { checkRateLimit } from '@/server/rate-limit';
+import { checkRateLimit, checkSharedRateLimit } from '@/server/rate-limit';
 import { can, effectivePermissions, isSuperAdmin, type Permission } from './permissions';
 import type { TeamRole } from '@/shared/contract/enums';
 import type { RequestContext } from '@/server/context';
@@ -156,7 +156,7 @@ export async function signInStaff(
     windowMs: 5 * 60_000,
   });
   // per account too: the caller key is an IP, so one account guessed from many addresses was never limited
-  checkRateLimit({
+  await checkSharedRateLimit({
     key: 'staff-signin-account',
     identifier: email.trim().toLowerCase(),
     limit: 10,
@@ -249,7 +249,7 @@ export async function signInCustomer(
     limit: 30,
     windowMs: 5 * 60_000,
   });
-  checkRateLimit({
+  await checkSharedRateLimit({
     key: 'customer-signin-account',
     identifier: `${restaurant.id}:${email.trim().toLowerCase()}`,
     limit: 10,
@@ -260,7 +260,7 @@ export async function signInCustomer(
     {},
     async (tx) =>
       tx.queryOne<Row>(
-        `select id, password_hash, full_name, is_email_verified from customers
+        `select id, password_hash, full_name, is_email_verified, session_epoch from customers
         where restaurant_id = $1 and lower(email) = lower($2) and not is_guest`,
         [restaurant.id, email.trim()],
       ),
@@ -280,6 +280,7 @@ export async function signInCustomer(
     restaurantId: restaurant.id,
     name: str(row.full_name),
     emailVerified,
+    epoch: Number(row.session_epoch) || 0,
   });
   return {
     token,
@@ -358,9 +359,9 @@ export async function resetCustomerPassword(
         return null;
       }
       return tx.queryOne<Row>(
-        `update customers set password_hash = $3, is_email_verified = true, updated_at = now()
+        `update customers set password_hash = $3, is_email_verified = true, updated_at = now(), session_epoch = session_epoch + 1
         where id = $1 and restaurant_id = $2
-        returning id, full_name`,
+        returning id, full_name, session_epoch`,
         [grant.customerId, grant.restaurantId, hashed],
       );
     },
@@ -376,6 +377,7 @@ export async function resetCustomerPassword(
     restaurantId: grant.restaurantId,
     name: str(row.full_name),
     emailVerified: true,
+    epoch: Number(row.session_epoch) || 0, // the raised epoch: every other session of this account ends
   });
   return {
     token,
@@ -398,7 +400,7 @@ export async function createCustomerAccount(
   },
   identifier = 'unknown',
 ): Promise<CustomerSignInResult> {
-  checkRateLimit({
+  await checkSharedRateLimit({
     key: 'customer-signup',
     identifier,
     limit: 5,
@@ -408,7 +410,7 @@ export async function createCustomerAccount(
   const { restaurant } = input;
   const hashed = await hashPassword(input.password);
 
-  const customerId = await getDb({ restaurantId: restaurant.id }).write(
+  const { id: customerId, epoch } = await getDb({ restaurantId: restaurant.id }).write(
     { restaurantId: restaurant.id },
     async (tx) => {
       const existing = await tx.queryOne<Row>(
@@ -424,9 +426,15 @@ export async function createCustomerAccount(
         `insert into customers (restaurant_id, full_name, email, phone, password_hash, is_guest)
        values ($1,$2,$3,$4,$5,false)
        on conflict (restaurant_id, phone) do update set
-         full_name = excluded.full_name, email = excluded.email, password_hash = excluded.password_hash, is_guest = false
+         full_name = excluded.full_name, email = excluded.email, password_hash = excluded.password_hash, is_guest = false,
+         -- an upgraded guest row keeps "verified" only when this email was OTP-verified moments ago (the checkout
+         -- "save your details" step); otherwise someone who knows a guest's phone + email could claim a verified account
+         is_email_verified = exists (
+           select 1 from email_verification_codes v
+            where v.customer_id = customers.id and v.consumed_at > now() - interval '30 minutes'
+              and lower(v.email) = lower(excluded.email))
        where customers.is_guest and (customers.email is null or lower(customers.email) = lower(excluded.email))
-       returning id`,
+       returning id, session_epoch`,
         [
           restaurant.id,
           input.fullName,
@@ -436,7 +444,7 @@ export async function createCustomerAccount(
         ],
       );
       if (!row) throw errors.conflict(PHONE_TAKEN_MESSAGE);
-      return str(row.id);
+      return { id: str(row.id), epoch: Number(row.session_epoch) || 0 };
     },
   );
 
@@ -446,6 +454,7 @@ export async function createCustomerAccount(
     restaurantId: restaurant.id,
     name: input.fullName,
     emailVerified: false,
+    epoch,
   });
   return {
     token,

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { store } = vi.hoisted(() => ({ store: { addresses: [] as Record<string, unknown>[], saved: [] as Record<string, unknown>[], fail: false } }));
 
 vi.mock("@/server/repositories/customers", () => ({
+  getSessionEpoch: vi.fn(async () => 0),
   listAddresses: vi.fn(async () => store.addresses),
   saveAddress: vi.fn(async (_c: string, _r: string, fields: Record<string, unknown>) => {
     if (store.fail) throw new Error("db down");

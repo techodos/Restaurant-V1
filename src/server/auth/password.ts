@@ -14,6 +14,8 @@ import bcrypt from "bcryptjs";
 const COST = 10;
 export const MAX_PASSWORD_BYTES = 72;
 const BCRYPT = /^\$2[aby]\$\d{2}\$/;
+/** A valid cost-10 bcrypt hash of a random string; nobody knows the password. */
+const DUMMY_HASH = "$2b$10$QJSCUf5e6qvq9YhwRYlVG..HdGDS5xsYZywwtAlJx.5BXhLLh5zzS";
 
 /** True when `password` fits bcrypt's input (72 bytes in UTF-8). */
 export function fitsPasswordLimit(password: string): boolean {
@@ -28,7 +30,11 @@ export async function hashPassword(password: string): Promise<string> {
 
 /** The password as typed (no normalisation, like Supabase) against a stored bcrypt hash. Anything else is refused. */
 export async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
-  if (!stored || !BCRYPT.test(stored)) return false;
+  if (!stored || !BCRYPT.test(stored)) {
+    // same bcrypt work for "no such account" as for a wrong password, so response time does not reveal which emails exist
+    await bcrypt.compare(password, DUMMY_HASH).catch(() => false);
+    return false;
+  }
   try {
     return await bcrypt.compare(password, stored);
   } catch {

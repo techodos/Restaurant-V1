@@ -65,6 +65,8 @@ export interface CreateOrderInput {
    * same transaction, so it is saved only if the order commits.
    */
   accountCustomerId?: string | null;
+  /** the session's epoch claim; the order is refused when the account's `session_epoch` (0046) moved past it */
+  sessionEpoch?: number;
   saveAccountPhone?: boolean;
   /** refuse the order (EMAIL_NOT_VERIFIED) unless the account's login email is verified — read in this transaction */
   requireVerifiedEmail?: boolean;
@@ -97,7 +99,7 @@ const IDEMPOTENCY_INDEX = "orders_idempotency_key_uidx";
  * the full rows (SEO, social, theme and customer metadata JSON) are dead weight here.
  */
 const ORDER_RESTAURANT_COLUMNS = "id, name, slug, status, currency, currency_symbol, locale, timezone, country, features, entitlements, settings, checkout_mode";
-const ORDER_CUSTOMER_COLUMNS = "id, restaurant_id, full_name, phone, email, is_email_verified, is_guest, auth_provider, created_at";
+const ORDER_CUSTOMER_COLUMNS = "id, restaurant_id, full_name, phone, email, is_email_verified, is_guest, auth_provider, session_epoch, created_at";
 
 /** `($1,$2,…),($n,…)` placeholders for a multi-row insert of `rows` × `width` parameters, starting after `offset`. */
 function valuesList(rows: number, width: number, casts: Record<number, string> = {}, offset = 0): string {
@@ -269,6 +271,9 @@ async function placeInTransaction(
     if (input.accountCustomerId) {
       if (!read?.customer) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
       const accountRow = read.customer as Row;
+      if ((Number(accountRow.session_epoch) || 0) !== (input.sessionEpoch ?? 0)) {
+        throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again to place your order.");
+      }
       if (requireVerifiedEmail && !accountRow.is_email_verified) {
         throw errors.custom("EMAIL_NOT_VERIFIED", "Please verify your email before placing an order.");
       }

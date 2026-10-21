@@ -1,6 +1,7 @@
 import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { logger } from "@/server/logger";
+import { isSessionCurrent } from "@/server/services/customer-auth";
 import {
   deleteAddress,
   getCustomerById,
@@ -32,10 +33,12 @@ export interface CustomerProfile {
   addresses: CustomerAddress[];
 }
 
-type Visitor = Pick<RequestContext, "customerId" | "cartToken">;
+type Visitor = Pick<RequestContext, "customerId" | "cartToken" | "sessionEpoch">;
 
-function requireCustomerId(visitor: Visitor): string {
+/** The signed-in customer's id, refused when the session was ended by a password reset (session epoch, 0046). */
+async function requireCustomerId(visitor: Visitor, restaurantId: string): Promise<string> {
   if (!visitor.customerId) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in to manage your profile.");
+  if (!(await isSessionCurrent(restaurantId, visitor))) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again.");
   return visitor.customerId;
 }
 
@@ -59,10 +62,11 @@ async function loadCustomer(restaurant: Pick<Restaurant, "id">, customerId: stri
 }
 
 export async function getCustomerProfile(restaurant: Pick<Restaurant, "id">, visitor: Visitor): Promise<CustomerProfile> {
-  const customerId = requireCustomerId(visitor);
+  const customerId = await requireCustomerId(visitor, restaurant.id);
   const found = await getCustomerWithAddresses(customerId, { restaurantId: restaurant.id, customerId });
   if (!found || found.customer.restaurantId !== restaurant.id) throw errors.custom("SIGN_IN_REQUIRED", "Please sign in again.");
-  return toProfile(found.customer, found.addresses);
+  // saved addresses are only shown once the account's email is verified (an unverified sign-up can claim a guest row)
+  return toProfile(found.customer, found.customer.emailVerified ? found.addresses : []);
 }
 
 export async function updateCustomerProfile(
@@ -70,7 +74,7 @@ export async function updateCustomerProfile(
   visitor: Visitor,
   input: UpdateProfileInput,
 ): Promise<CustomerProfile> {
-  const customerId = requireCustomerId(visitor);
+  const customerId = await requireCustomerId(visitor, restaurant.id);
   const ctx = { restaurantId: restaurant.id, customerId };
   const customer = await updateCustomerProfileRow(customerId, restaurant.id, input, ctx);
   return toProfile(customer, await listAddresses(customerId, ctx));
@@ -81,7 +85,7 @@ export async function saveCustomerAddress(
   visitor: Visitor,
   input: CustomerAddressInput,
 ): Promise<CustomerAddress[]> {
-  const customerId = requireCustomerId(visitor);
+  const customerId = await requireCustomerId(visitor, restaurant.id);
   const ctx = { restaurantId: restaurant.id, customerId };
   const fields = {
     label: input.label,
@@ -146,7 +150,7 @@ export async function deleteCustomerAddress(
   visitor: Visitor,
   addressId: string,
 ): Promise<CustomerAddress[]> {
-  const customerId = requireCustomerId(visitor);
+  const customerId = await requireCustomerId(visitor, restaurant.id);
   const ctx = { restaurantId: restaurant.id, customerId };
   if (!(await deleteAddress(addressId, customerId, restaurant.id, ctx))) throw errors.notFound("Address");
   return listAddresses(customerId, ctx);
