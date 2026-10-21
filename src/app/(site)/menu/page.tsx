@@ -63,6 +63,17 @@ export default async function MenuPage({ searchParams }: MenuPageProps) {
 }
 
 /**
+ * Column classes for a dish grid that never leaves holes: a category with 1-3 dishes gets only as many columns as
+ * it has dishes (a fixed 4-column grid left a gap of empty columns on the right of every small category).
+ */
+function dishGridCols(count: number, wide: "xl:grid-cols-4" | "xl:grid-cols-3" = "xl:grid-cols-4") {
+  if (count <= 1) return "grid-cols-1 max-w-sm";
+  if (count === 2) return "grid-cols-2 md:max-w-3xl";
+  if (count === 3 && wide === "xl:grid-cols-4") return "grid-cols-2 md:grid-cols-3";
+  return wide === "xl:grid-cols-4" ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-4" : "md:grid-cols-2 xl:grid-cols-3";
+}
+
+/**
  * The menu as an editorial book. A cinematic menu hero carries search, sort and the order type; a sticky
  * category rail follows the reader; then every category is its own chapter, alternating paper and night:
  * paper chapters open with a photograph beside the category's name and list their dishes as printed-menu
@@ -253,7 +264,7 @@ async function renderMenu(
                 Clear and show the full menu
               </Link>
             </div>
-            <ul className="section-body grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5 xl:grid-cols-4">
+            <ul className={cn("section-body grid gap-3 md:gap-5", dishGridCols(items.length))}>
               {items.map((item) => (
                 <li key={item.id}>{tile(item, "card")}</li>
               ))}
@@ -412,7 +423,12 @@ async function renderMenu(
                       </h2>
                       <p className="shrink-0 text-xs text-[var(--color-muted-ink)]">{group.items.length} item{group.items.length === 1 ? "" : "s"}</p>
                     </div>
-                    <ul className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
+                    <ul
+                      className={cn(
+                        "mt-4 grid grid-cols-[minmax(0,1fr)] gap-3 md:gap-4",
+                        group.items.length === 1 ? "max-w-xl" : group.items.length === 2 ? "md:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-3",
+                      )}
+                    >
                       {group.items.map((item) => (
                         <li key={item.id}>
                           <ProductCard
@@ -439,7 +455,7 @@ async function renderMenu(
                     key={group.category.id}
                     id={group.category.slug}
                     aria-labelledby={`${group.category.slug}-title`}
-                    className={cn("scroll-mt-[calc(var(--header-h,4.25rem)+3rem)]", index > 0 && "mt-10 md:mt-12")}
+                    className={cn("scroll-mt-[calc(var(--header-h,4.25rem)+3rem)]", index > 0 ? "mt-10 md:mt-12" : "pt-5 md:pt-8")}
                   >
                     <div className="flex items-end justify-between gap-4">
                       <h2 id={`${group.category.slug}-title`} className="display-3 flex items-center gap-3 uppercase">
@@ -448,7 +464,7 @@ async function renderMenu(
                       </h2>
                       <p className="text-xs text-[var(--color-muted-ink)]">{group.items.length} item{group.items.length === 1 ? "" : "s"}</p>
                     </div>
-                    <ul className="mt-5 grid grid-cols-2 gap-3 md:mt-6 md:grid-cols-3 md:gap-5 xl:grid-cols-4">
+                    <ul className={cn("mt-5 grid gap-3 md:mt-6 md:gap-5", dishGridCols(group.items.length))}>
                       {group.items.map((item) => (
                         <li key={item.id}>{tile(item, "card")}</li>
                       ))}
@@ -482,7 +498,7 @@ async function renderMenu(
                         </div>
                         {group.category.description ? <p className="lede lg:justify-self-end">{group.category.description}</p> : null}
                       </div>
-                      <ul className="section-body grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5 xl:grid-cols-4">
+                      <ul className={cn("section-body grid gap-3 md:gap-5", dishGridCols(group.items.length))}>
                         {group.items.map((item) => (
                           <li key={item.id}>{tile(item, "card")}</li>
                         ))}

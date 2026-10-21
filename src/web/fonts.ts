@@ -1,4 +1,5 @@
 import {
+  Anton,
   Cormorant_Garamond,
   DM_Sans,
   DM_Serif_Display,
@@ -29,10 +30,12 @@ const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans", display
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap", preload: false });
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-poppins", display: "swap", preload: false });
 const sourceSans = Source_Sans_3({ subsets: ["latin"], variable: "--font-source-sans", display: "swap", preload: false });
+/** a condensed poster face (street-food brands); one weight only, so theme.ts switches faux bold off for it */
+const anton = Anton({ subsets: ["latin"], weight: "400", variable: "--font-anton", display: "swap", preload: false });
 
 /** Class list for <html>: declares every catalogue variable. */
 export const fontVariables = [
-  inter, playfair, dmSerif, cormorant, baskerville, merriweather, lora, dmSans, manrope, poppins, sourceSans,
+  inter, playfair, dmSerif, cormorant, baskerville, merriweather, lora, dmSans, manrope, poppins, sourceSans, anton,
 ]
   .map((font) => font.variable)
   .join(" ");

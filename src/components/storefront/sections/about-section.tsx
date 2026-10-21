@@ -1,3 +1,4 @@
+import type { SectionTone } from "@/components/storefront/section-shell";
 import Image from "next/image";
 import type { StorefrontContext } from "@/shared/contract/models";
 import type { AboutSection as AboutConfig } from "@/shared/contract/sections";
@@ -10,13 +11,13 @@ import { CtaLink } from "@/components/storefront/cta-link";
  * the other half is the night surface with the story, its action and the restaurant's own figures set
  * as a column of highlights. Photo side follows `imagePosition`.
  */
-export function AboutSection({ section, context }: { section: AboutConfig; context: StorefrontContext }) {
+export function AboutSection({ section, context, tone }: { section: AboutConfig; context: StorefrontContext; tone?: SectionTone }) {
   const image = resolveImage(section.image?.url) ?? resolveImage(context.restaurant.coverUrl);
   const right = section.imagePosition === "right";
   const paragraphs = section.body.split(/\n{2,}/).filter(Boolean);
 
   return (
-    <section className="tone-night grid grid-cols-[minmax(0,1fr)] lg:grid-cols-2">
+    <section className={`tone-${tone ?? "night"} grid grid-cols-[minmax(0,1fr)] lg:grid-cols-2`}>
       <div className={cn("relative min-h-[20rem] overflow-hidden sm:min-h-[24rem] lg:min-h-[34rem]", right && "lg:order-2")}>
         {image ? (
           <Image

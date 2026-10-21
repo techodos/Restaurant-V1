@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Rail } from "@/components/storefront/rail";
 import { SectionHeading } from "@/components/storefront/section-heading";
-import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
 import { searchMenu } from "@/server/services/catalog";
 
 /**
@@ -16,9 +16,11 @@ import { searchMenu } from "@/server/services/catalog";
 export async function FeaturedItemsSection({
   section,
   context,
+  tone,
 }: {
   section: FeaturedConfig;
   context: StorefrontContext;
+  tone?: SectionTone;
 }) {
   const items = section.itemSlugs.length
     ? await searchMenu(context.restaurant.id, { slugs: section.itemSlugs, limit: section.itemSlugs.length })
@@ -46,9 +48,9 @@ export async function FeaturedItemsSection({
   );
 
   return (
-    <SectionShell tone="paper">
+    <SectionShell tone={tone ?? "paper"}>
       <SectionHeading
-        eyebrow="Signature dishes"
+        eyebrow={section.eyebrow || "Signature dishes"}
         title={section.title}
         subtitle={section.subtitle}
         action={

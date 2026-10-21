@@ -42,28 +42,41 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
   const location = context.primaryLocation;
   const status = location && !compact ? serviceStatus(location.hours, new Date(), context.restaurant.timezone) : null;
   const secondary = section.secondaryCta;
+  // phones: the whole photo sits under the header and the text follows it, instead of the photo filling (and cropping to) a tall hero
+  const whole = section.phonePhoto === "whole" && Boolean(image);
 
   return (
     <section
       className={cn(
         "tone-night relative isolate flex flex-col overflow-hidden",
         HEIGHTS[section.height] ?? HEIGHTS.lg,
+        whole && "max-md:min-h-0",
       )}
     >
       {image ? (
         <>
-          <Image
-            src={image}
-            alt={section.image?.alt ?? ""}
-            fill
-            priority
-            sizes="100vw"
-            className="animate-hero -z-20 object-cover"
-          />
+          <div
+            className={cn(
+              "-z-20",
+              whole
+                ? "relative aspect-[16/9] w-full max-md:[[data-hero-overlay]_&]:mt-[var(--header-h,4.25rem)] md:absolute md:inset-0 md:aspect-auto"
+                : "absolute inset-0",
+            )}
+          >
+            <Image
+              src={image}
+              alt={section.image?.alt ?? ""}
+              fill
+              priority
+              sizes="100vw"
+              className="animate-hero object-cover"
+            />
+            {whole ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[var(--color-night)] to-transparent md:hidden" /> : null}
+          </div>
           {/* directional scrim: dark where the type sits, the photograph left clear on the other side */}
           <span
             aria-hidden
-            className="absolute inset-0 -z-10"
+            className={cn("absolute inset-0 -z-10", whole && "max-md:hidden")}
             style={{
               background: centered
                 ? `linear-gradient(180deg, rgb(0 0 0 / ${Math.min(overlay + 0.2, 0.85)}) 0%, rgb(0 0 0 / ${overlay}) 45%, rgb(0 0 0 / ${Math.min(overlay + 0.25, 0.9)}) 100%)`

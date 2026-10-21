@@ -23,6 +23,9 @@ const imageSchema = z.object({
   caption: z.string().trim().max(200).optional(),
 });
 
+/** every section with a flexible ground can pin it: `auto` = the page's alternating rhythm (section-rhythm.ts) */
+const backgroundSchema = z.enum(["auto", "paper", "muted", "night"]).default("auto");
+
 /**
  * An admin-edited list that must never take the section down: entries that fail `item` (a blank row the
  * editor just added, an image with no address) are dropped one by one and anything past `max` is cut,
@@ -60,6 +63,8 @@ export const heroSectionSchema = z.object({
   dishSlugs: lenientList(z.string().trim().min(1).max(120), 3),
   alignment: z.enum(["left", "center"]).default("left"),
   overlay: z.coerce.number().min(0).max(1).default(0.45),
+  /** phones, cinematic layout: "cover" fills the tall hero (crops the sides); "whole" shows the entire photo under the header with the text below it */
+  phonePhoto: z.enum(["cover", "whole"]).catch("cover").default("cover"),
   height: z.enum(["sm", "md", "lg", "full"]).default("lg"),
   primaryCta: ctaSchema.optional(),
   secondaryCta: ctaSchema.optional(),
@@ -84,6 +89,8 @@ export const announcementSectionSchema = z.object({
 export const featuredItemsSectionSchema = z.object({
   type: z.literal("featured_items"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
+  eyebrow: z.string().trim().max(60).optional(),
   title: z.string().trim().max(120).default("Guest favourites"),
   subtitle: z.string().trim().max(300).optional(),
   /** explicit item slugs; empty => whatever the restaurant marked as featured */
@@ -96,6 +103,7 @@ export const featuredItemsSectionSchema = z.object({
 export const menuCategoriesSectionSchema = z.object({
   type: z.literal("menu_categories"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(120).default("Explore the menu"),
   subtitle: z.string().trim().max(300).optional(),
   limit: z.coerce.number().int().min(1).max(24).default(8),
@@ -105,6 +113,7 @@ export const menuCategoriesSectionSchema = z.object({
 export const menuPreviewSectionSchema = z.object({
   type: z.literal("menu_preview"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(120).default("Popular right now"),
   subtitle: z.string().trim().max(300).optional(),
   categorySlug: z.string().trim().max(120).optional(),
@@ -115,6 +124,7 @@ export const menuPreviewSectionSchema = z.object({
 export const aboutSectionSchema = z.object({
   type: z.literal("about"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   eyebrow: z.string().trim().max(60).optional(),
   title: z.string().trim().max(140).default("Our story"),
   body: z.string().trim().max(4000).default(""),
@@ -130,6 +140,7 @@ export const aboutSectionSchema = z.object({
 export const gallerySectionSchema = z.object({
   type: z.literal("gallery"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(120).default("From our kitchen"),
   subtitle: z.string().trim().max(300).optional(),
   images: z.array(imageSchema).max(24).default([]),
@@ -139,6 +150,7 @@ export const gallerySectionSchema = z.object({
 export const whyChooseUsSectionSchema = z.object({
   type: z.literal("why_choose_us"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(120).default("Why guests choose us"),
   subtitle: z.string().trim().max(300).optional(),
   items: z
@@ -156,6 +168,7 @@ export const whyChooseUsSectionSchema = z.object({
 export const reviewsSectionSchema = z.object({
   type: z.literal("reviews"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(120).default("What our guests say"),
   subtitle: z.string().trim().max(300).optional(),
   limit: z.coerce.number().int().min(1).max(12).default(6),
@@ -176,6 +189,7 @@ export const reservationCtaSectionSchema = z.object({
 export const locationsSectionSchema = z.object({
   type: z.literal("locations"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(120).default("Find us"),
   subtitle: z.string().trim().max(300).optional(),
   showMap: z.boolean().default(true),
@@ -185,6 +199,7 @@ export const locationsSectionSchema = z.object({
 export const contactSectionSchema = z.object({
   type: z.literal("contact"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(120).default("Get in touch"),
   subtitle: z.string().trim().max(300).optional(),
   showForm: z.boolean().default(false),
@@ -206,6 +221,7 @@ export const ctaSectionSchema = z.object({
 export const richTextSectionSchema = z.object({
   type: z.literal("rich_text"),
   enabled: z.boolean().default(true),
+  background: backgroundSchema,
   title: z.string().trim().max(140).optional(),
   body: z.string().trim().max(8000).default(""),
   width: z.enum(["narrow", "wide"]).default("narrow"),

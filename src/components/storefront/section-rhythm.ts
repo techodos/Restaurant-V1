@@ -31,6 +31,7 @@ function fixedTone(section: Section): SectionTone | undefined {
     if (section.tone === "primary") return "brand";
     return undefined; // neutral: flexible
   }
+  if ("background" in section && section.background !== "auto") return section.background;
   if (section.type === "order_type_switch") return section.tone === "auto" ? ORDER_SWITCH_TONE[section.layout] : section.tone;
   return FIXED[section.type];
 }

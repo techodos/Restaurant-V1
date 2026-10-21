@@ -4,7 +4,7 @@ import { SectionShell, type SectionTone } from "@/components/storefront/section-
 
 /**
  * Long-form copy set as an editorial spread: the title holds a narrow left column under an accent rule,
- * the text runs on the right with the opening paragraph as a large serif lede (drop cap on wide screens)
+ * the text runs on the right with the opening paragraph as a large serif lede (drop cap on wide screens, only when the lede is a real paragraph: a one-line lede stays plain)
  * and the rest in the body face. Without a title the text stands alone in a reading column.
  */
 export function RichTextSection({ section, tone = "paper" }: { section: RichTextConfig; tone?: SectionTone }) {
@@ -12,7 +12,7 @@ export function RichTextSection({ section, tone = "paper" }: { section: RichText
   const text = (
     <div>
       {first ? (
-        <p className="font-[family-name:var(--font-display)] text-[1.35rem] leading-[1.5] md:text-[1.7rem] md:first-letter:float-left md:first-letter:mr-2 md:first-letter:mt-1 md:first-letter:text-[4.6rem] md:first-letter:leading-[0.8] md:first-letter:text-[var(--color-brand-accent)]">
+        <p className={cn("font-[family-name:var(--font-display)] text-[1.35rem] leading-[1.5] md:text-[1.7rem]", first.length > 140 && "md:first-letter:float-left md:first-letter:mr-2 md:first-letter:mt-1 md:first-letter:text-[4.6rem] md:first-letter:leading-[0.8] md:first-letter:text-[var(--color-brand-accent)]")}>
           {first}
         </p>
       ) : null}

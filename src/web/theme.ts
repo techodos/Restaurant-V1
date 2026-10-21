@@ -17,9 +17,13 @@ const FONT_STACKS: Record<string, string> = {
   manrope: `var(--font-manrope), ${SANS}`,
   poppins: `var(--font-poppins), ${SANS}`,
   "source sans 3": `var(--font-source-sans), ${SANS}`,
+  anton: `var(--font-anton), Impact, "Arial Narrow", sans-serif`,
   georgia: 'Georgia, "Times New Roman", serif',
   system: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
 };
+
+/** heading faces shipped in ONE weight: headings ask for 500/600, so the browser would fake the bold */
+const SINGLE_WEIGHT_HEADINGS = new Set(["anton"]);
 
 const RADIUS: Record<RestaurantTheme["radius"], string> = {
   none: "0px",
@@ -72,6 +76,8 @@ export function themeCssVariables(theme: RestaurantTheme): Record<string, string
     // Same reason for the fonts: without these, headings fell back to Georgia and body text to system-ui.
     "--font-display": vars["--brand-font-heading"]!,
     "--font-sans": vars["--brand-font-body"]!,
+    // a heading face with a single weight must not be faux-bolded by the browser (smeared strokes); globals.css reads it
+    ...(SINGLE_WEIGHT_HEADINGS.has((theme.font ?? "").trim().toLowerCase()) ? { "--display-synthesis": "none", "--display-tracking": "0.012em" } : {}),
     ...semanticTokens(theme),
   };
 }
@@ -91,5 +97,7 @@ function semanticTokens(theme: RestaurantTheme): Record<string, string> {
     "--color-warning": theme.warning ?? "#B26B00",
     "--color-danger": theme.danger ?? "#B42318",
     "--color-info": theme.info ?? "#2F5E9E",
+    // admin portal background: a pinned flat colour replaces the automatic brand/accent wash (globals.css reads both)
+    ...(theme.adminBackground ? { "--color-admin-wash": theme.adminBackground, "--admin-wash-image": "none" } : {}),
   };
 }

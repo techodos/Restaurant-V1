@@ -100,7 +100,7 @@ export function StationNav({ stations, variant }: { stations: Station[]; variant
 
   return (
     <nav aria-label="Menu stations">
-      <div ref={railRef} className="scrollbar-none flex gap-1 overflow-x-auto sm:justify-between">
+      <div ref={railRef} className="scrollbar-none flex gap-1 overflow-x-auto sm:[justify-content:safe_center] sm:gap-3">
         {stations.map((station) => {
           const current = station.slug === active;
           return (

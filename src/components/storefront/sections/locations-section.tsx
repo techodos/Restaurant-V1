@@ -4,12 +4,12 @@ import type { LocationsSection as LocationsConfig } from "@/shared/contract/sect
 import { formatHours, zonedNow } from "@/shared/hours";
 import { cn } from "@/shared/utils";
 import { SectionHeading } from "@/components/storefront/section-heading";
-import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
 import { serviceStatus } from "@/components/storefront/service-status";
 import { getLocations } from "@/server/services/restaurants";
 
 /** Every active location as an editorial block: name, live open / closed line, address, phone and the full week of hours. */
-export async function LocationsSection({ section, context }: { section: LocationsConfig; context: StorefrontContext }) {
+export async function LocationsSection({ section, context, tone }: { section: LocationsConfig; context: StorefrontContext; tone?: SectionTone }) {
   const locations = (await getLocations(context.restaurant.id))
     .filter((location) => location.isActive)
     .slice(0, section.limit);
@@ -20,7 +20,7 @@ export async function LocationsSection({ section, context }: { section: Location
   const mapUrl = context.config.contact.mapEmbedUrl;
 
   return (
-    <SectionShell tone="paper">
+    <SectionShell tone={tone ?? "paper"}>
       <SectionHeading eyebrow="Visit" title={section.title} subtitle={section.subtitle} />
       <ul className={cn("section-body grid grid-cols-[minmax(0,1fr)] gap-x-14 gap-y-10", locations.length > 1 && "md:grid-cols-2")}>
         {locations.map((location) => {

@@ -4,14 +4,14 @@ import type { StorefrontContext } from "@/shared/contract/models";
 import type { ReviewsSection as ReviewsConfig } from "@/shared/contract/sections";
 import { RatingStars } from "@/components/storefront/rating-stars";
 import { Rail } from "@/components/storefront/rail";
-import { SectionShell } from "@/components/storefront/section-shell";
+import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
 import { getPublicReviews, getReviewSummary } from "@/server/services/reviews";
 
 /**
  * Proof, on the night surface: the restaurant's real average and review count hold the left column,
  * approved reviews run beside it as quote cards in a rail (restaurant replies included).
  */
-export async function ReviewsSection({ section, context }: { section: ReviewsConfig; context: StorefrontContext }) {
+export async function ReviewsSection({ section, context, tone }: { section: ReviewsConfig; context: StorefrontContext; tone?: SectionTone }) {
   const [reviews, breakdown] = await Promise.all([
     getPublicReviews(context.restaurant.id, { limit: section.limit }),
     getReviewSummary(context.restaurant.id),
@@ -20,7 +20,7 @@ export async function ReviewsSection({ section, context }: { section: ReviewsCon
   const reviewsHref = `/reviews`;
 
   return (
-    <SectionShell tone="night">
+    <SectionShell tone={tone ?? "night"}>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,2fr)] lg:gap-12">
         <div className="lg:pt-2">
           <p className="eyebrow mb-3">What our guests say</p>

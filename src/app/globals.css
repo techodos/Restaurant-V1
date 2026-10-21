@@ -143,10 +143,15 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* inherited: a single-weight heading face (theme.ts sets --display-synthesis: none) is never faux-bolded */
+  .theme-root {
+    font-synthesis-weight: var(--display-synthesis, auto);
+  }
+
   h1, h2, h3, h4 {
     font-family: var(--font-display);
     font-weight: 500;
-    letter-spacing: -0.015em;
+    letter-spacing: var(--display-tracking, -0.015em);
     text-wrap-style: balance;
   }
 
@@ -254,7 +259,7 @@
   /* phones ~34px (320) / 36px (375): three balanced lines, not four; desktop unchanged */
   font-size: clamp(2.125rem, 1.25rem + 4.2vw, 5.25rem);
   line-height: 1;
-  letter-spacing: -0.025em;
+  letter-spacing: var(--display-tracking, -0.025em);
   text-wrap-style: balance;
 }
 
@@ -263,7 +268,7 @@
   font-weight: 500;
   font-size: clamp(1.75rem, 1.2rem + 2.3vw, 3.25rem);
   line-height: 1.05;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--display-tracking, -0.02em);
   text-wrap-style: balance;
 }
 
@@ -272,7 +277,7 @@
   font-weight: 500;
   font-size: clamp(1.4rem, 1.2rem + 1.1vw, 2.2rem);
   line-height: 1.1;
-  letter-spacing: -0.015em;
+  letter-spacing: var(--display-tracking, -0.015em);
   text-wrap-style: balance;
 }
 
@@ -281,7 +286,7 @@
   font-weight: 500;
   font-size: clamp(1.2rem, 1.1rem + 0.4vw, 1.45rem);
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--display-tracking, -0.01em);
 }
 
 /* small tracked label above a heading; a short accent rule leads it */
@@ -780,12 +785,16 @@
     0 20px 40px -22px color-mix(in srgb, var(--color-ink) 30%, transparent);
 }
 /* the restaurant's own colours behind the top of every admin page: a brand wash fading into the paper, and the
-   accent glowing in the top-right corner (echoes the sidebar's accent), then plain paper for the working area */
+   accent glowing in the top-right corner (echoes the sidebar's accent), then plain paper for the working area.
+   A restaurant can pin a flat colour instead (theme.adminBackground, super admin "Admin portal" swatch): theme.ts
+   then sets --color-admin-wash and --admin-wash-image: none, so the gradients below disappear. */
 .admin-column {
-  background-color: var(--color-canvas-muted);
-  background-image:
-    radial-gradient(56rem 24rem at 100% 0%, color-mix(in srgb, var(--color-brand-accent) 26%, transparent), transparent 70%),
-    linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 17%, var(--color-canvas-muted)) 0, var(--color-canvas-muted) 24rem);
+  background-color: var(--color-admin-wash, var(--color-canvas-muted));
+  background-image: var(
+    --admin-wash-image,
+    radial-gradient(48rem 18rem at 100% 0%, color-mix(in srgb, var(--color-brand-accent) 9%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 6%, var(--color-canvas-muted)) 0, var(--color-canvas-muted) 16rem)
+  );
   background-repeat: no-repeat;
 }
 .admin-main .surface-card,

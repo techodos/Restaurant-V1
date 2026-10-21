@@ -209,7 +209,7 @@ export function ItemCustomizer({
                 <span className="tabular text-[var(--color-muted-ink)]">
                   {formatMoney(
                     option.priceMode === "delta" ? new Decimal(item.basePrice).plus(option.price).toFixed(2) : option.price,
-                    { currency: currencySymbol, locale },
+                    { currency: currencySymbol, locale, compact: true },
                   )}
                 </span>
               </label>
@@ -262,7 +262,7 @@ export function ItemCustomizer({
                     <span className="tabular whitespace-nowrap text-[var(--color-muted-ink)]">
                       {new Decimal(addon.price).isZero()
                         ? "Included"
-                        : `+ ${formatMoney(addon.price, { currency: currencySymbol, locale })}`}
+                        : `+ ${formatMoney(addon.price, { currency: currencySymbol, locale, compact: true })}`}
                     </span>
                   </label>
                 );
@@ -343,7 +343,7 @@ export function ItemCustomizer({
                 </>
               )}
             </span>
-            <span className="tabular font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale })}</span>
+            <span className="tabular font-semibold">{formatMoney(lineTotal.toFixed(2), { currency: currencySymbol, locale, compact: true })}</span>
           </Button>
         </div>
         <p className="mt-2 text-center text-xs text-[var(--color-muted-ink)]">Prices are confirmed when your order is placed.</p>
