@@ -32,11 +32,11 @@ async function account(id: string) {
 describe("a phone number never takes over another customer's account", () => {
   it("password sign-up with a registered phone is refused and the victim's login is untouched", async () => {
     const phone = phoneFor();
-    const victim = await createCustomerAccount({ restaurant, fullName: "Victim", email: `victim-${tag()}@example.com`, phone, password: "VictimPass#1" });
+    const victim = await createCustomerAccount({ restaurant, fullName: "Victim", email: `victim-${tag()}@example.com`, phone, password: "VictimPass#1" }, `signup-${tag()}`);
     const before = await account(victim.customerId);
 
     await expect(
-      createCustomerAccount({ restaurant, fullName: "Attacker", email: `attacker-${tag()}@example.com`, phone, password: "AttackerPass#1" }),
+      createCustomerAccount({ restaurant, fullName: "Attacker", email: `attacker-${tag()}@example.com`, phone, password: "AttackerPass#1" }, `signup-${tag()}`),
     ).rejects.toThrowError(/phone number/i);
 
     expect(await account(victim.customerId)).toEqual(before);
@@ -45,7 +45,7 @@ describe("a phone number never takes over another customer's account", () => {
 
   it("Google sign-up with a registered phone is refused and the account is not relinked", async () => {
     const phone = phoneFor();
-    const victim = await createCustomerAccount({ restaurant, fullName: "Victim", email: `victim-${tag()}@example.com`, phone, password: "VictimPass#1" });
+    const victim = await createCustomerAccount({ restaurant, fullName: "Victim", email: `victim-${tag()}@example.com`, phone, password: "VictimPass#1" }, `signup-${tag()}`);
     const before = await account(victim.customerId);
 
     await expect(
@@ -66,7 +66,7 @@ describe("a phone number never takes over another customer's account", () => {
         [restaurant.id, email, phone],
       ),
     );
-    const created = await createCustomerAccount({ restaurant, fullName: "Guest Now Member", email, phone, password: "MemberPass#1" });
+    const created = await createCustomerAccount({ restaurant, fullName: "Guest Now Member", email, phone, password: "MemberPass#1" }, `signup-${tag()}`);
     expect(created.customerId).toBe(guest!.id);
     expect((await account(guest!.id))?.is_guest).toBe(false);
   });
@@ -81,14 +81,14 @@ describe("a phone number never takes over another customer's account", () => {
       ]),
     );
     await expect(
-      createCustomerAccount({ restaurant, fullName: "Other", email: `other-${tag()}@example.com`, phone, password: "OtherPass#1" }),
+      createCustomerAccount({ restaurant, fullName: "Other", email: `other-${tag()}@example.com`, phone, password: "OtherPass#1" }, `signup-${tag()}`),
     ).rejects.toThrowError(/phone number/i);
   });
 
   it("linking Google to an account whose email was never verified drops the password set by whoever registered it", async () => {
     const email = `prehijack-${tag()}@example.com`;
     // someone registers the victim's email with their own password and never verifies it...
-    const squatter = await createCustomerAccount({ restaurant, fullName: "Squatter", email, phone: phoneFor(), password: "Squatter#1" });
+    const squatter = await createCustomerAccount({ restaurant, fullName: "Squatter", email, phone: phoneFor(), password: "Squatter#1" }, `signup-${tag()}`);
     // ...then the real owner of the inbox signs in with Google, which links onto that row
     const existing = await getCustomerByGoogleSubOrEmail(restaurant.id, `g-${tag()}`, email, { restaurantId: restaurant.id });
     expect(existing?.id).toBe(squatter.customerId);
@@ -99,7 +99,7 @@ describe("a phone number never takes over another customer's account", () => {
 
   it("linking Google keeps the password of an account that had verified its email", async () => {
     const email = `verified-${tag()}@example.com`;
-    const owner = await createCustomerAccount({ restaurant, fullName: "Owner", email, phone: phoneFor(), password: "OwnerPass#1" });
+    const owner = await createCustomerAccount({ restaurant, fullName: "Owner", email, phone: phoneFor(), password: "OwnerPass#1" }, `signup-${tag()}`);
     await testDatabase.write({}, (tx) => tx.query("update customers set is_email_verified = true where id = $1", [owner.customerId]));
     await linkGoogleToCustomer(owner.customerId, `g-${tag()}`, { restaurantId: restaurant.id, customerId: owner.customerId });
 

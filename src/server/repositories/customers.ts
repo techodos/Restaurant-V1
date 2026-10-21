@@ -168,6 +168,14 @@ export async function getCustomerByGoogleSubOrEmail(
   return row ? mapCustomer(row) : null;
 }
 
+/** customers.session_epoch (0046), or null when the account no longer exists at this restaurant. */
+export async function getSessionEpoch(customerId: string, restaurantId: string): Promise<number | null> {
+  const row = await getDb({ restaurantId }).write({ restaurantId }, (tx) =>
+    tx.queryOne<Row>("select session_epoch from customers where id = $1 and restaurant_id = $2", [customerId, restaurantId]),
+  );
+  return row ? Number(row.session_epoch) || 0 : null;
+}
+
 export interface UpsertCustomerInput {
   restaurantId: string;
   fullName: string;
@@ -195,6 +203,9 @@ export async function upsertCustomer(
        on conflict (restaurant_id, phone) do update set
          full_name = coalesce(nullif($2,''), customers.full_name),
          email = coalesce(nullif($3,''), customers.email),
+         -- a verification belongs to the address that was verified: a different email is unverified again
+         is_email_verified = case when nullif($3,'') is not null and lower($3) is distinct from lower(customers.email)
+                                  then false else customers.is_email_verified end,
          marketing_opt_in = coalesce($5, customers.marketing_opt_in),
          is_guest = case when $6 = false then false else customers.is_guest end
        returning ${CUSTOMER_COLUMNS}`,

@@ -338,6 +338,8 @@ export async function getVisitorContext(restaurantId: string): Promise<RequestCo
     cartToken: null,
     customerId: customer?.customerId ?? null,
     userId: customer?.userId ?? null,
+    sessionEpoch: (await getCustomerSession())?.epoch ?? 0,
+    customerEmailVerified: customer?.emailVerified ?? null,
     guestOrderIds: customer ? null : (await getGuestOrderGrants(restaurantId)).map((grant) => grant.orderId),
   };
 }

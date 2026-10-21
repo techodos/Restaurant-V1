@@ -3,7 +3,7 @@
  * (pino, Datadog, …) without touching callers. Client-facing errors never carry
  * what is logged here.
  */
-type Scope = "config" | "db" | "action" | "storage" | "cache" | "notifications" | "payments" | "geocoding" | "unexpected";
+type Scope = "config" | "db" | "action" | "storage" | "cache" | "notifications" | "payments" | "geocoding" | "rate-limit" | "unexpected";
 
 export const logger = {
   info(scope: Scope, message: string, detail?: Record<string, unknown>): void {

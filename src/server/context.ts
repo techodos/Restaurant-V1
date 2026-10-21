@@ -15,6 +15,9 @@ export interface RequestContext {
   restaurantId?: string | null;
   /** authenticated storefront customer id */
   customerId?: string | null;
+  /** session claims of the signed-in customer (web/session.ts): `session_epoch` (0046) and whether the login email was verified (null = unknown) */
+  sessionEpoch?: number;
+  customerEmailVerified?: boolean | null;
   /** opaque guest cart token */
   cartToken?: string | null;
   /**

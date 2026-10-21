@@ -33,6 +33,8 @@ export interface CustomerSessionPayload extends JWTPayload {
    * the claim existed — callers then treat it as unknown.
    */
   emailVerified?: boolean;
+  /** customers.session_epoch when signed (0046); a password reset raises it, which ends older sessions. Absent = 0. */
+  epoch?: number;
 }
 
 function secret(): Uint8Array {

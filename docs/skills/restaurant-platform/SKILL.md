@@ -1486,3 +1486,36 @@ Kitchen also hides awaiting ones (`listKitchenOrders` predicate). Reports exclud
 Yes → Sent survives reload; same-phone reorder replaces the first; kitchen hides awaiting; 40-min-old order → not sent
 for customer + admin). **Phone layout (fixed 2026-10-19):** `Button` is `whitespace-nowrap`, so a button row indented beside the card's icon overflowed at 390px ("Not yet, open WhatsApp" ran past the card). The card now puts icon + title on one row and the body full width below on phones (`sm:pl-[3.625rem]` indent from sm up), and every action is `w-full sm:w-auto` in a `flex-col sm:flex-row` row. Checked at 390px: no button outside the card, no horizontal page scroll, in all three states.
 
+
+## 41. Security pass (2026-10-21, migration 0045)
+
+Audit of auth, OTP, reset, admin/super-admin, payments, secrets. **Apply `npm run db:migrate` (0045 `rate_limits`) before deploying**; without it the shared limiter logs a warning and the in-process limits still apply.
+
+### Fixed (each has a test: `tests/security-hardening.test.ts` DB-free, `tests/otp-hardening.test.ts` real Postgres)
+- **Guest OTP bypass (confirmed).** `upsertCustomer` changed a guest row's email but kept `is_email_verified`: verify email A, then order/get confirmations sent to ANY email B with no code. Now a different email (case-insensitive) clears the flag. Also `attemptVerificationCode` only counts a code sent to the address the row has NOW (`lower(code.email) = lower(customers.email)`), and `getActiveVerificationCode(customerId, email)` ignores codes for another address so a changed email triggers a new send.
+- **Resend reset the guess counter.** Each code had its own 5 attempts, so resends (3 per 5 min) gave unlimited guessing. `attemptVerificationCode(..., maxRecentAttempts=10)` now also locks when the customer's codes of the last 15 min hold ≥ 10 wrong guesses (same statement, so it is atomic). Issuing a code retires earlier ones (`expires_at = now()`, never `consumed_at`: that column means "verified").
+- **Guest row claimed as verified.** Sign-up upgrading a guest row (same phone + email) used to inherit `is_email_verified`, so anyone knowing a guest's phone + email got a verified account with their order history. It now stays verified only if that email was OTP-verified in the last 30 min (the checkout "save your details" step), else false (they verify by code like any new account).
+- **Account-existence timing.** `verifyPassword` skipped bcrypt for an unknown account (~1 ms vs ~60 ms). It now runs a dummy compare. Applies to staff and customer sign-in.
+- **Shared rate limiter.** `rate-limit.ts#checkSharedRateLimit` = in-process bucket first, then an atomic upsert in `rate_limits` (hashed bucket, `repositories/rate-limits.ts`), so limits hold across serverless instances. Used for: per-account staff/customer sign-in, sign-up, code sends (per customer and per IP), password-reset request/verify. Per-IP sign-in stays in-process (CGNAT-generous; avoids a round trip per attempt). Shared store down or table missing → logs and falls back to in-process only (availability of sign-in wins). Code verification needs no extra hop: its cap lives in the verify statement.
+- **CSP:** added `object-src 'none'; base-uri 'self'` to the existing `frame-ancestors`. A script-src CSP is NOT set (needs nonces for Next, Stripe, Maps, Firebase); `form-action` is NOT set (JazzCash posts a form to its gateway).
+- DB suites that call `createCustomerAccount` now pass a unique identifier (shared limiter rows persist in the test DB between runs).
+
+### Verified OK (do not re-audit)
+Every admin Server Action calls `requirePermission`/`requireRestaurantWidePermission`/`requireSuperAdmin` (fresh membership read on writes); a super admin can never be assigned from the app; nobody can grant a role above their own, edit their own role, or reset another login's password via "add staff" (existing logins keep their password); public sign-up never takes a role; Stripe webhook verifies the HMAC + 5 min tolerance over raw bytes; JazzCash return verifies the hash; dispatch route uses a constant-time bearer compare; media route blocks traversal and sandboxes SVG; `safeReturnTo` blocks open redirects; `npm audit --omit=dev` = 0 vulnerabilities; no secrets in tracked files (`repomix-output.xml` is tracked but holds no values).
+
+### Follow-up (same day, migration 0046): three of the remaining risks closed
+- **Password reset ends other sessions.** `customers.session_epoch` (0046) is copied into the session JWT (`epoch` claim, absent = 0) and raised by `resetCustomerPassword`; the reset's own new token carries the new value. A session whose epoch is behind is refused where it ACTS on the account: `createOrder` (`CreateOrderInput.sessionEpoch`, compared inside the locked account row), the profile/address service (`requireCustomerId(visitor, restaurantId)`) and My Orders (`getMyOrders`). Page views stay database-free; the header can still show a stale session until its first action. `RequestContext` gained `sessionEpoch` and `customerEmailVerified` (set by `getVisitorContext`); `customer-auth.ts#isSessionCurrent` is the one check. A new sign-in path must put `epoch` in its token (`signInCustomer`, sign-up, Google, reset do).
+- **Unverified accounts see no order history or saved addresses** (`getMyOrders` returns empty when the claim says unverified; `getCustomerProfile` returns no addresses until `emailVerified`). Checkout's verify gate is unaffected.
+- **`JAZZCASH_ENV=demo` is ignored when `NODE_ENV=production`** unless `ALLOW_PAYMENT_DEMO=true` (then the JazzCash provider is simply not configured). Set the flag only on a public demo site.
+- Deploy: `npm run db:migrate` now applies 0045 AND 0046; apply 0046 before the code (the code reads `session_epoch`).
+
+### Remaining risks / manual actions (not fixed in code)
+- `callerIdentifier` trusts the first `X-Forwarded-For` hop: correct on Vercel, spoofable behind a proxy that appends; configure the proxy to overwrite it. Per-account limits still apply.
+- `images.remotePatterns` allows any https host (the optimizer is an open image proxy); restrict once the image hosts are known.
+- No MFA for owner/super-admin logins; staff sessions are 12 h with no server-side revocation list.
+- Sign-up says "an account with that email already exists" (account existence is revealed there by design, like the checkout contact check, which is rate limited).
+
+### Open issues parked by the owner (decide later, 2026-10-21)
+1. **Image proxy:** `images.remotePatterns` is `https://**`. Known hosts in code: `images.unsplash.com` (seeds), the Supabase storage host (`NEXT_PUBLIC_SUPABASE_URL`); check `website`/menu image URLs in the DB before restricting.
+2. **MFA** for owner/super-admin logins.
+3. **`X-Forwarded-For`**: have the proxy overwrite it (Vercel already does).
