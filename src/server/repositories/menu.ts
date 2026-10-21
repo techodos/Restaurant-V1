@@ -470,23 +470,33 @@ export async function createMenuItem(
   });
 }
 
+/** Optional columns a patch can clear: a key present with `null` empties it; an absent key keeps the stored value. */
+const CLEARABLE_ITEM_FIELDS = ["description", "shortDescription", "imageUrl", "compareAtPrice"] as const;
+
+/**
+ * Updates one item. Returns the saved item plus the photo address it had BEFORE this statement (same statement, via the
+ * CTE's snapshot), so the caller can clean up an uploaded photo that was replaced or removed.
+ */
 export async function updateMenuItem(
   itemId: string,
   patch: Partial<CreateMenuItemInput> & { categoryId?: string },
   ctx: RequestContext,
-): Promise<MenuItem> {
+): Promise<{ item: MenuItem; previousImageUrl: string | null }> {
   const db = getDb(ctx);
+  // `coalesce` alone could never clear these: emptying the photo, description or compare-at price in the form was ignored
+  const cleared = CLEARABLE_ITEM_FIELDS.filter((key) => key in patch);
   return db.write(ctx, async (tx) => {
     const row = await tx.queryOne<Row>(
-      `update menu_items set
+      `with previous as (select image_url from menu_items where id = $1)
+       update menu_items set
          category_id = coalesce($2, category_id),
          name = coalesce($3, name),
          slug = coalesce($4, slug),
-         description = coalesce($5, description),
-         short_description = coalesce($6, short_description),
-         image_url = coalesce($7, image_url),
+         description = case when 'description' = any($21::text[]) then $5 else description end,
+         short_description = case when 'shortDescription' = any($21::text[]) then $6 else short_description end,
+         image_url = case when 'imageUrl' = any($21::text[]) then $7 else image_url end,
          base_price = coalesce($8::numeric, base_price),
-         compare_at_price = coalesce($9::numeric, compare_at_price),
+         compare_at_price = case when 'compareAtPrice' = any($21::text[]) then $9::numeric else compare_at_price end,
          prep_time_minutes = coalesce($10, prep_time_minutes),
          spice_level = coalesce($11, spice_level),
          is_active = coalesce($12, is_active),
@@ -499,7 +509,7 @@ export async function updateMenuItem(
          calories = coalesce($19, calories),
          is_buffet_package = coalesce($20, is_buffet_package)
        where id = $1
-       returning *`,
+       returning menu_items.*, (select image_url from previous) as previous_image_url`,
       [
         itemId, patch.categoryId ?? null, patch.name ?? null, patch.slug ?? null, patch.description ?? null,
         patch.shortDescription ?? null, patch.imageUrl ?? null, patch.basePrice ?? null,
@@ -507,17 +517,19 @@ export async function updateMenuItem(
         patch.isActive ?? null, patch.isAvailable ?? null, patch.isFeatured ?? null,
         patch.dietaryTags ?? null, patch.allergens ?? null, patch.sortOrder ?? null,
         patch.availability === undefined ? null : JSON.stringify(patch.availability), patch.calories ?? null,
-        patch.isBuffetPackage ?? null,
+        patch.isBuffetPackage ?? null, cleared,
       ],
     );
     if (!row) throw new Error("Menu item not found");
-    return mapMenuItem(row);
+    return { item: mapMenuItem(row), previousImageUrl: row.previous_image_url ? str(row.previous_image_url) : null };
   });
 }
 
-export async function deleteMenuItem(itemId: string, ctx: RequestContext): Promise<void> {
-  await getDb(ctx).write(ctx, async (tx) => {
-    await tx.query(`delete from menu_items where id = $1`, [itemId]);
+/** Deletes one item; returns the photo address it had, for clean-up of an uploaded photo. */
+export async function deleteMenuItem(itemId: string, ctx: RequestContext): Promise<string | null> {
+  return getDb(ctx).write(ctx, async (tx) => {
+    const row = await tx.queryOne<Row>(`delete from menu_items where id = $1 returning image_url`, [itemId]);
+    return row?.image_url ? str(row.image_url) : null;
   });
 }
 
@@ -690,9 +702,21 @@ export async function updateCategory(
   });
 }
 
-export async function deleteCategory(categoryId: string, ctx: RequestContext): Promise<void> {
-  await getDb(ctx).write(ctx, async (tx) => {
-    await tx.query(`delete from menu_categories where id = $1`, [categoryId]);
+/**
+ * Deletes a category (its items go with it: `on delete cascade`). Returns every photo address that went with them, for
+ * clean-up of uploaded photos. The CTE reads the items before the delete, in the same statement.
+ */
+export async function deleteCategory(categoryId: string, ctx: RequestContext): Promise<string[]> {
+  return getDb(ctx).write(ctx, async (tx) => {
+    const rows = await tx.query<Row>(
+      `with item_images as (select image_url from menu_items where category_id = $1 and image_url is not null),
+            removed as (delete from menu_categories where id = $1 returning image_url)
+       select image_url from item_images
+       union
+       select image_url from removed where image_url is not null`,
+      [categoryId],
+    );
+    return rows.map((row) => str(row.image_url));
   });
 }
 

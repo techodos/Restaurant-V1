@@ -36,6 +36,12 @@ export const TONE_VAR: Record<StatusTone, string> = {
  */
 export const statusEdge =
   "relative overflow-hidden before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[var(--edge)] before:content-['']";
+/**
+ * The same edge for a TABLE row: put this on the row's first `<td>` (and `statusEdgeStyle` on the `<tr>`; `--edge`
+ * inherits). A `::before` on the `<tr>` itself becomes an extra anonymous cell and shifts every cell one column right.
+ */
+export const statusEdgeCell =
+  "relative before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[var(--edge)] before:content-['']";
 export function statusEdgeStyle(tone: StatusTone): React.CSSProperties {
   return { "--edge": TONE_VAR[tone] } as React.CSSProperties;
 }

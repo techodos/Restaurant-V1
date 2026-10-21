@@ -44,9 +44,13 @@ function assertUploadable(file: { type: string; size: number }): void {
   }
 }
 
-function safeFileName(original: string): string {
-  const ext = path.extname(original).toLowerCase().replace(/[^.a-z0-9]/g, "") || ".bin";
-  return `${randomUUID()}${ext}`;
+const EXTENSION_BY_MIME: Record<string, string> = {
+  "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/avif": ".avif", "image/gif": ".gif", "image/svg+xml": ".svg",
+};
+
+// the extension follows the checked MIME type, never the client's file name (a "photo.html" sent as image/png is stored as .png)
+function safeFileName(mimeType: string): string {
+  return `${randomUUID()}${EXTENSION_BY_MIME[mimeType] ?? ".bin"}`;
 }
 
 export async function uploadMedia(
@@ -54,7 +58,7 @@ export async function uploadMedia(
   file: { name: string; type: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> },
 ): Promise<UploadResult> {
   assertUploadable(file);
-  const fileName = safeFileName(file.name);
+  const fileName = safeFileName(file.type);
   const objectPath = `${restaurantId}/${fileName}`;
   const data = Buffer.from(await file.arrayBuffer());
   const bucket = storageBucket();

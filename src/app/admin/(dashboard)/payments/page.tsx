@@ -16,7 +16,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
-import { StatusPill, badgeTone, statusEdge, statusEdgeStyle, tableHead, tableRow } from "@/components/admin/admin-ui";
+import { StatusPill, badgeTone, statusEdge, statusEdgeCell, statusEdgeStyle, tableHead, tableRow } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
@@ -170,8 +170,8 @@ async function PaymentsResults({
                 </thead>
                 <tbody className="divide-y divide-[var(--admin-line,var(--color-hairline))]">
                   {result.rows.map((payment) => (
-                    <tr key={payment.id} className={`${tableRow} ${statusEdge}`} style={statusEdgeStyle(badgeTone(badgeVariant(payment.status)))}>
-                      <td className="whitespace-nowrap px-5 py-3.5">
+                    <tr key={payment.id} className={tableRow} style={statusEdgeStyle(badgeTone(badgeVariant(payment.status)))}>
+                      <td className={`${statusEdgeCell} whitespace-nowrap px-5 py-3.5`}>
                         <Link
                           href={`${adminPath()}/orders/${payment.orderNumber}`}
                           prefetch={false}

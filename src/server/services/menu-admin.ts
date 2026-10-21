@@ -2,7 +2,11 @@ import type { RequestContext } from "@/server/context";
 import { errors } from "@/server/errors";
 import { assertBranchAccess, type ScopedActor } from "@/server/auth/branch-scope";
 import { getStorefrontCache } from "@/server/cache";
-import type { MenuAddonGroup, MenuCategory, MenuItem, MenuItemSummary } from "@/shared/contract/models";
+import { logger } from "@/server/logger";
+import type { MediaAsset, MenuAddonGroup, MenuCategory, MenuItem, MenuItemSummary } from "@/shared/contract/models";
+import { menuImageProblem } from "@/shared/media-upload";
+import { createMedia, deleteMedia, findMediaByUrl, findMediaUsage } from "@/server/repositories/media";
+import { deleteStoredMedia, uploadMedia } from "@/server/integrations/storage";
 import {
   createAddon,
   createAddonGroup,
@@ -58,9 +62,11 @@ export async function saveCategory(
   return category;
 }
 
-export async function removeCategory(categoryId: string, ctx: RequestContext): Promise<void> {
-  await deleteCategory(categoryId, ctx);
+/** Returns the photo addresses that went with the category and its items; pass them to `releaseMenuImages`. */
+export async function removeCategory(categoryId: string, ctx: RequestContext): Promise<string[]> {
+  const images = await deleteCategory(categoryId, ctx);
   getStorefrontCache().invalidate();
+  return images;
 }
 
 export function listMenuItemsForAdmin(
@@ -75,19 +81,73 @@ export function getMenuItemForAdmin(restaurantId: string, itemId: string, ctx: R
   return getMenuItem(restaurantId, { id: itemId }, ctx, { includeUnavailable: true });
 }
 
+/** `replacedImageUrl`: the photo this save replaced or removed (pass it to `releaseMenuImages`), else null. */
 export async function saveMenuItem(
   restaurantId: string,
   input: CreateMenuItemInput & { id?: string },
   ctx: RequestContext,
-): Promise<MenuItem> {
-  const item = input.id ? await updateMenuItem(input.id, input, ctx) : await createMenuItem(restaurantId, input, ctx);
+): Promise<{ item: MenuItem; replacedImageUrl: string | null }> {
+  if (!input.id) {
+    const item = await createMenuItem(restaurantId, input, ctx);
+    getStorefrontCache().invalidate();
+    return { item, replacedImageUrl: null };
+  }
+  const { item, previousImageUrl } = await updateMenuItem(input.id, input, ctx);
   getStorefrontCache().invalidate();
-  return item;
+  return { item, replacedImageUrl: previousImageUrl && previousImageUrl !== item.imageUrl ? previousImageUrl : null };
 }
 
-export async function removeMenuItem(itemId: string, ctx: RequestContext): Promise<void> {
-  await deleteMenuItem(itemId, ctx);
+/** Returns the deleted item's photo address; pass it to `releaseMenuImages`. */
+export async function removeMenuItem(itemId: string, ctx: RequestContext): Promise<string | null> {
+  const image = await deleteMenuItem(itemId, ctx);
   getStorefrontCache().invalidate();
+  return image;
+}
+
+/**
+ * One dish photo from the admin's device: checked against `shared/media-upload.ts` (type, 4 MB), stored by
+ * `integrations/storage.ts` (Supabase Storage, or `.uploads/` locally) and recorded as a `media` row
+ * (`purpose = 'menu_item'`). Returns the public URL for the item's `imageUrl`; the item itself changes only when the
+ * form is saved.
+ */
+export async function uploadMenuImage(
+  restaurantId: string,
+  file: { name: string; type: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> },
+  ctx: RequestContext,
+): Promise<MediaAsset> {
+  const problem = menuImageProblem(file);
+  if (problem) throw errors.validation(problem);
+  const stored = await uploadMedia(restaurantId, file);
+  try {
+    return await createMedia(restaurantId, { ...stored, purpose: "menu_item" }, ctx);
+  } catch (error) {
+    // no orphaned file when the row cannot be written
+    await deleteStoredMedia(stored.bucket, stored.path);
+    throw error;
+  }
+}
+
+/**
+ * Deletes dish photos that were UPLOADED here (`media.purpose = 'menu_item'`) and that nothing uses any more: the
+ * `media` row and the stored file. Anything else is left alone: seeded `/images/...` paths, hand-typed addresses, a
+ * super admin's library upload, or a photo another dish/category/page still shows. Never throws (it runs after the
+ * write that freed the photo has committed); returns how many were deleted.
+ */
+export async function releaseMenuImages(restaurantId: string, urls: readonly (string | null)[], ctx: RequestContext): Promise<number> {
+  let released = 0;
+  for (const url of new Set(urls.filter((value): value is string => Boolean(value)))) {
+    try {
+      const media = await findMediaByUrl(restaurantId, url, ctx);
+      if (!media || media.purpose !== "menu_item") continue;
+      if ((await findMediaUsage(restaurantId, url, ctx)).length > 0) continue;
+      await deleteMedia(media.id, ctx);
+      await deleteStoredMedia(media.bucket, media.path);
+      released += 1;
+    } catch (error) {
+      logger.warn("storage", "could not release a menu photo", { url, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return released;
 }
 
 export async function setItemAvailability(

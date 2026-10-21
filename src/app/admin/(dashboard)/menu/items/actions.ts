@@ -1,20 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { adminPath } from "@/shared/utils";
 import type { ApiResult } from "@/shared/contract/api";
 import type { MenuAddonGroup, MenuItem } from "@/shared/contract/models";
-import { action } from "@/server/errors";
+import { action, errors } from "@/server/errors";
 import { addonGroupSchema, addonSchema, menuItemSchema, variantSchema } from "@/server/validation/menu";
 import {
   removeAddon,
   removeAddonGroup,
+  releaseMenuImages,
   removeVariant,
   saveAddon,
   saveAddonGroup,
   saveMenuItem,
   saveVariant,
   setItemLocationAvailability,
+  uploadMenuImage,
 } from "@/server/services/menu-admin";
 import { requirePermission, requireRestaurantWidePermission } from "@/web/session";
 
@@ -30,7 +33,7 @@ export async function saveMenuItemAction(payload: unknown): Promise<ApiResult<Me
     const actor = await requireRestaurantWidePermission("menu.manage");
     const input = menuItemSchema.parse(payload);
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
-    const item = await saveMenuItem(
+    const { item, replacedImageUrl } = await saveMenuItem(
       actor.restaurantId,
       {
         ...input,
@@ -43,7 +46,35 @@ export async function saveMenuItemAction(payload: unknown): Promise<ApiResult<Me
     );
     revalidatePath(adminPath("/menu"));
     revalidatePath(adminPath(`/menu/items/${item.id}`));
+    // the replaced/removed photo's file is deleted after the response, only if it was uploaded here and is now unused
+    if (replacedImageUrl) after(() => releaseMenuImages(actor.restaurantId, [replacedImageUrl], ctx));
     return item;
+  });
+}
+
+/** One dish photo from the device (multipart `file`) → Supabase Storage + a `media` row; returns the URL for the form. */
+export async function uploadMenuImageAction(formData: FormData): Promise<ApiResult<{ url: string }>> {
+  return action(async () => {
+    const actor = await requireRestaurantWidePermission("menu.manage");
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) throw errors.validation("Choose a photo to upload.");
+    const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
+    const media = await uploadMenuImage(actor.restaurantId, file, ctx);
+    return { url: media.url };
+  });
+}
+
+/**
+ * The form uploaded a photo and then replaced or removed it before saving: delete that upload again. Only a photo
+ * uploaded here that nothing uses is deleted (`releaseMenuImages`), so passing a saved or seeded address is harmless.
+ */
+export async function discardMenuImageAction(url: string): Promise<ApiResult<null>> {
+  return action(async () => {
+    const actor = await requireRestaurantWidePermission("menu.manage");
+    if (typeof url !== "string" || !url) return null;
+    const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
+    after(() => releaseMenuImages(actor.restaurantId, [url], ctx));
+    return null;
   });
 }
 
