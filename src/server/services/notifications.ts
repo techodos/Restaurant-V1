@@ -2,6 +2,7 @@ import { config } from "@/server/config";
 import { signOrderAccessToken } from "@/server/auth/tokens";
 import { errors } from "@/server/errors";
 import { createFcmProvider } from "@/server/integrations/fcm";
+import { createEmitloProvider } from "@/server/integrations/emitlo";
 import { createResendProvider } from "@/server/integrations/resend";
 import { logger } from "@/server/logger";
 import { channelsFor, pushCopyFor, RESERVATION_EMAIL_EVENTS } from "@/server/notifications/rules";
@@ -376,10 +377,9 @@ let shared: NotificationService | null = null;
 /** Providers are built from configuration; an unconfigured channel becomes null (skipped). */
 export function getNotificationService(): NotificationService {
   if (!shared) {
-    const { resend, fromAddress, maxPerSecond } = config.email;
     const { fcm } = config.push;
     shared = new NotificationService({
-      email: resend ? createResendProvider({ apiKey: resend.apiKey, fromAddress, maxPerSecond }) : null,
+      email: getEmailProvider(),
       push: fcm ? createFcmProvider(fcm) : null,
       siteUrl: config.app.siteUrl,
       maxAgeHours: config.notifications.maxAgeHours,
@@ -482,7 +482,8 @@ async function runDispatchPass(
 
 /** The configured email provider (or null), for callers outside the outbox — e.g. a synchronous OTP send. */
 export function getEmailProvider(): EmailProvider | null {
-  const { resend, fromAddress, maxPerSecond } = config.email;
+  const { resend, emitlo, fromAddress, maxPerSecond } = config.email;
+  if (emitlo) return createEmitloProvider({ secretKey: emitlo.secretKey, fromAddress, maxPerSecond });
   return resend ? createResendProvider({ apiKey: resend.apiKey, fromAddress, maxPerSecond }) : null;
 }
 
