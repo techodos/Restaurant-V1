@@ -109,6 +109,8 @@ const paymentsSchema = z.object({
 
 const emailSchema = z.object({
   RESEND_API_KEY: optionalText,
+  // Emitlo secret key (https://emitlo.com). When set it is used instead of Resend.
+  EMITLO_API_KEY: optionalText,
   // Verified sending address (or onboarding@resend.dev while testing). The display name is the restaurant's.
   EMAIL_FROM_ADDRESS: z.preprocess(emptyToUndefined, z.string().trim().email().default("onboarding@resend.dev")),
   // Send rate per server process. Resend's default account limit is 2 requests/second; raise it only if your plan allows more.
@@ -254,6 +256,7 @@ const email = lazy(() => {
   const env = parse("email", emailSchema);
   return {
     resend: env.RESEND_API_KEY ? { apiKey: env.RESEND_API_KEY } : null,
+    emitlo: env.EMITLO_API_KEY ? { secretKey: env.EMITLO_API_KEY } : null,
     fromAddress: env.EMAIL_FROM_ADDRESS,
     maxPerSecond: env.EMAIL_MAX_PER_SECOND,
   };

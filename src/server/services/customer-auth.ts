@@ -22,6 +22,7 @@ import {
   type CustomerSessionPayload,
 } from "@/server/auth/tokens";
 import { buildGoogleAuthUrl, resolveGoogleIdentity } from "@/server/integrations/google";
+import { logger } from "@/server/logger";
 import { getEmailProvider } from "@/server/services/notifications";
 import { renderVerificationCodeEmail, type CodeEmailPurpose } from "@/server/notifications/templates/email-verification";
 import {
@@ -109,7 +110,7 @@ export async function sendVerificationCode(
     purpose,
     expiresInMinutes: CODE_TTL_MINUTES,
   });
-  await provider.send({
+  const result = await provider.send({
     to: email,
     fromName: restaurant?.name ?? "Restaurant Platform",
     replyTo: restaurant?.email ?? null,
@@ -118,6 +119,7 @@ export async function sendVerificationCode(
     text: rendered.text,
     idempotencyKey: `email-verify-${customerId}-${randomUUID()}`,
   });
+  if (!result.ok) logger.error("notifications",`verification code email to ${email} failed`, result.error);
 }
 
 /** Sends a code only when there is no still-active one, so opening the checkout gate never spams a fresh code on every render. */
