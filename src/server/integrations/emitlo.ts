@@ -8,7 +8,7 @@ import type { EmailMessage, EmailProvider, EmailResult } from "@/server/notifica
  */
 
 const ENDPOINT = "https://api.emitlo.com/api/v1/messages";
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 20_000; // Emitlo is sometimes slow; a timeout is retried and it has no idempotency key, so avoid false timeouts
 
 export interface EmitloOptions {
   secretKey: string;
@@ -37,7 +37,13 @@ export function createEmitloProvider(options: EmitloOptions): EmailProvider {
       try {
         response = await fetch(ENDPOINT, {
           method: "POST",
-          headers: { Authorization: `Bearer ${options.secretKey}`, "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${options.secretKey}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            // Emitlo sits behind Cloudflare, which challenges requests carrying Node's default agent ("Just a moment...").
+            "User-Agent": "restaurant-platform/1.0 (+transactional-email)",
+          },
           body: JSON.stringify({
             from_email: options.fromAddress,
             from_name: cleanName(message.fromName),
@@ -57,7 +63,8 @@ export function createEmitloProvider(options: EmitloOptions): EmailProvider {
       }
 
       const detail = await response.text().catch(() => "");
-      const retryable = response.status === 429 || response.status >= 500;
+      // a Cloudflare challenge page (HTML 403) is transient; a real 403 from Emitlo is JSON (e.g. DOMAIN_MISMATCH) and is final
+      const retryable = response.status === 429 || response.status >= 500 || (response.status === 403 && /<html/i.test(detail));
       return { ok: false, retryable, error: `emitlo ${response.status}: ${detail.slice(0, 300)}` };
     },
   };
