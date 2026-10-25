@@ -126,3 +126,8 @@ export async function attemptVerificationCode(
   if (row.locked) return "locked";
   return row.matched ? "verified" : "wrong";
 }
+
+/** Retires a code whose email never went out, so the next "ensure" sends a fresh one instead of waiting out the TTL. */
+export async function expireVerificationCode(id: string, ctx: RequestContext = {}): Promise<void> {
+  await getDb(ctx).write(ctx, (tx) => tx.queryOne<Row>(`update email_verification_codes set expires_at = now() where id = $1 returning id`, [id]));
+}

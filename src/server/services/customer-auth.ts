@@ -28,6 +28,7 @@ import { renderVerificationCodeEmail, type CodeEmailPurpose } from "@/server/not
 import {
   attemptVerificationCode,
   createVerificationCode,
+  expireVerificationCode,
   getActiveVerificationCode,
 } from "@/server/repositories/email-verification";
 import {
@@ -87,7 +88,7 @@ export async function sendVerificationCode(
   await checkSharedRateLimit({ key: "email-verify-send-ip", identifier, limit: 8, windowMs: 15 * 60_000 });
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-  await createVerificationCode({
+  const record = await createVerificationCode({
     customerId,
     email,
     codeHash: hashCode(code),
@@ -127,6 +128,7 @@ export async function sendVerificationCode(
   }
   if (!result.ok) {
     logger.error("notifications", `verification code email to ${email} failed`, result.error);
+    await expireVerificationCode(record.id).catch(() => {}); // else "ensure" would see an active code and never resend
     throw errors.internal("We could not send the verification email. Please try again in a moment.");
   }
 }
@@ -210,15 +212,21 @@ async function upsertGuestContact(restaurant: Pick<Restaurant, "id">, input: Gue
   );
 }
 
-/** Opening the OTP modal: sends a code only if this phone+email isn't already verified from earlier. */
+/**
+ * "Place order" as a guest: `verified: true` when this phone+email already passed the check (the caller
+ * skips the modal — it would wait for an email that is never sent), otherwise a FRESH code is emailed.
+ * Always fresh, never "ensure": an earlier still-active code (earlier attempt, closed modal) is unreadable
+ * (only its hash is stored), so skipping the send left the customer with no email until they hit Resend.
+ */
 export async function sendGuestVerificationCode(
   restaurant: Parameters<typeof sendVerificationCode>[3] & Pick<Restaurant, "id">,
   input: GuestContact,
   identifier: string,
-): Promise<void> {
+): Promise<{ verified: boolean }> {
   const customer = await upsertGuestContact(restaurant, input);
-  if (customer.emailVerified) return;
-  await ensureVerificationCode(customer.id, input.email, identifier, restaurant);
+  if (customer.emailVerified) return { verified: true };
+  await sendVerificationCode(customer.id, input.email, identifier, restaurant);
+  return { verified: false };
 }
 
 /** The modal's explicit "Resend code" — always a fresh code. */
