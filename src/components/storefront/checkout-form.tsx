@@ -551,6 +551,12 @@ export function CheckoutForm({
             toast.error(result.error.message);
             return;
           }
+          if (result.data.verified) {
+            // already verified for this phone+email: no code was sent, so skip the modal and place the order
+            setGuestVerifiedFor({ phone: String(payload.phone), email: String(payload.email) });
+            submitOrder(payload);
+            return;
+          }
           setGuestModalOpen(true);
         },
       );

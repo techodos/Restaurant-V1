@@ -120,13 +120,12 @@ export async function checkGuestContactAction(
 }
 
 /** Upserts the guest row (never over a real account's phone) and sends a code only if none is active. */
-export async function sendGuestVerificationCodeAction(slug: string, payload: unknown): Promise<ApiResult<null>> {
+export async function sendGuestVerificationCodeAction(slug: string, payload: unknown): Promise<ApiResult<{ verified: boolean }>> {
   return action(async () => {
     const input = guestContactSchema.parse(payload);
     const restaurant = await requireStorefrontRestaurant(slug);
     const identifier = await callerIdentifier();
-    await sendGuestVerificationCode(restaurant, input, identifier);
-    return null;
+    return sendGuestVerificationCode(restaurant, input, identifier);
   });
 }
 
