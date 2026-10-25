@@ -110,7 +110,7 @@ export async function sendVerificationCode(
     purpose,
     expiresInMinutes: CODE_TTL_MINUTES,
   });
-  const result = await provider.send({
+  const message = {
     to: email,
     fromName: restaurant?.name ?? "Restaurant Platform",
     replyTo: restaurant?.email ?? null,
@@ -118,8 +118,17 @@ export async function sendVerificationCode(
     html: rendered.html,
     text: rendered.text,
     idempotencyKey: `email-verify-${customerId}-${randomUUID()}`,
-  });
-  if (!result.ok) logger.error("notifications",`verification code email to ${email} failed`, result.error);
+  };
+  // the customer is waiting on this code: retry transient failures (Cloudflare challenge, 429, 5xx) and never claim "sent" when it was not
+  let result = await provider.send(message);
+  for (let attempt = 1; !result.ok && result.retryable && attempt < 3; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+    result = await provider.send(message);
+  }
+  if (!result.ok) {
+    logger.error("notifications", `verification code email to ${email} failed`, result.error);
+    throw errors.internal("We could not send the verification email. Please try again in a moment.");
+  }
 }
 
 /** Sends a code only when there is no still-active one, so opening the checkout gate never spams a fresh code on every render. */
