@@ -163,8 +163,7 @@ export function PushOptIn({ restaurantSlug, orderNumber, accessToken, firebase }
       }
       const ok = await connect();
       setState(ok ? "enabled" : "idle");
-      if (ok) toast.success("Notifications on", { description: "We will let you know as your order progresses." });
-      else toast.error("Could not turn on notifications on this device.");
+      if (!ok) toast.error("Could not turn on notifications on this device.");
     } catch {
       setState("idle");
       toast.error("Could not turn on notifications", { description: "Please try again in a moment." });

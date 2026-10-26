@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Star } from "lucide-react";
+import { Loader2, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Input, Label, Textarea } from "@/components/ui/input";
@@ -64,7 +64,6 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
         return;
       }
       setDone(true);
-      toast.success("Review submitted", { description: "It will appear once the restaurant approves it." });
       router.refresh();
     });
   }
@@ -122,8 +121,8 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
       </div>
 
       <Button type="submit" disabled={pending}>
-        <Send aria-hidden />
-        Submit review
+        {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Send aria-hidden />}
+        {pending ? "Submitting…" : "Submit review"}
       </Button>
     </form>
   );

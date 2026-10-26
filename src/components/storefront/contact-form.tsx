@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { Loader2, Send } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Input, Label, Textarea } from "@/components/ui/input";
 
@@ -42,7 +41,6 @@ export function ContactForm({ restaurantSlug, restaurantName }: ContactFormProps
         .filter(Boolean)
         .join("\n");
       window.location.href = `mailto:?subject=${encodeURIComponent(`Message for ${restaurantName}`)}&body=${encodeURIComponent(body)}`;
-      toast.success("Opening your email app", { description: "Attach anything you like before sending." });
     });
   }
 

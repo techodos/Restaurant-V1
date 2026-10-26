@@ -132,7 +132,6 @@ export function WhatsAppHandoff({
       } catch {
         // nothing to clean up
       }
-      toast.success("Thanks!", { description: `${restaurantName} will confirm your order in WhatsApp.` });
       router.refresh();
     });
   }
@@ -141,7 +140,6 @@ export function WhatsAppHandoff({
     try {
       await navigator.clipboard.writeText(message);
       setCopied(true);
-      toast.success("Order copied", { description: `Paste it into a WhatsApp chat with ${restaurantName}.` });
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
       setShowMessage(true);

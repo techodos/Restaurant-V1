@@ -297,6 +297,8 @@ export function CheckoutForm({
   const [guestVerifiedFor, setGuestVerifiedFor] = useState<{ phone: string; email: string } | null>(null);
   const [guestModalOpen, setGuestModalOpen] = useState(false);
   const [sendingGuestCode, setSendingGuestCode] = useState(false);
+  // the order is placed and the page is navigating away: the button says where to and stays locked
+  const [leaving, setLeaving] = useState<string | null>(null);
   const pendingGuestPayload = useRef<Record<string, unknown> | null>(null);
   // a saved address is the default when there is one; "new" shows the address fields
   const [addressChoice, setAddressChoice] = useState<string>(() => {
@@ -317,6 +319,17 @@ export function CheckoutForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destinationKey]);
   const router = useRouter();
+  // Back from the payment page can restore this page from the back/forward cache with the lock still on;
+  // re-render it from the server instead (the tray is already cleared, so it shows the current state)
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setLeaving(null);
+      router.refresh();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [router]);
   const { clear: clearLocalCart, setLocationId, setOrderType: setCartOrderType } = useLocalCart();
 
   // "new address" fields are controlled so the map/search picker can fill them in; still hand-editable.
@@ -594,14 +607,14 @@ export function CheckoutForm({
         // WhatsApp checkout: the order page opens WhatsApp with the order typed in (`?wa=1`) and keeps a
         // "Send on WhatsApp" button in case the app did not open
         if (result.data.whatsapp) {
-          toast.success("Order saved", { description: "Opening WhatsApp so you can send it to the restaurant…" });
+          setLeaving("Opening WhatsApp…");
           router.push(`/order/${result.data.orderNumber}?wa=1`);
           return;
         }
         // stays locked while we navigate away — either to the order page, or (an online payment)
         // on to the gateway's own hosted page first
         if (result.data.payment) {
-          toast.success("Order received", { description: "Redirecting you to complete the payment…" });
+          setLeaving("Redirecting to payment…");
           if (result.data.payment.kind === "redirect") {
             window.location.href = result.data.payment.redirectUrl; // Stripe Checkout: plain GET
           } else {
@@ -609,9 +622,7 @@ export function CheckoutForm({
           }
           return;
         }
-        toast.success("Order received", {
-          description: "Your order has been received. You will get a confirmation message soon.",
-        });
+        setLeaving("Opening your order…");
         router.push(`/order/${result.data.orderNumber}`);
       } catch {
         submitting.current = false;
@@ -680,16 +691,16 @@ export function CheckoutForm({
   ) : (
     <>
       <span className="flex items-center gap-2.5">
-        {pending || sendingGuestCode ? (
+        {pending || sendingGuestCode || leaving ? (
           <Loader2 className="size-[18px] animate-spin" aria-hidden />
         ) : whatsappMode ? (
           <MessageCircle className="size-[18px] text-[var(--color-brand-foreground)]" aria-hidden />
         ) : (
           <Lock className="size-[18px] text-[var(--color-brand-foreground)]" aria-hidden />
         )}
-        {whatsappMode
+        {leaving ?? (whatsappMode
           ? pending ? "Saving your order" : "Send order on WhatsApp"
-          : pending ? "Placing your order" : sendingGuestCode ? "Sending code…" : "Place order"}
+          : pending ? "Placing your order" : sendingGuestCode ? "Sending code…" : "Place order")}
       </span>
       <span className="tabular flex items-center gap-2">
         {withTotal ? money(totalDue) : null}
@@ -1371,7 +1382,7 @@ export function CheckoutForm({
               </p>
             ) : null}
 
-            <button type="submit" data-testid="place-order" disabled={pending || sendingGuestCode || Boolean(closedLabel)} className={cn(ctaButton, "mt-4 hidden lg:flex")}>
+            <button type="submit" data-testid="place-order" disabled={pending || sendingGuestCode || Boolean(leaving) || Boolean(closedLabel)} className={cn(ctaButton, "mt-4 hidden lg:flex")}>
               {placeOrderContent(false)}
             </button>
             {signInPrompt ? <div className="mt-3 hidden lg:block">{signInPrompt}</div> : null}
@@ -1381,7 +1392,7 @@ export function CheckoutForm({
 
       {/* phones: the place-order action stays under the thumb with the live total */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-hairline)] bg-[color-mix(in_srgb,var(--color-canvas)_94%,transparent)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl lg:hidden">
-        <button type="submit" disabled={pending || sendingGuestCode || Boolean(closedLabel)} className={ctaButton}>
+        <button type="submit" disabled={pending || sendingGuestCode || Boolean(leaving) || Boolean(closedLabel)} className={ctaButton}>
           {placeOrderContent(true)}
         </button>
         {signInPrompt ? <div className="mt-2">{signInPrompt}</div> : null}

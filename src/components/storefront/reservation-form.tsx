@@ -194,9 +194,6 @@ export function ReservationForm({
         return;
       }
       setBooking(result.data);
-      toast.success(result.data.status === "confirmed" ? "Table confirmed" : "Request submitted", {
-        description: `Reference ${result.data.confirmationCode}`,
-      });
     });
   }
 

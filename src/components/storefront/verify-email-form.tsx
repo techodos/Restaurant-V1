@@ -70,7 +70,6 @@ export function VerifyEmailForm({
     }
     // stay "working" while the caller moves on, so the button cannot be pressed again mid-navigation
     setVerified(true);
-    toast.success('Email verified');
     onVerified?.();
   }
 
@@ -83,9 +82,6 @@ export function VerifyEmailForm({
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setCode('');
       setError(null);
-      toast.success('Code sent', {
-        description: 'Check your inbox for a new 6-digit code.',
-      });
     } else {
       toast.error(result.error.message);
     }

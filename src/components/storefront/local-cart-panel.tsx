@@ -97,7 +97,6 @@ export function LocalCartPanel({
       }
       setCoupon(result.data.code, result.data.discount);
       setCouponInput("");
-      toast.success(`Promo code ${result.data.code} applied`);
     });
   }
 

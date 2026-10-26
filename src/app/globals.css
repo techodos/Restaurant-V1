@@ -529,6 +529,12 @@
   animation: overlay-fade 150ms ease-out both;
 }
 
+/* storefront page change ((site)/template.tsx): opacity only, so `fixed` bars inside the page keep
+   working; `backwards` (not `both`) leaves no stacking context behind once it has played */
+@utility animate-page {
+  animation: overlay-fade 180ms var(--ease-out) backwards;
+}
+
 /* hero photograph settles into place once, on load */
 @keyframes hero-settle {
   from { transform: scale(1.08); }

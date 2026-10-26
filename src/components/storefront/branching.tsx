@@ -3,7 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Loader2, MapPin, Navigation, Store } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/shared/utils";
 import { branchesFor, formatDistance, type BranchOption, type BranchingState, type DeliveryDestination } from "@/shared/branching";
 import type { CustomerAddress } from "@/shared/contract/models";
@@ -257,7 +256,6 @@ function EnabledProvider({
       if (!branches.some((option) => option.id === branch.id)) return false;
       if (branch.id === cart.locationId) return true;
       if (!(await switchBranch(branch))) return false;
-      toast.success(`Ordering from ${branch.name}`);
       return true;
     },
     [branches, cart.locationId, switchBranch],
@@ -414,7 +412,6 @@ function LocationChooser({
     setBusy(null);
     if (outcome.error) return setError(outcome.error);
     if (!outcome.served && delivery) return setUnserved(destination.label);
-    toast.success(delivery ? `Delivering to ${destination.label}` : "Location updated");
     onDone();
   }
 
