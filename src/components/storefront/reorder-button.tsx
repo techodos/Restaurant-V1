@@ -51,8 +51,6 @@ export function ReorderButton({ restaurantSlug, orderNumber, accessToken }: Reor
         toast(`${result.data.skippedItemNames.length} item(s) could not be added`, {
           description: result.data.skippedItemNames.join(", ") + " — no longer available.",
         });
-      } else {
-        toast.success("Added to your cart");
       }
       router.push(`/cart`);
     } finally {

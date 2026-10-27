@@ -18,7 +18,7 @@ import { formatMoney } from "./money";
 export type LegalKind = "privacy" | "terms";
 
 /** Bump when the template wording changes; shown as "Last updated". */
-export const LEGAL_TEMPLATE_UPDATED = "2026-10-12";
+export const LEGAL_TEMPLATE_UPDATED = "2026-10-27";
 
 export interface LegalFacts {
   restaurantName: string;
@@ -128,6 +128,8 @@ export interface LegalSection {
   heading: string;
   paragraphs: string[];
   bullets?: string[];
+  /** paragraphs after the bullets */
+  after?: string[];
 }
 
 export interface LegalDocument {
@@ -224,7 +226,7 @@ function privacyPolicy(facts: LegalFacts): LegalDocument {
       `${facts.onlineProvider}, our payment provider. Card and wallet details are entered on ${facts.onlineProvider}'s own secure page; we never see or store your full card number.`,
     );
   }
-  if (facts.maps) processors.push("Google Maps, when you search for an address or place a pin on the map.");
+  if (facts.maps) processors.push("Google Maps, when you search for an address or place a pin on the map, and only after you allow it.");
   if (facts.googleSignIn) processors.push("Google, if you choose to sign in with Google (we receive your name, email address and a Google account identifier).");
   if (delivery) processors.push("The rider or delivery partner who brings your order, who receives only what is needed to deliver it.");
 
@@ -233,6 +235,7 @@ function privacyPolicy(facts: LegalFacts): LegalDocument {
     ordering ? "A cart cookie that remembers the items in your cart on this device." : null,
     delivery ? "A cookie that remembers the delivery location you chose." : null,
     ordering ? "A cookie that lets you view orders you placed without an account on this device." : null,
+    "A cookie that remembers your cookie choices, for about six months.",
   ].filter((item): item is string => Boolean(item));
 
   return {
@@ -260,9 +263,19 @@ function privacyPolicy(facts: LegalFacts): LegalDocument {
         id: "cookies",
         heading: "Cookies",
         paragraphs: [
-          "We use only cookies that the website needs in order to work. We do not use advertising cookies or third-party tracking.",
+          "Strictly necessary cookies keep the website working and are always on; they do not need your permission:",
         ],
         bullets: cookies,
+        ...(facts.maps
+          ? {
+              after: [
+                "Optional: Google Maps (address search and the delivery map) loads only after you allow it, in the cookie banner or with \"Allow Google Maps\" next to the map. Google then sets its own cookies under Google's privacy policy. Without it you can still type your address or use your current location.",
+                "We do not use advertising cookies or third-party tracking. You can change your choice at any time with \"Cookie settings\" at the bottom of every page.",
+              ],
+            }
+          : {
+              after: ["We do not use advertising cookies or third-party tracking. You can review your choice at any time with \"Cookie settings\" at the bottom of every page."],
+            }),
       },
       {
         id: "retention",

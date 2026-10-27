@@ -1,5 +1,6 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { config } from "@/server/config";
+import { CONSENT_COOKIE, decodeConsent, type CookieConsent } from "@/shared/consent";
 
 /** Cookie names and attributes. Nothing outside `web/` knows how sessions travel. */
 
@@ -56,4 +57,9 @@ export async function cookieOptions(maxAge: number) {
     path: "/",
     maxAge,
   };
+}
+
+/** The visitor's cookie choices, or null when they have not chosen yet (the layout then shows the banner). */
+export async function readCookieConsent(): Promise<CookieConsent | null> {
+  return decodeConsent((await cookies()).get(CONSENT_COOKIE)?.value);
 }

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Lock, Mail, MailCheck } from "lucide-react";
 import { cn } from "@/shared/utils";
 import { signInAction } from "@/app/(site)/account/actions";
@@ -51,7 +50,6 @@ export function SignInForm({ restaurantSlug, googleEnabled, onAuthenticated, onS
   // action with a freshly rendered tree (header now signed in) and clears the client router cache, so a
   // refresh here was one more full server render before the customer could see anything.
   function finish() {
-    toast.success("Signed in");
     if (onAuthenticated) {
       onAuthenticated();
       return;

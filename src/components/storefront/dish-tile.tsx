@@ -198,7 +198,7 @@ export function DishTile({
       </div>
 
       <div className="flex flex-1 flex-col p-4 md:p-5">
-        <h3 className={cn("font-semibold leading-snug", size === "lg" ? "text-[1.05rem]" : "text-[15px]")} style={{ fontFamily: "var(--font-sans)" }}>
+        <h3 className={cn("font-semibold", size === "lg" ? "text-[1.05rem]" : "text-[15px]", "leading-snug")} style={{ fontFamily: "var(--font-sans)" }}>
           <Link href={href} {...linkProps} className="transition-colors duration-200 hover:text-[var(--color-brand)]">
             {item.name}
           </Link>

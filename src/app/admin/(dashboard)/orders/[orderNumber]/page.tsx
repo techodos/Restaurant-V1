@@ -172,6 +172,8 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
                 <p className="flex items-center gap-2 text-[var(--color-muted-ink)]">
                   <Store className="size-4" aria-hidden /> {order.locationName ?? restaurant.name}
                   {order.tableNumber ? ` · table ${order.tableNumber}` : ""}
+                  {order.orderType === "dine_in" && order.guests ? ` · ${order.guests} guest${order.guests === 1 ? "" : "s"}` : ""}
+                  {order.orderType === "dine_in" && order.scheduledFor ? ` · arriving ${formatDateTime(order.scheduledFor)}` : ""}
                 </p>
               ) : null}
               <p className="flex items-center gap-2 text-[var(--color-muted-ink)]">

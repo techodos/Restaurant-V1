@@ -17,12 +17,15 @@ import { setItemLocationAvailabilityAction } from "@/app/admin/(dashboard)/menu/
 /** One item's availability at the selected branch (a row of the menu list in branch view). */
 export function BranchItemToggle({
   menuItemId,
+  itemName,
   locationId,
   branchName,
   available,
   disabled = false,
 }: {
   menuItemId: string;
+  /** names the switch for screen readers: every row's switch used to be "Available at <branch>" alike */
+  itemName: string;
   locationId: string;
   branchName: string;
   available: boolean;
@@ -50,7 +53,7 @@ export function BranchItemToggle({
     <span className="flex items-center justify-end gap-2 text-xs text-[var(--color-muted-ink)]">
       {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
       <span className={on || disabled ? "" : "font-medium text-[var(--color-ink)]"}>{disabled ? "Off everywhere" : on ? `Available at ${branchName}` : `Off at ${branchName}`}</span>
-      <AdminSwitch checked={on && !disabled} onChange={toggle} disabled={pending || disabled} aria-label={`Available at ${branchName}`} />
+      <AdminSwitch checked={on && !disabled} onChange={toggle} disabled={pending || disabled} aria-label={`${itemName} available at ${branchName}`} />
     </span>
   );
 }

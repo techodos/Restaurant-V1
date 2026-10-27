@@ -77,7 +77,7 @@ export function BuffetMenuCard({ item, restaurant, menu, variant }: BuffetMenuCa
         {menu.sections.map((section, index) => (
           <section key={`${section.title ?? "dishes"}-${index}`} className="mb-6 break-inside-avoid">
             {section.title ? (
-              <h3 className="mb-2 text-[15px] font-bold uppercase tracking-[0.06em] text-[var(--color-brand)]">{section.title}</h3>
+              <h3 className="mb-2 text-[14px] font-semibold uppercase tracking-[0.08em] text-[var(--color-brand)]">{section.title}</h3>
             ) : null}
             <ul className="space-y-1 text-[15px] leading-snug">
               {section.items.map((dish, dishIndex) => (

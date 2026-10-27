@@ -410,7 +410,7 @@ export async function createCustomerAccount(
   const { restaurant } = input;
   const hashed = await hashPassword(input.password);
 
-  const { id: customerId, epoch } = await getDb({ restaurantId: restaurant.id }).write(
+  const { id: customerId, epoch, emailVerified } = await getDb({ restaurantId: restaurant.id }).write(
     { restaurantId: restaurant.id },
     async (tx) => {
       const existing = await tx.queryOne<Row>(
@@ -434,7 +434,7 @@ export async function createCustomerAccount(
             where v.customer_id = customers.id and v.consumed_at > now() - interval '30 minutes'
               and lower(v.email) = lower(excluded.email))
        where customers.is_guest and (customers.email is null or lower(customers.email) = lower(excluded.email))
-       returning id, session_epoch`,
+       returning id, session_epoch, is_email_verified`,
         [
           restaurant.id,
           input.fullName,
@@ -444,7 +444,7 @@ export async function createCustomerAccount(
         ],
       );
       if (!row) throw errors.conflict(PHONE_TAKEN_MESSAGE);
-      return { id: str(row.id), epoch: Number(row.session_epoch) || 0 };
+      return { id: str(row.id), epoch: Number(row.session_epoch) || 0, emailVerified: row.is_email_verified === true };
     },
   );
 
@@ -453,14 +453,15 @@ export async function createCustomerAccount(
     customerId,
     restaurantId: restaurant.id,
     name: input.fullName,
-    emailVerified: false,
+    // what the row says: true only for a guest row upgraded right after its email was OTP-verified
+    emailVerified,
     epoch,
   });
   return {
     token,
     maxAge: SESSION_TTL.customer,
     customerId,
-    emailVerified: false,
+    emailVerified,
   };
 }
 

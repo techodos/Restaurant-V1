@@ -119,6 +119,8 @@ export interface ReviewInput {
   restaurantId: string;
   customerId?: string | null;
   orderId?: string | null;
+  /** the branch that served the order: branch staff see and moderate only their branch's reviews (branchFilter / 0029) */
+  locationId?: string | null;
   menuItemId?: string | null;
   authorName: string;
   authorEmail?: string | null;
@@ -134,13 +136,14 @@ export async function createReview(input: ReviewInput, ctx: RequestContext): Pro
   return db.write({ ...ctx, restaurantId: input.restaurantId }, async (tx) => {
     const row = await tx.queryOne<Row>(
       `insert into reviews
-         (restaurant_id, customer_id, order_id, menu_item_id, author_name, author_email, rating, title, comment, status)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::review_status)
+         (restaurant_id, customer_id, order_id, menu_item_id, author_name, author_email, rating, title, comment, status, location_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::review_status,$11)
        returning *`,
       [
         input.restaurantId, input.customerId ?? null, input.orderId ?? null, input.menuItemId ?? null,
         input.authorName, input.authorEmail ?? null, input.rating, input.title ?? null, input.comment ?? null,
         input.status,
+        input.locationId ?? null,
       ],
     );
     if (!row) throw new Error("Unable to save the review");

@@ -188,6 +188,7 @@ function KitchenTicket({ order, formatTime }: { order: Order; formatTime: (value
                 <TypeIcon className="size-3.5" aria-hidden />
                 {ORDER_TYPE_LABELS[order.orderType]}
                 {order.tableNumber ? ` · Table ${order.tableNumber}` : ""}
+                {order.orderType === "dine_in" && order.guests ? ` · ${order.guests} guest${order.guests === 1 ? "" : "s"}` : ""}
               </span>
               <span className="truncate">{order.customerName}</span>
             </p>

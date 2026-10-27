@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { checkCouponAction } from "@/app/(site)/cart/actions";
 import { localCartItemCount, localLineTotal, useLocalCart } from "./local-cart";
+import { listCities } from "@/shared/branching";
 import { useBranching } from "./branching";
 import { EmptyState } from "./empty-state";
 
@@ -97,7 +98,6 @@ export function LocalCartPanel({
       }
       setCoupon(result.data.code, result.data.discount);
       setCouponInput("");
-      toast.success(`Promo code ${result.data.code} applied`);
     });
   }
 
@@ -313,7 +313,9 @@ export function LocalCartPanel({
           <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>
             {branchGate === "no-service"
-              ? `We don't deliver to ${branching.destination?.label ?? "that location"} yet. `
+              ? cart.orderType === "delivery"
+                ? `We don't deliver to ${branching.destination?.label ?? "that location"} yet. `
+                : `${branching.unservedText(cart.orderType)}.${branching.branchCities.length ? ` Our branches are in ${listCities(branching.branchCities)}.` : ""} `
               : branchGate === "need-location"
                 ? "Choose your delivery location to continue. "
                 : "Choose a branch to continue. "}

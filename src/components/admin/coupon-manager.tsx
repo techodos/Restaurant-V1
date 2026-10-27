@@ -256,8 +256,8 @@ export function CouponManager({
                   : "border-[var(--rule-strong)] bg-[var(--tint)] text-[var(--color-muted-ink)]",
               )}
             >
-              <span className="tabular text-[1.35rem] font-bold leading-none tracking-[-0.02em]">{figure}</span>
-              <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em]">off</span>
+              <span className="tabular text-[1.35rem] font-semibold leading-none tracking-[-0.02em]">{figure}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">off</span>
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
               <div className="flex items-start justify-between gap-2">

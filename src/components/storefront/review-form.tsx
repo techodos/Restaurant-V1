@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Star } from "lucide-react";
+import { Loader2, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldHint, Input, Label, Textarea } from "@/components/ui/input";
@@ -28,7 +28,7 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
   if (done) {
     return (
       <div className="rounded-[var(--radius-panel)] bg-[var(--steel-1)] p-6 md:p-7">
-        <h2 className="text-lg font-semibold">Thank you</h2>
+        <h2 className="text-lg">Thank you</h2>
         <p className="mt-2 text-sm text-[var(--color-muted-ink)]">
           Your review is with the restaurant for moderation. It will appear on this page once approved.
         </p>
@@ -64,7 +64,6 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
         return;
       }
       setDone(true);
-      toast.success("Review submitted", { description: "It will appear once the restaurant approves it." });
       router.refresh();
     });
   }
@@ -72,7 +71,7 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4 rounded-[var(--radius-panel)] bg-[var(--steel-1)] p-6 md:p-7">
       <div>
-        <h2 className="text-lg font-semibold">Review order {orderNumber}</h2>
+        <h2 className="text-lg">Review order {orderNumber}</h2>
         <p className="mt-1 text-sm text-[var(--color-muted-ink)]">
           Reviews are published after a quick moderation check.
         </p>
@@ -122,8 +121,8 @@ export function ReviewForm({ restaurantSlug, orderNumber, accessToken, defaultNa
       </div>
 
       <Button type="submit" disabled={pending}>
-        <Send aria-hidden />
-        Submit review
+        {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Send aria-hidden />}
+        {pending ? "Submitting…" : "Submit review"}
       </Button>
     </form>
   );

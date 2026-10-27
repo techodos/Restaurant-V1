@@ -71,8 +71,8 @@ export async function signUpAction(slug: string, payload: unknown): Promise<ApiR
     const restaurant = await requireStorefrontRestaurant(slug);
     const result = await signUpCustomer(restaurant, input, identifier);
     await setCustomerSession(result.token, result.maxAge);
-    after(() => sendVerificationCode(result.customerId, input.email, identifier, restaurant).catch(() => {}));
-    return { customerId: result.customerId, emailVerified: false };
+    if (!result.emailVerified) after(() => sendVerificationCode(result.customerId, input.email, identifier, restaurant).catch(() => {}));
+    return { customerId: result.customerId, emailVerified: result.emailVerified };
   });
 }
 

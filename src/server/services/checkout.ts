@@ -38,8 +38,11 @@ export async function placeOrder(
   tray: Tray,
   input: PlaceOrderInput,
   visitor: RequestContext,
-  /** `rememberGuestOrder`: stores a guest's signed order-access token (the delivery layer sets a cookie) */
-  hooks: { rememberGuestOrder?: (token: string) => Promise<void> } = {},
+  /**
+   * `rememberGuestOrder`: stores a guest's signed order-access token (the delivery layer sets a cookie);
+   * `customerCity`: the city of the location chosen on the storefront (its cookie), for the pickup / dine-in rule
+   */
+  hooks: { rememberGuestOrder?: (token: string) => Promise<void>; customerCity?: string | null } = {},
 ): Promise<PlaceOrderResult> {
   assertTrayOrderable(restaurant, { ...tray, orderType: input.orderType });
   if (input.orderType === "delivery" && !input.addressLine1) {
@@ -91,6 +94,9 @@ export async function placeOrder(
       deliveryZoneId: input.deliveryZoneId || null,
       tableNumber: input.tableNumber || null,
       guests: input.guests ?? null,
+      // seated (a table from the QR code) needs no arrival time; ordered ahead does
+      scheduledFor: isDineIn && !input.tableNumber ? input.arrivalAt || null : null,
+      customerCity: hooks.customerCity ?? null,
       paymentMethod: input.paymentMethod,
       // only the code the checkout page showed as applied (it drops one that stopped applying)
       couponCode: input.couponCode || null,

@@ -4,7 +4,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, Check, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, X, type LucideIcon } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/input";
 import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
@@ -119,7 +118,6 @@ export function GuestVerifyDialog({
       return;
     }
     // stays "working" while the caller closes this and places the order
-    toast.success("Account created", { description: "You're signed in — placing your order now." });
     onDone(true);
   }
 

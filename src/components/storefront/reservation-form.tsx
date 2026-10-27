@@ -22,7 +22,8 @@ interface ReservationFormProps {
   restaurantSlug: string;
   locations: { id: string; name: string; area: string | null; city: string | null }[];
   dates: { value: string; label: string }[];
-  slotsByDate: Record<string, Record<string, { booked: number; capacity: number }>>;
+  /** "<locationId>:<YYYY-MM-DD>" → that day's bookable times ("HH:MM"); every listed time is open (no per-slot capacity) */
+  slotsByDate: Record<string, string[]>;
   minGuests: number;
   maxGuests: number;
   slotMinutes: number;
@@ -86,10 +87,9 @@ const chipIdle =
 const chipOn = "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)] shadow-[var(--shadow-brand)]";
 
 /**
- * Reservation form, set as three numbered steps (when, time, you). Slot availability shown here is
- * derived from the database (booked vs. configured table capacity) and re-checked atomically by
- * createReservation, so two guests cannot take the same last table. Presentation only: the payload
- * sent to bookTableAction is unchanged.
+ * Reservation form, set as three numbered steps (when, time, you). The times come from the branch's opening
+ * hours (the page builds them from the storefront snapshot); the booking itself is re-checked by
+ * bookReservation. Presentation only: the payload sent to bookTableAction is unchanged.
  */
 export function ReservationForm({
   restaurantSlug,
@@ -119,13 +119,10 @@ export function ReservationForm({
   const scrollDays = (direction: 1 | -1) =>
     dayStrip.current?.scrollBy({ left: direction * dayStrip.current.clientWidth * 0.8, behavior: "smooth" });
 
-  const capacity = slotsByDate[`${locationId}:${date}`] ?? {};
+  const daySlots = slotsByDate[`${locationId}:${date}`];
   const timeOptions = useMemo(
-    () =>
-      Object.entries(capacity)
-        .map(([slot, info]) => ({ time: slot, available: info.booked < info.capacity }))
-        .sort((left, right) => left.time.localeCompare(right.time)),
-    [capacity],
+    () => [...(daySlots ?? [])].sort((left, right) => left.localeCompare(right)).map((slot) => ({ time: slot, available: true })),
+    [daySlots],
   );
   const groups = useMemo(() => {
     const map = new Map<string, ReservationSlotOption[]>();
@@ -194,9 +191,6 @@ export function ReservationForm({
         return;
       }
       setBooking(result.data);
-      toast.success(result.data.status === "confirmed" ? "Table confirmed" : "Request submitted", {
-        description: `Reference ${result.data.confirmationCode}`,
-      });
     });
   }
 

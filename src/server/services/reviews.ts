@@ -17,41 +17,43 @@ import type { SubmitReviewInput } from "@/server/validation/review";
 import { findVisitorOrder } from "./orders";
 
 /**
- * Review submission with moderation.
- * A review tied to an order is only accepted when the caller can already read
- * that order (cart cookie / signed-in customer), and each order can be reviewed
- * once. New reviews always land in the moderation queue.
+ * Review submission with moderation. Every review belongs to a completed order the caller can already read
+ * (signed-in customer, or the signed order-access link), each order is reviewed once, and the dish it is linked
+ * to is one of that order's (a browser-sent dish id is only a hint). New reviews always land in the moderation queue.
  */
 export async function submitReview(restaurant: Restaurant, input: SubmitReviewInput, visitor: RequestContext): Promise<Review> {
   if (!restaurant.features.reviews) {
     throw errors.custom("ORDERING_DISABLED", "Reviews are turned off for this restaurant.");
   }
 
-  let orderId: string | null = null;
-  let menuItemId: string | null = input.menuItemId || null;
-  if (input.orderNumber) {
-    const order = await findVisitorOrder(restaurant.id, input.orderNumber, visitor, input.accessToken || null);
-    if (!order) {
-      throw errors.forbidden(
-        "We could not match that order to this device. Open the review link from your order email, or leave the review from the device that placed the order.",
-      );
-    }
-    if (order.status !== "completed") {
-      throw errors.validation("You can review an order once it has been completed.");
-    }
-    const reviewCtx = forRestaurant(restaurant.id, visitor.customerId ? { customerId: visitor.customerId } : {});
-    if (await hasReviewedOrder(order.id, reviewCtx)) {
-      throw errors.conflict("You have already reviewed this order.");
-    }
-    orderId = order.id;
-    menuItemId = menuItemId ?? order.items?.[0]?.menuItemId ?? null;
+  // the schema requires it; re-checked here so no other caller can store a review without an order
+  if (!input.orderNumber) throw errors.validation("Reviews are left from a completed order.");
+  const order = await findVisitorOrder(restaurant.id, input.orderNumber, visitor, input.accessToken || null);
+  if (!order) {
+    throw errors.forbidden(
+      "We could not match that order to this device. Open the review link from your order email, or leave the review from the device that placed the order.",
+    );
   }
+  if (order.status !== "completed") {
+    throw errors.validation("You can review an order once it has been completed.");
+  }
+  const reviewCtx = forRestaurant(restaurant.id, visitor.customerId ? { customerId: visitor.customerId } : {});
+  if (await hasReviewedOrder(order.id, reviewCtx)) {
+    throw errors.conflict("You have already reviewed this order.");
+  }
+  const orderId = order.id;
+  // only a dish from this order: a browser-sent id of another dish (or another restaurant's) falls back to the first
+  const orderDishes = (order.items ?? []).map((item) => item.menuItemId).filter((id): id is string => Boolean(id));
+  const menuItemId = input.menuItemId && orderDishes.includes(input.menuItemId) ? input.menuItemId : orderDishes[0] ?? null;
 
   return createReview(
     {
       restaurantId: restaurant.id,
       customerId: visitor.customerId ?? null,
       orderId,
+      // the review belongs to the branch that served the order (it used to be stored with no branch, so it showed
+      // under every branch and any branch manager could moderate it)
+      locationId: order.locationId ?? null,
       menuItemId,
       authorName: input.authorName,
       rating: input.rating,

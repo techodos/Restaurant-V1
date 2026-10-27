@@ -51,19 +51,30 @@ export interface ZonedNow {
   dateKey: string;
 }
 
+// One formatter per time zone: constructing an Intl.DateTimeFormat costs ~0.1 ms, and the reservation page calls
+// zonedNow three times per slot (45 days × 4 branches × 47 slots ≈ 25k calls = ~3 s per page view, 2026-10-27).
+const zonedFormatters = new Map<string, Intl.DateTimeFormat>();
+function zonedFormatter(timeZone: string): Intl.DateTimeFormat {
+  let formatter = zonedFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    zonedFormatters.set(timeZone, formatter); // an invalid zone throws above and is never cached
+  }
+  return formatter;
+}
+
 /** Current weekday/time in a given IANA timezone. */
 export function zonedNow(date: Date, timeZone: string): ZonedNow {
-  const formatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(date);
+  const parts = zonedFormatter(timeZone).formatToParts(date);
   const lookup = (type: Intl.DateTimeFormatPartTypes): string =>
     parts.find((part) => part.type === type)?.value ?? "";
 

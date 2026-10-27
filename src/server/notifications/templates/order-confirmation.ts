@@ -36,6 +36,11 @@ export function renderOrderConfirmationEmail({ restaurant, order, orderUrl }: Or
     ["Status", status],
     [orderTypeLabel(order), where || orderTypeLabel(order)],
     ...(time ? ([[order.orderType === "delivery" ? "Arriving" : "Ready", `About ${time}`]] as [string, string][]) : []),
+    // dine-in ordered ahead: when the guests said they would arrive, and how many
+    ...(order.orderType === "dine_in" && order.scheduledFor
+      ? ([["Your arrival", new Date(order.scheduledFor).toLocaleTimeString(restaurant.locale, { hour: "numeric", minute: "2-digit", timeZone: restaurant.timezone })]] as [string, string][])
+      : []),
+    ...(order.orderType === "dine_in" && order.guests ? ([["Guests", String(order.guests)]] as [string, string][]) : []),
   ];
 
   const bodyHtml = [

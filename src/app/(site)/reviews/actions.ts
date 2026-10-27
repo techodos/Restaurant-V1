@@ -14,7 +14,7 @@ import { assertInstanceRestaurant } from "@/web/instance";
 export async function submitReviewAction(slug: string, payload: unknown): Promise<ApiResult<{ status: string }>> {
   return action(async () => {
     const input = submitReviewSchema.parse(payload);
-    // anyone may write a review (it waits for moderation), so cap how fast one caller can fill that queue
+    // reviews need a completed order the caller owns (submitReview); still cap how fast one caller can try
     checkRateLimit({ key: "review-submit", identifier: await callerIdentifier(), limit: 5, windowMs: 10 * 60_000 });
     const restaurant = await requireRestaurant(assertInstanceRestaurant(slug));
     const visitor = await getVisitorContext(restaurant.id);

@@ -102,9 +102,41 @@ export function decodeDestination(value: string | null | undefined): DeliveryDes
   }
 }
 
+/** Same city, ignoring case and spacing; an unknown city on either side is never "the same". */
+export function sameCity(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = (a ?? "").trim().toLowerCase();
+  return left !== "" && left === (b ?? "").trim().toLowerCase();
+}
+
+/**
+ * Pickup / dine-in from a branch in another city (owner decision 2026-10-27): with a location chosen, only that city's
+ * branches; with none, every branch (checkout then has the customer confirm which branch, and where, before
+ * placing it). A branch with no city on record is never hidden (nothing to compare). `createOrder` applies the
+ * same rule (`customerCity`), so the menu, checkout and the order agree.
+ */
+export function inCustomerCity(branch: Pick<BranchOption, "city">, customerCity: string | null | undefined): boolean {
+  return !customerCity?.trim() || !branch.city?.trim() || sameCity(branch.city, customerCity);
+}
+
 /** The branches a customer may order from for this order type. */
-export function branchesFor(state: Pick<BranchingState, "delivery" | "all">, orderType: string): BranchOption[] {
-  return orderType === "delivery" ? state.delivery : state.all;
+export function branchesFor(state: Pick<BranchingState, "delivery" | "all" | "destination">, orderType: string): BranchOption[] {
+  if (orderType === "delivery") return state.delivery;
+  return state.all.filter((branch) => inCustomerCity(branch, state.destination?.city));
+}
+
+/** Cities that have a branch, in list order ("our branches are in Lahore and Islamabad"). */
+export function branchCities(state: Pick<BranchingState, "all">): string[] {
+  const seen = new Map<string, string>();
+  for (const branch of state.all) {
+    const city = branch.city?.trim();
+    if (city && !seen.has(city.toLowerCase())) seen.set(city.toLowerCase(), city);
+  }
+  return [...seen.values()];
+}
+
+/** "Lahore", "Lahore and Islamabad", "Lahore, Islamabad and Karachi" */
+export function listCities(cities: readonly string[]): string {
+  return cities.length <= 1 ? (cities[0] ?? "") : `${cities.slice(0, -1).join(", ")} and ${cities[cities.length - 1]}`;
 }
 
 /** "2.4 km" / "850 m"; empty when the distance is unknown. */

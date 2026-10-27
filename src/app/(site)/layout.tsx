@@ -16,6 +16,8 @@ import { config as serverConfig } from '@/server/config';
 import { getActiveTemplate } from '@/web/template';
 import { DepthTilt } from '@/components/storefront/templates/depth/depth-tilt';
 import { instanceRestaurantSlug } from "@/web/instance";
+import { readCookieConsent } from "@/web/cookies";
+import { CookieConsentProvider } from "@/components/storefront/cookie-consent";
 
 /**
  * Every page below renders per request. They used to be dynamic implicitly (the /r/[restaurantSlug] segment); at the
@@ -93,12 +95,14 @@ export default async function StorefrontLayout({
   const { restaurant, theme, config, locations, primaryLocation } = context;
   // Both from cookies, no database: the signed session token and the tray cookie (priced from the
   // in-memory menu so the header badge and drawer render correctly on the very first paint).
-  const [customer, visitor, initialTray, branching] = await Promise.all([
+  const [customer, visitor, initialTray, branching, consent] = await Promise.all([
     getCustomerSessionSummary(restaurantSlug).catch(() => ({ signedIn: false, name: null })),
     getVisitorContext(restaurant.id),
     getInitialTray(context),
     // null unless features.BranchingFeature is on; from the destination cookie + snapshot, no database
     getBranching(context),
+    // the visitor's cookie choices (null = first visit: the consent banner shows on this very render)
+    readCookieConsent(),
   ]);
   // The one database read a storefront page view makes, and only for a signed-in visitor or a guest
   // whose browser holds saved order grants (web/session.ts#getGuestOrderGrants; none = no read): an active
@@ -130,6 +134,7 @@ export default async function StorefrontLayout({
         Skip to content
       </a>
 
+      <CookieConsentProvider initial={consent}>
       <LocalCartProvider restaurantSlug={restaurant.slug} initial={initialTray}>
        <BranchingProvider
         restaurantSlug={restaurant.slug}
@@ -178,7 +183,7 @@ export default async function StorefrontLayout({
         <SiteFooter
           restaurant={restaurant}
           config={config}
-          locations={locations}
+          locations={locations.filter((location) => location.isActive)}
           primaryLocation={primaryLocation}
         />
 
@@ -194,6 +199,7 @@ export default async function StorefrontLayout({
         />
        </BranchingProvider>
       </LocalCartProvider>
+      </CookieConsentProvider>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { dec, sumMoney, toMoney } from "@/shared/money";
 import { isOrderTypeEnabled } from "@/shared/ordering";
 import { acceptsOrdersAt, parseOpeningHours } from "@/shared/hours";
+import { sameCity } from "@/shared/branching";
+import { arrivalProblem } from "@/shared/dine-in";
 import { effectiveOnlineProvider, entitledPaymentMethods } from "@/shared/feature-access";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
@@ -52,7 +54,13 @@ export interface CreateOrderInput {
   deliveryZoneId?: string | null;
   tableNumber?: string | null;
   guests?: number | null;
+  /** dine-in ordered ahead: when the guests arrive (checked against the branch's hours here) */
   scheduledFor?: string | null;
+  /**
+   * The city of the location the customer chose on the storefront (destination cookie), for pickup / dine-in:
+   * a branch in another city is refused. Null = no location chosen (checkout had them confirm the branch).
+   */
+  customerCity?: string | null;
   paymentMethod: PaymentMethod;
   couponCode?: string | null;
   tipAmount?: string | null;
@@ -182,6 +190,8 @@ async function placeInTransaction(
          -- the kitchen when the tray names none (single-branch restaurants): the same one the checkout page shows
          (select row_to_json(p) from (select id, hours from restaurant1s where restaurant_id = $1 and is_active
                                        order by is_primary desc, sort_order, name limit 1) p) as primary_branch,
+         -- branches exist but none is active: no kitchen can take the order (a restaurant with no branches at all is fine)
+         exists (select 1 from restaurant1s where restaurant_id = $1) as has_branches,
          case when $6::text is not null then
            (select row_to_json(x) from (
               select c.*, (select count(*) from orders o
@@ -342,6 +352,16 @@ async function placeInTransaction(
       if (!branch || branch.is_active !== true) {
         throw errors.custom("BRANCH_UNAVAILABLE", "That branch is not taking orders. Please choose another branch.");
       }
+      // pickup / dine-in only from a branch in the customer's own city (owner decision 2026-10-27: a Karachi
+      // customer's pickup order went to a Lahore branch); delivery is decided by the zones below
+      const branchCity = branch.city ? str(branch.city).trim() : "";
+      const customerCity = input.customerCity?.trim() ?? "";
+      if (input.orderType !== "delivery" && branchCity && customerCity && !sameCity(branchCity, customerCity)) {
+        throw errors.custom(
+          "BRANCH_UNAVAILABLE",
+          `That branch is in ${branchCity}. Please choose a branch in ${customerCity}, or change your location.`,
+        );
+      }
     }
 
     // delivery zone -----------------------------------------------------------------------------
@@ -427,8 +447,23 @@ async function placeInTransaction(
     for (const row of (read?.zones as Row[] | null) ?? []) hoursByBranch.set(str(row.location_id), row.branch_hours);
     if (read?.branch) hoursByBranch.set(str((read.branch as Row).id), (read.branch as Row).hours);
     const cookingBranch = locationId ?? (primaryBranch ? str(primaryBranch.id) : null);
+    // every branch deactivated: there is no kitchen to send it to (it used to go through with no branch at all)
+    if (!cookingBranch && read?.has_branches === true) {
+      throw errors.custom("ORDERING_DISABLED", "We're not taking orders right now. Please try again later.");
+    }
     if (cookingBranch && !acceptsOrdersAt(parseOpeningHours(hoursByBranch.get(cookingBranch)), now, restaurant.timezone)) {
       throw errors.custom("ORDERING_DISABLED", "The kitchen is closed right now. Please order again when we open.");
+    }
+    // dine-in ordered ahead (no table yet): the party size and an arrival time the branch is open at
+    if (input.orderType === "dine_in" && !input.tableNumber) {
+      if (!input.guests) throw errors.validation("Please tell us how many guests are coming.", { field: "guests" });
+      const problem = arrivalProblem(
+        input.scheduledFor,
+        parseOpeningHours(cookingBranch ? hoursByBranch.get(cookingBranch) : undefined),
+        restaurant.timezone,
+        now,
+      );
+      if (problem) throw errors.validation(problem, { field: "arrivalAt" });
     }
 
     // coupon (with this phone's past usage, read in the same statement) ---------------------------

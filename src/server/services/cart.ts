@@ -126,6 +126,14 @@ function toZonePricing(zone: DeliveryZone): ZonePricing {
  * snapshot (menu, zones, coupon definition). Validation failures become messages, not exceptions, so
  * the page can say what to fix. `zones` are the active zones the page already shows in its picker.
  */
+/** A zone's branch (city, pin, settings) by id, from the storefront's branches: what zone matching and distance fees need. */
+export function zoneBranchLookup(locations: readonly RestaurantLocation[]): (locationId: string) => ZoneBranch | null {
+  return (locationId) => {
+    const location = locations.find((candidate) => candidate.id === locationId);
+    return location ? { city: location.city, latitude: location.latitude, longitude: location.longitude, settings: location.settings } : null;
+  };
+}
+
 export async function priceTray(
   restaurant: Restaurant,
   tray: Tray,

@@ -34,7 +34,6 @@ export function CancelOrderButton({ restaurantSlug, orderNumber, accessToken }: 
         toast.error("Could not cancel this order", { description: result.error.message });
         return;
       }
-      toast.success("Order cancelled");
       setStep("idle");
       router.refresh();
     } finally {

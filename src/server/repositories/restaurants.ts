@@ -1,6 +1,7 @@
 import { type DbClient } from '@/server/db/database';
 import { getDb } from "@/server/db/registry";
 import { type RequestContext } from "@/server/context";
+import { errors } from "@/server/errors";
 import { jsonObject, mapLocation, mapRestaurant, type Row } from '@/server/db/mappers';
 import type { Restaurant, RestaurantLocation } from '@/shared/contract/models';
 import type { CheckoutMode } from '@/shared/contract/enums';
@@ -351,8 +352,22 @@ export async function deleteLocation(
 ): Promise<void> {
   const db = getDb(ctx);
   await db.write(ctx, async (tx: DbClient) => {
-    await tx.query(`delete from restaurant1s where id = $1`, [
-      locationId,
-    ]);
+    // A branch with history is never deleted (0048 makes the database refuse it too): its orders, reviews and
+    // deliveries would lose their branch (shown under every branch, missing from its reports), its reservations
+    // were deleted with it, and its staff were left with NO branch — which means restaurant-wide access.
+    const used = await tx.queryOne<Row>(
+      `select exists (select 1 from orders where location_id = $1)
+           or exists (select 1 from reservations where location_id = $1)
+           or exists (select 1 from reviews where location_id = $1)
+           or exists (select 1 from deliveries where location_id = $1)
+           or exists (select 1 from team_members where location_id = $1) as used`,
+      [locationId],
+    );
+    if (used?.used === true) {
+      throw errors.conflict(
+        "This branch has orders, reservations, reviews or staff, so it can't be deleted. Deactivate it instead: its history stays intact.",
+      );
+    }
+    await tx.query(`delete from restaurant1s where id = $1`, [locationId]);
   });
 }

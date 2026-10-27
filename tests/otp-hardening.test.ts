@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createCustomerAccount } from "@/server/auth/auth-service";
+import { verifyCustomerSession } from "@/server/auth/tokens";
 import { checkSharedRateLimit, resetRateLimits } from "@/server/rate-limit";
 import { upsertCustomer } from "@/server/repositories/customers";
 import { attemptVerificationCode, createVerificationCode } from "@/server/repositories/email-verification";
@@ -98,15 +99,22 @@ describe("guest row upgraded by sign-up", () => {
     const g = await guest(`fresh-${tag()}@example.com`);
     await issue(g.id, g.email!, "c");
     await attemptVerificationCode(g.id, "c", 5, 10);
-    await createCustomerAccount({ restaurant, fullName: "Member", email: g.email!, phone: g.phone, password: "MemberPass#1" }, `su-${tag()}`);
+    const result = await createCustomerAccount({ restaurant, fullName: "Member", email: g.email!, phone: g.phone, password: "MemberPass#1" }, `su-${tag()}`);
     expect(await verified(g.id)).toBe(true);
+    // the session says what the row says, so checkout's "save your details" needs no claim override
+    expect(result.emailVerified).toBe(true);
+    expect((await verifyCustomerSession(result.token))?.emailVerified).toBe(true);
   });
 
   it("is NOT verified for someone who merely knows the guest's phone and email", async () => {
     const g = await guest(`stale-${tag()}@example.com`);
     await testDatabase.write({}, (tx) => tx.query("update customers set is_email_verified = true where id = $1", [g.id])); // verified long ago
-    await createCustomerAccount({ restaurant, fullName: "Claimer", email: g.email!, phone: g.phone, password: "ClaimerPass#1" }, `su-${tag()}`);
+    const result = await createCustomerAccount({ restaurant, fullName: "Claimer", email: g.email!, phone: g.phone, password: "ClaimerPass#1" }, `su-${tag()}`);
     expect(await verified(g.id)).toBe(false);
+    // My Orders trusts the session claim: an unverified claimer must not get a "verified" session (2026-10-26:
+    // registerAsAccountAction forced emailVerified: true and so showed the guest's order history)
+    expect(result.emailVerified).toBe(false);
+    expect((await verifyCustomerSession(result.token))?.emailVerified).toBe(false);
   });
 });
 

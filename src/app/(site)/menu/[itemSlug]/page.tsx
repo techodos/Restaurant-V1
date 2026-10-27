@@ -86,7 +86,7 @@ export default async function MenuItemPage({ params, searchParams }: ItemPagePro
 
       {related.length ? (
         <section className="mt-14 border-t border-[var(--rule)] pt-8">
-          <h2 className="text-[1.6rem] font-semibold md:text-[2rem]">Also from the kitchen</h2>
+          <h2 className="text-[1.6rem] md:text-[2rem]">Also from the kitchen</h2>
           <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 md:grid-cols-4 md:gap-x-6">
             {related.map((entry) => (
               <li key={entry.id}>

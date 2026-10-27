@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { ArrowRight, Check, ChevronDown, MapPin, MapPinOff } from "lucide-react";
-import { formatDistance, type BranchOption } from "@/shared/branching";
+import { formatDistance, listCities, type BranchOption } from "@/shared/branching";
 import { cn } from "@/shared/utils";
 import { Badge } from "@/components/ui/badge";
 import { useBranching } from "./branching";
@@ -188,8 +188,17 @@ export function HeaderBranchPill({
                   Ordering isn&apos;t available in {destination?.label ?? "that location"} yet
                 </p>
                 <p className="mt-1.5 pl-[1.625rem] text-[13px] leading-relaxed text-[var(--color-muted-ink)]">
-                  {branching.deliveryCities.length ? `We currently deliver in ${listCities(branching.deliveryCities)}. ` : ""}
-                  You can still browse the whole menu. To order, choose an address one of our branches delivers to.
+                  {delivery ? (
+                    <>
+                      {branching.deliveryCities.length ? `We currently deliver in ${listCities(branching.deliveryCities)}. ` : ""}
+                      You can still browse the whole menu. To order, choose an address one of our branches delivers to.
+                    </>
+                  ) : (
+                    <>
+                      {branching.branchCities.length ? `Our branches are in ${listCities(branching.branchCities)}. ` : ""}
+                      You can still browse the whole menu. For pickup or dine-in, choose a location in a city with a branch.
+                    </>
+                  )}
                 </p>
               </div>
             ) : (
@@ -285,7 +294,4 @@ function BranchRow({ branch, on, nearest, onPick }: { branch: BranchOption; on: 
   );
 }
 
-/** "Lahore", "Lahore and Islamabad", "Lahore, Islamabad and Karachi" */
-function listCities(cities: string[]): string {
-  return cities.length > 1 ? `${cities.slice(0, -1).join(", ")} and ${cities.at(-1)}` : (cities[0] ?? "");
-}
+

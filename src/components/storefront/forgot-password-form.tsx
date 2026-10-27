@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft, KeyRound, Lock, Mail, MailCheck, ShieldCheck } from "lucide-react";
-import { toast } from "sonner";
 import { AuthField, AuthMessage, AuthStep, AuthSubmit, AuthTextButton, CodeInput, PasswordField, PasswordRule } from "@/components/storefront/auth-fields";
 import {
   requestPasswordResetAction,
@@ -81,10 +80,7 @@ export function ForgotPasswordForm({
     setError(null);
     const sent = await sendCode();
     setWorking(false);
-    if (sent) {
-      setCode("");
-      toast.success("Code sent", { description: "Check your inbox for a new 6-digit code." });
-    }
+    if (sent) setCode("");
   }
 
   async function onSubmitCode(event: React.FormEvent) {
@@ -115,7 +111,6 @@ export function ForgotPasswordForm({
     }
     // stay "working" while the sign-in form navigates / closes the dialog
     setDone(true);
-    toast.success("Password updated");
     onDone();
   }
 

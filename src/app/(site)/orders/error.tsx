@@ -17,7 +17,7 @@ export default function MyOrdersError({ error, reset }: { error: Error & { diges
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)] text-[color-mix(in_srgb,var(--color-warning)_80%,var(--color-ink))]">
           <AlertTriangle className="size-6" aria-hidden />
         </span>
-        <h1 className="mt-5 text-2xl font-semibold">We could not load your orders</h1>
+        <h1 className="mt-5 text-2xl">We could not load your orders</h1>
         <p className="mt-3 text-[var(--color-muted-ink)]">
           Your orders are safe; this is a temporary problem on our side. Please try again in a moment.
         </p>

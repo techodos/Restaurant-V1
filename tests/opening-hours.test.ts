@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { acceptsOrdersAt, isOpenAt, parseOpeningHours } from "@/shared/hours";
+import { describe, expect, it, vi } from "vitest";
+import { acceptsOrdersAt, isOpenAt, parseOpeningHours, zonedDateTime, zonedNow } from "@/shared/hours";
 import { locationSchema, openingHoursSchema } from "@/server/validation/locations";
 
 const KARACHI = "Asia/Karachi"; // UTC+5, no DST
@@ -62,5 +62,21 @@ describe("checkout button when the branch is closed", () => {
     expect(branchClosedLabel(restaurant, branch(lunchToLate), true, threeAm)).toBe("Branch closed · opens 12pm");
     expect(branchClosedLabel(restaurant, branch(lunchToLate), true, sevenPm)).toBeNull();
     expect(branchClosedLabel(restaurant, branch({}), true, threeAm)).toBeNull();
+  });
+});
+
+describe("time-zone math cost (the reservation page calls it ~25k times per view)", () => {
+  it("builds one Intl formatter per time zone, not one per call (was ~2.7 s per /reservation view, 2026-10-27)", () => {
+    zonedNow(new Date(), KARACHI); // warm this zone
+    const spy = vi.spyOn(Intl, "DateTimeFormat");
+    for (let i = 0; i < 500; i++) isOpenAt({ sat: [{ open: "12:00", close: "23:00" }] }, zonedDateTime("2026-10-10", "19:00", KARACHI), KARACHI);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("still answers per zone (a cached formatter is never shared across zones)", () => {
+    const instant = at("2026-10-10T14:00:00Z");
+    expect(zonedNow(instant, KARACHI)).toMatchObject({ minutes: 19 * 60, dateKey: "2026-10-10" });
+    expect(zonedNow(instant, "Europe/London")).toMatchObject({ minutes: 15 * 60, dateKey: "2026-10-10" });
   });
 });

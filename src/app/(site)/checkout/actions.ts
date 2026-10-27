@@ -5,7 +5,7 @@ import { after } from "next/server";
 import type { ApiResult } from "@/shared/contract/api";
 import { action, errors } from "@/server/errors";
 import { placeOrder, type PlaceOrderResult } from "@/server/services/checkout";
-import { priceTray } from "@/server/services/cart";
+import { priceTray, zoneBranchLookup } from "@/server/services/cart";
 import { getDeliveryZones } from "@/server/services/restaurants";
 import { getCustomerProfile } from "@/server/services/customer-profile";
 import { dispatchDueNotifications } from "@/server/services/notifications";
@@ -19,8 +19,8 @@ import {
 import { rememberCheckoutAddress } from "@/server/services/customer-profile";
 import { guestContactCheckSchema, guestContactSchema, guestVerifyCodeSchema, placeOrderSchema, repriceCheckoutSchema } from "@/server/validation/checkout";
 import { signUpSchema } from "@/server/validation/customer-auth";
-import { callerIdentifier, getStorefrontCustomer, getVisitorContext, refreshCustomerSession, rememberGuestOrder, setCustomerSession } from "@/web/session";
-import { clearTray, markOrderPlaced, readTray, readTrayView, requireStorefront, requireStorefrontRestaurant } from "@/web/storefront";
+import { callerIdentifier, getStorefrontCustomer, getVisitorContext, rememberGuestOrder, setCustomerSession } from "@/web/session";
+import { clearTray, getBranching, markOrderPlaced, readTray, readTrayView, requireStorefront, requireStorefrontRestaurant } from "@/web/storefront";
 import type { CheckoutPricing } from "@/components/storefront/checkout-form";
 
 export type { PlaceOrderResult };
@@ -41,7 +41,9 @@ export async function placeOrderAction(slug: string, payload: unknown): Promise<
     const visitor = await getVisitorContext(restaurant.id);
     const tray = await readTray(context);
     // a guest's browser keeps a signed grant for the order, so the order page and "Current orders" can show it
-    const result = await placeOrder(restaurant, tray, input, visitor, { rememberGuestOrder });
+    // the location chosen on the menu (its cookie), so pickup / dine-in stay in the customer's city
+    const customerCity = (await getBranching(context))?.destination?.city ?? null;
+    const result = await placeOrder(restaurant, tray, input, visitor, { rememberGuestOrder, customerCity });
     await clearTray(slug); // the order consumed the tray
     // the re-rendered /checkout (same response) must not redirect to the menu mid-hand-off to the gateway
     await markOrderPlaced(slug, result.orderNumber);
@@ -83,6 +85,10 @@ export async function repriceCheckoutAction(slug: string, payload: unknown): Pro
       zones,
       customer: { email: profile.email, phone: profile.phone },
       paymentMethod: input.paymentMethod,
+      // the address the form holds: the same zone and distance fee createOrder will charge
+      ...(tray.orderType === "delivery" && input.address
+        ? { address: input.address, branchOf: zoneBranchLookup(context.locations) }
+        : {}),
     });
     if (!result.pricing) throw errors.validation(result.blockers[0] ?? "Could not price this order.");
     const { pricing } = result;
@@ -161,11 +167,9 @@ export async function registerAsAccountAction(slug: string, payload: unknown): P
     const identifier = await callerIdentifier();
     const restaurant = await requireStorefrontRestaurant(slug);
     const result = await signUpCustomer(restaurant, input, identifier);
+    // the token already carries the row's verification: true after this checkout's OTP, false for anyone who
+    // merely knows a guest's phone + email (forcing true here showed that guest's order history, 2026-10-26)
     await setCustomerSession(result.token, result.maxAge);
-    // The OTP step already proved this email; `signUpCustomer` signs a fresh session claiming
-    // `emailVerified: false` (correct for an ordinary signup, wrong here) — correct the claim to match
-    // the database row, which `createCustomerAccount`'s upgrade path leaves untouched (already true).
-    await refreshCustomerSession({ emailVerified: true });
     return null;
   });
 }

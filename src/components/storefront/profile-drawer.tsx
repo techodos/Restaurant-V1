@@ -96,6 +96,7 @@ export function ProfileDrawer({
   const router = useRouter();
   const [data, setData] = useState<ProfilePayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [signingOut, startSignOut] = useTransition();
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -116,16 +117,23 @@ export function ProfileDrawer({
       <Button
         variant="outline"
         className="w-full"
-        onClick={async () => {
-          await signOutAction();
-          onOpenChange(false);
-          toast.success("Signed out");
-          router.push("/");
-          router.refresh();
-        }}
+        disabled={signingOut}
+        onClick={() =>
+          startSignOut(async () => {
+            try {
+              await signOutAction();
+            } catch {
+              toast.error("Could not sign out", { description: "Check your connection, then try again." });
+              return;
+            }
+            onOpenChange(false);
+            router.push("/");
+            router.refresh();
+          })
+        }
       >
-        <LogOut aria-hidden />
-        Sign out
+        {signingOut ? <Loader2 className="animate-spin" aria-hidden /> : <LogOut aria-hidden />}
+        {signingOut ? "Signing out…" : "Sign out"}
       </Button>
     </div>
   ) : null;
@@ -251,7 +259,6 @@ function ProfileDetailsForm({
         toast.error(result.error.message);
         return;
       }
-      toast.success("Profile updated");
       onSaved(result.data);
     });
   }
@@ -332,7 +339,6 @@ function AddressBook({
       toast.error(result.error.message);
       return;
     }
-    toast.success("Address removed");
     onChange(result.data);
   }
 
@@ -490,7 +496,6 @@ function AddressForm({
         setErrors({ form: result.error.message });
         return;
       }
-      toast.success(value.id ? "Address updated" : "Address saved");
       onSaved(result.data);
     });
   }
