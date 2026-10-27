@@ -22,6 +22,19 @@ export const guestVerifyCodeSchema = guestContactSchema.extend({
 /** Re-prices the checkout ticket for a newly chosen payment method (tax varies by method — see domain/pricing.ts). */
 export const repriceCheckoutSchema = z.object({
   paymentMethod: z.enum(PAYMENT_METHODS),
+  /**
+   * The delivery address as the form has it: the preview then prices the zone that covers it and the distance fee
+   * from its pin, exactly as createOrder will (it used to price the branch's first zone at its flat fee).
+   */
+  address: z
+    .object({
+      area: z.string().trim().max(120).optional().or(z.literal("")),
+      city: z.string().trim().max(120).optional().or(z.literal("")),
+      postalCode: z.string().trim().max(20).optional().or(z.literal("")),
+      latitude: z.number().min(-90).max(90).optional(),
+      longitude: z.number().min(-180).max(180).optional(),
+    })
+    .optional(),
 });
 
 export const placeOrderSchema = z.object({
@@ -40,6 +53,8 @@ export const placeOrderSchema = z.object({
   deliveryZoneId: z.string().uuid().optional().or(z.literal("")),
   tableNumber: z.string().trim().max(20).optional().or(z.literal("")),
   guests: z.coerce.number().int().min(1).max(60).optional(),
+  /** dine-in ordered ahead: the arrival time (ISO), one of the checkout page's arrival choices */
+  arrivalAt: z.string().datetime({ offset: true }).optional().or(z.literal("")),
   paymentMethod: z.enum(PAYMENT_METHODS),
   couponCode: z.string().trim().max(40).optional().or(z.literal("")),
   tipAmount: z

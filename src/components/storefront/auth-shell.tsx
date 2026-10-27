@@ -34,7 +34,7 @@ const ACCENT_TEXT = "text-[color-mix(in_srgb,var(--color-brand-accent)_65%,var(-
 
 function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <p className={cn("flex min-w-0 items-center gap-3 text-[12px] font-semibold uppercase tracking-[0.28em]", ACCENT_TEXT, className)}>
+    <p className={cn("flex min-w-0 items-center gap-3 text-[12px] font-semibold uppercase tracking-[0.2em]", ACCENT_TEXT, className)}>
       <span aria-hidden className="h-[1.5px] w-7 shrink-0 bg-[var(--color-brand-accent)] lg:w-9" />
       <span className="truncate">{children}</span>
     </p>
@@ -89,13 +89,13 @@ export function AuthShell({ eyebrow, title, mobileTitle, description, panelTitle
           {/* phones + tablets */}
           <div className="mx-auto flex min-h-[248px] max-w-[440px] flex-col justify-end px-6 pb-[58px] pt-8 md:min-h-[272px] md:pb-[70px] lg:hidden">
             <Eyebrow>{eyebrow}</Eyebrow>
-            <h1 className="mt-3 text-balance font-[family-name:var(--font-display)] text-[40px] font-semibold leading-[1] min-[375px]:text-[46px]">{mobileTitle ?? title}</h1>
+            <h1 className="mt-3 text-balance display-face text-[34px] leading-[1.02] min-[375px]:text-[36px] md:text-[40px]">{mobileTitle ?? title}</h1>
             {description ? <p className="mt-3 max-w-[22rem] text-[14px] leading-relaxed text-[color-mix(in_srgb,var(--color-on-night)_78%,transparent)]">{description}</p> : null}
           </div>
           {/* desktop panel */}
           <div className="hidden lg:contents">
-            <Eyebrow className="text-[13px] tracking-[0.3em]">{eyebrow}</Eyebrow>
-            <p className="max-w-[24rem] text-balance font-[family-name:var(--font-display)] text-[52px] font-semibold leading-[0.98] xl:text-[56px]">{panelTitle}</p>
+            <Eyebrow className="text-[13px] tracking-[0.24em]">{eyebrow}</Eyebrow>
+            <p className="max-w-[24rem] text-balance display-face text-[48px] leading-[1] xl:text-[52px]">{panelTitle}</p>
             {perks.length ? <PerkList perks={perks} /> : null}
           </div>
         </section>
@@ -103,7 +103,7 @@ export function AuthShell({ eyebrow, title, mobileTitle, description, panelTitle
         <div className="relative -mt-[30px] rounded-t-[28px] bg-[var(--color-canvas)] px-6 py-[26px] md:mx-auto md:max-w-[440px] md:rounded-[28px] md:border md:border-[var(--color-hairline)] md:px-8 md:py-8 md:shadow-[var(--shadow-card)] lg:mx-0 lg:mt-0 lg:flex lg:max-w-none lg:flex-[1_1_54%] lg:flex-col lg:justify-center lg:rounded-none lg:border-0 lg:px-14 lg:py-14 lg:shadow-none xl:px-16">
           <div className="lg:mx-auto lg:w-full lg:max-w-[400px]">
             <div className="mb-7 hidden lg:block">
-              <h1 className="font-[family-name:var(--font-display)] text-[44px] font-semibold leading-[1] text-[var(--color-ink)]">{title}</h1>
+              <h1 className="display-face text-[40px] leading-[1.02] text-[var(--color-ink)]">{title}</h1>
               {description ? <p className="mt-3 text-[15px] leading-relaxed text-[var(--color-muted-ink)]">{description}</p> : null}
             </div>
             {children}
@@ -148,10 +148,10 @@ export function StaffAuthShell({ restaurantName, back, children }: StaffAuthShel
 
       <aside className="relative isolate hidden overflow-hidden bg-[var(--color-night)] px-14 py-10 text-[var(--color-on-night)] lg:flex lg:flex-col lg:justify-between lg:gap-10">
         <AuthPattern id="staff-tiles" className="opacity-[0.12]" />
-        <span className="font-[family-name:var(--font-heading)] text-[28px] font-semibold leading-none">{restaurantName}</span>
+        <span className="display-face text-[28px] leading-none">{restaurantName}</span>
         <div className="flex max-w-[460px] flex-col gap-[18px]">
-          <Eyebrow className="text-[13px] tracking-[0.3em]">Staff portal</Eyebrow>
-          <p className="font-[family-name:var(--font-heading)] text-[52px] font-semibold leading-[0.95] xl:text-[64px]">
+          <Eyebrow className="text-[13px] tracking-[0.24em]">Staff portal</Eyebrow>
+          <p className="display-face text-[48px] leading-[0.98] xl:text-[58px]">
             The kitchen,
             <br />
             behind the pass.
@@ -166,14 +166,14 @@ export function StaffAuthShell({ restaurantName, back, children }: StaffAuthShel
           {/* phones: name + chip, then the title on the night ground */}
           <div className="text-[var(--color-on-night)] lg:hidden">
             <div className="flex items-center justify-between gap-3 px-2">
-              <span className="truncate font-[family-name:var(--font-heading)] text-[24px] font-semibold leading-none">{restaurantName}</span>
+              <span className="truncate display-face text-[24px] leading-none">{restaurantName}</span>
               <span className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--color-brand-accent)_50%,transparent)] px-2.5 text-[11px] font-semibold uppercase tracking-[0.16em]", ACCENT_TEXT)}>
                 <ShieldCheck className="size-3" aria-hidden />
                 Staff portal
               </span>
             </div>
             <div className="px-2 pt-10">
-              <h1 className="text-balance font-[family-name:var(--font-heading)] text-[38px] font-semibold leading-[0.98] min-[375px]:text-[42px]">{heading}</h1>
+              <h1 className="text-balance display-face text-[32px] leading-[1.02] min-[375px]:text-[34px]">{heading}</h1>
               <p className={cn("mt-2.5 text-[14px] leading-relaxed", onNightSoft)}>{line}</p>
             </div>
           </div>
@@ -183,7 +183,7 @@ export function StaffAuthShell({ restaurantName, back, children }: StaffAuthShel
             Admin access
           </span>
           <div className="hidden lg:block">
-            <h1 className="font-[family-name:var(--font-heading)] text-[44px] font-semibold leading-[1] text-[var(--color-ink)]">{heading}</h1>
+            <h1 className="display-face text-[40px] leading-[1.02] text-[var(--color-ink)]">{heading}</h1>
             <p className="mt-2 text-[15px] leading-relaxed text-[var(--color-muted-ink)]">{line}</p>
           </div>
 

@@ -22,8 +22,24 @@ const FONT_STACKS: Record<string, string> = {
   system: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
-/** heading faces shipped in ONE weight: headings ask for 500/600, so the browser would fake the bold */
-const SINGLE_WEIGHT_HEADINGS = new Set(["anton"]);
+/**
+ * The weight every display heading uses (globals.css `--display-weight`), chosen for the face so no component has
+ * to: one-weight faces (web/fonts.ts loads DM Serif Display and Anton at 400 only) stay 400 and are never faux-bolded;
+ * a delicate serif (Cormorant) needs 600 to read at all; Libre Baskerville has 400/700 only, and 700 is too heavy at
+ * display sizes; a sans used as the heading face needs 600 to separate from body text. Everything else: 500.
+ */
+const DISPLAY_WEIGHTS: Record<string, string> = {
+  anton: "400",
+  "dm serif display": "400",
+  "libre baskerville": "400",
+  "cormorant garamond": "600",
+  inter: "600",
+  "dm sans": "600",
+  manrope: "600",
+  poppins: "600",
+  "source sans 3": "600",
+};
+const SINGLE_WEIGHT_HEADINGS = new Set(["anton", "dm serif display"]);
 
 const RADIUS: Record<RestaurantTheme["radius"], string> = {
   none: "0px",
@@ -42,6 +58,17 @@ export function fontStack(name: string | undefined, fallback: "serif" | "sans"):
       ? 'Georgia, "Times New Roman", serif'
       : 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif')
   );
+}
+
+/** globals.css reads these: the heading weight for the face, and no faux bold for a one-weight face */
+function displayFaceTokens(font: string | undefined): Record<string, string> {
+  const key = (font ?? "").trim().toLowerCase();
+  return {
+    "--display-weight": DISPLAY_WEIGHTS[key] ?? "500",
+    ...(SINGLE_WEIGHT_HEADINGS.has(key) ? { "--display-synthesis": "none" } : {}),
+    // the condensed poster face needs air between its capitals; a regular serif keeps the scale's negative tracking
+    ...(key === "anton" ? { "--display-tracking": "0.012em" } : {}),
+  };
 }
 
 export function themeCssVariables(theme: RestaurantTheme): Record<string, string> {
@@ -76,8 +103,7 @@ export function themeCssVariables(theme: RestaurantTheme): Record<string, string
     // Same reason for the fonts: without these, headings fell back to Georgia and body text to system-ui.
     "--font-display": vars["--brand-font-heading"]!,
     "--font-sans": vars["--brand-font-body"]!,
-    // a heading face with a single weight must not be faux-bolded by the browser (smeared strokes); globals.css reads it
-    ...(SINGLE_WEIGHT_HEADINGS.has((theme.font ?? "").trim().toLowerCase()) ? { "--display-synthesis": "none", "--display-tracking": "0.012em" } : {}),
+    ...displayFaceTokens(theme.font),
     ...semanticTokens(theme),
   };
 }

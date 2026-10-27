@@ -57,7 +57,7 @@ export function QuickAddButton({ restaurantSlug, item, orderType, compact = fals
   if (gate !== "ok") {
     const noService = gate === "no-service";
     const hint = noService
-      ? "Delivery is not available at this location"
+      ? branching.unservedText(orderType)
       : gate === "need-branch"
         ? `Choose a branch to order ${item.name}`
         : `Choose your delivery location to order ${item.name}`;

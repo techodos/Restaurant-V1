@@ -11,7 +11,7 @@ import {
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { FieldError, Input, inputStyles, Label, Textarea } from "@/components/ui/input";
+import { FieldError, Input, inputStyles, Label, Select, Textarea } from "@/components/ui/input";
 import {
   checkGuestContactAction,
   placeOrderAction,
@@ -29,9 +29,11 @@ import { VerifyEmailForm } from "@/components/storefront/verify-email-form";
 import { useLocalCart } from "@/components/storefront/local-cart";
 import { LocationPicker, type ResolvedLocation } from "@/components/storefront/location-picker";
 import { sortByDistance } from "@/shared/geo";
-import type { DeliveryDestination } from "@/shared/branching";
+import { sameCity, type DeliveryDestination } from "@/shared/branching";
 import { useBranching } from "@/components/storefront/branching";
 import { signInHref } from "@/shared/return-to";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import type { ArrivalSlot } from "@/shared/dine-in";
 
 export interface CheckoutPricing {
   subtotal: string;
@@ -127,6 +129,18 @@ interface CheckoutFormProps {
    * Absent with the feature off: the branch step below works exactly as before.
    */
   branch?: { name: string; menuHref: string; destination: DeliveryDestination | null } | null;
+  /** the branch that will cook this order (every restaurant, flag on or off): named on pickup / dine-in and in the confirmation */
+  orderBranch?: { name: string; address: string; city: string | null } | null;
+  /**
+   * The city of the location chosen on the menu. Known: pickup / dine-in are already limited to that city's branches.
+   * Unknown: Place order first asks the customer to confirm the branch and its city (a Karachi customer once placed a
+   * pickup order at a Lahore branch).
+   */
+  chosenCity?: string | null;
+  /** seated at a table of this branch by its QR code: dine-in uses this table and needs no arrival time */
+  seatedTable?: string | null;
+  /** dine-in ordered ahead: the arrival times the branch can take (server-built, re-checked by createOrder) */
+  arrivalSlots?: ArrivalSlot[];
   /**
    * "whatsapp" (platform-set): no email/OTP step, email optional, and the order is handed to the restaurant's
    * WhatsApp from the order page (`?wa=1`) instead of the usual confirmation. Cash methods only (server-filtered).
@@ -135,7 +149,7 @@ interface CheckoutFormProps {
 }
 
 /** Checkout look. Every colour, radius and shadow is a theme token (`web/theme.ts`), never a fixed palette. */
-const card = "rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-5 sm:p-7";
+const card = "rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 min-[360px]:p-5 sm:p-7";
 const choice =
   "relative flex cursor-pointer rounded-[var(--radius-card)] border text-left transition-[border-color,background-color,box-shadow,color,transform] duration-200 motion-reduce:transition-none has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand)]";
 const choiceOn = "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_5%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]";
@@ -147,7 +161,7 @@ const ctaButton =
 const ORDER_TYPE_COPY: Record<OrderType, { title: string; text: string; icon: LucideIcon }> = {
   delivery: { title: "Delivery", text: "Get it at your doorstep", icon: Bike },
   pickup: { title: "Pickup", text: "Collect from restaurant", icon: ShoppingBag },
-  dine_in: { title: "Dine-in", text: "Served at your table", icon: UtensilsCrossed },
+  dine_in: { title: "Dine-in", text: "Order ahead or from your table", icon: UtensilsCrossed },
 };
 
 /** Only claims that hold for each method (card_online / wallet go to the restaurant's configured provider's hosted page). */
@@ -160,21 +174,22 @@ const PAYMENT_COPY: Record<PaymentMethod, { text: string; icon: LucideIcon }> = 
   bank_transfer: { text: "Pay directly from your bank account", icon: Landmark },
 };
 
+/** every checkout card's title: one size, the heading face at its theme weight (h2 base style) */
+const sectionTitle = "text-[1.25rem] leading-tight sm:text-[1.4rem]";
+
 function StepHeader({ index, title, subtitle }: { index: number; title: string; subtitle: string }) {
   return (
-    <div className="flex items-start gap-4">
+    // phones: a small badge on the title's line and the subtitle full width under both (the badge used to take a
+    // 60px column, wrapping short titles onto two lines and squeezing the subtitle); sm+: badge column beside both
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 sm:items-start sm:gap-x-4">
       <span
         aria-hidden
-        className="tabular grid size-11 shrink-0 place-items-center rounded-full border border-[var(--rule-strong)] bg-[var(--brand-tint)] font-[family-name:var(--font-display)] text-[15px] text-[var(--color-brand)]"
+        className="tabular grid size-8 shrink-0 place-items-center rounded-full border border-[var(--rule-strong)] bg-[var(--brand-tint)] font-[family-name:var(--font-display)] text-[13px] text-[var(--color-brand)] sm:row-span-2 sm:size-11 sm:text-[15px]"
       >
         {String(index).padStart(2, "0")}
       </span>
-      <div className="min-w-0 pt-0.5">
-        <h2 className="font-[family-name:var(--font-display)] text-[1.35rem] font-normal leading-tight text-[var(--color-ink)] sm:text-[1.55rem]">
-          {title}
-        </h2>
-        <p className="mt-1 text-sm text-[var(--color-muted-ink)]">{subtitle}</p>
-      </div>
+      <h2 className={cn(sectionTitle, "text-[var(--color-ink)] sm:pt-0.5")}>{title}</h2>
+      <p className="col-span-2 text-sm text-[var(--color-muted-ink)] sm:col-span-1 sm:col-start-2">{subtitle}</p>
     </div>
   );
 }
@@ -224,7 +239,14 @@ export function CheckoutForm({
   initialLocationId,
   googleMapsApiKey,
   branch = null,
+  orderBranch = null,
+  chosenCity = null,
+  seatedTable = null,
+  arrivalSlots = [],
 }: CheckoutFormProps) {
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  // dine-in at a table it was not seated at by QR: "I'm already at a table" reveals a table field instead of arrival time
+  const [atTableNow, setAtTableNow] = useState(false);
   const branchLocked = Boolean(branch);
   const destination = branch?.destination ?? null;
   // Multi-branch: the delivery location was chosen on the menu and decided the branch, so here it is a
@@ -256,30 +278,10 @@ export function CheckoutForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availablePaymentMethods]);
 
-  // Tax can depend on the chosen payment method (card vs. cash on delivery, domain/pricing.ts). The
-  // page's first render already prices with the method the form defaults to (see checkout/page.tsx), so
-  // this only re-prices on an actual change — never on mount, and never piling up a stale response on
-  // top of a newer one (requestId guard, same pattern as location-picker.tsx's reverse geocode).
+  // the server's preview (re-priced below when the payment method or the delivery address changes)
   const [pricing, setPricing] = useState<CheckoutPricing>(initialPricing);
   const [repricing, setRepricing] = useState(false);
   const repriceRequestId = useRef(0);
-  const mountedForRepriceRef = useRef(false);
-  useEffect(() => {
-    if (!mountedForRepriceRef.current) {
-      mountedForRepriceRef.current = true;
-      return;
-    }
-    const requestId = ++repriceRequestId.current;
-    setRepricing(true);
-    repriceCheckoutAction(restaurantSlug, { paymentMethod }).then((result) => {
-      if (requestId !== repriceRequestId.current) return; // superseded by a later payment-method change
-      setRepricing(false);
-      if (result.success) setPricing(result.data);
-      // a repricing failure (e.g. the cart changed underneath) leaves the last good totals on screen;
-      // "Place order" still recomputes authoritatively and will surface any real problem then
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentMethod, restaurantSlug]);
   const [tip, setTip] = useState("");
   const [customTip, setCustomTip] = useState(false);
   const customTipInput = useRef<HTMLInputElement>(null);
@@ -361,6 +363,44 @@ export function CheckoutForm({
     ? { latitude: chosenAddress.latitude, longitude: chosenAddress.longitude }
     : pickedPoint;
   const customerCity = (chosenAddress ? chosenAddress.city : newAddress.city) ?? "";
+
+  // Re-price whenever what decides the total changes: tax can depend on the payment method (card vs. cash on
+  // delivery), and for delivery the fee is the zone that covers THIS address plus the distance fee from its pin —
+  // the same rules createOrder charges with. (The preview used to price the branch's first zone at its flat fee,
+  // so the total shown could differ from the one charged.) Incomplete addresses keep the last total; a stale
+  // response never overwrites a newer one (requestId guard).
+  const priceAddress =
+    orderTypeState === "delivery" && customerCity.trim() && ((chosenAddress ? chosenAddress.area : newAddress.area)?.trim() || customerPoint)
+      ? {
+          area: (chosenAddress ? chosenAddress.area : newAddress.area) ?? "",
+          city: customerCity,
+          postalCode: (chosenAddress ? chosenAddress.postalCode : newAddress.postalCode) ?? "",
+          ...(customerPoint ? { latitude: customerPoint.latitude, longitude: customerPoint.longitude } : {}),
+        }
+      : null;
+  const repriceKey = JSON.stringify([paymentMethod, orderTypeState, priceAddress]);
+  // the page priced the default payment method with no address: anything else (including a delivery address the
+  // form starts with) is priced again once, on mount
+  const lastRepriceKey = useRef(JSON.stringify([paymentMethod, orderTypeState, null]));
+  useEffect(() => {
+    if (lastRepriceKey.current === repriceKey) return;
+    lastRepriceKey.current = repriceKey;
+    const requestId = ++repriceRequestId.current;
+    setRepricing(true);
+    const timer = window.setTimeout(() => {
+      repriceCheckoutAction(restaurantSlug, { paymentMethod, ...(priceAddress ? { address: priceAddress } : {}) })
+        .then((result) => {
+          if (requestId !== repriceRequestId.current) return; // superseded by a later change
+          setRepricing(false);
+          if (result.success) setPricing(result.data);
+          // a failure (an address no zone covers, the cart changed underneath) keeps the last good totals;
+          // "Place order" recomputes authoritatively and says what is wrong
+        })
+        .catch(() => requestId === repriceRequestId.current && setRepricing(false));
+    }, 350); // typing an area: one request when they pause
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repriceKey, restaurantSlug]);
 
   const activeLocations = locations.filter((location) => location.isActive);
   const cityMatches = customerCity.trim()
@@ -458,9 +498,23 @@ export function CheckoutForm({
       </span>
     </Link>
   ) : null;
-  const addressSection = orderTypeState !== "pickup" || Boolean(branch);
+  // the branch that cooks it, as a plain card when the menu did not lock one (single-branch restaurants)
+  const branchCard =
+    lockedBranchCard ??
+    (orderBranch ? (
+      <div className="flex items-center gap-3.5 rounded-[var(--radius-card)] border border-[var(--color-hairline)] px-4 py-3.5">
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-brand)] bg-[var(--brand-tint)] text-[var(--color-brand)]">
+          <Store className="size-[18px]" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold">{orderBranch.name}</span>
+          <span className="block text-[13px] text-[var(--color-muted-ink)]">{[orderBranch.address, orderBranch.city].filter(Boolean).join(", ")}</span>
+        </span>
+      </div>
+    ) : null);
+  const addressSection = orderTypeState !== "pickup" || Boolean(branchCard);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (closedLabel) return; // the kitchen is closed (createOrder refuses it too)
     const form = new FormData(event.currentTarget);
@@ -502,8 +556,9 @@ export function CheckoutForm({
               ...(pickedPoint ? { latitude: pickedPoint.latitude, longitude: pickedPoint.longitude } : {}),
             }),
       deliveryZoneId: value("deliveryZoneId"),
-      tableNumber: value("tableNumber"),
+      tableNumber: seatedTable ?? value("tableNumber"),
       guests: value("guests") ? Number(value("guests")) : undefined,
+      arrivalAt: orderTypeState === "dine_in" && !seatedTable && !atTableNow ? value("arrivalAt") : "",
       paymentMethod,
       couponCode: couponCode ?? "",
       tipAmount: tip,
@@ -538,8 +593,13 @@ export function CheckoutForm({
         nextErrors.city = "Please choose a branch for delivery.";
       }
     }
-    if (orderTypeState === "dine_in" && !payload.tableNumber && !payload.guests) {
-      nextErrors.tableNumber = "Add a table number or the number of guests.";
+    if (orderTypeState === "dine_in") {
+      if (atTableNow && !payload.tableNumber) nextErrors.tableNumber = "Enter the number on your table.";
+      if (!payload.tableNumber) {
+        // ordering ahead: the same two things createOrder requires
+        if (!payload.guests) nextErrors.guests = "How many guests are coming?";
+        if (!payload.arrivalAt) nextErrors.arrivalAt = arrivalSlots.length ? "Choose when you'll arrive." : "No arrival times are left today.";
+      }
     }
     if (tip && !/^\d+(\.\d{1,2})?$/.test(tip)) nextErrors.tip = "Enter a tip like 150 or 150.50";
     if (!isSignedIn && phoneTakenMessage) nextErrors.phone = phoneTakenMessage;
@@ -548,6 +608,28 @@ export function CheckoutForm({
     if (Object.keys(nextErrors).length > 0) {
       toast.error("Please check the highlighted fields.");
       return;
+    }
+
+    // Pickup / dine-in without a known location: nothing has checked the branch against where the customer is,
+    // so they confirm where they will collect or eat before anything is placed (seated at a table needs no check).
+    if ((orderTypeState === "pickup" || (orderTypeState === "dine_in" && !payload.tableNumber)) && !chosenCity && orderBranch) {
+      const where = [orderBranch.name, orderBranch.city].filter(Boolean).join(", ");
+      // the city typed in the address step (e.g. while delivery was selected) says where the customer is
+      const typedCity = (chosenAddress?.city || newAddress.city || "").trim();
+      const elsewhere = typedCity && orderBranch.city && !sameCity(typedCity, orderBranch.city)
+        ? `You entered ${typedCity} as your city, but this branch is in ${orderBranch.city}. `
+        : "";
+      const ok = await confirm({
+        title: orderTypeState === "pickup" ? `Pick up from ${where}?` : `Dine in at ${where}?`,
+        description:
+          elsewhere +
+          (orderTypeState === "pickup" ? "You'll collect this order at " : "You'll eat at ") +
+          [orderBranch.address, orderBranch.city].filter(Boolean).join(", ") +
+          ". Please make sure you can get there.",
+        confirmLabel: orderTypeState === "pickup" ? "Yes, I'll pick it up" : "Yes, place my order",
+        cancelLabel: "Go back",
+      });
+      if (!ok) return;
     }
 
     // Guest, not yet verified for this exact phone+email: open the OTP modal instead of submitting.
@@ -645,7 +727,7 @@ export function CheckoutForm({
   if (needsVerification) {
     return (
       <section className={cn(card, "max-w-md")} aria-labelledby="verify-title">
-        <h2 id="verify-title" className="font-[family-name:var(--font-display)] text-[1.35rem] font-normal leading-tight">
+        <h2 id="verify-title" className={sectionTitle}>
           Verify your email to continue
         </h2>
         <p className="mb-5 mt-2 text-sm text-[var(--color-muted-ink)]">
@@ -767,8 +849,8 @@ export function CheckoutForm({
                       <Icon className="size-5" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-semibold uppercase tracking-[0.12em]">{title}</span>
-                      <span className={cn("mt-0.5 block text-[14px]", on ? "text-[color-mix(in_srgb,var(--color-brand-foreground)_80%,transparent)]" : "text-[var(--color-muted-ink)]")}>{text}</span>
+                      <span className="block text-[15px] font-semibold">{title}</span>
+                      <span className={cn("block text-[13px]", on ? "text-[color-mix(in_srgb,var(--color-brand-foreground)_80%,transparent)]" : "text-[var(--color-muted-ink)]")}>{text}</span>
                     </span>
                     <span
                       aria-hidden
@@ -997,7 +1079,7 @@ export function CheckoutForm({
                     <Input
                       id="addressLine2"
                       autoComplete="address-line2"
-                      placeholder={locationLocked ? "e.g. Building name, near mosque, etc." : "e.g. Building name, floor, or nearby landmark"}
+                      placeholder={locationLocked ? "e.g. Building name, near mosque, etc." : "e.g. Flat 4, 2nd floor, near the park"}
                       value={newAddress.addressLine2}
                       onChange={(event) => setNewAddress((current) => ({ ...current, addressLine2: event.target.value }))}
                       className={field}
@@ -1124,26 +1206,68 @@ export function CheckoutForm({
           </section>
         ) : null}
 
-        {orderTypeState === "pickup" && branch ? (
+        {orderTypeState === "pickup" && branchCard ? (
           <section className={card}>
             <StepHeader index={3} title="Pickup branch" subtitle="Where you'll collect your order." />
-            <div className="mt-6">{lockedBranchCard}</div>
+            <div className="mt-6">{branchCard}</div>
           </section>
         ) : null}
 
         {orderTypeState === "dine_in" ? (
           <section className={card}>
-            <StepHeader index={3} title="Your table" subtitle="Tell us where you're seated." />
-            <div className="mt-6 grid gap-5 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="tableNumber">Table number</Label>
-                <Input id="tableNumber" name="tableNumber" placeholder="12" aria-invalid={Boolean(errors.tableNumber)} className={field} />
-                <FieldError>{errors.tableNumber}</FieldError>
+            {/* seated by the table's QR code, or ordering ahead (branch + arrival + party size; staff seat them) */}
+            <StepHeader
+              index={3}
+              title={seatedTable ? "Your table" : "Your visit"}
+              subtitle={seatedTable ? "We'll bring your order to your table." : "Order now and we'll have it ready when you arrive."}
+            />
+            <div className="mt-6 space-y-5">
+              {branchCard}
+              {seatedTable ? (
+                <p className="flex items-center gap-3 rounded-[var(--radius-card)] bg-[var(--brand-tint)] px-4 py-3.5 text-[15px] font-semibold">
+                  <UtensilsCrossed className="size-[18px] text-[var(--color-brand)]" aria-hidden />
+                  Table {seatedTable}
+                </p>
+              ) : null}
+              <div className="grid gap-5 sm:grid-cols-2">
+                {seatedTable ? null : atTableNow ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tableNumber">Table number</Label>
+                    <Input id="tableNumber" name="tableNumber" placeholder="12" autoFocus aria-invalid={Boolean(errors.tableNumber)} className={field} />
+                    <FieldError>{errors.tableNumber}</FieldError>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="arrivalAt">Arriving at</Label>
+                    <Select id="arrivalAt" name="arrivalAt" defaultValue={arrivalSlots[0]?.value ?? ""} aria-invalid={Boolean(errors.arrivalAt)} className={field} disabled={!arrivalSlots.length}>
+                      {arrivalSlots.length ? (
+                        arrivalSlots.map((slot) => (
+                          <option key={slot.value} value={slot.value}>
+                            {slot.label}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No times left today</option>
+                      )}
+                    </Select>
+                    <FieldError>{errors.arrivalAt}</FieldError>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="guests">Guests{seatedTable || atTableNow ? " (optional)" : ""}</Label>
+                  <Input id="guests" name="guests" type="number" inputMode="numeric" min={1} max={60} defaultValue={2} aria-invalid={Boolean(errors.guests)} className={field} />
+                  <FieldError>{errors.guests}</FieldError>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="guests">Guests</Label>
-                <Input id="guests" name="guests" type="number" min={1} max={60} defaultValue={2} className={field} />
-              </div>
+              {seatedTable ? null : (
+                <button
+                  type="button"
+                  onClick={() => setAtTableNow((value) => !value)}
+                  className="text-[13px] font-medium text-[var(--color-muted-ink)] underline underline-offset-4 hover:text-[var(--color-ink)]"
+                >
+                  {atTableNow ? "I'm not at the restaurant yet" : "Already at your table? Enter its number"}
+                </button>
+              )}
             </div>
           </section>
         ) : null}
@@ -1203,7 +1327,7 @@ export function CheckoutForm({
         </section>
 
         <section className={card} aria-labelledby="tip-title">
-          <h2 id="tip-title" className="font-[family-name:var(--font-display)] text-[1.2rem] font-normal leading-tight sm:text-[1.3rem]">
+          <h2 id="tip-title" className={sectionTitle}>
             {orderTypeState === "delivery" ? "Tip for the delivery partner" : "Tip the kitchen"}
           </h2>
           <p className="mt-1 text-sm text-[var(--color-muted-ink)]">A little extra goes a long way!</p>
@@ -1261,7 +1385,7 @@ export function CheckoutForm({
         </section>
 
         <section className={card}>
-          <h2 className="font-[family-name:var(--font-display)] text-[1.2rem] font-normal leading-tight sm:text-[1.3rem]">
+          <h2 className={sectionTitle}>
             <label htmlFor="notes">
               Order notes <span className="font-sans text-sm text-[var(--color-muted-ink)]">(optional)</span>
             </label>
@@ -1290,7 +1414,7 @@ export function CheckoutForm({
         >
           <div className="relative shrink-0 bg-[var(--color-brand)] px-5 pb-4 pt-4 text-[var(--color-brand-foreground)] sm:px-6">
             <div className="flex items-baseline justify-between gap-3">
-              <h2 id="summary-title" className="font-[family-name:var(--font-display)] text-[1.3rem] font-normal leading-tight">
+              <h2 id="summary-title" className={sectionTitle}>
                 Order summary
               </h2>
               <span className="tabular shrink-0 text-[13px] text-[color-mix(in_srgb,var(--color-brand-foreground)_75%,transparent)]">
@@ -1371,7 +1495,7 @@ export function CheckoutForm({
               ) : null}
               <div className="!mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] bg-[var(--brand-tint)] px-4 py-3">
                 <dt className="whitespace-nowrap label-caps font-semibold text-[var(--color-brand)]">Total due</dt>
-                <dd aria-live="polite" className="tabular whitespace-nowrap font-[family-name:var(--font-display)] text-[1.35rem] leading-none text-[var(--color-brand)] sm:text-[1.6rem]">
+                <dd aria-live="polite" className="tabular whitespace-nowrap text-[1.25rem] font-semibold leading-none text-[var(--color-brand)] sm:text-[1.4rem]">
                   {money(totalDue)}
                 </dd>
               </div>
@@ -1398,6 +1522,7 @@ export function CheckoutForm({
         {signInPrompt ? <div className="mt-2">{signInPrompt}</div> : null}
       </div>
     </form>
+    {confirmDialog}
     {!isSignedIn ? (
       <GuestVerifyDialog
         restaurantSlug={restaurantSlug}

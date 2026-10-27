@@ -121,7 +121,7 @@ export function ItemCustomizer({
     }
     // a branch that serves the customer comes first: lead to the missing step instead of adding
     if (gate !== "ok") {
-      if (gate === "no-service") toast.error("Delivery is not available at this location.", { description: "Change the location to order." });
+      if (gate === "no-service") toast.error(`${branching.unservedText(orderType)}.`, { description: "Change the location to order." });
       else branching.resolveGate(orderType);
       return;
     }
@@ -335,7 +335,7 @@ export function ItemCustomizer({
               ) : gate === "need-branch" ? (
                 "Choose branch"
               ) : gate === "no-service" ? (
-                "No delivery here"
+                orderType === "delivery" ? "No delivery here" : "No branch here"
               ) : (
                 <>
                   <span className="sm:hidden">Add</span>

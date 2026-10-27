@@ -47,7 +47,7 @@ export function GridAddBar({ restaurantSlug, item, orderType, wide = false }: Gr
   if (gate !== "ok") {
     const noService = gate === "no-service";
     const hint = noService
-      ? "Delivery is not available at this location"
+      ? branching.unservedText(orderType)
       : gate === "need-branch"
         ? `Choose a branch to order ${item.name}`
         : `Choose your delivery location to order ${item.name}`;
@@ -74,7 +74,7 @@ export function GridAddBar({ restaurantSlug, item, orderType, wide = false }: Gr
           href={`/menu/${item.slug}${orderType ? `?orderType=${orderType}` : ""}`}
           scroll={false}
           aria-label={`Customize ${item.name}`}
-          className="press inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[var(--color-brand)] bg-[var(--color-surface)] px-4 text-[13px] font-bold text-[var(--color-brand)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_8%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]"
+          className="press inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-[var(--color-brand)] bg-[var(--color-surface)] px-4 text-[13px] font-semibold text-[var(--color-brand)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_8%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]"
         >
           Customize
         </Link>
@@ -124,7 +124,7 @@ export function GridAddBar({ restaurantSlug, item, orderType, wide = false }: Gr
         type="button"
         onClick={add}
         aria-label={`Add ${item.name} to cart`}
-        className="press inline-flex h-10 items-center justify-center rounded-xl bg-[var(--color-brand)] px-5 text-[13px] font-bold text-[var(--color-brand-foreground)] shadow-[0_6px_14px_-6px_color-mix(in_srgb,var(--color-brand)_60%,transparent)] transition-[filter] hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]"
+        className="press inline-flex h-10 items-center justify-center rounded-xl bg-[var(--color-brand)] px-5 text-[13px] font-semibold text-[var(--color-brand-foreground)] shadow-[0_6px_14px_-6px_color-mix(in_srgb,var(--color-brand)_60%,transparent)] transition-[filter] hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]"
       >
         Add to Cart
       </button>

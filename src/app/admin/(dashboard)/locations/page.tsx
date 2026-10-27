@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { adminPath } from "@/shared/utils";
+import { isOrderTypeEnabled } from "@/shared/ordering";
 import { getLocationsForAdmin } from "@/server/services/restaurants";
 import { getAdminMaps, getAdminRestaurant } from "@/web/admin";
 import { requireAdminPage } from "@/web/session";
@@ -21,7 +24,17 @@ export default async function AdminLocationsPage() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader title="Locations" description={`${locations.length} ${locations.length === 1 ? "branch" : "branches"}`} />
+      <AdminPageHeader
+        title="Locations"
+        description={`${locations.length} ${locations.length === 1 ? "branch" : "branches"}`}
+        actions={
+          isOrderTypeEnabled(restaurant.features, "dine_in") ? (
+            <Link href={adminPath("/locations/tables")} prefetch={false} className="text-sm font-medium underline underline-offset-4">
+              Table QR codes
+            </Link>
+          ) : null
+        }
+      />
       <LocationManager
         locations={locations}
         canManage={actor.permissions.includes("locations.manage")}

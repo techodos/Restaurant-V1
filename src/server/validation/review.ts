@@ -2,7 +2,8 @@ import { z } from "zod";
 import { REVIEW_STATUSES } from "@/shared/contract/enums";
 
 export const submitReviewSchema = z.object({
-  orderNumber: z.string().trim().max(40).optional().or(z.literal("")),
+  // reviews come from completed orders only (owner decision 2026-10-26)
+  orderNumber: z.string().trim().min(1, "Reviews are left from a completed order.").max(40),
   // signed order-access link token (from the completion email); proves ownership from any device
   accessToken: z.string().trim().max(2000).optional().or(z.literal("")),
   menuItemId: z.string().uuid().optional().or(z.literal("")),

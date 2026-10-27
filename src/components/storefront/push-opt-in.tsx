@@ -174,7 +174,7 @@ export function PushOptIn({ restaurantSlug, orderNumber, accessToken, firebase }
 
   return (
     <section className="border-t border-[var(--rule)] pt-5">
-      <h2 className="flex items-center gap-2 text-base font-semibold">
+      <h2 className="flex items-center gap-2 text-base">
         {state === "enabled" ? <BellRing className="size-4" aria-hidden /> : <Bell className="size-4" aria-hidden />}
         Order updates
       </h2>

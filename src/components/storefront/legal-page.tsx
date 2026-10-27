@@ -136,6 +136,11 @@ async function renderLegalDocument(kind: LegalKind, context: StorefrontContext, 
                     ))}
                   </ul>
                 ) : null}
+                {section.after?.map((paragraph) => (
+                  <p key={paragraph} className="mt-3 break-words text-[var(--color-ink)]">
+                    {paragraph}
+                  </p>
+                ))}
               </section>
             ))}
 

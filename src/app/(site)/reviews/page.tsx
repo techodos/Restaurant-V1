@@ -179,7 +179,7 @@ async function renderReviews(
                       {review.isFeatured ? <Badge variant="soft">Featured</Badge> : null}
                       <span className="text-[13px] text-[var(--color-muted-ink)]">{date(review.createdAt)}</span>
                     </div>
-                    {review.title ? <h3 className="mt-3 break-words text-[1.05rem] font-semibold leading-snug md:text-[1.125rem]">{review.title}</h3> : null}
+                    {review.title ? <h3 className="mt-3 break-words text-[1.05rem] leading-snug md:text-[1.125rem]">{review.title}</h3> : null}
                     {review.comment ? (
                       <p className="mt-2 max-w-[62ch] break-words text-[15px] leading-relaxed text-[var(--color-muted-ink)] md:text-[16px]">{review.comment}</p>
                     ) : null}

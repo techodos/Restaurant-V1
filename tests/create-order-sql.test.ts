@@ -25,6 +25,8 @@ const { db } = vi.hoisted(() => ({
     branching: false,
     /** restaurant1s.hours of the branch (and of its zones' branch) */
     branchHours: {} as Record<string, unknown>,
+    /** the restaurant has branches (has_branches); none of them active unless a branch row is returned */
+    hasBranches: false,
   },
 }));
 
@@ -66,10 +68,11 @@ function answer(sql: string, params: readonly unknown[] = []): Record<string, un
     return [{
       restaurant: {
         id: RESTAURANT, name: "Bella", slug: "bella", status: "active", currency: "PKR", timezone: "Asia/Karachi",
-        features: { onlineOrdering: true, delivery: true, pickup: true, coupons: true, BranchingFeature: db.branching }, settings: {},
+        features: { onlineOrdering: true, delivery: true, pickup: true, dineIn: true, coupons: true, BranchingFeature: db.branching }, settings: {},
       },
       branch: params[4] ? { id: params[4], city: "Islamabad", is_active: true, hours: db.branchHours } : null,
       customer: params[1] ? db.customer : null,
+      has_branches: db.hasBranches,
       menu: ids.filter((id) => id === PIZZA || id === TEA).map(menuRow),
       zones: params[3] ? [{ id: "zone-1", restaurant_id: RESTAURANT, location_id: "branch-1", branch_city: "Islamabad", branch_hours: db.branchHours, name: "F-7", areas: ["F-7"], delivery_fee: 150, min_order_amount: 0, is_active: true }] : null,
       coupon:
@@ -361,5 +364,70 @@ describe("createOrder — never into a closed kitchen", () => {
     const sevenPm = new Date("2026-10-09T14:00:00Z"); // 19:00 in Karachi
     await createOrder(input(1, { locationId: "branch-1", now: sevenPm }), { restaurantId: RESTAURANT });
     expect(db.statements).toHaveLength(3);
+  });
+});
+
+describe("createOrder — pickup / dine-in stay in the customer's city; dine-in needs its details (2026-10-27)", () => {
+  // the fake branch is in Islamabad, open 12:00–23:00 Asia/Karachi (UTC+5)
+  const LUNCH_TO_LATE = Object.fromEntries(["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((day) => [day, [{ open: "12:00", close: "23:00" }]]));
+  const sevenPm = new Date("2026-10-09T14:00:00Z"); // 19:00 in Karachi
+  const at = (karachiTime: string) => new Date(`2026-10-09T${karachiTime}:00+05:00`).toISOString();
+  beforeEach(() => {
+    db.transactions = 0;
+    db.statements = [];
+    db.branching = true;
+    db.branchHours = LUNCH_TO_LATE;
+    db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
+  });
+  const inserted = () => statementsMatching(/^s*insert into orders/i)[0];
+  const order = (overrides: Partial<CreateOrderInput>) => createOrder(input(1, { locationId: "branch-1", now: sevenPm, ...overrides }), { restaurantId: RESTAURANT });
+
+  it("refuses pickup or dine-in at a branch in another city than the customer's chosen location, before any write", async () => {
+    await expect(order({ orderType: "pickup", customerCity: "Karachi" })).rejects.toMatchObject({ code: "BRANCH_UNAVAILABLE", message: expect.stringMatching(/Islamabad.*Karachi/) });
+    await expect(order({ orderType: "dine_in", tableNumber: "4", customerCity: "Karachi" })).rejects.toMatchObject({ code: "BRANCH_UNAVAILABLE" });
+    expect(inserted()).toBeUndefined();
+  });
+
+  it("takes it in the same city (any case or spacing), and when no location was chosen (checkout had them confirm)", async () => {
+    await order({ orderType: "pickup", customerCity: " islamabad " });
+    await order({ orderType: "pickup", customerCity: null });
+    expect(statementsMatching(/^s*insert into orders/i)).toHaveLength(2);
+  });
+
+  it("dine-in ordered ahead needs the party size and an arrival time the branch is open at", async () => {
+    await expect(order({ orderType: "dine_in", scheduledFor: at("19:30") })).rejects.toMatchObject({ message: expect.stringMatching(/how many guests/i) });
+    await expect(order({ orderType: "dine_in", guests: 4 })).rejects.toMatchObject({ message: expect.stringMatching(/when you'll arrive/i) });
+    await expect(order({ orderType: "dine_in", guests: 4, scheduledFor: at("18:30") })).rejects.toMatchObject({ message: expect.stringMatching(/passed/i) });
+    await expect(order({ orderType: "dine_in", guests: 4, scheduledFor: at("23:30") })).rejects.toMatchObject({ message: expect.stringMatching(/closed at that time/i) });
+    expect(inserted()).toBeUndefined();
+    await order({ orderType: "dine_in", guests: 4, scheduledFor: at("19:30") });
+    expect(inserted()!.params).toEqual(expect.arrayContaining([4, at("19:30")]));
+  });
+
+  it("seated at a table (QR code) needs neither an arrival time nor the party size", async () => {
+    await order({ orderType: "dine_in", tableNumber: "12" });
+    expect(inserted()!.params).toEqual(expect.arrayContaining(["12"]));
+  });
+});
+
+describe("createOrder — no active branch at all (2026-10-27)", () => {
+  beforeEach(() => {
+    db.transactions = 0;
+    db.statements = [];
+    db.branching = false;
+    db.branchHours = {};
+    db.customer = { id: "cust-1", restaurant_id: RESTAURANT, full_name: "Noor", phone: "+923334445555", email: "noor@example.com", is_email_verified: true, created_at: new Date() };
+  });
+
+  it("refuses a pickup order when the restaurant has branches but every one is switched off", async () => {
+    db.hasBranches = true;
+    await expect(createOrder(input(1, { locationId: null }), { restaurantId: RESTAURANT })).rejects.toMatchObject({ code: "ORDERING_DISABLED" });
+    expect(statementsMatching(/^s*insert into orders/i)).toHaveLength(0);
+  });
+
+  it("still takes it for a restaurant that has no branches at all (unchanged)", async () => {
+    db.hasBranches = false;
+    await createOrder(input(1, { locationId: null }), { restaurantId: RESTAURANT });
+    expect(statementsMatching(/^s*insert into orders/i)).toHaveLength(1);
   });
 });

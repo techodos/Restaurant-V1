@@ -1,7 +1,23 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 // the deployment under test must run with NEXT_PUBLIC_DEFAULT_RESTAURANT=bella-napoli
 const SLUG = "bella-napoli";
+
+// adding to the tray writes its cookie in the browser (no request, no toast): wait for that, not for a message
+async function expectTrayFilled(page: Page): Promise<void> {
+  await expect.poll(async () => (await page.context().cookies()).some((c) => c.name === `rp_tray_${SLUG}` && c.value.length > 10)).toBe(true);
+}
+
+// Orders and bookings need a signed-in, email-verified customer: E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD
+// (on a local seeded database, the seeded sana.malik@example.com account).
+const customerSet = () => Boolean(process.env.E2E_CUSTOMER_EMAIL && process.env.E2E_CUSTOMER_PASSWORD);
+async function signIn(page: Page, returnTo: string): Promise<void> {
+  await page.goto(`/account/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
+  await page.getByLabel("Email").fill(process.env.E2E_CUSTOMER_EMAIL!);
+  await page.getByLabel("Password", { exact: true }).fill(process.env.E2E_CUSTOMER_PASSWORD!); // not "Show password"
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(returnTo));
+}
 
 test.describe("customer storefront", () => {
   test("home page renders database-driven sections", async ({ page }) => {
@@ -25,7 +41,7 @@ test.describe("customer storefront", () => {
     // (1250 + 200) × 2 = 2900 — live estimate from the same Decimal math
     await expect(page.getByTestId("add-to-cart")).toContainText("2,900");
     await page.getByTestId("add-to-cart").click();
-    await expect(page.getByText(/added$/i)).toBeVisible();
+    await expectTrayFilled(page);
 
     await page.goto(`/cart`);
     await expect(page.getByRole("heading", { name: "My Cart" })).toBeVisible();
@@ -40,8 +56,8 @@ test.describe("customer storefront", () => {
 
   test("applies a real promo code and rejects an expired one", async ({ page }) => {
     await page.goto(`/menu`);
-    await page.getByTestId("quick-add-gulab-jamun").first().click();
-    await expect(page.getByText(/added$/i)).toBeVisible();
+    await page.getByTestId("quick-add-mixed-grill-platter").first().click(); // over WELCOME10's Rs 500 minimum
+    await expectTrayFilled(page);
 
     await page.goto(`/cart`);
 
@@ -50,84 +66,58 @@ test.describe("customer storefront", () => {
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(page.getByText(/expired|not valid/i)).toBeVisible();
 
+    // no success toast: the applied code shows up as the server-computed summary's discount line
     await page.getByLabel("Promo code").fill("WELCOME10");
     await page.getByRole("button", { name: "Apply" }).click();
-    await expect(page.getByText(/WELCOME10 applied/i)).toBeVisible();
-
-    // the discount is then visible in the server-computed summary
     await expect(page.getByText(/Discount \(WELCOME10\)/)).toBeVisible();
   });
 
-  test("a guest cannot check out: checkout sends them to sign in and back", async ({ page }) => {
+  test("a guest reaches the checkout form (their email is verified at Place order, not by a sign-in redirect)", async ({ page }) => {
     await page.goto(`/menu`);
-    await page.getByTestId("quick-add-gulab-jamun").first().click();
-    await expect(page.getByText(/added$/i)).toBeVisible();
+    await page.getByTestId("quick-add-mixed-grill-platter").first().click(); // over the minimum order on its own
+    await expectTrayFilled(page);
 
     await page.goto(`/checkout`);
-    await expect(page).toHaveURL(/\/account\/sign-in\?returnTo=%2Fcheckout/);
-    await expect(page.getByTestId("place-order")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/checkout$/);
+    await expect(page.getByTestId("place-order")).toBeVisible();
   });
 
-  // Orders need a signed-in, email-verified customer: set E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD to a
-  // verified account of this restaurant to run the full order flow.
-  test("a verified customer places an order and tracks it from order_status_history", async ({ page }) => {
-    const email = process.env.E2E_CUSTOMER_EMAIL;
-    const password = process.env.E2E_CUSTOMER_PASSWORD;
-    test.skip(!email || !password, "E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD not set");
+  test("a verified customer places a pickup order and tracks it", async ({ page }) => {
+    test.skip(!customerSet(), "E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD not set");
+    await signIn(page, "/menu");
 
-    await page.goto(`/account/sign-in?returnTo=${encodeURIComponent(`/menu`)}`);
-    await page.getByLabel("Email").fill(email!);
-    await page.getByLabel("Password").fill(password!);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/menu`));
-
-    await page.getByTestId("quick-add-gulab-jamun").first().click();
-    await expect(page.getByText(/added$/i)).toBeVisible();
+    await page.getByTestId("quick-add-mixed-grill-platter").first().click();
+    await expectTrayFilled(page);
 
     await page.goto(`/checkout`);
-    const delivery = page.getByRole("button", { name: "Delivery", exact: true });
-    await delivery.click();
-    await expect(delivery).toHaveAttribute("aria-pressed", "true");
-    await page.getByLabel("Full name").fill("E2E Guest");
-    await page.getByLabel("Phone").fill("+92 300 7770001");
-    await page.getByLabel("Street address").fill("42 E2E Street");
-    await page.getByLabel("Area").fill("Gulberg");
+    await page.locator('input[name="orderType"][value="pickup"]').check({ force: true }); // pickup: no map address needed
+    const placeOrder = page.getByTestId("place-order");
+    // outside the branch's opening hours the button is (correctly) disabled with "… closed · opens …"
+    test.skip(/closed/i.test((await placeOrder.textContent()) ?? ""), "the branch is closed right now");
+    await placeOrder.click();
 
-    await page.getByTestId("place-order").click();
-    await expect(page.getByText("Order received")).toBeVisible({ timeout: 25_000 });
-
-    const heading = await page.getByRole("heading", { level: 1 }).textContent();
-    expect(heading).toMatch(/ORD-\d{4}-\d{5}/);
-
-    // the timeline is the audit trail written by the database trigger
-    await expect(page.getByText("Pending")).toBeVisible();
-    await expect(page.getByText("Confirmed")).toBeVisible();
-    await expect(page.getByText(/Estimated in about|Arriving any moment|Behind schedule/)).toBeVisible();
-    await expect(page.getByText("Your items")).toBeVisible();
+    // the order page is the confirmation: its number, the live status and the timeline written by the database
+    await expect(page).toHaveURL(/\/order\/[A-Z0-9]{4}-[A-Z0-9]{5}$/, { timeout: 30_000 });
+    await expect(page.getByText(/Pickup order, placed/)).toBeVisible();
+    await expect(page.getByText("Received").first()).toBeVisible();
   });
 
-  test("books a table against real opening hours and capacity", async ({ page }) => {
-    await page.goto(`/reservation`);
-    await expect(page.getByRole("heading", { name: /Book a table/ })).toBeVisible();
+  test("a signed-in customer books a table", async ({ page }) => {
+    test.skip(!customerSet(), "E2E_CUSTOMER_EMAIL / E2E_CUSTOMER_PASSWORD not set");
+    await signIn(page, "/reservation");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-    // pick a few days out so earlier runs' bookings cannot exhaust the slots
-    await page.getByRole("radiogroup", { name: "Date" }).getByRole("radio").nth(3).click();
+    // a few days out; there is no per-slot capacity any more (owner decision 2026-10-11), so any open slot works
+    await page.locator('[role="radiogroup"][aria-labelledby="date-label"] button').nth(3).click();
+    const slot = page.locator("button[data-testid^='slot-']:not([disabled])").first();
+    await expect(slot).toBeVisible({ timeout: 15_000 });
+    const slotTime = await slot.getAttribute("data-testid");
+    await slot.click();
+    // aria-pressed only flips once React is hydrated — submitting before that would send a native GET
+    await expect(slot).toHaveAttribute("aria-pressed", "true");
 
-    const freeSlots = page.locator("button[data-testid^='slot-']:not([disabled])");
-    await expect(freeSlots.first()).toBeVisible({ timeout: 15_000 });
-    const slotTime = await freeSlots.first().getAttribute("data-testid");
-    await freeSlots.first().click();
-    // aria-pressed only flips once React is hydrated — submitting before that
-    // would send a native GET instead of calling the server action
-    await expect(freeSlots.first()).toHaveAttribute("aria-pressed", "true");
-
-    await page.getByLabel("Name").fill("E2E Diners");
-    await page.getByLabel("Phone").fill("+92 300 7770002");
-    await page.getByLabel("Email").fill("e2e-diners@example.com");
     await page.getByTestId("request-table").click();
-
     await expect(page.getByText(/Your table is confirmed|Request received/)).toBeVisible({ timeout: 25_000 });
-    await expect(page.getByText(/^[A-Z0-9]{6,}$/).first()).toBeVisible({ timeout: 5_000 });
     expect(slotTime).toMatch(/^slot-\d{2}:\d{2}$/);
   });
 

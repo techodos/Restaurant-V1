@@ -418,7 +418,7 @@ async function renderMenu(
                     className={cn("scroll-mt-[calc(var(--header-h,4.25rem)+3rem)]", index > 0 && "mt-9 md:mt-12")}
                   >
                     <div className="flex items-baseline justify-between gap-4">
-                      <h2 id={`${group.category.slug}-title`} className="text-[1.35rem] font-bold leading-tight tracking-[-0.01em] md:text-[1.6rem]" style={{ fontFamily: "var(--font-sans)" }}>
+                      <h2 id={`${group.category.slug}-title`} className="text-[1.3rem] font-semibold leading-tight tracking-[-0.01em] md:text-[1.6rem]" style={{ fontFamily: "var(--font-sans)" }}>
                         {group.category.name}
                       </h2>
                       <p className="shrink-0 text-xs text-[var(--color-muted-ink)]">{group.items.length} item{group.items.length === 1 ? "" : "s"}</p>

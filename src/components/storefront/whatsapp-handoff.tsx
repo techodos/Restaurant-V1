@@ -314,7 +314,7 @@ function Card({
         <span className={`grid size-10 shrink-0 place-items-center rounded-full sm:size-11 ${badge}`} aria-hidden>
           {icon}
         </span>
-        <h2 className="min-w-0 text-lg font-semibold leading-snug sm:pt-2">{title}</h2>
+        <h2 className="min-w-0 text-lg leading-snug sm:pt-2">{title}</h2>
       </div>
       {/* phones: full card width under the icon; from sm: lined up with the title */}
       <div className="mt-3 min-w-0 text-[15px] text-[var(--color-muted-ink)] sm:mt-1 sm:pl-[3.625rem]">{children}</div>

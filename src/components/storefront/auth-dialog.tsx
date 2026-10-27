@@ -46,7 +46,7 @@ export function AuthDialog({ restaurantSlug, googleEnabled, trigger }: AuthDialo
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]">
                 <User className="size-5" aria-hidden />
               </span>
-              <Dialog.Title className="font-[family-name:var(--font-heading)] text-lg font-semibold leading-tight">
+              <Dialog.Title className="display-face text-xl leading-tight">
                 {mode === "sign-in" ? "Welcome back" : "Create your account"}
               </Dialog.Title>
             </div>

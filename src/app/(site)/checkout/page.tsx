@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { getStorefrontCustomer, getVisitorContext } from "@/web/session";
 import { isSupportedCountry } from "libphonenumber-js";
 import { getCustomerProfile, type CustomerProfile } from "@/server/services/customer-profile";
-import { getBranching, readPlacedOrder, readTrayView, requireStorefront } from "@/web/storefront";
+import { getBranching, readPlacedOrder, readSeatedTable, readTrayView, requireStorefront } from "@/web/storefront";
+import { arrivalSlots } from "@/shared/dine-in";
+import { parseOpeningHours } from "@/shared/hours";
 import { branchesFor } from "@/shared/branching";
 import { branchClosedLabel, priceTray, serviceAvailability } from "@/server/services/cart";
 import { getCheckoutOptions } from "@/server/services/checkout";
@@ -55,9 +57,17 @@ export default async function CheckoutPage() {
   const formLocations = branching ? locations : primaryLocation ? [primaryLocation] : [];
   // the kitchen that will cook it (the cart's branch, else the primary one): the same one createOrder checks
   const orderLocation = locations.find((location) => location.id === tray.locationId) ?? primaryLocation;
-  const availability = serviceAvailability(restaurant, orderLocation, tray.orderType);
+  // branches exist but every one is switched off: nothing can cook it (createOrder refuses it too)
+  const noBranchOpen = locations.length > 0 && !locations.some((location) => location.isActive);
+  const availability = noBranchOpen
+    ? { isOpen: false, opensAt: null, acceptsOrders: false, message: `${restaurant.name} isn't taking orders right now.` }
+    : serviceAvailability(restaurant, orderLocation, tray.orderType);
   // closed by its hours: the form still shows, with Place order disabled and saying so (not a blocking page)
   const closedLabel = branchClosedLabel(restaurant, orderLocation, locations.filter((location) => location.isActive).length > 1);
+  // dine-in: seated at a table of THIS branch by its QR code, or ordering ahead (arrival times while it is open)
+  const seat = await readSeatedTable(context);
+  const seatedTable = seat && seat.branchId === orderLocation?.id ? seat.table : null;
+  const dineInArrivals = arrivalSlots(parseOpeningHours(orderLocation?.hours), restaurant.timezone, restaurant.locale);
   const zones =
     tray.orderType === "delivery"
       ? await getDeliveryZones(restaurant.id, { locationId: tray.locationId ?? undefined, activeOnly: true })
@@ -133,16 +143,16 @@ export default async function CheckoutPage() {
             <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5 motion-reduce:transition-none" aria-hidden />
             Back to cart
           </Link>
-          <h1 className="display-2 font-normal">
+          <h1 className="display-1">
             Checkout
           </h1>
           <p className="mt-3 text-[15px] text-[var(--color-muted-ink)]">Complete your order and enjoy a delightful meal!</p>
         </div>
-        <ol aria-label="Order progress" className="flex items-center gap-2.5 text-[13px] font-medium">
+        <ol aria-label="Order progress" className="flex items-center gap-1.5 text-[12px] font-medium min-[360px]:gap-2.5 min-[360px]:text-[13px]">
           {steps.map((step, index) => (
-            <li key={step.label} className="flex items-center gap-2.5" aria-current={step.state === "current" ? "step" : undefined}>
+            <li key={step.label} className="flex items-center gap-1.5 min-[360px]:gap-2.5" aria-current={step.state === "current" ? "step" : undefined}>
               {index > 0 ? (
-                <span aria-hidden className={`h-px w-6 sm:w-10 ${step.state === "upcoming" ? "bg-[var(--rule-strong)]" : "bg-[var(--color-brand-accent)]"}`} />
+                <span aria-hidden className={`h-px w-3 min-[360px]:w-6 sm:w-10 ${step.state === "upcoming" ? "bg-[var(--rule-strong)]" : "bg-[var(--color-brand-accent)]"}`} />
               ) : null}
               <span
                 aria-hidden
@@ -222,6 +232,18 @@ export default async function CheckoutPage() {
           locations={formLocations}
           initialLocationId={tray.locationId}
           branch={branch ? { name: branch.name, menuHref: `/menu`, destination: branching?.destination ?? null } : null}
+          orderBranch={
+            orderLocation
+              ? {
+                  name: orderLocation.name,
+                  address: [orderLocation.addressLine1, orderLocation.area].filter(Boolean).join(", "),
+                  city: orderLocation.city ?? null,
+                }
+              : null
+          }
+          chosenCity={branching?.destination?.city || null}
+          seatedTable={seatedTable}
+          arrivalSlots={dineInArrivals}
           googleMapsApiKey={config.maps?.apiKey ?? null}
         />
       </div>

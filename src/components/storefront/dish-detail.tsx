@@ -57,7 +57,7 @@ export function DishDetail({ context, item, orderType, variant }: DishDetailProp
 
   const body = (
     <div className={cn(sheet ? "px-5 pt-5 md:px-7" : "")}>
-      <h1 className={cn("font-semibold leading-[1.04]", sheet ? "text-[1.9rem]" : "text-[2.4rem] md:text-[3.2rem]")}>{item.name}</h1>
+      <h1 className={cn(sheet ? "text-[1.9rem]" : "text-[2.1rem] md:text-[3.2rem]", "leading-[1.06]")}>{item.name}</h1>
       <p className="tabular mt-3 flex items-baseline gap-3 text-xl font-semibold">
         {money(item.basePrice)}
         {item.compareAtPrice ? (

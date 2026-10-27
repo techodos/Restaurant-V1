@@ -150,8 +150,11 @@
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    font-weight: 500;
+    /* per heading face, set by theme.ts (DISPLAY_WEIGHTS); components never pick a display weight themselves */
+    font-weight: var(--display-weight, 500);
     letter-spacing: var(--display-tracking, -0.015em);
+    /* headings without their own leading-* used the body's 1.5: two-line titles fell apart */
+    line-height: 1.15;
     text-wrap-style: balance;
   }
 
@@ -253,9 +256,15 @@
 /* ---------------------------------------------------------------------------
    Typography. Display sizes are fluid; the display face is the theme's font.
    --------------------------------------------------------------------------- */
+/* the heading face at its theme weight, for display text sized by hand (auth panels, menu hero, wordmarks) */
+@utility display-face {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight, 500);
+  letter-spacing: var(--display-tracking, -0.015em);
+}
 @utility display-hero {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: var(--display-weight, 500);
   /* phones ~34px (320) / 36px (375): three balanced lines, not four; desktop unchanged */
   font-size: clamp(2.125rem, 1.25rem + 4.2vw, 5.25rem);
   line-height: 1;
@@ -265,7 +274,7 @@
 
 @utility display-1 {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: var(--display-weight, 500);
   font-size: clamp(1.75rem, 1.2rem + 2.3vw, 3.25rem);
   line-height: 1.05;
   letter-spacing: var(--display-tracking, -0.02em);
@@ -274,7 +283,7 @@
 
 @utility display-2 {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: var(--display-weight, 500);
   font-size: clamp(1.4rem, 1.2rem + 1.1vw, 2.2rem);
   line-height: 1.1;
   letter-spacing: var(--display-tracking, -0.015em);
@@ -283,7 +292,7 @@
 
 @utility display-3 {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: var(--display-weight, 500);
   font-size: clamp(1.2rem, 1.1rem + 0.4vw, 1.45rem);
   line-height: 1.2;
   letter-spacing: var(--display-tracking, -0.01em);
@@ -812,4 +821,18 @@
 .admin-main .surface-card .surface-flat,
 .admin-main .surface-flat .surface-flat {
   box-shadow: none;
+}
+
+/* admin → Locations → Table QR codes: printing shows the sheet alone, without the admin chrome (removed from the
+   layout, not just hidden, so the cards flow from the top of page 1 across as many pages as needed) */
+@media print {
+  body:has(.qr-sheet) .admin-shell > :not(.admin-column),
+  body:has(.qr-sheet) .admin-column > :not(.admin-main),
+  body:has(.qr-sheet) .admin-main > :not(.qr-page) {
+    display: none !important;
+  }
+  body:has(.qr-sheet) .admin-main {
+    padding: 0;
+    max-width: none;
+  }
 }

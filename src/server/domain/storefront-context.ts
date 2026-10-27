@@ -59,8 +59,15 @@ export function assembleStorefrontContext(
     theme,
     config,
     locations,
-    primaryLocation: locations.find((location) => location.isPrimary) ?? locations[0] ?? null,
+    // the branch single-branch mode pins every order to, so only one that can take orders: an inactive primary is
+    // skipped (as the admin's branch-scope.ts and repositories#getPrimaryLocation already do), never chosen
+    primaryLocation: activePrimary(locations),
   };
+}
+
+function activePrimary(locations: readonly RestaurantLocation[]): RestaurantLocation | null {
+  const active = locations.filter((location) => location.isActive);
+  return active.find((location) => location.isPrimary) ?? active[0] ?? null;
 }
 
 /** Restaurants that are suspended or closed do not have a public storefront. */

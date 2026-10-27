@@ -13,12 +13,12 @@ import { cn } from "@/shared/utils";
 export const AUTH_FIELD =
   "auth-field h-[54px] w-full rounded-[14px] border border-[var(--color-hairline)] bg-[var(--color-surface)] text-[16px] text-[var(--color-ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[color-mix(in_srgb,var(--color-muted-ink)_55%,transparent)] hover:border-[color-mix(in_srgb,var(--color-ink)_22%,var(--color-hairline))] focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-brand)_12%,transparent)] aria-[invalid=true]:border-[var(--color-danger)] aria-[invalid=true]:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-danger)_10%,transparent)] disabled:opacity-60";
 const ICON = "pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-[var(--color-muted-ink)] transition-colors peer-focus:text-[var(--color-brand)]";
-export const AUTH_LINK = "font-semibold text-[var(--color-brand)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]";
+export const AUTH_LINK = "font-medium text-[var(--color-brand)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)]";
 
 export function AuthLabel({ htmlFor, children, aside }: { htmlFor: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <label htmlFor={htmlFor} className="text-[13px] font-semibold text-[var(--color-ink)]">
+      <label htmlFor={htmlFor} className="text-[13px] font-medium text-[var(--color-ink)]">
         {children}
       </label>
       {aside}
@@ -203,7 +203,7 @@ export function AuthStep({ icon: Icon, title, children }: { icon: LucideIcon; ti
         <Icon className="size-[22px]" aria-hidden />
       </span>
       <div className="flex flex-col gap-1.5">
-        <h2 className="font-[family-name:var(--font-display)] text-[26px] font-semibold leading-[1.1] text-[var(--color-ink)]">{title}</h2>
+        <h2 className="display-face text-[24px] leading-[1.1] text-[var(--color-ink)]">{title}</h2>
         {children ? <div className="text-[14px] leading-relaxed text-[var(--color-muted-ink)]">{children}</div> : null}
       </div>
     </div>

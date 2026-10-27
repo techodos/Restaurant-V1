@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Loader2, MapPin, Navigation, Store } from "lucide-react";
 import { cn } from "@/shared/utils";
-import { branchesFor, formatDistance, type BranchOption, type BranchingState, type DeliveryDestination } from "@/shared/branching";
+import { branchCities, branchesFor, formatDistance, type BranchOption, type BranchingState, type DeliveryDestination } from "@/shared/branching";
 import type { CustomerAddress } from "@/shared/contract/models";
 import { Sheet } from "@/components/motion/sheet";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,10 @@ interface BranchingContextValue {
   branches: BranchOption[];
   /** cities we deliver in (for "ordering isn't available here") */
   deliveryCities: string[];
+  /** cities with a branch (pickup / dine-in: "our branches are in Lahore and Islamabad") */
+  branchCities: string[];
+  /** why "no-service" for this order type, one line: no delivery there, or no branch in that city */
+  unservedText: (orderType?: string) => string;
   /** the tray's branch, when it is one of `branches` */
   selected: BranchOption | null;
   gate: (orderType?: string) => OrderGate;
@@ -62,6 +66,8 @@ const OFF: BranchingContextValue = {
   destination: null,
   branches: [],
   deliveryCities: [],
+  branchCities: [],
+  unservedText: () => "",
   selected: null,
   gate: () => "ok",
   canOrder: () => true,
@@ -127,6 +133,8 @@ function EnabledProvider({
         if (!state.destination) return "need-location";
         if (list.length === 0) return "no-service";
       }
+      // pickup / dine-in with a location chosen: only that city's branches, and there may be none
+      if (state.destination && list.length === 0) return "no-service";
       return "need-branch";
     },
     [cart.orderType, cart.locationId, listFor, state.destination],
@@ -270,6 +278,11 @@ function EnabledProvider({
       destination: state.destination,
       branches,
       deliveryCities: state.deliveryCities ?? [],
+      branchCities: branchCities(state),
+      unservedText: (orderType = cart.orderType) =>
+        orderType === "delivery"
+          ? "Delivery is not available at this location"
+          : `We have no branch in ${state.destination?.city || "your city"} yet`,
       selected,
       gate,
       canOrder: (orderType) => gate(orderType) === "ok",

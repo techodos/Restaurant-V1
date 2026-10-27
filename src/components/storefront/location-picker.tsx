@@ -4,6 +4,7 @@
 import { useEffect, useId, useRef, useState, useCallback } from 'react';
 import { Loader2, LocateFixed, MapPin, Search } from 'lucide-react';
 import { cn } from '@/shared/utils';
+import { useCookieConsent } from '@/components/storefront/cookie-consent';
 
 export interface ResolvedLocation {
   /** empty when the point could not be turned into an address (the coordinates are still real) */
@@ -121,10 +122,14 @@ export function LocationPicker({
   // flag stops that.
   const mountedRef = useRef(true);
   const inputId = useId();
+  // Google Maps sets Google's own cookies, so on the storefront it waits for the visitor's consent; outside the
+  // storefront (admin, a staff tool) there is no consent provider and the map loads as before
+  const cookieConsent = useCookieConsent();
+  const mapsAllowed = !cookieConsent || cookieConsent.consent?.maps === true;
 
   const [status, setStatus] = useState<
-    'idle' | 'loading-script' | 'ready' | 'unavailable'
-  >(apiKey ? 'loading-script' : 'unavailable');
+    'idle' | 'loading-script' | 'ready' | 'unavailable' | 'needs-consent'
+  >(apiKey ? (mapsAllowed ? 'loading-script' : 'needs-consent') : 'unavailable');
   const [locating, setLocating] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,7 +226,12 @@ export function LocationPicker({
     (latitude: number, longitude: number) => {
       if (!mountedRef.current) return;
       const map = mapRef.current;
-      if (!map) return;
+      // no map (Google Maps not allowed): the point still resolves through our own geocoder, so the order
+      // gets exact delivery coordinates from "Use current location" alone
+      if (!map) {
+        reverseGeocode(latitude, longitude);
+        return;
+      }
       const position = { lat: latitude, lng: longitude };
       map.panTo(position);
       map.setZoom(Math.max(map.getZoom() ?? 15, 16));
@@ -245,6 +255,11 @@ export function LocationPicker({
 
   useEffect(() => {
     if (!apiKey) return;
+    if (!mapsAllowed) {
+      setStatus('needs-consent');
+      return;
+    }
+    setStatus('loading-script');
     let cancelled = false;
     const listenerController = new AbortController();
     loadGoogleMaps(apiKey)
@@ -359,7 +374,7 @@ export function LocationPicker({
       geocodeAbortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey]);
+  }, [apiKey, mapsAllowed]);
 
   /** The browser's own answer about location access, without prompting ("prompt" when it cannot tell). */
   async function locationPermission(): Promise<PermissionState> {
@@ -481,7 +496,8 @@ export function LocationPicker({
     const keep = (event: Event) => event.stopPropagation();
     frame.addEventListener('pointerdown', keep);
     return () => frame.removeEventListener('pointerdown', keep);
-  }, []);
+    // the frame only exists once Google Maps is allowed: attach again when it appears
+  }, [status === 'needs-consent']);
 
   if (status === 'unavailable') return null;
 
@@ -491,7 +507,7 @@ export function LocationPicker({
         <button
           type='button'
           onClick={locateCustomer}
-          disabled={status !== 'ready' || locating}
+          disabled={status === 'loading-script' || locating}
           className='press flex h-10 items-center gap-1.5 rounded-[var(--radius-control)] border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3.5 text-sm font-medium transition-colors hover:border-[color-mix(in_srgb,var(--color-ink)_30%,var(--color-hairline))] disabled:cursor-not-allowed disabled:opacity-60'
         >
           {locating ? (
@@ -504,6 +520,7 @@ export function LocationPicker({
           )}
           Use current location
         </button>
+        {status === 'needs-consent' ? null : (
         <div className='relative min-w-[14rem] flex-1'>
           <Search
             className='pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]'
@@ -521,8 +538,25 @@ export function LocationPicker({
             )}
           />
         </div>
+        )}
       </div>
 
+      {status === 'needs-consent' ? (
+        <div className='rounded-[var(--radius-brand)] bg-[var(--steel-1)] p-4 text-sm'>
+          <p className='text-[var(--color-muted-ink)]'>
+            Address search and the map use Google Maps, which sets Google&apos;s own cookies. You can also use your
+            current location or type your address below.
+          </p>
+          <button
+            type='button'
+            onClick={() => cookieConsent?.update({ ...cookieConsent.consent, maps: true })}
+            className='press mt-3 inline-flex h-10 items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--color-brand)] px-4 text-sm font-semibold text-[var(--color-brand-foreground)]'
+          >
+            <MapPin className='size-4' aria-hidden />
+            Allow Google Maps
+          </button>
+        </div>
+      ) : (
       <div
         ref={mapFrameRef}
         className='relative h-56 w-full overflow-hidden rounded-[var(--radius-brand)] bg-[var(--steel-2)]'
@@ -544,6 +578,7 @@ export function LocationPicker({
           </div>
         ) : null}
       </div>
+      )}
 
       {resolving ? (
         <p className='flex items-center gap-1.5 text-xs text-[var(--color-muted-ink)]'>
@@ -558,7 +593,7 @@ export function LocationPicker({
           />
           {resolved.formattedAddress}
         </p>
-      ) : error ? null : (
+      ) : error || status === 'needs-consent' ? null : (
         <p className='text-xs text-[var(--color-muted-ink)]'>
           Use current location or search above, then drag the pin to fine-tune
           it.

@@ -66,7 +66,7 @@ export function ProductCard({
       </Link>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <h3 className="text-[15px] font-bold leading-snug sm:text-base" style={{ fontFamily: "var(--font-sans)" }}>
+        <h3 className="text-[15px] font-semibold leading-snug sm:text-base" style={{ fontFamily: "var(--font-sans)" }}>
           <Link href={href} scroll={false} className="transition-colors duration-200 hover:text-[var(--color-brand)]">
             {item.name}
           </Link>
@@ -76,7 +76,7 @@ export function ProductCard({
         ) : null}
 
         <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <p className="tabular inline-flex items-baseline gap-1.5 rounded-md bg-[color-mix(in_srgb,var(--color-brand-accent)_24%,var(--color-surface))] px-2 py-0.5 text-[13px] font-bold text-[var(--color-ink)]">
+          <p className="tabular inline-flex items-baseline gap-1.5 rounded-md bg-[color-mix(in_srgb,var(--color-brand-accent)_24%,var(--color-surface))] px-2 py-0.5 text-[13px] font-semibold text-[var(--color-ink)]">
             {item.requiresSelection ? <span className="text-[11px] font-semibold uppercase tracking-wide opacity-75">From</span> : null}
             {price}
             {was ? <span className="text-[11px] font-normal text-[var(--color-muted-ink)] line-through">{was}</span> : null}

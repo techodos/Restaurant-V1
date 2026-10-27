@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { rankBranches } from "@/server/services/branching";
 import {
+  branchCities,
   branchesFor,
+  inCustomerCity,
+  listCities,
+  sameCity,
   decodeDestination,
   destinationCookieName,
   encodeDestination,
@@ -92,11 +96,30 @@ describe("which branches serve a destination", () => {
   });
 
   it("offers nothing for delivery before a destination exists; pickup can choose any active branch", () => {
-    const state = rankBranches(LOCATIONS, ZONES, null);
+    const state = { ...rankBranches(LOCATIONS, ZONES, null), destination: null };
     expect(state.delivery).toEqual([]);
     expect(state.all.map((option) => option.id)).toEqual(["gulberg", "dha", "johar", "clifton"]);
     expect(branchesFor(state, "delivery")).toEqual([]);
     expect(branchesFor(state, "pickup")).toHaveLength(4);
+  });
+
+  it("pickup / dine-in only from a branch in the customer's city once a location is chosen (owner decision 2026-10-27)", () => {
+    const at = (city: string) => ({ ...rankBranches(LOCATIONS, ZONES, destination("Somewhere", city)), destination: destination("Somewhere", city) });
+    // Karachi customer: the Karachi branch only, for pickup and dine-in alike
+    expect(branchesFor(at("Karachi"), "pickup").map((option) => option.id)).toEqual(["clifton"]);
+    expect(branchesFor(at(" karachi "), "dine_in").map((option) => option.id)).toEqual(["clifton"]);
+    // a city with no branch: nothing (the storefront says "no branch in Peshawar yet", createOrder refuses)
+    expect(branchesFor(at("Peshawar"), "pickup")).toEqual([]);
+    // cities with a branch, for that message
+    expect(listCities(branchCities(at("Peshawar")))).toBe("Lahore and Karachi");
+  });
+
+  it("never hides a branch whose city is unknown, and treats an unknown customer city as 'any branch'", () => {
+    expect(inCustomerCity({ city: null }, "Karachi")).toBe(true);
+    expect(inCustomerCity({ city: "Lahore" }, "")).toBe(true);
+    expect(inCustomerCity({ city: "Lahore" }, "Karachi")).toBe(false);
+    expect(sameCity("Lahore", " LAHORE ")).toBe(true);
+    expect(sameCity("", "")).toBe(false);
   });
 
   it("orders every branch by distance for pickup once a location is known", () => {

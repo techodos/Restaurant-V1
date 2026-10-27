@@ -88,7 +88,7 @@ export function MenuHero({
           ) : null}
           <div className="absolute inset-x-5 bottom-5 flex flex-col items-start gap-3 md:inset-x-0 md:bottom-0 md:mx-auto md:max-w-[1280px] md:gap-[14px] md:px-6 md:pb-[84px]">
             {title ? (
-              <h1 className="font-[family-name:var(--font-display)] text-[clamp(1.9rem,8vw,2.75rem)] font-semibold leading-[0.95] text-white md:text-[64px]">
+              <h1 className="display-face text-[clamp(1.9rem,8vw,2.75rem)] leading-[0.98] text-white md:text-[64px]">
                 {title}
               </h1>
             ) : null}

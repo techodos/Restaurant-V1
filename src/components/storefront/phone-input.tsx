@@ -112,7 +112,7 @@ export function PhoneInput({ id, value, onChange, defaultCountry = "PK", classNa
           aria-label="Country code"
           className={cn(
             inputStyles,
-            "w-[7.25rem] shrink-0 cursor-pointer items-center justify-between gap-1",
+            "w-[6.75rem] shrink-0 cursor-pointer items-center justify-between gap-1 min-[375px]:w-[7.25rem]",
             fieldClassName,
             disabled && "cursor-not-allowed text-[var(--color-muted-ink)] disabled:opacity-100",
           )}

@@ -56,7 +56,7 @@ async function renderReservation(context: StorefrontContext, heading: PageHeadin
           <span className="mx-auto grid size-16 place-items-center rounded-[var(--radius-card)] ring-8 ring-[color-mix(in_srgb,var(--color-brand)_5%,transparent)] bg-[color-mix(in_srgb,var(--color-ink)_8%,transparent)] text-[var(--color-muted-ink)]">
             <CalendarX className="size-6" aria-hidden />
           </span>
-          <h1 className="mt-7 text-[2rem] font-semibold leading-tight">Online reservations are closed</h1>
+          <h1 className="mt-7 text-[2rem] leading-tight">Online reservations are closed</h1>
           <p className="mt-3 text-[var(--color-muted-ink)]">
             {restaurant.name} is not taking bookings through the website right now.
             {restaurant.phone ? " You can still call us and we will find you a table." : ""}
@@ -165,7 +165,8 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
   // Build the bookable window: today + maxAdvanceDays, only keeping open days.
   const today = zonedNow(new Date(), restaurant.timezone);
   const dates: { value: string; label: string }[] = [];
-  const slotsByDate: Record<string, Record<string, { booked: number; capacity: number }>> = {};
+  // only the times: every slot is open (no per-slot capacity), and ~6k {booked, capacity} objects made the page ~450 KB
+  const slotsByDate: Record<string, string[]> = {};
 
   const days = Array.from({ length: settings.maxAdvanceDays + 1 }, (_, offset) => ({
     offset,
@@ -193,7 +194,7 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
       const key = `${location.id}:${day.dateKey}`;
       const windows = location.hours[day.dayKey] ?? [];
       if (!windows.length) {
-        slotsByDate[key] = {};
+        slotsByDate[key] = [];
         continue;
       }
 
@@ -201,7 +202,7 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
       // if multi-branching is enabled; otherwise use restaurant hours. All slots are marked available
       // because the restaurant can cater to any number of guests (table inventory is enforced at
       // booking time via advisory lock, not via slot capacity display).
-      const slots: Record<string, { booked: number; capacity: number }> = {};
+      const slots = new Set<string>(); // a set: two windows may produce the same time
       for (const window of windows) {
         const open = timeToMinutes(window.open);
         const close = timeToMinutes(window.close);
@@ -212,11 +213,10 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
           const probe = zonedDateTime(day.dateKey, time, restaurant.timezone);
           if (!isOpenAt(location.hours, probe, restaurant.timezone)) continue;
           if (offset === 0 && minute <= today.minutes) continue; // already passed today
-          // Slot is always available; capacity check is deferred to booking time for concurrency safety.
-          slots[time] = { booked: 0, capacity: 1 };
+          slots.add(time);
         }
       }
-      slotsByDate[key] = slots;
+      slotsByDate[key] = [...slots];
     }
   }
 

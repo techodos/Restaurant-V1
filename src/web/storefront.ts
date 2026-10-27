@@ -2,7 +2,9 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Restaurant, StorefrontContext } from "@/shared/contract/models";
-import { decodeTray, trayCookieName, type InitialTray, type Tray } from "@/shared/tray";
+import { decodeTray, encodeTray, TRAY_COOKIE_MAX_AGE, trayCookieName, trayFitsCookie, type InitialTray, type Tray } from "@/shared/tray";
+import { decodeSeatedTable, encodeSeatedTable, TABLE_COOKIE_MAX_AGE, tableCookieName, type SeatedTable } from "@/shared/dine-in";
+import { cookieOptions } from "./cookies";
 import {
   DESTINATION_COOKIE_MAX_AGE,
   decodeDestination,
@@ -157,4 +159,26 @@ export async function writeDestination(slug: string, destination: DeliveryDestin
     maxAge: DESTINATION_COOKIE_MAX_AGE,
     sameSite: "lax",
   });
+}
+
+// ─── dine-in at a table (QR code) ──────────────────────────────────────────────
+
+/**
+ * The QR code on a table (`/table/<branchId>/<table>`): remembers the table for the sitting and puts the tray on
+ * dine-in at that branch, so the menu, cart and checkout all continue as "Table 12". Route Handlers only.
+ */
+export async function seatAtTable(context: StorefrontContext, seat: SeatedTable): Promise<void> {
+  const store = await cookies();
+  store.set(tableCookieName(context.restaurant.slug), encodeSeatedTable(seat), await cookieOptions(TABLE_COOKIE_MAX_AGE));
+  const tray: Tray = { ...(await readTray(context)), orderType: "dine_in", locationId: seat.branchId };
+  // the browser keeps writing the tray cookie itself (local-cart.tsx), so this one is not httpOnly
+  if (trayFitsCookie(tray)) {
+    store.set(trayCookieName(context.restaurant.slug), encodeTray(tray), { ...(await cookieOptions(TRAY_COOKIE_MAX_AGE)), httpOnly: false });
+  }
+}
+
+/** The table this browser was seated at by a QR code, while it still names an active branch of this restaurant. */
+export async function readSeatedTable(context: StorefrontContext): Promise<SeatedTable | null> {
+  const seat = decodeSeatedTable((await cookies()).get(tableCookieName(context.restaurant.slug))?.value);
+  return seat && context.locations.some((location) => location.id === seat.branchId && location.isActive) ? seat : null;
 }

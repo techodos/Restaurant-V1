@@ -212,6 +212,7 @@ export default async function AdminMenuPage({ searchParams }: MenuAdminPageProps
                           <BranchItemToggle
                             key={`${selectedBranch.id}:${item.id}`}
                             menuItemId={item.id}
+                            itemName={item.name}
                             locationId={selectedBranch.id}
                             branchName={selectedBranch.name}
                             available={overrides?.get(item.id) ?? true}

@@ -3,6 +3,7 @@ import { ArrowUpRight, Clock, Facebook, Instagram, Mail, MapPin, Phone, Twitter,
 import type { Restaurant, RestaurantLocation } from "@/shared/contract/models";
 import { formatHours, zonedNow } from "@/shared/hours";
 import type { WebsiteConfig } from "@/shared/contract/settings";
+import { CookieSettingsButton } from "@/components/storefront/cookie-consent";
 
 interface SiteFooterProps {
   restaurant: Restaurant;
@@ -114,13 +115,14 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
               © {new Date().getFullYear()} {restaurant.legalName ?? restaurant.name}. All rights reserved.
             </p>
             {/* this restaurant's own legal pages (components/storefront/legal-page.tsx) */}
-            <nav aria-label="Legal" className="flex gap-4">
+            <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1">
               <Link href={`/privacy`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
                 Privacy Policy
               </Link>
               <Link href={`/terms`} className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline">
                 Terms of Service
               </Link>
+              <CookieSettingsButton className="underline-offset-4 transition-colors hover:text-[var(--color-ink)] hover:underline" />
             </nav>
           </div>
           <p>{footer.legalNote ?? `${locations.length} location${locations.length === 1 ? "" : "s"} in ${restaurant.country}`}</p>

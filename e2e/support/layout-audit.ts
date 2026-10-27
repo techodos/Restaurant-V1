@@ -89,13 +89,21 @@ export async function auditLayout(page: Page): Promise<string[]> {
     }
 
     const boxes = controls.map((el) => ({ el, r: el.getBoundingClientRect(), layer: layerOf(el) }));
+    // an action drawn inside a field (show password, clear) is fine when the field's padding keeps its text clear of it
+    const inFieldAction = (field: (typeof boxes)[number], action: (typeof boxes)[number]) => {
+      if (!field.el.matches("input, textarea") || action.el.matches("input, select, textarea")) return false;
+      const s = getComputedStyle(field.el);
+      const textLeft = field.r.left + parseFloat(s.paddingLeft);
+      const textRight = field.r.right - parseFloat(s.paddingRight);
+      return action.r.left >= textRight - 1 || action.r.right <= textLeft + 1;
+    };
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i]!, b = boxes[j]!;
         if (a.layer !== b.layer || a.el.contains(b.el) || b.el.contains(a.el)) continue;
         const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
         const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
-        if (w > 4 && h > 4) defects.push(`overlap: ${describe(a.el)} and ${describe(b.el)} overlap by ${Math.round(w)}x${Math.round(h)}px`);
+        if (w > 4 && h > 4 && !inFieldAction(a, b) && !inFieldAction(b, a)) defects.push(`overlap: ${describe(a.el)} and ${describe(b.el)} overlap by ${Math.round(w)}x${Math.round(h)}px`);
       }
     }
 
