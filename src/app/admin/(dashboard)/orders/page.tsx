@@ -3,14 +3,14 @@ import { whatsappStage } from "@/shared/whatsapp-order";
 import { Suspense } from "react";
 import { adminPath } from "@/shared/utils";
 import Link from "next/link";
-import Form from "next/form";
-import { Bike, ChefHat, ChevronRight, ClipboardList, Search, ShoppingBag, UtensilsCrossed } from "lucide-react";
+import { Bike, ChefHat, ChevronRight, ClipboardList, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listOrdersForStaff } from "@/server/services/orders";
-import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS, type OrderStatus, type OrderType, type PaymentStatus } from "@/shared/contract/enums";
+import { ORDER_STATUS_LABELS, ORDER_TYPES, ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS, type OrderStatus, type OrderType, type PaymentStatus } from "@/shared/contract/enums";
+import { adminOrderFilterSearch, hasAdminOrderFilters, parseAdminOrderFilters, type AdminOrderFilters } from "@/shared/order-filters";
+import { OrderFilterBar } from "@/components/admin/order-filter-bar";
 import { formatMoney } from "@/shared/money";
 import { nextOrderStep } from "@/shared/order-flow";
 import { getAdminBranchScope, getAdminOrderStatusCounts, getAdminRestaurant } from "@/web/admin";
@@ -20,7 +20,7 @@ import { AdminStatusTabs } from "@/components/admin/admin-status-tabs";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminTableSkeleton, AdminTabsSkeleton } from "@/components/admin/admin-skeleton";
-import { StatusPill, WhatsAppOrderBadge, orderStatusTone, statusEdge, statusEdgeStyle, tableHead, tableRow } from "@/components/admin/admin-ui";
+import { StatusPill, WhatsAppOrderBadge, orderStatusTone, statusEdge, statusEdgeCell, statusEdgeStyle, tableHead, tableRow } from "@/components/admin/admin-ui";
 import { OrderNextStepButton } from "@/components/admin/order-next-step-button";
 import { OrderBulkProvider, OrderSelectAll, OrderSelectBox, type BulkOrder } from "@/components/admin/order-bulk-actions";
 import { instanceRestaurantSlug } from "@/web/instance";
@@ -45,13 +45,15 @@ const PAYMENT_STATE: Partial<Record<PaymentStatus, string>> = { paid: "Paid", pe
 const PAGE_SIZE = 20;
 
 interface OrdersPageProps {
-  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string; type?: string; pay?: string; from?: string; to?: string }>;
 }
 
 export default async function AdminOrdersPage({ searchParams }: OrdersPageProps) {
   const restaurantSlug = instanceRestaurantSlug();
   const actor = await requireAdminPage("orders.view", restaurantSlug);
-  const { status, q, page } = await searchParams;
+  const { status, q: rawQ, page, ...filterParams } = await searchParams;
+  const q = rawQ?.trim() || undefined;
+  const filters = parseAdminOrderFilters(filterParams);
   const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
 
   const activeStatus = (status ?? "active") as "active" | "all" | OrderStatus;
@@ -73,10 +75,12 @@ export default async function AdminOrdersPage({ searchParams }: OrdersPageProps)
     return counts[key as OrderStatus] ?? 0;
   };
 
+  // tabs and pages keep the search and the filters
   const linkFor = (params: { status?: string; page?: number }) => {
     const search = new URLSearchParams();
     search.set("status", params.status ?? activeStatus);
     if (q) search.set("q", q);
+    for (const [key, value] of adminOrderFilterSearch(filters)) search.set(key, value);
     if (params.page && params.page > 1) search.set("page", String(params.page));
     return `${adminPath()}/orders?${search.toString()}`;
   };
@@ -87,7 +91,7 @@ export default async function AdminOrdersPage({ searchParams }: OrdersPageProps)
       {/* keyed on everything the query depends on, so a filter/search/page change always suspends and
           shows the skeleton again, instead of Next reusing the already-resolved boundary */}
       <Suspense
-        key={`${activeStatus}:${q ?? ""}:${pageNum}:${locationId ?? "all"}`}
+        key={`${activeStatus}:${q ?? ""}:${pageNum}:${locationId ?? "all"}:${adminOrderFilterSearch(filters).join("|")}`}
         fallback={<OrdersResultsSkeleton kitchenLink={actor.permissions.includes("kitchen.view")} />}
       >
         <OrdersResults
@@ -96,6 +100,7 @@ export default async function AdminOrdersPage({ searchParams }: OrdersPageProps)
           ctx={ctx}
           activeStatus={activeStatus}
           q={q}
+          filters={filters}
           pageNum={pageNum}
           locationId={locationId}
           counts={counts}
@@ -116,6 +121,7 @@ async function OrdersResults({
   ctx,
   activeStatus,
   q,
+  filters,
   pageNum,
   locationId,
   counts,
@@ -130,6 +136,7 @@ async function OrdersResults({
   ctx: { restaurantId: string; userId: string; actor: string };
   activeStatus: "active" | "all" | OrderStatus;
   q?: string;
+  filters: AdminOrderFilters;
   pageNum: number;
   locationId: string | null;
   counts: Awaited<ReturnType<typeof getAdminOrderStatusCounts>>;
@@ -139,7 +146,12 @@ async function OrdersResults({
   canUpdate: boolean;
   allBranches: boolean;
 }) {
-  const result = await listOrdersForStaff(actor.restaurantId, { status: activeStatus, search: q, locationId: locationId ?? undefined, page: pageNum, pageSize: PAGE_SIZE }, ctx);
+  const result = await listOrdersForStaff(
+    actor.restaurantId,
+    { status: activeStatus, search: q, ...filters, timezone: restaurant.timezone, locationId: locationId ?? undefined, page: pageNum, pageSize: PAGE_SIZE },
+    ctx,
+  );
+  const narrowed = Boolean(q) || hasAdminOrderFilters(filters);
   const bulkOrders: BulkOrder[] = canUpdate
     ? result.rows.flatMap((order) => {
         const next = nextOrderStep(order.status, order.orderType);
@@ -151,7 +163,7 @@ async function OrdersResults({
     <>
       <AdminPageHeader
         title="Orders"
-        description={`${result.total} ${result.total === 1 ? "order" : "orders"}${q ? ` matching “${q}”` : ""}${counts.pending > 0 ? ` · ${counts.pending} waiting for confirmation` : ""}`}
+        description={`${result.total} ${result.total === 1 ? "order" : "orders"}${q ? ` matching “${q}”` : narrowed ? " match these filters" : ""}${counts.pending > 0 ? ` · ${counts.pending} waiting for confirmation` : ""}`}
         actions={
           actor.permissions.includes("kitchen.view") ? (
             <Button asChild variant="outline" size="sm">
@@ -166,26 +178,40 @@ async function OrdersResults({
       <div className="flex flex-col gap-3">
         <AdminStatusTabs
           label="Order status"
-          options={TABS.map((tab) => ({ key: tab.key, label: tab.label, count: countFor(tab.key) }))}
+          options={TABS.map((tab) => ({ key: tab.key, label: tab.label, count: narrowed ? undefined : countFor(tab.key) }))}
           active={activeStatus}
           linkFor={(key) => linkFor({ status: key })}
         />
-        <Form action={adminPath("/orders")} role="search" className="flex w-full gap-2 sm:max-w-md">
-          <input type="hidden" name="status" value={activeStatus} />
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
-            <Input name="q" type="search" defaultValue={q ?? ""} aria-label="Search orders" placeholder="Order #, name or phone" className="h-10 pl-9" />
-          </div>
-          <Button type="submit" className="h-10">
-            Search
-          </Button>
-        </Form>
+        <OrderFilterBar
+          action={adminPath("/orders")}
+          // the default Active tab would hide an old completed/cancelled order: a search from it looks in every status
+          status={activeStatus === "active" ? "all" : activeStatus}
+          q={q}
+          type={filters.orderType}
+          pay={filters.paymentStatus}
+          from={filters.dateFrom}
+          to={filters.dateTo}
+          typeOptions={ORDER_TYPES.map((value) => ({ value, label: ORDER_TYPE_LABELS[value] }))}
+          payOptions={Object.entries(PAYMENT_STATE).map(([value, label]) => ({ value, label }))}
+          clearHref={narrowed ? `${adminPath()}/orders?status=${activeStatus}` : undefined}
+        />
       </div>
 
       <OrderBulkProvider orders={bulkOrders}>
         <Card className="overflow-hidden max-xl:overflow-visible max-xl:border-0! max-xl:bg-transparent! max-xl:shadow-none!">
           {result.rows.length === 0 ? (
-            <AdminEmptyState icon={ClipboardList} title={q ? "No orders match this search." : "No orders match this filter."} className="max-xl:surface-card" />
+            <AdminEmptyState
+              icon={ClipboardList}
+              title={q ? "No orders match this search." : "No orders match this filter."}
+              action={
+                narrowed && activeStatus !== "all" ? (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={linkFor({ status: "all" })} prefetch={false}>Search all statuses</Link>
+                  </Button>
+                ) : null
+              }
+              className="max-xl:surface-card"
+            />
           ) : (
             <>
               {/* phones, tablets and small laptops: one card per order (touch-sized actions), two columns from md */}
@@ -248,11 +274,11 @@ async function OrdersResults({
                       const href = `${adminPath()}/orders/${order.orderNumber}`;
                       const TypeIcon = TYPE_ICON[order.orderType];
                       return (
-                        <tr key={order.id} className={`${tableRow} ${statusEdge}`} style={statusEdgeStyle(orderStatusTone(order.status))}>
+                        <tr key={order.id} className={tableRow} style={statusEdgeStyle(orderStatusTone(order.status))}>
                           {bulkOrders.length > 0 ? (
-                            <td className="py-3 pl-4">{next ? <OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /> : null}</td>
+                            <td className={`${statusEdgeCell} py-3 pl-4`}>{next ? <OrderSelectBox orderId={order.id} orderNumber={order.orderNumber} /> : null}</td>
                           ) : null}
-                          <td className="whitespace-nowrap px-4 py-3">
+                          <td className={`whitespace-nowrap px-4 py-3 ${bulkOrders.length > 0 ? "" : statusEdgeCell}`}>
                             <Link href={href} prefetch={false} className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-brand)] hover:underline">
                               {order.orderNumber}
                             </Link>
@@ -320,6 +346,7 @@ function OrdersResultsSkeleton({ kitchenLink }: { kitchenLink: boolean }) {
       <div className="flex flex-col gap-3">
         <AdminTabsSkeleton count={9} />
         <Skeleton className="h-10 w-full max-w-md" />
+        <Skeleton className="h-[3.75rem] w-full max-w-2xl" />
       </div>
       <AdminTableSkeleton rows={8} cols={6} />
     </div>

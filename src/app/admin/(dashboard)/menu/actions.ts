@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { adminPath } from "@/shared/utils";
 import type { ApiResult } from "@/shared/contract/api";
 import type { MenuCategory, MenuItem } from "@/shared/contract/models";
 import { action } from "@/server/errors";
 import { categorySchema } from "@/server/validation/menu";
-import { removeCategory, removeMenuItem, saveCategory, setItemAvailability } from "@/server/services/menu-admin";
+import { releaseMenuImages, removeCategory, removeMenuItem, saveCategory, setItemAvailability } from "@/server/services/menu-admin";
 import { requireRestaurantWidePermission } from "@/web/session";
 
 export async function saveCategoryAction(payload: unknown): Promise<ApiResult<MenuCategory>> {
@@ -24,8 +25,10 @@ export async function deleteCategoryAction(categoryId: string): Promise<ApiResul
   return action(async () => {
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
-    await removeCategory(categoryId, ctx);
+    const images = await removeCategory(categoryId, ctx);
     revalidatePath(adminPath("/menu"));
+    // its dishes went with it (cascade): delete their uploaded photos once nothing else uses them
+    if (images.length) after(() => releaseMenuImages(actor.restaurantId, images, ctx));
     return null;
   });
 }
@@ -34,8 +37,9 @@ export async function deleteMenuItemAction(itemId: string): Promise<ApiResult<nu
   return action(async () => {
     const actor = await requireRestaurantWidePermission("menu.manage");
     const ctx = { restaurantId: actor.restaurantId, userId: actor.userId, actor: actor.name };
-    await removeMenuItem(itemId, ctx);
+    const image = await removeMenuItem(itemId, ctx);
     revalidatePath(adminPath("/menu"));
+    if (image) after(() => releaseMenuImages(actor.restaurantId, [image], ctx));
     return null;
   });
 }
