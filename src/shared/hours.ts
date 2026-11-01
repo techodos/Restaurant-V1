@@ -174,6 +174,23 @@ export function formatHours(hours: OpeningHours, today?: DayKey): HoursRow[] {
   });
 }
 
+/**
+ * Runs of consecutive days with identical hours become one row ("Monday – Sunday: Open 24 hours"), so a week that is
+ * the same every day reads as one line. `isToday` is true when today falls inside the run.
+ */
+export function groupHours(rows: HoursRow[]): HoursRow[] {
+  const out: HoursRow[] = [];
+  for (const row of rows) {
+    const last = out[out.length - 1];
+    if (last && last.text === row.text) {
+      const first = last.label.split(" – ")[0];
+      last.label = `${first} – ${row.label}`;
+      last.isToday ||= row.isToday;
+    } else out.push({ ...row });
+  }
+  return out;
+}
+
 export function to12Hour(value: string): string {
   const minutes = timeToMinutes(value);
   const hours24 = Math.floor(minutes / 60);

@@ -81,13 +81,13 @@ export function SiteFooter({ restaurant, config, locations, primaryLocation }: S
             <address className="mt-4 space-y-3 text-[15px] not-italic text-[var(--color-muted-ink)]">
               {primaryLocation ? (
                 <span className="flex items-start gap-3">
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+                  <MapPin className="mt-[3px] size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
                   <span>{[primaryLocation.addressLine1, primaryLocation.area, primaryLocation.city].filter(Boolean).join(", ")}</span>
                 </span>
               ) : null}
               {todayHours?.text ? (
                 <span className="flex items-start gap-3">
-                  <Clock className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
+                  <Clock className="mt-[3px] size-4 shrink-0 text-[var(--color-brand-accent)]" aria-hidden />
                   <span>Today · {todayHours.text}</span>
                 </span>
               ) : null}

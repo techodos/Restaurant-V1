@@ -183,6 +183,7 @@ async function renderMenu(
         subtitle={heading.subtitle}
         dim={heading.photoDarkening}
         mobileHeight={heading.mobileBannerHeight}
+        srTitle={`${restaurant.name} menu`}
         search={{
           action: base,
           hidden: { orderType: activeOrderType, ...(category ? { category } : {}) },
@@ -458,13 +459,14 @@ async function renderMenu(
                     className={cn("scroll-mt-[calc(var(--header-h,4.25rem)+3rem)]", index > 0 ? "mt-10 md:mt-12" : "pt-5 md:pt-8")}
                   >
                     <div className="flex items-end justify-between gap-4">
-                      <h2 id={`${group.category.slug}-title`} className="display-3 flex items-center gap-3 uppercase">
+                      <h2 id={`${group.category.slug}-title`} className="display-3 flex items-center gap-3">
                         <span aria-hidden className="block h-px w-6 shrink-0 bg-[var(--color-brand-accent)]" />
                         {group.category.name}
                       </h2>
                       <p className="text-xs text-[var(--color-muted-ink)]">{group.items.length} item{group.items.length === 1 ? "" : "s"}</p>
                     </div>
-                    <ul className={cn("mt-5 grid gap-3 md:mt-6 md:gap-5", dishGridCols(group.items.length))}>
+                    {/* same column count for every category, so a small one keeps the card size of the others */}
+                    <ul className="mt-5 grid grid-cols-2 gap-3 md:mt-6 md:grid-cols-3 md:gap-5 xl:grid-cols-4">
                       {group.items.map((item) => (
                         <li key={item.id}>{tile(item, "card")}</li>
                       ))}

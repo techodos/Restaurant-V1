@@ -3,7 +3,7 @@ import { ConfiguredPage, configuredPageMetadata, type PageHeading } from "@/comp
 import type { StorefrontContext } from "@/shared/contract/models";
 import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import { getStorefrontContext } from "@/web/storefront";
-import { formatHours, zonedNow } from "@/shared/hours";
+import { formatHours, groupHours, zonedNow } from "@/shared/hours";
 import { breadcrumbJsonLd, restaurantJsonLd } from "@/web/seo";
 import { JsonLd } from "@/components/storefront/json-ld";
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,7 @@ async function renderLocations(context: StorefrontContext, heading: PageHeading)
 
       {/* one full-width band per kitchen, alternating paper and night */}
       {locations.map((location, index) => {
-        const hours = formatHours(location.hours, today);
+        const hours = groupHours(formatHours(location.hours, today));
         const status = serviceStatus(location.hours, now, restaurant.timezone);
         const phone = location.phone ?? restaurant.phone;
         const mapHref =

@@ -34,7 +34,7 @@ function heroImage(section: HeroSectionConfig, context: StorefrontContext) {
 function HeroCopy({ section, size = "hero", className }: { section: HeroSectionConfig; size?: "hero" | "1"; className?: string }) {
   return (
     <div className={className}>
-      {section.eyebrow ? <p className="eyebrow animate-rise mb-4">{section.eyebrow}</p> : null}
+      {section.eyebrow ? <p className="eyebrow animate-rise mb-4 !normal-case">{section.eyebrow}</p> : null}
       <h1 className={cn("animate-rise text-balance [animation-delay:60ms]", size === "hero" ? "display-hero" : "display-1")}>
         {section.title}
       </h1>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Minus, Plus, MapPin, Trash2 } from "lucide-react";
+import { Minus, Plus, MapPin, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/shared/utils";
 import { useLocalCart } from "./local-cart";
@@ -88,7 +88,8 @@ export function GridAddBar({ restaurantSlug, item, orderType, wide = false }: Gr
         title="Choose options"
         className="relative before:absolute before:-inset-1 before:content-[''] grid size-10 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--color-brand)] bg-[var(--color-surface)] shadow-[0_6px_18px_-4px_rgb(0_0_0/0.45)] text-[var(--color-brand)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand)] sm:size-11"
       >
-        <Plus aria-hidden className="size-5" />
+        {/* options icon, not "+": "+" adds straight away, this one opens the dish to choose first */}
+        <SlidersHorizontal aria-hidden className="size-5" />
       </Link>
     );
   }

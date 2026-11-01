@@ -1,7 +1,7 @@
 import { ArrowUpRight, MapPin, Phone } from "lucide-react";
 import type { StorefrontContext } from "@/shared/contract/models";
 import type { LocationsSection as LocationsConfig } from "@/shared/contract/sections";
-import { formatHours, zonedNow } from "@/shared/hours";
+import { formatHours, groupHours, zonedNow } from "@/shared/hours";
 import { cn } from "@/shared/utils";
 import { SectionHeading } from "@/components/storefront/section-heading";
 import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
@@ -24,7 +24,7 @@ export async function LocationsSection({ section, context, tone }: { section: Lo
       <SectionHeading eyebrow="Visit" title={section.title} subtitle={section.subtitle} />
       <ul className={cn("section-body grid grid-cols-[minmax(0,1fr)] gap-x-14 gap-y-10", locations.length > 1 && "md:grid-cols-2")}>
         {locations.map((location) => {
-          const hours = formatHours(location.hours, today);
+          const hours = groupHours(formatHours(location.hours, today));
           const status = serviceStatus(location.hours, new Date(), timezone);
           return (
             <li key={location.id} className="flex flex-col border-t border-[var(--rule-strong)] pt-8">
@@ -73,7 +73,7 @@ export async function LocationsSection({ section, context, tone }: { section: Lo
 
               {section.showMap && location.latitude && location.longitude ? (
                 <a
-                  className="link-arrow mt-8"
+                  className="link-arrow mt-8 self-start"
                   href={mapUrl ?? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`}
                   target="_blank"
                   rel="noreferrer noopener"

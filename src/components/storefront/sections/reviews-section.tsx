@@ -21,6 +21,15 @@ export async function ReviewsSection({ section, context, tone }: { section: Revi
 
   return (
     <SectionShell tone={tone ?? "night"}>
+      {/* "view all" sits at the section's top right, like the other sections' links */}
+      {section.showCta ? (
+        <div className="mb-6 flex justify-end">
+          <Link href={reviewsHref} className="link-arrow">
+            Read every review
+            <ArrowRight aria-hidden />
+          </Link>
+        </div>
+      ) : null}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,2fr)] lg:gap-12">
         <div className="lg:pt-2">
           <p className="eyebrow mb-3">What our guests say</p>
@@ -38,12 +47,6 @@ export async function ReviewsSection({ section, context, tone }: { section: Revi
                 </p>
               </div>
             </div>
-          ) : null}
-          {section.showCta ? (
-            <Link href={reviewsHref} className="link-arrow mt-6">
-              Read every review
-              <ArrowRight aria-hidden />
-            </Link>
           ) : null}
         </div>
 

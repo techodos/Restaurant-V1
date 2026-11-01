@@ -99,7 +99,7 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
       >
         <div className={cn("max-w-[44rem]", centered && "mx-auto")}>
           {section.eyebrow ? (
-            <p className={cn("eyebrow animate-rise mb-4 text-white/85", centered && "justify-center")}>{section.eyebrow}</p>
+            <p className={cn("eyebrow animate-rise mb-4 !normal-case text-white/85", centered && "justify-center")}>{section.eyebrow}</p>
           ) : null}
           <h1 className={cn("animate-rise text-white [animation-delay:80ms]", compact ? "display-1" : "display-hero")}>
             {section.title}
@@ -145,7 +145,7 @@ export function HeroSection({ section, context }: { section: HeroSectionConfig; 
         <div className="container-page relative w-full pb-7 md:pb-10">
           <div className="flex flex-col gap-4 border-t border-white/15 pt-5 text-[13px] text-white/75 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <span className="hidden items-center gap-2.5 label-caps font-semibold text-white/70 md:inline-flex">
+              <span className="hidden items-center gap-2.5 label-caps !normal-case font-semibold text-white/70 md:inline-flex">
                 <Mouse className="animate-cue size-[18px]" aria-hidden />
                 Scroll to explore
               </span>
@@ -205,7 +205,7 @@ function SplitHeroSection({ section }: { section: HeroSectionConfig }) {
       >
         <div className={cn("max-w-xl", !cutout && "mx-auto text-center")}>
           {section.eyebrow ? (
-            <p className={cn("eyebrow animate-rise mb-4", !cutout && "justify-center")}>{section.eyebrow}</p>
+            <p className={cn("eyebrow animate-rise mb-4 !normal-case", !cutout && "justify-center")}>{section.eyebrow}</p>
           ) : null}
           <h1 className="display-hero animate-rise [animation-delay:80ms]">{section.title}</h1>
           {section.subtitle ? (

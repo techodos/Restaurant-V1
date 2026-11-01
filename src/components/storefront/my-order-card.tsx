@@ -6,6 +6,7 @@ import { formatMoney } from "@/shared/money";
 import { OrderLiveProvider, OrderLiveStatus } from "./order-live-status";
 import { OrderStatusBadge } from "./order-status-badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/shared/utils";
 
 /** What the cards need from the restaurant (formatting only). */
 export interface OrderCardRestaurant {
@@ -47,7 +48,7 @@ const cardClass = "surface-card p-6 shadow-[var(--shadow-card)] md:p-7";
  * An order in progress. Reuses the live order provider from the order page: the status badge moves
  * by itself (SSE) and the page re-renders once so the order slides into "Previous orders" when it ends.
  */
-export function CurrentOrderCard({ order, restaurant }: { order: Order; restaurant: OrderCardRestaurant }) {
+export function CurrentOrderCard({ order, restaurant, stream = true }: { order: Order; restaurant: OrderCardRestaurant; stream?: boolean }) {
   const money = (value: string) => formatMoney(value, { currency: restaurant.currencySymbol, locale: restaurant.locale });
   const { Icon, text } = fulfilment(order, restaurant);
 
@@ -63,12 +64,13 @@ export function CurrentOrderCard({ order, restaurant }: { order: Order; restaura
       }}
       history={[]}
       orderType={order.orderType}
+      stream={stream}
     >
-      <article className={cardClass} data-testid="current-order" aria-label={`Order ${order.orderNumber}`}>
+      <article className={cn(cardClass, "flex flex-col")} data-testid="current-order" aria-label={`Order ${order.orderNumber}`}>
         <header>
           <div>
             <p className="eyebrow mb-2">{ORDER_TYPE_LABELS[order.orderType]}</p>
-            <h3 className="tabular font-[family-name:var(--font-sans)] text-[1.2rem] font-semibold tracking-[0.03em] md:text-[1.35rem]">Order {order.orderNumber}</h3>
+            <h2 className="tabular font-[family-name:var(--font-sans)] text-[1.2rem] font-semibold tracking-[0.03em] md:text-[1.35rem]">Order {order.orderNumber}</h2>
             <p className="mt-1 text-sm text-[var(--color-muted-ink)]">
               {restaurant.name} · {whenPlaced(order, restaurant)}
             </p>
@@ -95,7 +97,7 @@ export function CurrentOrderCard({ order, restaurant }: { order: Order; restaura
           <span>{text}</span>
         </p>
 
-        <footer className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-5">
           <p className="tabular">
             <span className="block text-[12px] text-[var(--color-muted-ink)]">Total</span>
             <span className="text-lg font-semibold">{money(order.total)}</span>

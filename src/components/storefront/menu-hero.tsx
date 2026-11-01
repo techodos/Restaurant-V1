@@ -15,6 +15,8 @@ interface MenuHeroProps {
   dim: number | undefined;
   /** phones only: the banner frame (super admin "Phone banner height"); default medium */
   mobileHeight?: MobileBannerHeight;
+  /** visually hidden <h1> used when the page has no visible title */
+  srTitle: string;
   search: {
     action: string;
     hidden: Record<string, string>;
@@ -46,13 +48,15 @@ export function MenuHero({
   subtitle,
   dim,
   mobileHeight = "medium",
+  srTitle,
   search,
 }: MenuHeroProps) {
   return (
     <>
-      {/* the banner opens the page, so the header floats transparent over it and turns solid on scroll (like a home hero) */}
-      <div data-hero-overlay className="-mt-[var(--header-h,4.25rem)]">
-        <section className="tone-night relative isolate overflow-hidden bg-[var(--color-night)]">
+      {/* md+: the banner runs under the header. Phones: it starts below it, because its height comes only from the photo
+          (~120px at 390), so the 69px header hid over half of it and sat on the title */}
+      <div data-hero-overlay className="md:-mt-[var(--header-h,4.25rem)]">
+        <section className={`tone-night relative isolate overflow-hidden bg-[var(--color-night)] ${image ? "" : "min-h-40"}`}>
           {image ? (
             <Image
               src={image}
@@ -86,12 +90,17 @@ export function MenuHero({
               />
             </>
           ) : null}
-          <div className="absolute inset-x-5 bottom-5 flex flex-col items-start gap-3 md:inset-x-0 md:bottom-0 md:mx-auto md:max-w-[1280px] md:gap-[14px] md:px-6 md:pb-[84px]">
+          {/* phones: the banner is only ~120px tall, so the title needs its own ground to read on the photo */}
+          {title ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/60 to-transparent md:hidden" /> : null}
+          <div className="absolute inset-x-5 bottom-6 flex flex-col items-start gap-3 md:inset-x-0 md:bottom-0 md:mx-auto md:max-w-[1280px] md:gap-[14px] md:px-6 md:pb-[84px]">
             {title ? (
-              <h1 className="display-face text-[clamp(1.9rem,8vw,2.75rem)] leading-[0.98] text-white md:text-[64px]">
+              <h1 className="display-face text-[clamp(1.375rem,6vw,2rem)] leading-tight text-white md:text-[64px] md:leading-[0.98]">
                 {title}
               </h1>
-            ) : null}
+            ) : (
+              // a banner with the headline baked into the picture still needs a page title for screen readers and search
+              <h1 className="sr-only">{srTitle}</h1>
+            )}
             {subtitle ? (
               <p className="hidden max-w-[420px] text-[16px] leading-relaxed text-white/85 md:block">
                 {subtitle}

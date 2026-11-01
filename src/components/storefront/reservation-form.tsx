@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, CalendarCheck, Loader2, Lock, MapPin, Minus, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarCheck, Loader2, MapPin, Minus, Plus } from "lucide-react";
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/shared/utils";
 import { ReservationSuccess } from "./reservation-success";
-import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/input";
+import { FieldError, FieldHint, Input, Label, readOnlyField, Select, Textarea } from "@/components/ui/input";
 import { PhoneInput } from "@/components/storefront/phone-input";
 import { signInHref } from "@/shared/return-to";
 import { bookTableAction, type BookingResult } from "@/app/(site)/reservation/actions";
@@ -66,16 +66,16 @@ function daypart(time: string) {
 
 function Step({ index, title, children }: { index: number; title: string; children: React.ReactNode }) {
   return (
-    <div role="group" aria-labelledby={`step-${index}`} className="grid grid-cols-[minmax(0,1fr)] gap-5 border-t border-[var(--rule)] pt-7 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-8">
+    <div role="group" aria-labelledby={`step-${index}`} className="grid grid-cols-[minmax(0,1fr)] gap-5 border-t border-[var(--rule)] pt-7 md:grid-cols-[7rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[7rem_minmax(0,1fr)]">
       <p id={`step-${index}`}>
-        <span className="flex items-baseline gap-3 md:flex-col md:gap-2">
-          <span className="tabular font-[family-name:var(--font-display)] text-[1.9rem] leading-none text-[var(--color-brand-accent)]">
+        <span className="flex items-baseline gap-3 md:flex-col md:gap-1.5">
+          <span className="tabular font-[family-name:var(--font-display)] text-[1.3rem] leading-none text-[var(--color-brand)]">
             {String(index).padStart(2, "0")}
           </span>
-          <span className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--color-muted-ink)]">{title}</span>
+          <span className="label-caps font-semibold text-[var(--color-ink)]">{title}</span>
         </span>
       </p>
-      <div className="min-w-0 space-y-5">{children}</div>
+      <div className="@container min-w-0 space-y-5">{children}</div>
     </div>
   );
 }
@@ -85,6 +85,8 @@ const chip =
 const chipIdle =
   "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[color-mix(in_srgb,var(--color-brand)_55%,var(--color-hairline))]";
 const chipOn = "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)] shadow-[var(--shadow-brand)]";
+/** the form's round icon buttons: the guest stepper and the date arrows */
+const roundIcon = "press grid size-10 place-items-center rounded-full hover:bg-[var(--tint)] disabled:opacity-35";
 
 /**
  * Reservation form, set as three numbered steps (when, time, you). The times come from the branch's opening
@@ -116,8 +118,32 @@ export function ReservationForm({
   const [booking, setBooking] = useState<BookingResult | null>(null);
   const [pending, startTransition] = useTransition();
   const dayStrip = useRef<HTMLDivElement>(null);
+  const [stripEdges, setStripEdges] = useState({ start: true, end: false });
   const scrollDays = (direction: 1 | -1) =>
     dayStrip.current?.scrollBy({ left: direction * dayStrip.current.clientWidth * 0.8, behavior: "smooth" });
+  const updateStripEdges = () => {
+    const strip = dayStrip.current;
+    if (strip) setStripEdges({ start: strip.scrollLeft <= 4, end: strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 4 });
+  };
+
+  // `booking`: the strip remounts when "Book another" brings the form back
+  useEffect(() => {
+    const strip = dayStrip.current;
+    if (!strip) return;
+    updateStripEdges();
+    const observer = new ResizeObserver(updateStripEdges);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [booking]);
+
+  // a date chosen from outside the strip ("Next open", or the page's first open day) is brought into view
+  useEffect(() => {
+    const strip = dayStrip.current;
+    const chip = strip?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (!strip || !chip) return;
+    const outside = chip.offsetLeft < strip.scrollLeft || chip.offsetLeft + chip.offsetWidth > strip.scrollLeft + strip.clientWidth;
+    if (outside) strip.scrollTo({ left: chip.offsetLeft - 20, behavior: "smooth" });
+  }, [date, booking]);
 
   const daySlots = slotsByDate[`${locationId}:${date}`];
   const timeOptions = useMemo(
@@ -134,6 +160,9 @@ export function ReservationForm({
   }, [timeOptions]);
 
   const selectedDate = dates.find((option) => option.value === date);
+  const nextOpenDate = timeOptions.length
+    ? undefined
+    : dates.find((option) => option.value > date && slotsByDate[`${locationId}:${option.value}`]?.length);
   const location = locations.find((option) => option.id === locationId);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -212,6 +241,18 @@ export function ReservationForm({
 
   const summary = [selectedDate?.label, time || null, `${guests} guest${guests === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
 
+  const dateArrow = (direction: 1 | -1) => (
+    <button
+      type="button"
+      aria-label={direction === 1 ? "Later dates" : "Earlier dates"}
+      disabled={direction === 1 ? stripEdges.end : stripEdges.start}
+      onClick={() => scrollDays(direction)}
+      className={cn(roundIcon, "hidden shrink-0 md:grid")}
+    >
+      {direction === 1 ? <ArrowRight className="size-4" aria-hidden /> : <ArrowLeft className="size-4" aria-hidden />}
+    </button>
+  );
+
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-8">
       <Step index={1} title="When">
@@ -248,27 +289,19 @@ export function ReservationForm({
         ) : null}
 
         <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <p id="date-label" className="text-sm font-medium">Date</p>
-            <div className="hidden gap-1.5 md:flex">
-              {([-1, 1] as const).map((direction) => (
-                <button
-                  key={direction}
-                  type="button"
-                  aria-label={direction === 1 ? "Later dates" : "Earlier dates"}
-                  onClick={() => scrollDays(direction)}
-                  className="press grid size-8 place-items-center rounded-full border border-[var(--color-hairline)] hover:border-[var(--rule-strong)]"
-                >
-                  {direction === 1 ? <ArrowRight className="size-3.5" aria-hidden /> : <ArrowLeft className="size-3.5" aria-hidden />}
-                </button>
-              ))}
-            </div>
-          </div>
+          <p id="date-label" className="text-sm font-medium">Date</p>
+          {/* wide screens: the arrows sit either side of the strip, never over a date; phones swipe */}
+          <div className="md:flex md:items-center md:gap-1">
+          {dateArrow(-1)}
           <div
             ref={dayStrip}
             role="radiogroup"
             aria-labelledby="date-label"
-            className="scrollbar-none -mx-5 flex snap-x gap-2 overflow-x-auto scroll-px-5 px-5 pb-1 md:mx-0 md:scroll-px-0 md:px-0 md:[mask-image:linear-gradient(90deg,#000_88%,transparent)]"
+            onScroll={updateStripEdges}
+            className={cn(
+              "scrollbar-none relative -mx-5 flex snap-x gap-2 overflow-x-auto scroll-px-5 px-5 pb-1 md:mx-0 md:min-w-0 md:flex-1 md:scroll-px-0 md:px-0",
+              !stripEdges.end && "md:[mask-image:linear-gradient(90deg,#000_92%,transparent)]",
+            )}
           >
             {dates.map((option, index) => {
               const parts = dayParts(option.value);
@@ -299,6 +332,8 @@ export function ReservationForm({
               );
             })}
           </div>
+          {dateArrow(1)}
+          </div>
         </div>
 
         <div className="space-y-2.5">
@@ -310,7 +345,7 @@ export function ReservationForm({
                 aria-label="Fewer guests"
                 disabled={guests <= minGuests}
                 onClick={() => setGuests((count) => Math.max(minGuests, count - 1))}
-                className="press grid size-10 place-items-center rounded-full hover:bg-[var(--tint)] disabled:opacity-35"
+                className={roundIcon}
               >
                 <Minus className="size-4" aria-hidden />
               </button>
@@ -329,7 +364,7 @@ export function ReservationForm({
                 aria-label="More guests"
                 disabled={guests >= maxGuests}
                 onClick={() => setGuests((count) => Math.min(maxGuests, count + 1))}
-                className="press grid size-10 place-items-center rounded-full hover:bg-[var(--tint)] disabled:opacity-35"
+                className={roundIcon}
               >
                 <Plus className="size-4" aria-hidden />
               </button>
@@ -373,16 +408,31 @@ export function ReservationForm({
             ))}
           </div>
         ) : (
-          <p className="rounded-[var(--radius-card)] bg-[var(--tint)] px-4 py-3.5 text-sm text-[var(--color-muted-ink)]">
-            We are closed on that day, or the kitchen is fully booked. Please pick another date.
-          </p>
+          <div className="flex flex-col items-start gap-3 rounded-[var(--radius-card)] bg-[var(--tint)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-[var(--color-muted-ink)]">No tables to book on this day.</p>
+            {nextOpenDate ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => {
+                  setDate(nextOpenDate.value);
+                  setTime("");
+                }}
+              >
+                Next open: {shortDay(nextOpenDate.value)}
+                <ArrowRight aria-hidden />
+              </Button>
+            ) : null}
+          </div>
         )}
-        <FieldHint>Slots are {slotMinutes} minutes apart and held for 15 minutes after your booking time.</FieldHint>
+        {groups.length ? <FieldHint>Slots are {slotMinutes} minutes apart and held for 15 minutes after your booking time.</FieldHint> : null}
         <FieldError>{errors.time}</FieldError>
       </Step>
 
       <Step index={3} title="You">
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-5 @[34rem]:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="guestName">Name</Label>
             <Input
@@ -427,10 +477,7 @@ export function ReservationForm({
               {accountEmail ? <span className="font-normal text-[var(--color-muted-ink)]">· from your account</span> : null}
             </Label>
             {accountEmail ? (
-              <div className="relative">
-                <Input id="guestEmail" type="email" value={accountEmail} readOnly aria-readonly className="pr-10 text-[var(--color-muted-ink)]" />
-                <Lock className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
-              </div>
+              <Input id="guestEmail" type="email" value={accountEmail} readOnly aria-readonly className={readOnlyField} />
             ) : (
               <Input
                 id="guestEmail"
@@ -459,7 +506,7 @@ export function ReservationForm({
               <option value="family">Family gathering</option>
             </Select>
           </div>
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5 @[34rem]:col-span-2">
             <Label htmlFor="specialRequests">Special requests (optional)</Label>
             <Textarea id="specialRequests" name="specialRequests" rows={3} maxLength={400} placeholder="High chair, terrace table, allergies…" />
           </div>
@@ -468,9 +515,9 @@ export function ReservationForm({
 
       {/* the booking so far + the action: inline on wide screens, a bar pinned to the bottom on phones */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--rule)] bg-[color-mix(in_srgb,var(--color-canvas)_92%,transparent)] px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md md:static md:z-auto md:flex md:items-center md:justify-between md:gap-6 md:rounded-[var(--radius-panel)] md:border md:border-[var(--color-hairline)] md:bg-[var(--color-surface)] md:p-5 md:pl-7 md:backdrop-blur-none">
-        <div className="hidden min-w-0 md:block">
+        <div className="hidden min-w-0 md:block md:flex-1">
           <p className="label-caps font-semibold text-[var(--color-muted-ink)]">Your table</p>
-          <p className="mt-1 truncate font-[family-name:var(--font-display)] text-[1.25rem]">
+          <p className="mt-1 truncate font-[family-name:var(--font-display)] text-[1.3rem]">
             {summary}
             {location && locations.length > 1 ? <span className="text-[var(--color-muted-ink)]"> · {location.name}</span> : null}
           </p>

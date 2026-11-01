@@ -354,7 +354,7 @@ export function SiteHeader({
         {active ? (
           <motion.span
             layoutId='nav-mark'
-            className='absolute inset-x-0 -bottom-0.5 h-px bg-[var(--color-brand-accent)]'
+            className='absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full bg-[var(--color-brand-accent)]'
             transition={{ type: 'spring', duration: 0.4, bounce: 0.12 }}
           />
         ) : null}
@@ -632,7 +632,7 @@ export function SiteHeader({
                   className={cn(
                     'relative px-3.5 py-2 text-[14px] font-medium tracking-[0.01em] transition-colors duration-200',
                     active
-                      ? 'text-[var(--color-ink)]'
+                      ? 'font-semibold text-[var(--color-ink)]'
                       : 'text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]',
                   )}
                 >
@@ -640,7 +640,7 @@ export function SiteHeader({
                   {active ? (
                     <motion.span
                       layoutId='nav-mark'
-                      className='absolute inset-x-3.5 -bottom-0.5 h-px bg-[var(--color-brand-accent)]'
+                      className='absolute inset-x-3.5 -bottom-0.5 h-0.5 rounded-full bg-[var(--color-brand-accent)]'
                       transition={{
                         type: 'spring',
                         duration: 0.4,

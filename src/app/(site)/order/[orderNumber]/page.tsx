@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, MapPin, Phone, Receipt, SearchX, Store } from "lucide-react";
+import { CheckCircle2, ClipboardList, MapPin, Phone, Receipt, SearchX, Store } from "lucide-react";
 import { EmptyState } from "@/components/storefront/empty-state";
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/shared/contract/enums";
 import { getVisitorContext, guestOrderAccessToken } from "@/web/session";
@@ -336,9 +336,12 @@ export default async function OrderStatusPage({ params, searchParams }: OrderPag
                 This page always shows the live status of order {order.orderNumber}. Need a hand? Call{" "}
                 {restaurant.phone ?? "the restaurant"}.
               </p>
-              <Link href={`/orders`} className="mt-3 inline-block font-semibold text-[var(--color-ink)] underline-offset-4 hover:underline">
-                My Orders
-              </Link>
+              <Button asChild variant="outline" className="mt-4 w-full">
+                <Link href={`/orders`}>
+                  <ClipboardList aria-hidden />
+                  My Orders
+                </Link>
+              </Button>
             </section>
           </aside>
         </div>

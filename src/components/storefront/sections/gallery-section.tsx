@@ -45,8 +45,10 @@ export function GallerySection({ section, tone = "paper" }: { section: GalleryCo
 
   return (
     <SectionShell tone={tone}>
-      <SectionHeading eyebrow="Gallery" title={section.title} subtitle={section.subtitle} />
-      <div className="section-body space-y-3 md:space-y-4">
+      {/* from lg the heading sits beside the photographs, like the other editorial sections (rich text, why choose us) */}
+      <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-12">
+      <SectionHeading eyebrow="Gallery" title={section.title} subtitle={section.subtitle} className="lg:sticky lg:top-[calc(var(--header-h,4.5rem)+3rem)] lg:self-start" />
+      <div className="section-body min-w-0 space-y-3 md:space-y-4 lg:mt-0">
         {spreads(photos).map((spread, index) => {
           const flip = index % 2 === 1;
           if (spread.length === 1) {
@@ -86,6 +88,7 @@ export function GallerySection({ section, tone = "paper" }: { section: GalleryCo
             </div>
           );
         })}
+      </div>
       </div>
     </SectionShell>
   );

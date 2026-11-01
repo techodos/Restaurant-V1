@@ -36,7 +36,7 @@ export function PageHeroSkeleton({ size = "sm" }: { size?: keyof typeof HERO_HEI
 /** The booking form's column: numbered steps (label left, controls right from md), as ReservationForm lays them out. */
 export function ReservationFormSkeleton() {
   const step = (controls: React.ReactNode) => (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 border-t border-[var(--rule)] pt-7 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-8">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 border-t border-[var(--rule)] pt-7 md:grid-cols-[7rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[7rem_minmax(0,1fr)]">
       <div>
         <Skeleton className="h-7 w-8" />
         <Skeleton className="mt-2 h-3 w-14" />
@@ -45,7 +45,7 @@ export function ReservationFormSkeleton() {
     </div>
   );
   return (
-    <div className="px-5 py-10 md:px-10 md:py-12 lg:px-14 xl:px-20" aria-busy="true" aria-label="Loading available tables">
+    <div className="px-5 py-10 md:px-10 md:py-12 lg:px-14" aria-busy="true" aria-label="Loading available tables">
       <div className="mx-auto max-w-[46rem] space-y-10">
         {step(
           <>

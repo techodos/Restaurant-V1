@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { acceptsOrdersAt, isOpenAt, parseOpeningHours, zonedDateTime, zonedNow } from "@/shared/hours";
+import { acceptsOrdersAt, formatHours, groupHours, isOpenAt, parseOpeningHours, zonedDateTime, zonedNow } from "@/shared/hours";
 import { locationSchema, openingHoursSchema } from "@/server/validation/locations";
 
 const KARACHI = "Asia/Karachi"; // UTC+5, no DST
@@ -78,5 +78,22 @@ describe("time-zone math cost (the reservation page calls it ~25k times per view
     const instant = at("2026-10-10T14:00:00Z");
     expect(zonedNow(instant, KARACHI)).toMatchObject({ minutes: 19 * 60, dateKey: "2026-10-10" });
     expect(zonedNow(instant, "Europe/London")).toMatchObject({ minutes: 15 * 60, dateKey: "2026-10-10" });
+  });
+});
+
+describe("groupHours", () => {
+  it("merges identical consecutive days and keeps the today flag", () => {
+    const all = { mon: [{ open: "00:00", close: "00:00" }], tue: [{ open: "00:00", close: "00:00" }], wed: [{ open: "00:00", close: "00:00" }], thu: [{ open: "00:00", close: "00:00" }], fri: [{ open: "00:00", close: "00:00" }], sat: [{ open: "00:00", close: "00:00" }], sun: [{ open: "00:00", close: "00:00" }] };
+    expect(groupHours(formatHours(all, "wed"))).toEqual([{ day: "mon", label: "Monday – Sunday", text: "Open 24 hours", isToday: true }]);
+  });
+
+  it("keeps different days apart", () => {
+    const rows = groupHours(formatHours({ mon: [{ open: "09:00", close: "17:00" }], tue: [{ open: "09:00", close: "17:00" }], fri: [{ open: "10:00", close: "18:00" }] }));
+    expect(rows.map((row) => [row.label, row.text])).toEqual([
+      ["Monday – Tuesday", "9am – 5pm"],
+      ["Wednesday – Thursday", "Closed"],
+      ["Friday", "10am – 6pm"],
+      ["Saturday – Sunday", "Closed"],
+    ]);
   });
 });

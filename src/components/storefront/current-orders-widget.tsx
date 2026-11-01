@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MapPin, X } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Package, X } from "lucide-react";
 
 const DISMISS_KEY = "rp_track_bubble_dismissed";
+// Current Orders already lists what this leads to; on the task pages it would sit over the form and its submit button
+// (the phone dock stays off these pages too)
+const HIDDEN_ON = ["/current-orders", "/reservation", "/checkout", "/cart"];
 
 /**
  * Floating "current orders" indicator (spec: lower-right, like a chat/help bubble). Rendered by the
@@ -19,6 +23,7 @@ const DISMISS_KEY = "rp_track_bubble_dismissed";
  * nav) points new visitors at it — the button alone doesn't say what it's for on first sight.
  */
 export function CurrentOrdersWidget({ restaurantSlug, count }: { restaurantSlug: string; count: number }) {
+  const pathname = usePathname();
   const [dismissed, setDismissed] = useState(true); // starts hidden; effect below reveals it once we can check storage
 
   useEffect(() => {
@@ -30,7 +35,7 @@ export function CurrentOrdersWidget({ restaurantSlug, count }: { restaurantSlug:
     }
   }, [count]);
 
-  if (count <= 0) return null;
+  if (count <= 0 || HIDDEN_ON.some((path) => pathname.startsWith(path))) return null;
 
   function dismiss() {
     setDismissed(true);
@@ -68,7 +73,7 @@ export function CurrentOrdersWidget({ restaurantSlug, count }: { restaurantSlug:
         className="relative flex size-14 items-center justify-center rounded-full bg-[var(--color-brand)] text-[var(--color-brand-foreground)] shadow-lg transition-transform hover:scale-105"
       >
         <span className="absolute inset-0 animate-ping rounded-full bg-[var(--color-brand)] opacity-60" aria-hidden />
-        <MapPin className="relative size-6" aria-hidden />
+        <Package className="relative size-6" aria-hidden />
         <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-[var(--color-ink)] px-1 text-xs font-semibold text-[var(--color-surface)]">
           {count}
         </span>

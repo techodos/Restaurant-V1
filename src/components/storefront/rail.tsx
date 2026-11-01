@@ -7,8 +7,7 @@ import { cn } from "@/shared/utils";
 /**
  * A horizontal, scroll-snapping strip with previous / next controls. Native scrolling (swipe, trackpad,
  * keyboard) does the work; the buttons only scroll by one viewport of the strip and grey out at the ends.
- * `controls="sides"` floats the buttons over the strip's edges on wide screens; `"inline"` renders them
- * wherever the caller places <RailControls> (via `renderControls`).
+ * `controls="sides"` (default) puts the pair under the strip at the right, the same place in every section.
  */
 export function Rail({
   children,
@@ -86,9 +85,7 @@ export function Rail({
       </ul>
       {controls === "sides" ? (
         <>
-          <div className="absolute left-0 top-[26%] hidden -translate-x-1/2 -translate-y-1/2 xl:block">{button(-1)}</div>
-          <div className="absolute right-0 top-[26%] hidden -translate-y-1/2 translate-x-1/2 xl:block">{button(1)}</div>
-          <div className="mt-3 flex justify-end gap-2 xl:hidden">
+          <div className="mt-3 flex justify-end gap-2">
             {button(-1)}
             {button(1)}
           </div>

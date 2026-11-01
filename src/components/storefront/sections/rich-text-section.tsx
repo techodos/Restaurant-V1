@@ -29,12 +29,12 @@ export function RichTextSection({ section, tone = "paper" }: { section: RichText
   return (
     <SectionShell tone={tone}>
       {section.title ? (
-        <article className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-14">
+        <article className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,46rem)] lg:gap-12">
           <header className="lg:pt-2">
             <span aria-hidden className="mb-5 block h-px w-12 bg-[var(--color-brand-accent)]" />
             <h2 className="display-1">{section.title}</h2>
           </header>
-          <div className="max-w-[46rem]">{text}</div>
+          <div>{text}</div>
         </article>
       ) : (
         <article className="mx-auto max-w-[46rem]">{text}</article>

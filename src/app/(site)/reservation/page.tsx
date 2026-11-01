@@ -220,10 +220,12 @@ async function ReservationFormSection({ context }: { context: StorefrontContext 
     }
   }
 
-  const defaultDate = dates[0]?.value ?? today.dateKey;
+  // open on a day that can actually be booked (today is often closed or already past its last seating)
+  const firstLocationId = locations[0]?.id;
+  const defaultDate = dates.find((option) => slotsByDate[`${firstLocationId}:${option.value}`]?.length)?.value ?? dates[0]?.value ?? today.dateKey;
 
   return (
-    <div className="px-5 py-10 md:px-10 md:py-12 lg:px-14 xl:px-20">
+    <div className="px-5 py-10 md:px-10 md:py-12 lg:px-14">
       <div className="mx-auto max-w-[46rem]">
         <ReservationForm
           restaurantSlug={restaurant.slug}
