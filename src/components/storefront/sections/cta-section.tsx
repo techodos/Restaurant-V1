@@ -38,7 +38,7 @@ export function CtaSection({
       ) : null}
       <div
         className={cn(
-          "container-page flex flex-col items-start gap-8 md:flex-row md:items-end md:justify-between",
+          "container-page flex flex-col items-start gap-8 md:flex-row md:items-center md:justify-between",
           image ? "py-14 md:py-16" : "py-10 md:py-12",
         )}
       >

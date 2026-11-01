@@ -48,6 +48,7 @@ export function OrderLiveProvider({
   initial,
   history,
   orderType,
+  stream = true,
   children,
 }: {
   restaurantSlug: string;
@@ -57,6 +58,11 @@ export function OrderLiveProvider({
   initial: LiveOrderState;
   history: OrderStatusEvent[];
   orderType: "delivery" | "pickup" | "dine_in";
+  /**
+   * false = no event stream (nothing is polled either; the Refresh button updates it). A browser keeps only ~6
+   * connections open per site over HTTP/1.1, so a page with many orders (Current Orders) streams the first few.
+   */
+  stream?: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -94,7 +100,8 @@ export function OrderLiveProvider({
   useEffect(() => () => clearTimeout(refreshTimer.current), []);
 
   const finished = TERMINAL_ORDER_STATUSES.includes(state.status);
-  const connection = useOrderEvents({ url: eventsUrl, enabled: !finished, onState });
+  const streamed = useOrderEvents({ url: eventsUrl, enabled: !finished && stream, onState });
+  const connection: LiveConnection = stream ? streamed : "polling";
 
   const value = useMemo(
     () => ({ state, history, orderType, connection, refresh }),
@@ -117,7 +124,7 @@ export function OrderLiveStatus() {
       </span>
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted-ink)] hover:text-[var(--color-brand)]"
+        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--rule-strong)] px-3 text-xs font-medium text-[var(--color-ink)] transition-colors hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] disabled:opacity-60"
         onClick={() => {
           setManual(true);
           refresh();
@@ -132,6 +139,11 @@ export function OrderLiveStatus() {
         <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted-ink)]" role="status">
           <span className="size-1.5 rounded-full bg-[var(--color-success)]" aria-hidden />
           Live
+        </span>
+      ) : null}
+      {!finished && connection === "polling" ? (
+        <span className="text-xs text-[var(--color-muted-ink)]" role="status">
+          Tap Refresh for updates
         </span>
       ) : null}
       {!finished && connection === "reconnecting" ? (
@@ -174,11 +186,6 @@ const STATUS_LINES: Partial<Record<OrderStatusEvent["toStatus"], string>> = {
   cancelled: "This order was cancelled.",
 };
 
-const SHORT_LABELS: Partial<Record<OrderStatusEvent["toStatus"], string>> = {
-  pending: "Received",
-  out_for_delivery: "On the way",
-};
-
 /**
  * The ticket on the pass: the current status as a headline that changes place when the live state
  * moves, and the stations rail below it, filling with a weighted spring (small overshoot) instead of
@@ -217,7 +224,7 @@ export function OrderPass() {
               {cancelled
                 ? ORDER_STATUS_LABELS.cancelled
                 : current
-                  ? (SHORT_LABELS[current.status] ?? current.label)
+                  ? current.label
                   : state.status}
             </p>
             <p className="mt-3 text-[15px] text-[var(--color-muted-ink)]">{STATUS_LINES[state.status] ?? ""}</p>
@@ -266,7 +273,7 @@ export function OrderPass() {
                   !isCurrent && "max-sm:hidden",
                 )}
               >
-                {SHORT_LABELS[step.status] ?? step.label}
+                {step.label}
               </span>
               {step.at ? (
                 <span className="tabular mt-0.5 hidden text-xs text-[var(--color-muted-ink)] sm:block">
@@ -286,7 +293,7 @@ export function OrderPass() {
           </span>
           <span aria-hidden>·</span>
           <span>
-            Next: <span className="font-medium text-[var(--color-ink)]">{SHORT_LABELS[steps[doneIndex + 1]!.status] ?? steps[doneIndex + 1]!.label}</span>
+            Next: <span className="font-medium text-[var(--color-ink)]">{steps[doneIndex + 1]!.label}</span>
           </span>
         </p>
       ) : null}

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCountries, getCountryCallingCode, type CountryCode } from "libphonenumber-js";
 import * as RadixSelect from "@radix-ui/react-select";
-import { Check, ChevronDown, Lock } from "lucide-react";
-import { Input, inputStyles } from "@/components/ui/input";
+import { Check, ChevronDown } from "lucide-react";
+import { Input, inputStyles, readOnlyField } from "@/components/ui/input";
 import { cn } from "@/shared/utils";
 
 /**
@@ -58,7 +58,7 @@ interface PhoneInputProps {
   className?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
-  /** locked: shows the value (like a read-only account field, with a lock) and blocks both the country picker and the number, e.g. the account's saved mobile */
+  /** locked: shows the value on the read-only field ground and blocks both the country picker and the number, e.g. the account's saved mobile */
   disabled?: boolean;
   required?: boolean;
   /** extra classes on BOTH the country trigger and the number field (e.g. the 54px auth-page field) */
@@ -114,7 +114,7 @@ export function PhoneInput({ id, value, onChange, defaultCountry = "PK", classNa
             inputStyles,
             "w-[6.75rem] shrink-0 cursor-pointer items-center justify-between gap-1 min-[375px]:w-[7.25rem]",
             fieldClassName,
-            disabled && "cursor-not-allowed text-[var(--color-muted-ink)] disabled:opacity-100",
+            disabled && cn(readOnlyField, "cursor-not-allowed disabled:opacity-100"),
           )}
         >
           {/* Custom children: always "flag + code", never the item's full "flag + code + name" row. */}
@@ -157,14 +157,14 @@ export function PhoneInput({ id, value, onChange, defaultCountry = "PK", classNa
           </RadixSelect.Content>
         </RadixSelect.Portal>
       </RadixSelect.Root>
-      <div className="relative min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <Input
           id={id}
           type="tel"
           inputMode="numeric"
           autoComplete="tel-national"
           placeholder="3001234567"
-          className={cn("w-full", fieldClassName, disabled && "pr-10 text-[var(--color-muted-ink)]")}
+          className={cn("w-full", fieldClassName, disabled && readOnlyField)}
           value={local}
           readOnly={disabled}
           aria-readonly={disabled || undefined}
@@ -176,9 +176,6 @@ export function PhoneInput({ id, value, onChange, defaultCountry = "PK", classNa
           }}
           {...rest}
         />
-        {disabled ? (
-          <Lock className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
-        ) : null}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import type { StorefrontContext } from "@/shared/contract/models";
 import type { ContactSection as ContactConfig } from "@/shared/contract/sections";
+import { cn } from "@/shared/utils";
 import { formatHours, zonedNow } from "@/shared/hours";
 import { SectionHeading } from "@/components/storefront/section-heading";
 import { SectionShell, type SectionTone } from "@/components/storefront/section-shell";
@@ -32,36 +33,51 @@ export function ContactSection({ section, context, tone }: { section: ContactCon
     todayRow ? { icon: Clock, label: "Opening hours", value: `Today · ${todayRow.text || "Closed"}`, href: null } : null,
   ].filter((route): route is NonNullable<typeof route> => Boolean(route));
 
+  const list = (
+    <ul className={cn("grid grid-cols-[minmax(0,1fr)] border-t border-[var(--rule)]", !section.showForm && "sm:grid-cols-2")}>
+      {routes.map(({ icon: Icon, label, value, href }) => (
+        <li key={label} className="flex gap-4 border-b border-[var(--rule)] py-6 sm:pr-6">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full border border-[var(--rule-strong)] text-[var(--color-brand-accent)]">
+            <Icon className="size-4" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="label-caps font-semibold text-[var(--color-muted-ink)]">{label}</p>
+            {href ? (
+              <a
+                href={href}
+                {...(href.startsWith("http") ? { target: "_blank", rel: "noreferrer noopener" } : {})}
+                className="mt-1 block break-words text-[15px] font-medium transition-colors hover:text-[var(--color-brand)]"
+              >
+                {value}
+              </a>
+            ) : (
+              <p className="mt-1 text-[15px] font-medium">{value}</p>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+
+  // with the form: heading + contact routes on the left, the form on the right (balanced columns);
+  // without it: heading left, routes right
   return (
     <SectionShell tone={tone ?? "muted"}>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14">
-        <SectionHeading eyebrow="Contact" title={section.title} subtitle={section.subtitle} />
-        <div className="space-y-8">
-          <ul className="grid grid-cols-[minmax(0,1fr)] border-t border-[var(--rule)] sm:grid-cols-2">
-            {routes.map(({ icon: Icon, label, value, href }) => (
-              <li key={label} className="flex gap-4 border-b border-[var(--rule)] py-6 sm:pr-6">
-                <span className="grid size-10 shrink-0 place-items-center rounded-full border border-[var(--rule-strong)] text-[var(--color-brand-accent)]">
-                  <Icon className="size-4" aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <p className="label-caps font-semibold text-[var(--color-muted-ink)]">{label}</p>
-                  {href ? (
-                    <a
-                      href={href}
-                      {...(href.startsWith("http") ? { target: "_blank", rel: "noreferrer noopener" } : {})}
-                      className="mt-1 block break-words text-[15px] font-medium transition-colors hover:text-[var(--color-brand)]"
-                    >
-                      {value}
-                    </a>
-                  ) : (
-                    <p className="mt-1 text-[15px] font-medium">{value}</p>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-          {section.showForm ? <ContactForm restaurantSlug={restaurant.slug} restaurantName={restaurant.name} /> : null}
-        </div>
+        {section.showForm ? (
+          <>
+            <div className="space-y-8">
+              <SectionHeading eyebrow="Contact" title={section.title} subtitle={section.subtitle} />
+              {list}
+            </div>
+            <ContactForm restaurantSlug={restaurant.slug} />
+          </>
+        ) : (
+          <>
+            <SectionHeading eyebrow="Contact" title={section.title} subtitle={section.subtitle} />
+            {list}
+          </>
+        )}
       </div>
     </SectionShell>
   );

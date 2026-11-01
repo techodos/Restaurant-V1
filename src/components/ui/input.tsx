@@ -4,6 +4,9 @@ import { cn } from "@/shared/utils";
 export const inputStyles =
   "flex h-11 w-full surface-flat px-3.5 py-2 text-base text-[var(--color-ink)] shadow-[0_1px_2px_color-mix(in_srgb,var(--color-ink)_4%,transparent)] transition-[border-color,box-shadow] duration-200 placeholder:text-[color-mix(in_srgb,var(--color-muted-ink)_85%,transparent)] hover:border-[color-mix(in_srgb,var(--color-ink)_22%,var(--color-hairline))] focus:border-[var(--color-brand)] focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-brand)_14%,transparent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[var(--color-danger)] aria-[invalid=true]:shadow-[0_0_0_4px_rgb(239_68_68/0.12)] sm:text-sm";
 
+/** A field that shows a value but cannot be edited here (account email, saved mobile): tinted ground, muted text, no hover response. */
+export const readOnlyField = "!bg-[var(--tint)] text-[var(--color-muted-ink)] shadow-none hover:border-[var(--color-hairline)]";
+
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...props }, ref) {
     return <input ref={ref} className={cn(inputStyles, className)} {...props} />;

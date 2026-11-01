@@ -14,7 +14,8 @@ import { parseLiveOrderState, type LiveOrderState } from "@/shared/order-live";
  * Every failure degrades to "not live": the page keeps working with its Refresh button.
  */
 
-export type LiveConnection = "connecting" | "live" | "reconnecting" | "unavailable";
+/** `polling`: no stream was opened for this order (only the Refresh button updates it) */
+export type LiveConnection = "connecting" | "live" | "reconnecting" | "unavailable" | "polling";
 
 interface Options {
   /** absolute path of the events route, including `?t=` when the page was opened from an email */

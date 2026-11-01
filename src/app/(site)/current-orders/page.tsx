@@ -21,6 +21,9 @@ export const metadata: Metadata = { title: "Current orders", robots: { index: fa
  * (all their active orders); history lives separately at /orders and needs an account. Ownership
  * comes from the request via getVisitorContext, never the URL.
  */
+// browsers keep ~6 connections per site over HTTP/1.1; leave room for the page itself
+const MAX_STREAMS = 4;
+
 export default async function CurrentOrdersPage() {
   const restaurantSlug = instanceRestaurantSlug();
   const { restaurant } = await requireStorefront(restaurantSlug);
@@ -50,8 +53,8 @@ export default async function CurrentOrdersPage() {
       <div className="container-page page-y">
         {current.length ? (
           <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-2">
-            {current.map((order) => (
-              <CurrentOrderCard key={order.id} order={order} restaurant={card} />
+            {current.map((order, index) => (
+              <CurrentOrderCard key={order.id} order={order} restaurant={card} stream={index < MAX_STREAMS} />
             ))}
           </div>
         ) : (

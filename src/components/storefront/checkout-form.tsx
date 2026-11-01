@@ -11,7 +11,7 @@ import {
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { FieldError, Input, inputStyles, Label, Select, Textarea } from "@/components/ui/input";
+import { FieldError, Input, inputStyles, Label, readOnlyField, Select, Textarea } from "@/components/ui/input";
 import {
   checkGuestContactAction,
   placeOrderAction,
@@ -152,7 +152,10 @@ interface CheckoutFormProps {
 const card = "rounded-[var(--radius-card)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 min-[360px]:p-5 sm:p-7";
 const choice =
   "relative flex cursor-pointer rounded-[var(--radius-card)] border text-left transition-[border-color,background-color,box-shadow,color,transform] duration-200 motion-reduce:transition-none has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand)]";
-const choiceOn = "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_5%,var(--color-surface))] shadow-[0_0_0_1px_var(--color-brand)]";
+/** the one selected look for every choice card (order type, address, payment): solid brand, accent check at the end */
+const choiceOn = "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]";
+const onIcon = "bg-[color-mix(in_srgb,var(--color-brand-foreground)_16%,transparent)] text-[var(--color-brand-foreground)]";
+const onText = "text-[color-mix(in_srgb,var(--color-brand-foreground)_80%,transparent)]";
 const choiceOff = "border-[var(--color-hairline)] bg-[var(--color-surface)] hover:border-[color-mix(in_srgb,var(--color-brand)_45%,var(--color-hairline))]";
 const field = "h-12";
 const ctaButton =
@@ -177,7 +180,7 @@ const PAYMENT_COPY: Record<PaymentMethod, { text: string; icon: LucideIcon }> = 
 /** every checkout card's title: one size, the heading face at its theme weight (h2 base style) */
 const sectionTitle = "text-[1.25rem] leading-tight sm:text-[1.4rem]";
 
-function StepHeader({ index, title, subtitle }: { index: number; title: string; subtitle: string }) {
+function StepHeader({ index, title, subtitle, id }: { index: number; title: string; subtitle: string; id?: string }) {
   return (
     // phones: a small badge on the title's line and the subtitle full width under both (the badge used to take a
     // 60px column, wrapping short titles onto two lines and squeezing the subtitle); sm+: badge column beside both
@@ -188,7 +191,7 @@ function StepHeader({ index, title, subtitle }: { index: number; title: string; 
       >
         {String(index).padStart(2, "0")}
       </span>
-      <h2 className={cn(sectionTitle, "text-[var(--color-ink)] sm:pt-0.5")}>{title}</h2>
+      <h2 id={id} className={cn(sectionTitle, "text-[var(--color-ink)] sm:pt-0.5")}>{title}</h2>
       <p className="col-span-2 text-sm text-[var(--color-muted-ink)] sm:col-span-1 sm:col-start-2">{subtitle}</p>
     </div>
   );
@@ -200,11 +203,11 @@ function RadioDot({ on }: { on: boolean }) {
     <span
       aria-hidden
       className={cn(
-        "grid size-5 shrink-0 place-items-center rounded-full border-[1.5px] transition-colors duration-200 motion-reduce:transition-none",
-        on ? "border-[var(--color-brand)] bg-[var(--color-brand)]" : "border-[var(--rule-strong)] bg-[var(--color-surface)]",
+        "grid size-6 shrink-0 place-items-center rounded-full border-[1.5px]",
+        on ? "border-[var(--color-brand-accent)] bg-[var(--color-brand-accent)] text-[var(--color-brand-accent-foreground)]" : "border-[var(--rule-strong)] bg-[var(--color-surface)]",
       )}
     >
-      {on ? <Check className="size-3 text-[var(--color-brand-foreground)]" strokeWidth={3} /> : null}
+      {on ? <Check className="size-3.5" strokeWidth={3} /> : null}
     </span>
   );
 }
@@ -821,9 +824,7 @@ export function CheckoutForm({
                       choice,
                       // three options share the row: stack icon over text so the copy keeps its width
                       orderTypeOptions.length > 2 ? "items-center gap-4 px-4 py-4 sm:flex-col sm:items-start sm:gap-3 sm:p-5" : "items-center gap-4 px-4 py-4 sm:px-5 sm:py-5",
-                      on
-                        ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-brand-foreground)]"
-                        : choiceOff,
+                      on ? choiceOn : choiceOff,
                     )}
                   >
                     <input
@@ -843,14 +844,14 @@ export function CheckoutForm({
                       aria-hidden
                       className={cn(
                         "grid size-11 shrink-0 place-items-center rounded-[var(--radius-brand)] transition-colors duration-200 motion-reduce:transition-none",
-                        on ? "bg-[color-mix(in_srgb,var(--color-brand-foreground)_16%,transparent)] text-[var(--color-brand-foreground)]" : "bg-[var(--brand-tint)] text-[var(--color-brand)]",
+                        on ? onIcon : "bg-[var(--brand-tint)] text-[var(--color-brand)]",
                       )}
                     >
                       <Icon className="size-5" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-semibold">{title}</span>
-                      <span className={cn("block text-[13px]", on ? "text-[color-mix(in_srgb,var(--color-brand-foreground)_80%,transparent)]" : "text-[var(--color-muted-ink)]")}>{text}</span>
+                      <span className={cn("block text-[13px]", on ? onText : "text-[var(--color-muted-ink)]")}>{text}</span>
                     </span>
                     <span
                       aria-hidden
@@ -944,9 +945,8 @@ export function CheckoutForm({
                       readOnly
                       aria-readonly
                       aria-describedby="email-hint"
-                      className={cn(field, "bg-[var(--tint)] pl-10 pr-10 text-[var(--color-muted-ink)]")}
+                      className={cn(field, readOnlyField, "pl-10")}
                     />
-                    <Lock className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted-ink)]" aria-hidden />
                   </>
                 ) : (
                   <Input
@@ -1027,14 +1027,14 @@ export function CheckoutForm({
                         aria-hidden
                         className={cn(
                           "grid size-9 shrink-0 place-items-center rounded-[var(--radius-brand)]",
-                          on ? "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]" : "bg-[var(--brand-tint)] text-[var(--color-brand)]",
+                          on ? onIcon : "bg-[var(--brand-tint)] text-[var(--color-brand)]",
                         )}
                       >
                         {option.id === "new" ? <Plus className="size-4" /> : <MapPin className="size-4" />}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold">{option.title}</span>
-                        <span className="mt-0.5 block text-[13px] leading-snug text-[var(--color-muted-ink)]">{option.lines}</span>
+                        <span className={cn("mt-0.5 block text-[13px] leading-snug", on ? onText : "text-[var(--color-muted-ink)]")}>{option.lines}</span>
                       </span>
                       <RadioDot on={on} />
                     </button>
@@ -1294,14 +1294,14 @@ export function CheckoutForm({
                       aria-hidden
                       className={cn(
                         "grid size-10 shrink-0 place-items-center rounded-[var(--radius-brand)] transition-colors duration-200 motion-reduce:transition-none",
-                        on ? "bg-[var(--color-brand)] text-[var(--color-brand-foreground)]" : "bg-[var(--brand-tint)] text-[var(--color-brand)]",
+                        on ? onIcon : "bg-[var(--brand-tint)] text-[var(--color-brand)]",
                       )}
                     >
                       <Icon className="size-[18px]" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-semibold">{PAYMENT_METHOD_LABELS[method]}</span>
-                      <span className="block text-[13px] text-[var(--color-muted-ink)]">
+                      <span className={cn("block text-[13px]", on ? onText : "text-[var(--color-muted-ink)]")}>
                         {method === "cash" && orderTypeState === "pickup" ? "Pay when you collect your order" : text}
                       </span>
                     </span>
@@ -1327,10 +1327,12 @@ export function CheckoutForm({
         </section>
 
         <section className={card} aria-labelledby="tip-title">
-          <h2 id="tip-title" className={sectionTitle}>
-            {orderTypeState === "delivery" ? "Tip for the delivery partner" : "Tip the kitchen"}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--color-muted-ink)]">A little extra goes a long way!</p>
+          <StepHeader
+            id="tip-title"
+            index={(addressSection ? 4 : 3) + 1}
+            title={orderTypeState === "delivery" ? "Tip for the delivery partner" : "Tip the kitchen"}
+            subtitle="A little extra goes a long way!"
+          />
           <div role="group" aria-labelledby="tip-title" className="mt-5 flex flex-wrap gap-2.5">
             {tipOptions.map((value) => {
               const on = !customTip && ((value === 0 && !tip) || tip === String(value));
@@ -1385,20 +1387,13 @@ export function CheckoutForm({
         </section>
 
         <section className={card}>
-          <h2 className={sectionTitle}>
-            <label htmlFor="notes">
-              Order notes <span className="font-sans text-sm text-[var(--color-muted-ink)]">(optional)</span>
-            </label>
-          </h2>
-          <p id="notes-hint" className="mt-1 text-sm text-[var(--color-muted-ink)]">
-            Add special instructions for your order.
-          </p>
+          <StepHeader id="notes-title" index={(addressSection ? 4 : 3) + 2} title="Order notes (optional)" subtitle="Add special instructions for your order." />
           <Textarea
             id="notes"
             name="notes"
             rows={4}
             maxLength={500}
-            aria-describedby="notes-hint"
+            aria-labelledby="notes-title"
             placeholder="e.g. Extra spicy, no onions, deliver after 6 PM..."
             className="mt-4 min-h-32 rounded-[var(--radius-brand)] bg-[var(--color-surface)]"
           />

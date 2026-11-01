@@ -112,7 +112,9 @@ export function StationNav({ stations, variant }: { stations: Station[]; variant
               aria-current={current ? "location" : undefined}
               className={cn(
                 "relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-3 text-sm transition-colors duration-200",
-                current ? "font-semibold text-[var(--color-ink)]" : "text-[var(--color-muted-ink)]",
+                current
+                  ? "bg-[color-mix(in_srgb,var(--color-brand)_9%,transparent)] font-semibold text-[var(--color-brand)]"
+                  : "text-[var(--color-muted-ink)] hover:text-[var(--color-ink)]",
               )}
             >
               {station.icon ? <SectionIcon name={station.icon} className="size-4 shrink-0" /> : null}
@@ -120,7 +122,7 @@ export function StationNav({ stations, variant }: { stations: Station[]; variant
               {current ? (
                 <motion.span
                   layoutId="station-mark-rail"
-                  className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-[var(--color-brand)]"
+                  className="absolute inset-x-0 bottom-0 h-[3px] rounded-full bg-[var(--color-brand)]"
                   transition={{ type: "spring", duration: 0.35, bounce: 0.12 }}
                 />
               ) : null}

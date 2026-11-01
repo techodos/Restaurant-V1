@@ -155,7 +155,7 @@ export function HeaderBranchPill({
             {!unserved && selected?.city ? (
               <span
                 className={cn(
-                  "hidden truncate text-[11px] min-[400px]:block lg:text-[11.5px]",
+                  "hidden truncate text-[11px] min-[400px]:block lg:text-xs",
                   tone === "night" ? "text-[color-mix(in_srgb,var(--color-brand-accent)_75%,var(--color-muted-ink))]" : "text-[var(--color-muted-ink)]",
                 )}
               >
