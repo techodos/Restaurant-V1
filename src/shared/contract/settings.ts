@@ -155,6 +155,12 @@ export const restaurantSettingsSchema = z.object({
     .object({
       footerNote: z.string().trim().max(400).optional(),
       showTaxNumber: z.boolean().default(false),
+      /** POS receipts (80mm): the registered business name (defaults to the restaurant's name) */
+      businessName: z.string().trim().max(120).optional(),
+      /** FBR National Tax Number, printed on POS receipts */
+      ntn: z.string().trim().max(30).optional(),
+      /** PRA (Punjab) NTN, printed on POS receipts */
+      pntn: z.string().trim().max(30).optional(),
     })
     .default({}),
 });

@@ -21,7 +21,7 @@ export const FEATURE_ENTITLEMENTS = [
 /** Notification channel switches (restaurants.features.notificationChannels). */
 export const CHANNEL_ENTITLEMENTS = ["emailNotify", "pushNotify"] as const;
 /** Admin screens that have no feature switch of their own. */
-export const PAGE_ENTITLEMENTS = ["kitchen", "customers", "payments", "locations", "staff"] as const;
+export const PAGE_ENTITLEMENTS = ["kitchen", "customers", "payments", "locations", "staff", "pos"] as const;
 
 /** Payment methods the owner may offer (each hides its checkbox in Settings > Payments and is refused at checkout). */
 export type PaymentEntitlement = `pay_${PaymentMethod}`;
@@ -48,7 +48,7 @@ export const ENTITLEMENT_LABELS: Record<EntitlementKey, string> = {
   BranchingFeature: "Multi-branch ordering", notifications: "Notifications",
   emailNotify: "Email notifications", pushNotify: "Push notifications",
   kitchen: "Kitchen screen", customers: "Customers screen", payments: "Payments screen",
-  locations: "Locations screen", staff: "Staff screen",
+  locations: "Locations screen", staff: "Staff screen", pos: "In-store POS",
   ...(Object.fromEntries(PAYMENT_METHODS.map((m) => [paymentEntitlement(m), PAYMENT_METHOD_LABELS[m]])) as Record<PaymentEntitlement, string>),
   ...(Object.fromEntries(ONLINE_PROVIDERS.map((p) => [providerEntitlement(p), ONLINE_PROVIDER_LABELS[p]])) as Record<ProviderEntitlement, string>),
 };

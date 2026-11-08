@@ -69,6 +69,25 @@ export async function getOrderableMenuItems(
   return found;
 }
 
+/**
+ * The whole active menu with variants and add-ons, for the POS till (it prices offline with the same resolver the
+ * order uses). Snapshot; without it, one list + one orderable read. Buffet-only restaurants: like the storefront.
+ */
+export async function getPosMenu(restaurantId: string): Promise<{ categories: MenuCategory[]; items: MenuItem[] }> {
+  const categories = await getMenuCategories(restaurantId);
+  const snapshot = snapshotForRestaurant(restaurantId);
+  let items: MenuItem[];
+  if (snapshot) {
+    items = snapshot.menu.map((entry) => entry.item);
+  } else {
+    const summaries = await listMenuItems(restaurantId, { limit: 1000 }, forRestaurant(restaurantId));
+    const orderable = await listOrderableItems(restaurantId, summaries.map((summary) => summary.id), forRestaurant(restaurantId));
+    items = summaries.flatMap((summary) => orderable.get(summary.id)?.item ?? []);
+  }
+  const shown = new Set(categories.map((category) => category.id));
+  return { categories, items: items.filter((item) => shown.has(item.categoryId)) };
+}
+
 /** location id -> ids of the items switched off at that branch (snapshot; one read without it). */
 export async function getBranchUnavailableItems(restaurantId: string): Promise<Readonly<Record<string, readonly string[]>>> {
   const snapshot = snapshotForRestaurant(restaurantId);

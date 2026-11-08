@@ -34,6 +34,7 @@ const DESCRIPTIONS: Record<EntitlementKey, string> = {
   payments: "Payment transactions list.",
   locations: "Branch addresses, hours and map pins.",
   staff: "Staff accounts and roles.",
+  pos: "The in-store POS at /pos (counter orders, payments, receipts, day close).",
   pay_cash_on_delivery: "Pay the rider in cash on delivery orders.",
   pay_cash: "Pay in cash at the counter (pickup and dine-in).",
   pay_card_online: "Card payment online at checkout (also needs Online payments).",
@@ -46,7 +47,7 @@ const DESCRIPTIONS: Record<EntitlementKey, string> = {
 
 export const ENTITLEMENT_GROUPS: { title: string; description: string; icon: LucideIcon; keys: EntitlementKey[] }[] = [
   { title: "Ordering", description: "How customers can order.", icon: ShoppingBag, keys: ["onlineOrdering", "pickup", "delivery", "BranchingFeature"] },
-  { title: "Dining", description: "In-restaurant experiences.", icon: UtensilsCrossed, keys: ["dineIn", "reservations"] },
+  { title: "Dining", description: "In-restaurant experiences.", icon: UtensilsCrossed, keys: ["dineIn", "reservations", "pos"] },
   { title: "Engagement", description: "Bring guests back.", icon: Sparkles, keys: ["reviews", "loyalty", "coupons", "gallery"] },
   { title: "Business", description: "Payments, insight and branding.", icon: BriefcaseBusiness, keys: ["analytics", "onlinePayments", "customDomain"] },
   { title: "Notifications", description: "Customer updates and the channels the owner may use.", icon: Bell, keys: ["notifications", "emailNotify", "pushNotify"] },

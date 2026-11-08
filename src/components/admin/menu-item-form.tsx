@@ -11,6 +11,7 @@ import type { MenuCategory, MenuItem } from "@/shared/contract/models";
 import { adminPath } from "@/shared/utils";
 import { AdminSection } from "@/components/admin/admin-ui";
 import { AdminSwitchRow } from "@/components/admin/admin-switch";
+import { MenuImageField } from "@/components/admin/menu-image-field";
 
 function slugify(value: string): string {
   return value
@@ -43,7 +44,7 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
   const [description, setDescription] = useState(item?.description ?? "");
   const [shortDescription, setShortDescription] = useState(item?.shortDescription ?? "");
   const [imageUrl, setImageUrl] = useState(item?.imageUrl ?? "");
-  const [imageBroken, setImageBroken] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [basePrice, setBasePrice] = useState(item?.basePrice ?? "");
   const [compareAtPrice, setCompareAtPrice] = useState(item?.compareAtPrice ?? "");
   const [prepTimeMinutes, setPrepTimeMinutes] = useState(String(item?.prepTimeMinutes ?? 15));
@@ -222,33 +223,8 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
       </div>
 
       <aside className="space-y-5 xl:sticky xl:top-24">
-        <AdminSection title="Photo" icon={ImageIcon} bodyClassName="space-y-3">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[var(--steel-2)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--color-ink)_8%,transparent)]">
-            {imageUrl && !imageBroken ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a live preview of whatever address is typed
-              <img src={imageUrl} alt="" className="size-full object-cover" onError={() => setImageBroken(true)} />
-            ) : (
-              <span className="grid size-full place-items-center text-center text-[13px] text-[var(--color-muted-ink)]">
-                <span className="flex flex-col items-center gap-2">
-                  <ImageIcon className="size-6" aria-hidden />
-                  {imageUrl ? "This address does not load an image" : "No photo yet"}
-                </span>
-              </span>
-            )}
-          </div>
-          <div className={field}>
-            <Label htmlFor="imageUrl">Image address</Label>
-            <Input
-              id="imageUrl"
-              value={imageUrl}
-              onChange={(event) => {
-                setImageUrl(event.target.value);
-                setImageBroken(false);
-              }}
-              placeholder="https://..."
-            />
-            <FieldError>{errors.imageUrl}</FieldError>
-          </div>
+        <AdminSection title="Photo" icon={ImageIcon}>
+          <MenuImageField value={imageUrl} savedUrl={item?.imageUrl ?? null} onChange={setImageUrl} onBusyChange={setUploading} error={errors.imageUrl} />
         </AdminSection>
 
         <AdminSection title="Visibility" icon={Eye}>
@@ -267,9 +243,9 @@ export function MenuItemForm({ item, categories }: { item?: MenuItem; categories
         </AdminSection>
 
         <div className="sticky bottom-0 z-10 -mx-4 border-t border-[var(--admin-line,var(--color-hairline))] bg-[color-mix(in_srgb,var(--color-canvas-muted)_92%,transparent)] px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:backdrop-blur-none">
-          <Button type="submit" size="lg" disabled={pending} className="w-full">
-            {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
-            {item ? "Save changes" : "Create item"}
+          <Button type="submit" size="lg" disabled={pending || uploading} className="w-full">
+            {pending || uploading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
+            {uploading ? "Uploading photo…" : item ? "Save changes" : "Create item"}
           </Button>
         </div>
       </aside>

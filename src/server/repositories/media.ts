@@ -107,6 +107,15 @@ export async function getMedia(restaurantId: string, mediaId: string, ctx: Reque
   return row ? mapMedia(row) : null;
 }
 
+export async function findMediaByUrl(restaurantId: string, url: string, ctx: RequestContext = {}): Promise<MediaAsset | null> {
+  const row = await getDb({ restaurantId }).queryOne<Row>(
+    ctx,
+    `select * from media where restaurant_id = $1 and url = $2 order by created_at desc limit 1`,
+    [restaurantId, url],
+  );
+  return row ? mapMedia(row) : null;
+}
+
 /**
  * Where an image address is still referenced: website pages (sections, config, seo), the website itself (config,
  * theme, seo), the restaurant's logo / cover, and menu items and categories. Names only, for the refusal message.

@@ -7,6 +7,7 @@ import type {
 import { CUSTOMER_GENDERS } from "@/shared/contract/models";
 import { migrateServiceFeeShape, restaurantSettingsSchema, websiteConfigSchema } from "@/shared/contract/settings";
 import type { MediaPurpose, OrderStatus, OrderType, PaymentMethod, PaymentStatus, ReservationStatus, RestaurantStatus, ReviewStatus, TeamRole, WebsiteStatus, DeliveryStatus, CouponDiscountType } from "@/shared/contract/enums";
+import { toOrderSource } from "@/shared/contract/enums";
 import { resolveFeatures } from "@/shared/feature-access";
 import { parseOpeningHours, parseAvailabilityWindow } from "@/shared/hours";
 import { toPolygon } from "@/shared/geo";
@@ -475,7 +476,7 @@ export function mapDelivery(row: Row): Delivery {
 export function mapOrder(row: Row): Order {
   return {
     id: str(row.id),
-    source: row.source === "whatsapp" ? "whatsapp" : "web",
+    source: toOrderSource(row.source),
     whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
     restaurantId: str(row.restaurant_id),
     locationId: strOrNull(row.location_id),

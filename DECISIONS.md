@@ -744,3 +744,39 @@ asks GoTrue to create the row instead of trying to do it directly.
 * The same approach is available to unblock customer-side `auth.users` writes if that is ever revisited
   (`services/customer-auth.ts#createCustomerAccount` has the identical limitation, noted but not fixed in
   §6) — not done here, out of scope for this change.
+
+## 31. The in-store POS is a channel of the existing order system, not a second one (2026-11-08)
+
+**Context.** Restaurants asked for a counter till (`/pos`, installable PWA, works offline) whose sales land in
+the same orders and kitchen board as the website, with Pakistani tax rules (PRA: cash vs card/digital rates)
+and fiscal reporting of every sale.
+
+**Decision.**
+* A counter sale is an ordinary `orders` row (`source = 'pos'`, `placed_by = 'staff'`, inserted `confirmed`),
+  its lines are `order_items`, its tenders are `payments` (already many per order). Kitchen, admin orders,
+  reports and the payment → order trigger needed no change. New tables only for what did not exist:
+  `pos_devices` (tills), `pos_shifts`, `fiscal_invoices` (+ `fiscal_invoice_attempts`), `audit_log` (0050).
+* Money stays `numeric(12,2)` / decimal strings (owner decision: no integer paisa). Tax rates stay in
+  `restaurants.settings.tax` (owner decision: no `tax_rates` table): the POS reads the same two configured
+  rates through `taxRateForPaymentMethod(…, "pos")` — cash at the cash rate, card AND digital (wallet, Raast)
+  at the card rate. The storefront's own mapping is unchanged.
+* One pricing engine for both sides: the till imports `server/domain/pos.ts#priceTicket` and
+  `menu-selection#resolveMenuSelection` (both pure) and prices offline exactly as the server re-prices.
+* Offline: every action is written to IndexedDB (Dexie) first and sent as an op with its own id; the server
+  applies each op at most once (unique indexes on the order's idempotency key, line ids, payment ids, one sale
+  invoice per order). Invoice numbers are assigned BY THE TILL (`<code>-<seq>`), so they are sequential per till
+  and printable offline; the server refuses a reused number.
+* Issued invoices are immutable (trigger; app roles have no DELETE): corrections are credit notes. A closed
+  shift is immutable. The audit log is append-only.
+* PRA/FBR is behind `FiscalAdapter` (server-only, env credentials); `mock` until PRA registration supplies the
+  real API. Invoices are written `pending` in the sale's transaction, sent at once with a short timeout (so the
+  receipt usually carries the PRA number) and retried by a scheduled job (1, 5, 15, then 60 min). Day close is
+  refused while any invoice of the shift is unreported.
+
+**Consequences / accepted trade-offs.**
+* A sale priced offline from a menu that changed meanwhile is recorded at the SERVER's price (authoritative)
+  and flagged (`pos.sale_total_mismatch` in the audit log, a warning on the till): the printed receipt then
+  differs from the record. Rare; the alternative (trusting till prices) would let a tampered till under-charge.
+* A receipt printed offline shows "PRA invoice # pending" and a QR of the till's own invoice data. Whether PRA
+  accepts late reporting of offline sales must be confirmed during PRA registration.
+* Cash + card on one bill is refused (different tax rates; the split rule is for the accountant to define).

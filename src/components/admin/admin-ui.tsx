@@ -36,6 +36,12 @@ export const TONE_VAR: Record<StatusTone, string> = {
  */
 export const statusEdge =
   "relative overflow-hidden before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[var(--edge)] before:content-['']";
+/**
+ * The same edge for a TABLE row: put this on the row's first `<td>` (and `statusEdgeStyle` on the `<tr>`; `--edge`
+ * inherits). A `::before` on the `<tr>` itself becomes an extra anonymous cell and shifts every cell one column right.
+ */
+export const statusEdgeCell =
+  "relative before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[var(--edge)] before:content-['']";
 export function statusEdgeStyle(tone: StatusTone): React.CSSProperties {
   return { "--edge": TONE_VAR[tone] } as React.CSSProperties;
 }
@@ -244,6 +250,18 @@ export function Avatar({ name, className }: { name: string; className?: string }
       )}
     >
       {letters}
+    </span>
+  );
+}
+
+/** Marks an order taken at the in-store POS till (orders.source = "pos"). */
+export function PosOrderBadge({ className }: { className?: string }) {
+  return (
+    <span
+      title="Taken at the in-store POS till"
+      className={cn("inline-flex items-center whitespace-nowrap rounded-full bg-[var(--tint)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-ink)] ring-1 ring-inset ring-[var(--rule)]", className)}
+    >
+      POS
     </span>
   );
 }

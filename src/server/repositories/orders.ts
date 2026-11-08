@@ -6,7 +6,7 @@ import { arrivalProblem } from "@/shared/dine-in";
 import { effectiveOnlineProvider, entitledPaymentMethods } from "@/shared/feature-access";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
-import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, WHATSAPP_PAYMENT_METHODS, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, WHATSAPP_PAYMENT_METHODS, toOrderSource, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary, SalesAnalytics } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
@@ -648,6 +648,24 @@ async function placeInTransaction(
   });
 }
 
+/**
+ * What the admin typed into the orders search: "#SB7D-WNF3H" finds SB7D-WNF3H, and a phone number matches however it
+ * was stored ("0300 1234567" finds "+923001234567": digits only, without the leading 0 / 92 trunk prefix).
+ */
+export function orderSearchTerms(raw: string | undefined): { text: string; digits: string | null } | null {
+  const text = (raw ?? "").trim().replace(/^#+\s*/, "").slice(0, 120);
+  if (!text) return null;
+  let digits = /^[+\d\s()-]+$/.test(text) ? text.replace(/\D/g, "") : "";
+  if (digits.startsWith("92") && digits.length > 10) digits = digits.slice(2);
+  else if (digits.startsWith("0")) digits = digits.slice(1);
+  return { text, digits: digits.length >= 4 ? digits : null };
+}
+
+/** `%` and `_` typed into a search are literal characters, not wildcards. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 export interface OrderListFilters {
   status?: OrderStatus | "active" | "all";
   orderType?: OrderType;
@@ -688,11 +706,16 @@ export async function listOrders(
       params.push(filters.paymentStatus);
       conditions.push(`o.payment_status = $${params.length}::payment_status`);
     }
-    if (filters.search?.trim()) {
-      params.push(`%${filters.search.trim()}%`);
-      conditions.push(
-        `(o.order_number ilike $${params.length} or o.customer_name ilike $${params.length} or o.customer_phone ilike $${params.length})`,
-      );
+    const search = orderSearchTerms(filters.search);
+    if (search) {
+      params.push(`%${escapeLike(search.text)}%`);
+      const text = `$${params.length}`;
+      const matches = [`o.order_number ilike ${text}`, `o.customer_name ilike ${text}`, `o.customer_phone ilike ${text}`, `o.customer_email ilike ${text}`];
+      if (search.digits) {
+        params.push(`%${search.digits}%`);
+        matches.push(`regexp_replace(coalesce(o.customer_phone, ''), '[^0-9]', '', 'g') like $${params.length}`);
+      }
+      conditions.push(`(${matches.join(" or ")})`);
     }
     // local midnight in the restaurant's timezone (was UTC midnight: the report's order list and export disagreed
     // with its totals by the UTC offset, e.g. five hours at each end of the range in Pakistan)
@@ -736,7 +759,7 @@ export async function listOrders(
 
     const summaries: OrderSummary[] = rows.map((row) => ({
       id: str(row.id),
-      source: row.source === "whatsapp" ? "whatsapp" : "web",
+      source: toOrderSource(row.source),
       whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
       orderNumber: str(row.order_number),
       status: str(row.status) as OrderStatus,
@@ -1157,7 +1180,7 @@ export async function listCustomerOrders(
   );
   return rows.map((row) => ({
     id: str(row.id),
-    source: row.source === "whatsapp" ? "whatsapp" : "web",
+    source: toOrderSource(row.source),
       whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
     orderNumber: str(row.order_number),
     status: str(row.status) as OrderStatus,
