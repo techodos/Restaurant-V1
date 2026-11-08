@@ -41,6 +41,11 @@ export const ERROR_CODES = [
   "SIGN_IN_REQUIRED",
   "CART_TOKEN_TAKEN",
   "BUFFET_REQUIRES_DINE_IN",
+  // in-store POS (SKILL.md §43)
+  "SHIFT_CLOSED",
+  "FISCAL_UNSYNCED",
+  "INVOICE_SEQ_TAKEN",
+  "ORDER_PAID",
   "INTERNAL_ERROR",
 ] as const;
 

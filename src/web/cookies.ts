@@ -15,6 +15,8 @@ export const STAFF_COOKIE = "rp_admin_session";
  * restaurant's admin. A restaurant-scoped STAFF_COOKIE, when present, still wins (web/session.ts#getStaffSession).
  */
 export const SUPER_ADMIN_COOKIE = "rp_super_admin_session";
+/** Staff session for the in-store POS, path /pos (the till signs in separately from /admin, often as a cashier). */
+export const POS_COOKIE = "rp_pos_session";
 /** Restaurant-wide staff's chosen branch in the admin (a location id or "all"); path /admin. */
 export const ADMIN_BRANCH_COOKIE = "rp_admin_branch";
 /** Pre-2026-09-27 staff cookie (path "/"); only ever deleted. */

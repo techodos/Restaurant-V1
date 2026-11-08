@@ -12,11 +12,27 @@ import type { RestaurantSettings } from "@/shared/contract/settings";
  * The one place that reads `byPaymentMethod` — `calculatePricing` below is the only caller, so checkout
  * preview, order creation and the receipt can never disagree about which rate applied.
  */
-export function taxRateForPaymentMethod(tax: RestaurantSettings["tax"], method: PaymentMethod | null | undefined): Decimal {
+export function taxRateForPaymentMethod(
+  tax: RestaurantSettings["tax"],
+  method: PaymentMethod | null | undefined,
+  channel: PricingChannel = "web",
+): Decimal {
+  if (channel === "pos") {
+    // In-store POS (PRA): cash is taxed at the cash rate, card AND digital (JazzCash/Easypaisa wallet, Raast
+    // bank transfer) at the lower card rate. Before a method is picked the ticket shows the cash rate (the higher
+    // one), so the total can only go down at payment. The same two configured rates, no separate table.
+    if (method === "card_terminal" || method === "card_online" || method === "wallet" || method === "bank_transfer") {
+      return dec(tax.byPaymentMethod.card.rate);
+    }
+    return dec(tax.byPaymentMethod.cashOnDelivery.rate);
+  }
   if (method === "card_online" || method === "card_terminal") return dec(tax.byPaymentMethod.card.rate);
   if (method === "cash_on_delivery") return dec(tax.byPaymentMethod.cashOnDelivery.rate);
   return dec(tax.rate);
 }
+
+/** "web" = the storefront checkout; "pos" = the in-store till (counter tax rates, no online-only gates). */
+export type PricingChannel = "web" | "pos";
 
 /**
  * THE pricing engine. Every money calculation in the platform — cart totals,
@@ -95,6 +111,11 @@ export interface PricingInput {
   now?: Date;
   /** picks the tax rate (settings.tax.byPaymentMethod) — omitted (cart preview, before a method is chosen) falls back to settings.tax.rate */
   paymentMethod?: PaymentMethod | null;
+  /**
+   * "pos": a sale at the till — counter tax rates (taxRateForPaymentMethod), and the storefront's online gates
+   * (minimum order, delivery switched on, a delivery zone) do not apply: the cashier is taking the order in person.
+   */
+  channel?: PricingChannel;
 }
 
 export interface PricingBreakdown {
@@ -238,6 +259,7 @@ export function computeCouponDiscount(coupon: CouponPricing, subtotal: Decimal, 
 
 export function calculatePricing(input: PricingInput): PricingResult {
   const { lines, orderType, settings, zone, coupon } = input;
+  const pos = input.channel === "pos";
   const itemCount = lines.reduce((count, line) => count + Math.max(0, Math.trunc(line.quantity) || 0), 0);
 
   const subtotal = cartSubtotal(lines);
@@ -245,7 +267,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
   // ---- delivery fee ------------------------------------------------------
   let deliveryFee = ZERO;
   let freeDeliveryApplied = false;
-  if (orderType === "delivery") {
+  if (orderType === "delivery" && !pos) {
     if (!settings.delivery.enabled) {
       throw new PricingError("DELIVERY_UNAVAILABLE", "Delivery is currently unavailable.");
     }
@@ -261,7 +283,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
   }
 
   // ---- minimum order -----------------------------------------------------
-  const minimum = effectiveMinimumOrder(settings, orderType === "delivery" ? zone : null);
+  const minimum = pos ? ZERO : effectiveMinimumOrder(settings, orderType === "delivery" ? zone : null);
   if (subtotal.greaterThan(0) && subtotal.lessThan(minimum)) {
     throw new PricingError("MIN_ORDER_NOT_MET", "Your order is below the minimum order amount.", {
       minimumOrderAmount: toMoney(minimum),
@@ -308,7 +330,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
 
   // ---- tax ---------------------------------------------------------------
   const taxEnabled = settings.tax.enabled;
-  const taxRate = taxEnabled ? taxRateForPaymentMethod(settings.tax, input.paymentMethod) : ZERO;
+  const taxRate = taxEnabled ? taxRateForPaymentMethod(settings.tax, input.paymentMethod, input.channel) : ZERO;
   const taxIncluded = taxEnabled && settings.tax.included;
 
   const taxableBase = subtotal

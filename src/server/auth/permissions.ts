@@ -20,6 +20,8 @@ export const PERMISSIONS = [
   "payments.view",
   "analytics.view",
   "settings.view", "settings.manage",
+  // in-store POS (/pos): use = take orders and payments, open/close own shift; manage = register tills, refunds, audit log
+  "pos.use", "pos.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -32,18 +34,19 @@ export const ROLE_PERMISSIONS: Record<TeamRole, readonly Permission[]> = {
     "customers.view", "customers.manage", "reservations.view", "reservations.manage", "reviews.view", "reviews.manage",
     "delivery.view", "delivery.manage", "coupons.view", "coupons.manage", "media.view", "media.manage",
     "website.view", "website.manage", "staff.view", "staff.manage", "locations.view", "locations.manage",
-    "payments.view", "analytics.view", "settings.view", "settings.manage",
+    "payments.view", "analytics.view", "settings.view", "settings.manage", "pos.use", "pos.manage",
   ],
   manager: [
     "orders.view", "orders.manage", "orders.update_status", "kitchen.view", "menu.view", "menu.manage",
     "customers.view", "customers.manage", "reservations.view", "reservations.manage", "reviews.view", "reviews.manage",
     "delivery.view", "delivery.manage", "coupons.view", "coupons.manage", "media.view", "media.manage",
-    "staff.view", "staff.manage", "locations.view", "payments.view", "analytics.view",
+    "staff.view", "staff.manage", "locations.view", "payments.view", "analytics.view", "pos.use", "pos.manage",
   ],
   staff: [
     "orders.view", "orders.update_status", "kitchen.view", "menu.view", "customers.view",
     "reservations.view", "reservations.manage", "reviews.view", "delivery.view",
   ],
+  cashier: ["orders.view", "kitchen.view", "menu.view", "pos.use"],
 };
 
 export const ROLE_LABELS: Record<TeamRole, string> = {
@@ -52,6 +55,7 @@ export const ROLE_LABELS: Record<TeamRole, string> = {
   admin: "Administrator",
   manager: "Manager",
   staff: "Staff",
+  cashier: "Cashier",
 };
 
 export const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
@@ -60,6 +64,7 @@ export const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
   admin: "Everything except ownership transfer; can manage staff accounts.",
   manager: "Runs one branch: its orders, reservations, menu availability, staff and reports. No restaurant settings.",
   staff: "Order taking, kitchen display and reservations.",
+  cashier: "The in-store POS at one branch: counter orders, payments and their own shift. No admin screens.",
 };
 
 /**
@@ -73,11 +78,11 @@ export function assignableRoles(role: TeamRole): readonly TeamRole[] {
   switch (role) {
     case "super_admin":
     case "owner":
-      return ["owner", "admin", "manager", "staff"];
+      return ["owner", "admin", "manager", "staff", "cashier"];
     case "admin":
-      return ["admin", "manager", "staff"];
+      return ["admin", "manager", "staff", "cashier"];
     case "manager":
-      return ["staff"];
+      return ["staff", "cashier"];
     default:
       return [];
   }
@@ -88,9 +93,9 @@ export function isSuperAdmin(role: TeamRole | null | undefined): boolean {
   return role === "super_admin";
 }
 
-/** Owner/admin work across every branch; manager/staff belong to one (team_members.location_id). */
+/** Owner/admin work across every branch; manager/staff/cashier belong to one (team_members.location_id). */
 export function isBranchRole(role: TeamRole): boolean {
-  return role === "manager" || role === "staff";
+  return role === "manager" || role === "staff" || role === "cashier";
 }
 
 export interface PermissionOverrides {

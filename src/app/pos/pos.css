@@ -1,0 +1,136 @@
+/* ---------------------------------------------------------------------------
+   In-store POS (/pos). Its own calm, high-contrast palette (the design
+   reference): a warm paper canvas, white cards, one deep green for actions,
+   near-black for the selected order type. Not the restaurant's storefront
+   theme: a till is read at arm's length all day, not browsed.
+   Loaded only by app/pos/layout.tsx, so the 80mm @page below never touches
+   printing anywhere else on the site.
+   --------------------------------------------------------------------------- */
+.pos-root,
+.pos-portal {
+  --pos-canvas: #f2f0eb;
+  --pos-surface: #ffffff;
+  --pos-ink: #1c1c1a;
+  --pos-muted: #6b6a64;
+  --pos-line: #e4e1d9;
+  --pos-line-strong: #cfcbc1;
+  --pos-green: #10675a;
+  --pos-green-strong: #0c5348;
+  --pos-green-ink: #ffffff;
+  --pos-green-tint: #e1f0ec;
+  --pos-dark: #1f1f1d;
+  --pos-chip: #8b8a85;
+  --pos-amber: #9a5b0b;
+  --pos-amber-tint: #fbeedd;
+  --pos-red: #b42318;
+  --pos-red-tint: #fdecea;
+  --pos-radius: 10px;
+  --pos-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+
+  color: var(--pos-ink);
+  font-family: var(--font-sans);
+
+  /* one sans for the whole till (like .sa-root): no serif display face on a working tool */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sans);
+}
+
+.pos-root {
+  min-height: 100dvh;
+  background: var(--pos-canvas);
+  -webkit-tap-highlight-color: transparent;
+  accent-color: var(--pos-green);
+}
+
+/* unlayered so it beats the global heading rule (globals.css), inside the till only */
+.pos-root :is(h1, h2, h3, h4),
+.pos-portal :is(h1, h2, h3, h4) {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+
+.pos-root button,
+.pos-root [role="button"] {
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* inputs never zoom the page on iOS (>= 16px) */
+.pos-root input,
+.pos-root select,
+.pos-root textarea,
+.pos-portal input {
+  font-size: max(16px, 1em);
+}
+
+.pos-root :focus-visible {
+  outline: 2px solid var(--pos-green);
+  outline-offset: 2px;
+}
+
+/* the receipt: preview on screen, the real thing when printed */
+.pos-receipt {
+  width: 72mm;
+  max-width: 100%;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #000;
+  background: #fff;
+}
+
+.pos-receipt-rule {
+  border-top: 1px dashed #000;
+  margin: 6px 0;
+}
+
+.pos-receipt-qr {
+  width: 30mm;
+  height: 30mm;
+}
+
+.pos-print-area {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .pos-print-area,
+  .pos-print-area * {
+    visibility: visible;
+  }
+
+  .pos-print-area {
+    display: block;
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 80mm;
+    padding: 3mm 4mm;
+  }
+
+  .pos-receipt {
+    width: 72mm;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pos-root * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

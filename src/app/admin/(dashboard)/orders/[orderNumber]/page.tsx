@@ -13,7 +13,7 @@ import { PaymentStatusControl } from "@/components/admin/payment-status-control"
 import { canAccessBranch } from "@/server/auth/branch-scope";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { StatusPill, WhatsAppOrderBadge, orderStatusTone } from "@/components/admin/admin-ui";
+import { PosOrderBadge, StatusPill, WhatsAppOrderBadge, orderStatusTone } from "@/components/admin/admin-ui";
 import { instanceRestaurantSlug } from "@/web/instance";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +60,7 @@ export default async function AdminOrderDetailPage({ params }: OrderDetailPagePr
           <span className="inline-flex items-center gap-2">
             <StatusPill tone={orderStatusTone(order.status)}>{ORDER_STATUS_LABELS[order.status]}</StatusPill>
             {order.source === "whatsapp" ? <WhatsAppOrderBadge stage={whatsappStage(order)} /> : null}
+            {order.source === "pos" ? <PosOrderBadge /> : null}
           </span>
         }
         description={`${ORDER_TYPE_LABELS[order.orderType]} · placed ${formatDateTime(order.createdAt)}`}

@@ -104,7 +104,7 @@ describe("architecture boundaries", () => {
   });
 
   it("mentions server secret names only inside the config module and the example env file", () => {
-    const secrets = /RESEND_API_KEY|FCM_PRIVATE_KEY|FCM_CLIENT_EMAIL|NOTIFICATIONS_DISPATCH_SECRET/;
+    const secrets = /RESEND_API_KEY|FCM_PRIVATE_KEY|FCM_CLIENT_EMAIL|NOTIFICATIONS_DISPATCH_SECRET|FISCAL_DISPATCH_SECRET|PRA_API_TOKEN/;
     const offenders = sourceFiles(SRC)
       .filter((file) => !rel(file).startsWith("server/config/"))
       .filter((file) => secrets.test(readFileSync(file, "utf8")))

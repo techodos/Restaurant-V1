@@ -162,7 +162,8 @@ describe("role matrix", () => {
 
   it("never lets anyone hand out a role above their own", () => {
     expect(assignableRoles("admin")).not.toContain("owner");
-    expect(assignableRoles("manager")).toEqual(["staff"]);
+    expect(assignableRoles("manager")).toEqual(["staff", "cashier"]);
+    expect(assignableRoles("cashier")).toEqual([]);
     expect(assignableRoles("staff")).toEqual([]);
   });
 

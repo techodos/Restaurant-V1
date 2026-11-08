@@ -254,6 +254,18 @@ export function Avatar({ name, className }: { name: string; className?: string }
   );
 }
 
+/** Marks an order taken at the in-store POS till (orders.source = "pos"). */
+export function PosOrderBadge({ className }: { className?: string }) {
+  return (
+    <span
+      title="Taken at the in-store POS till"
+      className={cn("inline-flex items-center whitespace-nowrap rounded-full bg-[var(--tint)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-ink)] ring-1 ring-inset ring-[var(--rule)]", className)}
+    >
+      POS
+    </span>
+  );
+}
+
 /**
  * Marks a WhatsApp-checkout order and where it stands (the customer reports sending it; wa.me itself reports nothing):
  * awaiting send (grey), sent (green), not sent / lapsed (red). Pass the stage from `shared/whatsapp-order#whatsappStage`.

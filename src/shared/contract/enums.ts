@@ -7,7 +7,7 @@
 export const RESTAURANT_STATUSES = ["onboarding", "active", "suspended", "closed"] as const;
 export type RestaurantStatus = (typeof RESTAURANT_STATUSES)[number];
 
-export const TEAM_ROLES = ["super_admin", "owner", "admin", "manager", "staff"] as const;
+export const TEAM_ROLES = ["super_admin", "owner", "admin", "manager", "staff", "cashier"] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];
 
 export const WEBSITE_STATUSES = ["draft", "published", "disabled"] as const;
@@ -114,9 +114,14 @@ export const PAYMENT_METHOD_ORDER_TYPES: Record<PaymentMethod, readonly OrderTyp
 export const CHECKOUT_MODES = ["standard", "whatsapp"] as const;
 export type CheckoutMode = (typeof CHECKOUT_MODES)[number];
 
-/** Where an order came from (`orders.source`, 0043): the website's own checkout, or a WhatsApp hand-off. */
-export const ORDER_SOURCES = ["web", "whatsapp"] as const;
+/** Where an order came from (`orders.source`, 0043/0050): the website's own checkout, a WhatsApp hand-off, or the in-store POS till. */
+export const ORDER_SOURCES = ["web", "whatsapp", "pos"] as const;
 export type OrderSource = (typeof ORDER_SOURCES)[number];
+
+/** A stored `orders.source` as the app's enum (anything unknown is a web order, as before). */
+export function toOrderSource(value: unknown): OrderSource {
+  return value === "whatsapp" || value === "pos" ? value : "web";
+}
 
 /** WhatsApp checkout settles in person: nothing online, nothing a portal-less restaurant would have to reconcile. */
 export const WHATSAPP_PAYMENT_METHODS: readonly PaymentMethod[] = ["cash_on_delivery", "cash"];

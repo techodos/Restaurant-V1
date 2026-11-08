@@ -6,7 +6,7 @@ import { arrivalProblem } from "@/shared/dine-in";
 import { effectiveOnlineProvider, entitledPaymentMethods } from "@/shared/feature-access";
 import { breakdownForStorage, calculatePricing, estimateReadyAt, PricingError, type ZonePricing } from "@/server/domain/pricing";
 import { errors } from "@/server/errors";
-import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, WHATSAPP_PAYMENT_METHODS, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
+import { ACTIVE_ORDER_STATUSES, PAYMENT_METHOD_ORDER_TYPES, WHATSAPP_PAYMENT_METHODS, toOrderSource, type OrderStatus, type OrderType, type PaymentMethod } from "@/shared/contract/enums";
 import type { Customer, DeliveryZone, Order, OrderItem, OrderSummary, SalesAnalytics } from "@/shared/contract/models";
 import { paginate, type Paginated } from "@/shared/contract/api";
 import { randomUUID } from "node:crypto";
@@ -759,7 +759,7 @@ export async function listOrders(
 
     const summaries: OrderSummary[] = rows.map((row) => ({
       id: str(row.id),
-      source: row.source === "whatsapp" ? "whatsapp" : "web",
+      source: toOrderSource(row.source),
       whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
       orderNumber: str(row.order_number),
       status: str(row.status) as OrderStatus,
@@ -1180,7 +1180,7 @@ export async function listCustomerOrders(
   );
   return rows.map((row) => ({
     id: str(row.id),
-    source: row.source === "whatsapp" ? "whatsapp" : "web",
+    source: toOrderSource(row.source),
       whatsappSentAt: row.whatsapp_sent_at ? new Date(String(row.whatsapp_sent_at)).toISOString() : null,
     orderNumber: str(row.order_number),
     status: str(row.status) as OrderStatus,

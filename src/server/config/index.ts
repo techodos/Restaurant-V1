@@ -139,6 +139,22 @@ const notificationsSchema = z.object({
   NOTIFICATIONS_DISPATCH_INTERVAL_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1_000).max(300_000).default(5_000)),
 });
 
+/**
+ * Fiscal reporting of POS sales (PRA today; FBR later). `mock` answers like an authority without calling anyone,
+ * so the whole queue/retry/QR path runs before PRA registration; `none` keeps invoices pending (day close stays
+ * blocked). `pra` needs the PRA_* credentials, which arrive with the restaurant's PRA registration.
+ */
+const fiscalSchema = z.object({
+  FISCAL_PROVIDER: z.preprocess(emptyToUndefined, z.enum(["mock", "pra", "none"]).default("mock")),
+  PRA_API_URL: z.preprocess(emptyToUndefined, z.string().trim().url().optional()),
+  PRA_POS_ID: optionalText,
+  PRA_API_TOKEN: optionalText,
+  // shared secret for POST /api/internal/fiscal/dispatch (the scheduled retry job); falls back to NOTIFICATIONS_DISPATCH_SECRET
+  FISCAL_DISPATCH_SECRET: z.preprocess(emptyToUndefined, z.string().min(16, "must be at least 16 characters").optional()),
+  // how long the till waits for the authority before printing with "PRA number pending"
+  FISCAL_SUBMIT_TIMEOUT_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(500).max(30_000).default(4_000)),
+});
+
 const orderEventsSchema = z.object({
   // Session-mode / direct Postgres connection used only to LISTEN for order changes (SSE). NOT the transaction pooler.
   DATABASE_URL_LISTEN: optionalText,
@@ -302,6 +318,19 @@ const notifications = lazy(() => {
   };
 });
 
+const fiscal = lazy(() => {
+  const env = parse("fiscal", fiscalSchema);
+  return {
+    provider: env.FISCAL_PROVIDER,
+    pra:
+      env.PRA_API_URL && env.PRA_POS_ID && env.PRA_API_TOKEN
+        ? { apiUrl: env.PRA_API_URL.replace(/\/$/, ""), posId: env.PRA_POS_ID, token: env.PRA_API_TOKEN }
+        : null,
+    dispatchSecret: env.FISCAL_DISPATCH_SECRET ?? notifications().dispatchSecret,
+    submitTimeoutMs: env.FISCAL_SUBMIT_TIMEOUT_MS,
+  };
+});
+
 const orderEvents = lazy(() => {
   const env = parse("orderEvents", orderEventsSchema);
   // null = live order updates are not offered (the page still works with the manual Refresh button)
@@ -368,6 +397,9 @@ export const config = {
   },
   get orderEvents() {
     return orderEvents();
+  },
+  get fiscal() {
+    return fiscal();
   },
   get googleAuth() {
     return googleAuth();
